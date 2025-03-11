@@ -1,0 +1,54 @@
+name: build
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install nix
+        run: |
+          yes | sh <(curl -L https://nixos.org/nix/install) --no-daemon
+          mkdir -p ~/.config/nix
+          echo 'system-features = nixos-test benchmark big-parallel kvm' >> ~/.config/nix/nix.conf
+          echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+          set +x
+          echo "access-tokens = github.com=$GITHUB_ACCESS_TOKEN" >> ~/.config/nix/nix.conf
+        env:
+          GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # https://discourse.nixos.org/t/building-docker-image-in-github-actions-leads-to-skopeo-related-issues/40636/4
+      - name: Fix
+        run: |
+          sudo chmod 755 /run/containers
+          sudo mkdir -p "/run/containers/$(id -u runner)"
+          sudo chown runner: "/run/containers/$(id -u runner)"
+
+      - name: build image
+        run: |
+          . ~/.nix-profile/etc/profile.d/nix.sh
+          nix run .#hello
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push
+        run: |
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository_owner }}/devcontainers-hello"
+          docker tag "hello:latest" "$IMAGE_NAME:latest"
+          docker push "$IMAGE_NAME:latest"
+ 
