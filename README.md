@@ -6,6 +6,7 @@
 - [x] executable packages
 - [x] vscode extensions from nixpkgs
 - [x] vscode extensions from `nix-community/nix-vscode-extensions`
+- [x] github actions dynamic matrix
 - [ ] docker layers
 - [ ] multiple arch
 

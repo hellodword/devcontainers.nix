@@ -2,16 +2,51 @@ name: build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ "master" ]
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
+
+  # https://www.kenmuse.com/blog/dynamic-build-matrices-in-github-actions/
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.dataStep.outputs.myoutput }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install nix
+        run: |
+          yes | sh <(curl -L https://nixos.org/nix/install) --no-daemon
+          mkdir -p ~/.config/nix
+          echo 'system-features = nixos-test benchmark big-parallel kvm' >> ~/.config/nix/nix.conf
+          echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+          set +x
+          echo "access-tokens = github.com=$GITHUB_ACCESS_TOKEN" >> ~/.config/nix/nix.conf
+        env:
+          GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: dynamic matrix for next job
+        id: dataStep
+        run: |
+          . ~/.nix-profile/etc/profile.d/nix.sh
+
+          packages="$(nix eval --json $".#packages.x86_64-linux" --apply 'x: builtins.attrNames x' )"
+          echo "myoutput=$(jq -cn --argjson packages "$packages" '{package: $packages}')" >> $GITHUB_OUTPUT
+
   build:
     runs-on: ubuntu-latest
 
     permissions:
       packages: write
+
+    needs: generate-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.packages) }}
 
     steps:
       - uses: actions/checkout@v4
@@ -34,10 +69,11 @@ jobs:
           sudo mkdir -p "/run/containers/$(id -u runner)"
           sudo chown runner: "/run/containers/$(id -u runner)"
 
-      - name: build image
+      - name: build ${{ matrix.package }}
         run: |
           . ~/.nix-profile/etc/profile.d/nix.sh
-          nix run .#hello
+
+          nix run .#${{ matrix.package }}
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -46,9 +82,8 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push
+      - name: push ${{ matrix.package }}
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository_owner }}/devcontainers-hello"
-          docker tag "hello:latest" "$IMAGE_NAME:latest"
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository_owner }}/devcontainers-${{ matrix.package }}"
+          docker tag "${{ matrix.package }}:latest" "$IMAGE_NAME:latest"
           docker push "$IMAGE_NAME:latest"
- 
