@@ -11,11 +11,13 @@
   - [ ] audit
 - [x] layered image
 - [ ] shell.nix to container
-- [ ] multiple arch
+  - [ ] layer
+- [x] multiple arch
 
 ## Ref
 
 - https://github.com/niksi-aalto/niksi-devcontainer
+- https://github.com/nixos/nixpkgs/blob/nixos-unstable/doc/build-helpers/images/dockertools.section.md
 - https://github.com/divnix/std/blob/5b19a01095518d1acbd1975b1903b83ace4fe0dd/src/lib/ops/mkDevOCI.nix#L23
   - https://github.com/divnix/std/blob/5b19a01095518d1acbd1975b1903b83ace4fe0dd/src/lib/ops/mkDevOCI.nix#L130
   - https://github.com/search?q=%2F%28%3F-i%29%5B%5E%5C%2F%5DmkDevOCI%2F+language%3Anix&type=code
