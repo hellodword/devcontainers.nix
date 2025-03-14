@@ -4,10 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
-    nix-vscode-extensions = {
-      url = "github:nix-community/nix-vscode-extensions";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # nix-vscode-extensions = {
+    #   url = "github:nix-community/nix-vscode-extensions";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
   };
 
   outputs =
@@ -19,10 +19,10 @@
     }:
 
     flake-parts.lib.mkFlake { inherit inputs; } (
-      top@{
-        config,
-        withSystem,
-        moduleWithSystem,
+      {
+        # config,
+        # withSystem,
+        # moduleWithSystem,
         ...
       }:
       {
@@ -38,12 +38,12 @@
 
         perSystem =
           {
-            self',
-            inputs',
+            # self',
+            # inputs',
             pkgs,
             system,
-            config,
-            lib,
+            # config,
+            # lib,
             ...
           }:
 
@@ -52,68 +52,79 @@
               pkgs.lib.optional (builtins.pathExists ./overrides.nix) (import ./overrides.nix { inherit pkgs; })
             );
 
-            hello =
-              let
-                fromImageSha256 = {
-                  "x86_64-linux" = "sha256-2Pf/eU9h9Ol6we9YjfYdTUQvjgd/7N7Tt5Mc1iOPkLU=";
-                  "aarch64-linux" = "sha256-C75i+GJkPUN+Z+XSWHtunblM4l0kr7aT30Dqd0jjSTw=";
-                };
-              in
-              self.lib.mkDevcontainer (
-                {
-                  inherit pkgs;
-                  name = "hello";
-                  fromImage = pkgs.dockerTools.pullImage {
-                    imageName = "mcr.microsoft.com/devcontainers/base";
-                    imageDigest = "sha256:6155a486f236fd5127b76af33086029d64f64cf49dd504accb6e5f949098eb7e";
-                    sha256 = fromImageSha256.${system};
-                  };
-                  paths =
-                    with pkgs;
-                    [
-                      nixfmt-rfc-style
-                      nixd
+            # hello =
+            #   let
+            #     fromImageSha256 = {
+            #       "x86_64-linux" = "sha256-2Pf/eU9h9Ol6we9YjfYdTUQvjgd/7N7Tt5Mc1iOPkLU=";
+            #       "aarch64-linux" = "sha256-C75i+GJkPUN+Z+XSWHtunblM4l0kr7aT30Dqd0jjSTw=";
+            #     };
+            #   in
+            #   self.lib.mkDevcontainer (
+            #     {
+            #       inherit pkgs;
+            #       name = "hello";
+            #       fromImage = pkgs.dockerTools.pullImage {
+            #         imageName = "mcr.microsoft.com/devcontainers/base";
+            #         imageDigest = "sha256:6155a486f236fd5127b76af33086029d64f64cf49dd504accb6e5f949098eb7e";
+            #         sha256 = fromImageSha256.${system};
+            #       };
+            #       paths =
+            #         with pkgs;
+            #         [
+            #           nixfmt-rfc-style
+            #           nixd
 
-                      bash
-                      coreutils
-                      git
+            #           bash
+            #           coreutils
+            #           git
 
-                      curl
-                    ]
-                    ++ overrides.paths or [ ];
-                  extensions =
-                    (with pkgs.vscode-extensions; [
-                      esbenp.prettier-vscode
-                    ])
-                    ++ (with pkgs.vscode-marketplace; [
-                      jnoortheen.nix-ide
-                    ]);
-                  envVars = {
-                    FOO = "hello";
-                  };
-                }
-                // pkgs.lib.filterAttrs (n: _: n != "paths") overrides
-              );
+            #           curl
+            #         ]
+            #         ++ overrides.paths or [ ];
+            #       extensions = with pkgs.vscode-extensions; [
+            #         esbenp.prettier-vscode
+            #         jnoortheen.nix-ide
+            #       ];
+            #       envVars = {
+            #         FOO = "hello";
+            #       };
+            #     }
+            #     // pkgs.lib.filterAttrs (n: _: n != "paths") overrides
+            #   );
 
-            hello-layered = self.lib.mkLayeredDevcontainer (
+            go = self.lib.mkLayeredDevcontainer (
               {
                 inherit pkgs;
-                name = "hello-layered";
+                name = "go";
                 packages =
                   with pkgs;
                   [
-                    git
+                    pkgs.go
+                    delve
+                    gotools
+                    gopls
+                    go-outline
+                    gopkgs
+                    gomodifytags
+                    impl
+                    gotests
+                    go-tools # installing staticcheck (technically available in golangci-lint, but for use in lsp)
+                    golangci-lint
 
-                    curl
+                    k6
                   ]
                   ++ overrides.paths or [ ];
-                extensions =
-                  (with pkgs.vscode-extensions; [
-                    esbenp.prettier-vscode
-                  ])
-                  ++ (with pkgs.vscode-marketplace; [ ]);
+                extensions = with pkgs.vscode-extensions; [
+                  esbenp.prettier-vscode
+                  golang.go
+                ];
                 envVars = {
-                  FOO = "hello";
+                  GOTOOLCHAIN = "local";
+                };
+                vscodeSettings = {
+                  "go.toolsManagement.checkForUpdates" = "off";
+                  "go.toolsManagement.autoUpdate" = false;
+                  "go.logging.level" = "verbose";
                 };
               }
               // pkgs.lib.filterAttrs (n: _: n != "paths") overrides
@@ -127,8 +138,8 @@
                 allowUnfree = true;
               };
 
-              overlays = with inputs; [
-                nix-vscode-extensions.overlays.default
+              overlays = [
+                # inputs.nix-vscode-extensions.overlays.default
               ];
             };
 
@@ -175,8 +186,8 @@
               };
 
             packages = {
-              inherit hello;
-              inherit hello-layered;
+              # inherit hello;
+              inherit go;
             };
           };
       }
