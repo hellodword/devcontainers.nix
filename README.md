@@ -11,9 +11,13 @@
   - [ ] audit
 - [x] layered image
 - [x] multiple arch
-- [ ] manually shared layers (nix2container)
-- [ ] metadata
-- [ ] containered Nix
+- [x] manually organized layers (nix2container)
+- [x] devcontainers metadata
+  - [ ] types
+- [ ] features
+- [ ] bashrc
+- [ ] FHS
+- [ ] customization
 
 ## Ref
 
@@ -26,3 +30,5 @@
 - https://github.com/wi2trier/gpu-server/blob/e9b9c3723e6ed8ff8c7c332393b223a80095332d/overlays/image-base.nix
 - https://github.com/shikanime/shikanime/blob/ac87ec6cb43fe59c7b47eeb9b44dcfe66d2a8388/modules/nixos/hosts/devcontainer.nix
 - https://github.com/KoviRobi/robs-cs/blob/0f529711a8102abbd8b0d4eda222ccafc0bd1496/devenv.nix#L107
+- https://github.com/kolloch/n2c-mod
+- https://github.com/cachix/devenv/tree/main/src/modules/languages

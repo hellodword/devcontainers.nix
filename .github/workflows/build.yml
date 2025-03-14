@@ -3,7 +3,7 @@ name: build
 on:
   workflow_dispatch:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
 
 env:
   REGISTRY: ghcr.io
@@ -13,7 +13,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-
   # https://www.kenmuse.com/blog/dynamic-build-matrices-in-github-actions/
   generate-matrix:
     runs-on: ubuntu-latest
@@ -41,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ "ubuntu-24.04-arm", "ubuntu-latest" ]
+        runs-on: ["ubuntu-24.04-arm", "ubuntu-latest"]
         package: ${{ fromJson(needs.generate-matrix.outputs.packages).package }}
         exclude:
           # no kvm for buildImage
@@ -95,7 +94,7 @@ jobs:
 
       - name: push ${{ matrix.package }}
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository_owner }}/devcontainers-${{ matrix.package }}"
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.package }}"
           docker pull "$IMAGE_NAME:latest" || true
           ori_digest="$(docker inspect "$IMAGE_NAME:latest" | jq -r '.[] | .Id' || true)"
           echo ori_digest $ori_digest
@@ -137,7 +136,7 @@ jobs:
 
       - name: manifest push ${{ matrix.package }}
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository_owner }}/devcontainers-${{ matrix.package }}"
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.package }}"
 
           args=()
           if docker pull "$IMAGE_NAME:latest-arm64"; then
