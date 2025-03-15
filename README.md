@@ -13,11 +13,13 @@
 - [x] multiple arch
 - [x] manually organized layers (nix2container)
 - [x] devcontainers metadata
-  - [ ] types
-- [ ] features
+- [x] features
 - [ ] bashrc
 - [ ] FHS
 - [ ] customization
+- [ ] multiple tags
+- [ ] flakeModule
+- [ ] types
 
 ## Ref
 
