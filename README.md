@@ -1,5 +1,20 @@
 # devcontainers.nix
 
+## Motivation
+
+I heavily rely on `Dev Containers` and `gVisor` in VSCode to set up my development environments and isolate different projects.
+
+Initially, I used a base image and added a bunch of Dev Container features. However, this approach had a significant drawback: Dev Container features don't actually include real content — they're just shell scripts that are built locally, which is quite slow.
+
+To improve this, I adopted the official recommended approach of using the Dev Container CLI to build and publish Dev Container images to ghcr. While this solution was much better, it introduced two new issues: (1) VSCode extensions and some SDKs couldn't be included, leading to a heavy mental burden during every rebuild — unless I wrote endless shell scripts to handle them one by one; (2) such a complex image was difficult to layer properly, and attempting to keep the software packages up to date by publishing nightly builds resulted in significant costs during image pulls.
+
+After two years of these setups, I decided to completely rework everything using Nix. To my surprise, I found it much simpler and better than I had imagined.
+
+1. With `nixpkgs`, there’s a massive collection of available packages, along with binary caches, multi-arch support, and a battery-included package tool.
+2. Nix makes Docker images reproducible, which was practically unattainable with traditional `docker build` (or at least very hard to achieve).
+3. The Nix store is hash-based, making it incredibly easy to avoid wasting space with duplicate files.
+4. Tools like `pkgs.dockerTools` and `nix2container.buildImage` allow for flexible layering. I can manually organize which packages and files go into the same layer. More impressively, these layers are fully reproducible and shareable, effectively turning Docker pulls into true incremental updates.
+
 ## TODO
 
 - [x] environment variables
