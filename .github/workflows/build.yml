@@ -75,7 +75,8 @@ jobs:
 
       - uses: nix-community/cache-nix-action@aee88ae5efbbeb38ac5d9862ecbebdb404a19e69 # v6
         with:
-          primary-key: build-${{ runner.os }}-${{ runner.arch }}-${{ matrix.package }}-${{ hashFiles('flake.lock') }}
+          # The Nix store is already hash-based, so there's no need to use hashFile to bypass caching—just periodically purging it will suffice.
+          primary-key: build-${{ runner.os }}-${{ runner.arch }}-${{ matrix.package }} # -${{ hashFiles('flake.lock') }}
           purge: true
           purge-last-accessed: 2629800 # 1 month
           purge-prefixes: build-${{ runner.os }}-${{ runner.arch }}-${{ matrix.package }}-
