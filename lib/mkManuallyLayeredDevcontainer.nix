@@ -70,7 +70,7 @@ let
 
   };
 
-  featuresVal = map (x: x pkgs) features;
+  featuresVal = map (x: x { inherit pkgs envVarsDefault; }) features;
 
   metadataFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) metadataDefault (
     map (v: v.metadata) (
@@ -269,13 +269,34 @@ let
         )
       );
 
-  envVarsDefault = {
+  envVarsDefault = rec {
     # required by vscode terminal, but allow overriding
     SHELL = "/bin/bash";
     HOME = "/home/${username}";
     USER = username;
     LANG = "en_US.UTF-8";
     TZDIR = "/etc/zoneinfo";
+
+    DO_NOT_TRACK = "true";
+
+    XDG_BIN_HOME = "${HOME}/bin";
+    XDG_CONFIG_HOME = "${HOME}/config";
+    XDG_CACHE_HOME = "${HOME}/cache";
+    XDG_DATA_HOME = "${HOME}/share";
+    XDG_STATE_HOME = "${HOME}/state";
+
+    XDG_USER_HOME = "/home";
+    XDG_VAR_HOME = "${HOME}/var";
+
+    XDG_DESKTOP_DIR = "${XDG_USER_HOME}/Desktop";
+    XDG_DOCUMENTS_DIR = "${XDG_USER_HOME}/Documents";
+    XDG_DOWNLOAD_DIR = "${XDG_USER_HOME}/Downloads";
+    XDG_MUSIC_DIR = "${XDG_USER_HOME}/Music";
+    XDG_PICTURES_DIR = "${XDG_USER_HOME}/Images";
+    XDG_PUBLICSHARE_DIR = "${XDG_USER_HOME}/Shared";
+    XDG_REPOSITORY_DIR = "${XDG_USER_HOME}/Repositories";
+    XDG_TEMPLATES_DIR = "${XDG_USER_HOME}/Templates";
+    XDG_VIDEOS_DIR = "${XDG_USER_HOME}/Videos";
   };
 
   envVarsList =
@@ -422,15 +443,13 @@ pkgs.nix2container.buildImage {
             (
               feat:
               let
+                # TODO or download VSIX files and using `code --install-extension --force <foo.VSIX>`
                 mkExtProfilePkg =
                   profileName: extensions:
                   pkgs.runCommand profileName { } ''
                     mkdir -p $out/etc/profile.d
+
                     ln -s ${pkgs.writeScript "${profileName}" ''
-                      if [ -f $HOME/.${profileName} ]; then
-                        exit 0
-                      fi
-                      touch $HOME/.${profileName}
 
                       if [ "$CODESPACES" == "true" ]; then
                         VSCODE_DIR=".vscode-remote"
@@ -439,14 +458,22 @@ pkgs.nix2container.buildImage {
                       fi
 
                       mkdir -p $HOME/$VSCODE_DIR/extensions
-                      if [ ! -f $HOME/$VSCODE_DIR/extensions/extensions.json ]; then
-                        echo '[]' > $HOME/$VSCODE_DIR/extensions/extensions.json
+
+                      mkdir -p $HOME/state
+
+                      if [ ! -f "$HOME/state/.${profileName}" ]; then
+                        if [ ! -f $HOME/$VSCODE_DIR/extensions/extensions.json ]; then
+                          echo '[]' > $HOME/$VSCODE_DIR/extensions/extensions.json
+                        fi
+
+                        echo '${builtins.toJSON (extensionsJson extensions)}' > "/tmp/${profileName}.json"
+                        ALL="$(jq -s '.[0] + .[1]' "/tmp/${profileName}.json" $HOME/$VSCODE_DIR/extensions/extensions.json)"
+                        echo "$ALL" > $HOME/$VSCODE_DIR/extensions/extensions.json
+                        rm "/tmp/${profileName}.json"
+
+                        touch "$HOME/state/.${profileName}"
                       fi
-                      cat > /tmp/${profileName}.json <<EOF
-                      ${builtins.toJSON (extensionsJson extensions)}
-                      EOF
-                      ALL="$(jq -s '.[0] + .[1]' /tmp/${profileName}.json $HOME/$VSCODE_DIR/extensions/extensions.json)"
-                      echo "$ALL" > $HOME/$VSCODE_DIR/extensions/extensions.json
+
                     ''} $out/etc/profile.d/11-${profileName}.sh
                   '';
               in
@@ -532,11 +559,8 @@ pkgs.nix2container.buildImage {
               profileName = "settings-profile";
               profilePkg = pkgs.runCommand profileName { } ''
                 mkdir -p $out/etc/profile.d
+
                 ln -s ${pkgs.writeScript "${profileName}" ''
-                  if [ -f $HOME/.${profileName} ]; then
-                    exit 0
-                  fi
-                  touch $HOME/.${profileName}
 
                   if [ "$CODESPACES" == "true" ]; then
                     VSCODE_DIR=".vscode-remote"
@@ -545,10 +569,15 @@ pkgs.nix2container.buildImage {
                   fi
 
                   mkdir -p $HOME/$VSCODE_DIR/data/Machine
-                  cat > $HOME/$VSCODE_DIR/data/Machine/settings.json <<EOF
-                  ${builtins.toJSON vscodeSettingsFull}
-                  EOF
-                ''} $out/etc/profile.d/11-${name}.sh
+
+                  mkdir -p $HOME/state
+
+                  if [ ! -f "$HOME/state/.${profileName}" ]; then
+                    echo '${builtins.toJSON vscodeSettingsFull}' > "$HOME/$VSCODE_DIR/data/Machine/settings.json"
+
+                    touch "$HOME/state/.${profileName}"
+                  fi
+                ''} $out/etc/profile.d/11-${profileName}.sh
               '';
             in
             {
@@ -557,7 +586,50 @@ pkgs.nix2container.buildImage {
               pathsToLink = [ "/etc/profile.d" ];
             }
           )
-        ];
+        ]
+
+        ++ (map
+          (
+            feat:
+            let
+              profileName = "feat:${feat.name}:onLogin";
+              profilePkg = pkgs.runCommand profileName { } ''
+                mkdir -p $out/etc/profile.d
+
+                ln -s ${pkgs.writeScript "${profileName}" ''
+
+                  mkdir -p $HOME/state
+
+                  ${builtins.concatStringsSep "\n" (
+                    map (onLogin: ''
+                      ${
+                        if onLogin.once then
+                          ''
+                            ${onLogin.command}
+                          ''
+                        else
+                          ''
+                            if [ ! -f "$HOME/state/.${profileName}:${onLogin.uniqueName}" ]; then
+                              ${onLogin.command}
+
+                              touch "$HOME/state/.${profileName}:${onLogin.uniqueName}"
+                            fi
+                          ''
+                      }
+                    '') feat.onLogin
+                  )}
+
+                ''} $out/etc/profile.d/11-${profileName}.sh
+              '';
+            in
+            {
+              name = profileName;
+              paths = [ profilePkg ];
+              pathsToLink = [ "/etc/profile.d" ];
+            }
+          )
+          (lib.filter (feat: builtins.hasAttr "onLogin" feat && builtins.length feat.onLogin > 0) featuresVal)
+        );
 
     in
     builtins.foldl' (

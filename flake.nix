@@ -12,6 +12,10 @@
       url = "github:nlewo/nix2container";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -52,16 +56,22 @@
           }:
 
           {
-            # define the overlay to be used for pkgs in our PerSystem function
             _module.args.pkgs = import inputs.nixpkgs {
               inherit system;
               config = {
                 allowUnfree = true;
+                android_sdk.accept_license = true;
+                oraclejdk.accept_license = true;
+
+                # allowBroken = true;
+                # allowUnsupportedSystem = true;
+                # allowInsecurePredicate = (_: true);
               };
 
               overlays = [
                 inputs.nix-vscode-extensions.overlays.default
                 (prev: final: { inherit (inputs.nix2container.packages.${system}) nix2container; })
+                inputs.rust-overlay.overlays.default
               ];
             };
 
@@ -172,6 +182,94 @@
                   dev1
                   dev2
                   node
+                ];
+              };
+
+              devcontainers-rust = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-rust";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  rust
+                ];
+              };
+
+              devcontainers-python = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-python";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  python
+                ];
+              };
+
+              devcontainers-java = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-java";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  java
+                ];
+              };
+
+              devcontainers-php = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-php";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  php
+                ];
+              };
+
+              devcontainers-haskell = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-haskell";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  haskell
+                ];
+              };
+
+              devcontainers-dart = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-dart";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  dart
+                ];
+              };
+
+              devcontainers-lua = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-lua";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  lua
+                ];
+              };
+
+              devcontainers-zig = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-zig";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  zig
                 ];
               };
 

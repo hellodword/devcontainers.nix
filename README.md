@@ -31,7 +31,7 @@ After two years of these setups, I decided to completely rework everything using
 - [x] features
 - [ ] bashrc
 - [ ] FHS
-- [ ] customization
+- [x] onLogin commands
 - [ ] multiple tags
 - [ ] flakeModule
 - [ ] types
@@ -49,3 +49,7 @@ After two years of these setups, I decided to completely rework everything using
 - https://github.com/KoviRobi/robs-cs/blob/0f529711a8102abbd8b0d4eda222ccafc0bd1496/devenv.nix#L107
 - https://github.com/kolloch/n2c-mod
 - https://github.com/cachix/devenv/tree/main/src/modules/languages
+- https://github.com/Makrennel/nixos-conf/blob/dc03a85fc159a25ace57b9a910fdefc3d30d9894/system/env.nix
+- https://github.com/devcontainers/devcontainers.github.io/blob/gh-pages/_data/collection-index.yml
+- https://github.com/devcontainers/features/tree/main/src
+- https://github.com/devcontainers/images/tree/main/src
