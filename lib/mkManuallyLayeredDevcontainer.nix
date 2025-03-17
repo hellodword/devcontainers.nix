@@ -2,6 +2,7 @@
   pkgs,
   name,
   tag ? "latest",
+  timeZone ? "UTC",
   features ? [ ],
 }:
 let
@@ -9,7 +10,7 @@ let
 
   username = "vscode";
 
-  extensionsJson =
+  mkExtensions =
     exts:
     map (x: {
       identifier.id = x.vscodeExtUniqueId;
@@ -53,6 +54,7 @@ let
     # mounts = [ ];
     # customizations = { };
 
+    # # execute the command without a shell
     # onCreateCommand = '''';
     # updateContentCommand = '''';
     # postCreateCommand = '''';
@@ -72,14 +74,6 @@ let
 
   featuresVal = map (x: x { inherit pkgs envVarsDefault; }) features;
 
-  metadataFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) metadataDefault (
-    map (v: v.metadata) (
-      lib.filter (
-        feat: builtins.hasAttr "metadata" feat && builtins.length (builtins.attrNames feat.metadata) > 0
-      ) featuresVal
-    )
-  );
-
   vscodeSettingsDefault = {
     "diffEditor.wordWrap" = "on";
     "editor.formatOnSave" = true;
@@ -94,15 +88,7 @@ let
 
   vscodeSettingsFull =
     builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) vscodeSettingsDefault
-      (
-        map (v: v.vscodeSettings) (
-          lib.filter (
-            feat:
-            builtins.hasAttr "vscodeSettings" feat
-            && builtins.length (builtins.attrNames feat.vscodeSettings) > 0
-          ) featuresVal
-        )
-      );
+      (map (v: v.vscodeSettings) (lib.filter (feat: builtins.hasAttr "vscodeSettings" feat) featuresVal));
 
   # nixos/modules/misc/version.nix
   osReleaseFile =
@@ -151,10 +137,6 @@ let
       unset i
     fi
   '';
-  profile = pkgs.runCommand "profile" { } ''
-    mkdir -p $out/etc
-    ln -s ${profileFile} $out/etc/profile
-  '';
 
   # https://github.com/manesiotise/plutus-apps/blob/dbafa0ffdc1babcf8e9143ca5a7adde78d021a9a/nix/devcontainer-docker-image.nix#L99-L103
   # allow ubuntu ELF binaries to run. VSCode copies it's own.
@@ -167,7 +149,6 @@ let
   librariesDefault = with pkgs; [
     glibc
     gcc-unwrapped.lib
-    stdenv.cc.cc.lib
   ];
 
   librariesFull = lib.lists.unique (
@@ -181,7 +162,7 @@ let
     ))
   );
 
-  essentialPackagesRequried = with pkgs; [
+  essentialExecutablesRequried = with pkgs; [
     bash
     coreutils
     gnutar
@@ -190,13 +171,11 @@ let
     gnugrep
   ];
 
-  # customPackages = lib.lists.sort (a: b: (a.name or "${a}") < (b.name or "${b}")) (
+  # customExecutables = lib.lists.sort (a: b: (a.name or "${a}") < (b.name or "${b}")) (
   #   lib.filter (
   #     x:
-  #     lib.lists.mutuallyExclusive [ x ] (
-  #       essentialPackagesRequried ++ essentialPackagesDevBase ++ essentialPackagesFreq ++ essentialPackages
-  #     )
-  #   ) (lib.lists.unique packages)
+  #     lib.lists.mutuallyExclusive [ x ] essentialExecutablesRequried
+  #   ) (lib.lists.unique executables)
   # );
 
   # required by vscode-server and its node
@@ -348,11 +327,45 @@ let
     ''
   );
 
+  mkProfileScript =
+    profileName: once: command:
+    pkgs.writeScript "${profileName}" ''
+      mkdir -p $HOME/state
+
+      ${
+        if once then
+          ''
+            if [ ! -f "$HOME/state/.${profileName}" ]; then
+              echo executing ${profileName}
+              ${command}
+
+              touch "$HOME/state/.${profileName}"
+            fi
+          ''
+        else
+          ''
+            echo executing ${profileName}
+            ${command}
+          ''
+      }
+    '';
+
+  metadataFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) metadataDefault (
+    (map (v: v.metadata) (
+      lib.filter (
+        feat: builtins.hasAttr "metadata" feat && builtins.length (builtins.attrNames feat.metadata) > 0
+      ) featuresVal
+    ))
+    ++ [
+      { customizations.vscode.settings = vscodeSettingsFull; }
+    ]
+  );
 in
 pkgs.nix2container.buildImage {
   inherit name tag;
   initializeNixDatabase = true;
 
+  # https://github.com/docker/docs/issues/8230#issuecomment-468630187
   maxLayers = 100;
 
   perms = [
@@ -395,16 +408,24 @@ pkgs.nix2container.buildImage {
                 caCertificates
               ])
               ++ [
-                profile
+                (pkgs.runCommand "profile" { } ''
+                  mkdir -p $out/etc
+                  ln -s ${profileFile} $out/etc/profile
+                '')
                 osRelease
               ];
             pathsToLink = [ "/etc" ];
           }
 
+          # nixos/modules/config/locale.nix
           {
-            name = "tzdata";
-            paths = with pkgs; [
-              tzdata
+            name = "set timezone";
+            paths = [
+              (pkgs.runCommand "zoneinfo" { } ''
+                mkdir -p $out/etc
+                ln -s ${pkgs.tzdata}/share/zoneinfo $out/etc/zoneinfo
+                ln -s ${pkgs.tzdata}/share/zoneinfo/${timeZone} $out/etc/localtime
+              '')
             ];
             pathsToLink = [ "/etc" ];
           }
@@ -432,8 +453,8 @@ pkgs.nix2container.buildImage {
           }
 
           {
-            name = "essential packages required by vscode";
-            paths = essentialPackagesRequried;
+            name = "essential executables required by vscode";
+            paths = essentialExecutablesRequried;
             pathsToLink = [ "/bin" ];
           }
         ]
@@ -449,32 +470,26 @@ pkgs.nix2container.buildImage {
                   pkgs.runCommand profileName { } ''
                     mkdir -p $out/etc/profile.d
 
-                    ln -s ${pkgs.writeScript "${profileName}" ''
+                    ln -s ${
+                      mkProfileScript profileName true ''
+                        if [ "$CODESPACES" == "true" ]; then
+                          VSCODE_DIR=".vscode-remote"
+                        else
+                          VSCODE_DIR=".vscode-server"
+                        fi
 
-                      if [ "$CODESPACES" == "true" ]; then
-                        VSCODE_DIR=".vscode-remote"
-                      else
-                        VSCODE_DIR=".vscode-server"
-                      fi
+                        mkdir -p $HOME/$VSCODE_DIR/extensions
 
-                      mkdir -p $HOME/$VSCODE_DIR/extensions
-
-                      mkdir -p $HOME/state
-
-                      if [ ! -f "$HOME/state/.${profileName}" ]; then
                         if [ ! -f $HOME/$VSCODE_DIR/extensions/extensions.json ]; then
                           echo '[]' > $HOME/$VSCODE_DIR/extensions/extensions.json
                         fi
 
-                        echo '${builtins.toJSON (extensionsJson extensions)}' > "/tmp/${profileName}.json"
+                        echo '${builtins.toJSON (mkExtensions extensions)}' > "/tmp/${profileName}.json"
                         ALL="$(jq -s '.[0] + .[1]' "/tmp/${profileName}.json" $HOME/$VSCODE_DIR/extensions/extensions.json)"
                         echo "$ALL" > $HOME/$VSCODE_DIR/extensions/extensions.json
                         rm "/tmp/${profileName}.json"
-
-                        touch "$HOME/state/.${profileName}"
-                      fi
-
-                    ''} $out/etc/profile.d/11-${profileName}.sh
+                      ''
+                    } $out/etc/profile.d/11-${profileName}.sh
                   '';
               in
               if feat.layered or false then
@@ -508,9 +523,9 @@ pkgs.nix2container.buildImage {
             (
               feat:
               if feat.layered or false then
-                (map (pkg: {
-                  name = "feat:${feat.name}:lib:${pkg.name or "${pkg}"}";
-                  paths = [ pkg ];
+                (map (library: {
+                  name = "feat:${feat.name}:lib:${library.name or "${library}"}";
+                  paths = [ library ];
                   pathsToLink = [ "/nix/store" ];
                 }) feat.libraries)
               else
@@ -534,101 +549,61 @@ pkgs.nix2container.buildImage {
             (
               feat:
               if feat.layered or false then
-                (map (pkg: {
-                  name = "feat:${feat.name}:pkg:${pkg.name or "${pkg}"}";
-                  paths = [ pkg ];
+                (map (exe: {
+                  name = "feat:${feat.name}:exe:${exe.name or "${exe}"}";
+                  paths = [ exe ];
                   pathsToLink = [ "/bin" ];
-                }) feat.packages)
+                }) feat.executables)
               else
                 [
                   {
-                    name = "feat:${feat.name}:pkg";
-                    paths = feat.packages;
+                    name = "feat:${feat.name}:exe";
+                    paths = feat.executables;
                     pathsToLink = [ "/bin" ];
                   }
                 ]
             )
             (
-              lib.filter (feat: builtins.hasAttr "packages" feat && builtins.length feat.packages > 0) featuresVal
+              lib.filter (
+                feat: builtins.hasAttr "executables" feat && builtins.length feat.executables > 0
+              ) featuresVal
             )
         ))
-
-        ++ [
-          (
-            let
-              profileName = "settings-profile";
-              profilePkg = pkgs.runCommand profileName { } ''
-                mkdir -p $out/etc/profile.d
-
-                ln -s ${pkgs.writeScript "${profileName}" ''
-
-                  if [ "$CODESPACES" == "true" ]; then
-                    VSCODE_DIR=".vscode-remote"
-                  else
-                    VSCODE_DIR=".vscode-server"
-                  fi
-
-                  mkdir -p $HOME/$VSCODE_DIR/data/Machine
-
-                  mkdir -p $HOME/state
-
-                  if [ ! -f "$HOME/state/.${profileName}" ]; then
-                    echo '${builtins.toJSON vscodeSettingsFull}' > "$HOME/$VSCODE_DIR/data/Machine/settings.json"
-
-                    touch "$HOME/state/.${profileName}"
-                  fi
-                ''} $out/etc/profile.d/11-${profileName}.sh
-              '';
-            in
-            {
-              name = profileName;
-              paths = [ profilePkg ];
-              pathsToLink = [ "/etc/profile.d" ];
-            }
-          )
-        ]
 
         ++ (map
           (
             feat:
             let
-              profileName = "feat:${feat.name}:onLogin";
-              profilePkg = pkgs.runCommand profileName { } ''
+              profileNamePrefix = "feat:${feat.name}:onLogin";
+              profilePkg = pkgs.runCommand profileNamePrefix { } ''
                 mkdir -p $out/etc/profile.d
 
-                ln -s ${pkgs.writeScript "${profileName}" ''
-
-                  mkdir -p $HOME/state
+                ln -s ${pkgs.writeScript "${profileNamePrefix}" ''
 
                   ${builtins.concatStringsSep "\n" (
-                    map (onLogin: ''
-                      ${
-                        if onLogin.once then
-                          ''
-                            ${onLogin.command}
-                          ''
-                        else
-                          ''
-                            if [ ! -f "$HOME/state/.${profileName}:${onLogin.uniqueName}" ]; then
-                              ${onLogin.command}
-
-                              touch "$HOME/state/.${profileName}:${onLogin.uniqueName}"
-                            fi
-                          ''
-                      }
-                    '') feat.onLogin
+                    map (
+                      onLoginName:
+                      let
+                        onLogin = feat.onLogin."${onLoginName}";
+                      in
+                      mkProfileScript "${profileNamePrefix}:${onLoginName}" (onLogin.once or false) onLogin.command
+                    ) (builtins.attrNames feat.onLogin)
                   )}
 
-                ''} $out/etc/profile.d/11-${profileName}.sh
+                ''} $out/etc/profile.d/11-${profileNamePrefix}.sh
               '';
             in
             {
-              name = profileName;
+              name = profileNamePrefix;
               paths = [ profilePkg ];
               pathsToLink = [ "/etc/profile.d" ];
             }
           )
-          (lib.filter (feat: builtins.hasAttr "onLogin" feat && builtins.length feat.onLogin > 0) featuresVal)
+          (
+            lib.filter (
+              feat: builtins.hasAttr "onLogin" feat && builtins.length (builtins.attrNames feat.onLogin) > 0
+            ) featuresVal
+          )
         );
 
     in

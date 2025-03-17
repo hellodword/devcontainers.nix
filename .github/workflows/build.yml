@@ -29,7 +29,7 @@ jobs:
           packages="$(nix eval --json $".#packages.x86_64-linux" --apply 'x: builtins.attrNames x' )"
           echo "myoutput=$(jq -cn --argjson packages "$packages" '{package: $packages}')" >> $GITHUB_OUTPUT
 
-  build-and-push:
+  push:
     runs-on: ${{ matrix.runs-on }}
 
     permissions:
@@ -48,7 +48,27 @@ jobs:
             package: hello
 
     steps:
+      - uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793
+        with:
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "false"
+          remove-large-packages: "false"
+          remove-cached-tools: "true"
+          remove-swapfile: "false"
+
       - uses: actions/checkout@v4
+
+      # https://github.com/orgs/community/discussions/42479#discussioncomment-4484937
+      # https://github.com/wph95/opentelemetry-demo-webstore/blob/ae08811157db7ba590a7c8dd6faa2cb9d1473bef/.github/workflows/release.yml#L24-L29
+      # limit docker push image concurrency to 1
+      # to avoid github package return 429 ratelimit error
+      - name: Set docker upload concurrent
+        run: |
+          echo $'{"max-concurrent-downloads": 50, "max-concurrent-uploads": 2}' | sudo dd status=none of=/etc/docker/daemon.json
+          sudo service docker restart
 
       # https://discourse.nixos.org/t/building-docker-image-in-github-actions-leads-to-skopeo-related-issues/40636/4
       - name: Fix dockerTools.pullImage issue
@@ -113,6 +133,9 @@ jobs:
           docker tag "$IMAGE_LOCAL_NAME" "$IMAGE_REGISTRY_NAME-$ARCH"
           docker push "$IMAGE_REGISTRY_NAME-$ARCH"
 
+          docker rmi "$IMAGE_LOCAL_NAME" || true
+          docker rmi "$IMAGE_REGISTRY_NAME-$ARCH"
+
   docker-manifest:
     runs-on: ubuntu-latest
 
@@ -121,7 +144,7 @@ jobs:
 
     needs:
       - generate-matrix
-      - build-and-push
+      - push
 
     strategy:
       fail-fast: false
@@ -130,6 +153,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # https://github.com/orgs/community/discussions/42479#discussioncomment-4484937
+      # https://github.com/wph95/opentelemetry-demo-webstore/blob/ae08811157db7ba590a7c8dd6faa2cb9d1473bef/.github/workflows/release.yml#L24-L29
+      # limit docker push image concurrency to 1
+      # to avoid github package return 429 ratelimit error
+      - name: Set docker upload concurrent
+        run: |
+          echo $'{"max-concurrent-uploads": 2}' | sudo dd status=none of=/etc/docker/daemon.json
+          sudo service docker restart
 
       - uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
         with:

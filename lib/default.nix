@@ -67,8 +67,8 @@
           name = "dev0";
           layered = false;
 
-          packages = with pkgs; [
-            git
+          executables = with pkgs; [
+            gitMinimal
             jq
             wget
             curl
@@ -89,7 +89,7 @@
           name = "dev1";
           layered = false;
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             findutils
             iproute2
             iputils
@@ -118,7 +118,7 @@
           name = "dev2";
           layered = false;
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             fd
             ripgrep
             (p7zip.override { enableUnfree = true; })
@@ -148,7 +148,7 @@
           name = "nix";
           layered = true;
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             nix
 
             nixd
@@ -169,7 +169,7 @@
           name = "go";
           layered = true;
 
-          packages =
+          executables =
             with pkgs;
             [
               pkgs.go
@@ -227,7 +227,7 @@
 
           libraries = with pkgs; [ glib.dev ];
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             gnumake
             clang
             pkg-config
@@ -278,7 +278,7 @@
 
           libraries = with pkgs; [ glib.dev ];
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             vala
             vala-language-server
             uncrustify
@@ -304,7 +304,7 @@
           name = "dotnet";
           layered = true;
 
-          packages =
+          executables =
             [ dotnetCore ]
             ++ (with pkgs; [
               netcoredbg
@@ -331,7 +331,7 @@
           name = "node";
           layered = true;
 
-          packages =
+          executables =
             (with pkgs; [
               nodejs
               yarn
@@ -366,7 +366,7 @@
           name = "rust";
           layered = true;
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             stdenv.cc
             openssl
             openssl.dev
@@ -410,7 +410,7 @@
           name = "java";
           layered = true;
 
-          packages =
+          executables =
             (with pkgs; [
               maven
               gradle
@@ -453,7 +453,7 @@
           name = "python";
           layered = true;
 
-          packages =
+          executables =
             (with pkgs; [
               python3
               pipenv
@@ -553,7 +553,7 @@
           name = "php";
           layered = true;
 
-          packages =
+          executables =
             [ phpWithExt ]
             ++ (with phpPkg.packages; [
               composer
@@ -582,7 +582,7 @@
             zlib
           ];
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             ghc
             haskell-language-server
             stack
@@ -612,7 +612,7 @@
           name = "dart";
           layered = true;
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             dart
           ];
 
@@ -625,13 +625,12 @@
             "dart.updateDevTools" = false;
             "dart.debugSdkLibraries" = true;
           };
-          onLogin = [
-            {
-              uniqueName = "dart disable analytics";
-              command = "dart --disable-analytics";
+          onLogin = {
+            "dart disable analytics" = {
+              command = "dart --disable-analytics || true";
               once = true;
-            }
-          ];
+            };
+          };
         };
 
       # TODO android
@@ -644,7 +643,7 @@
           name = "flutter";
           layered = true;
 
-          packages = [ flutterPkg ];
+          executables = [ flutterPkg ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             dart-code.dart-code
@@ -661,18 +660,16 @@
             "dart.debugSdkLibraries" = true;
           };
           metadata = { };
-          onLogin = [
-            {
-              uniqueName = "dart disable analytics";
-              command = "dart --disable-analytics";
+          onLogin = {
+            "dart disable analytics" = {
+              command = "dart --disable-analytics || true";
               once = true;
-            }
-            {
-              uniqueName = "flutter disable analytics";
-              command = "flutter --disable-analytics";
+            };
+            "flutter disable analytics" = {
+              command = "flutter --disable-analytics || true";
               once = true;
-            }
-          ];
+            };
+          };
         };
 
       chromium = { ... }: { };
@@ -685,7 +682,7 @@
           name = "lua";
           layered = true;
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             lua
             lua-language-server
           ];
@@ -703,7 +700,7 @@
           name = "zig";
           layered = true;
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             zig
             zls
           ];
@@ -743,7 +740,7 @@
             zlib
           ];
 
-          packages = with pkgs; [
+          executables = with pkgs; [
             sourcekit-lsp
             swift
             swift-format
