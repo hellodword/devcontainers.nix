@@ -103,12 +103,12 @@
 
             packages = {
 
-              devcontainers-base = self.lib.mkManuallyLayeredDevcontainer {
+              base = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-base";
               };
 
-              devcontainers-dev = self.lib.mkManuallyLayeredDevcontainer {
+              dev = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-dev";
                 features = with self.lib.features; [
@@ -118,7 +118,7 @@
                 ];
               };
 
-              devcontainers-nix = self.lib.mkManuallyLayeredDevcontainer {
+              nix = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-nix";
                 features = with self.lib.features; [
@@ -129,9 +129,21 @@
                 ];
               };
 
-              devcontainers-go = self.lib.mkManuallyLayeredDevcontainer {
+              go = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-go";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  go
+                ];
+              };
+
+              go-web = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-go";
+                tag = "web";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -141,7 +153,7 @@
                 ];
               };
 
-              devcontainers-cpp = self.lib.mkManuallyLayeredDevcontainer {
+              cpp = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-cpp";
                 features = with self.lib.features; [
@@ -152,7 +164,7 @@
                 ];
               };
 
-              devcontainers-vala = self.lib.mkManuallyLayeredDevcontainer {
+              vala = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-vala";
                 features = with self.lib.features; [
@@ -163,7 +175,7 @@
                 ];
               };
 
-              devcontainers-dotnet = self.lib.mkManuallyLayeredDevcontainer {
+              dotnet = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-dotnet";
                 features = with self.lib.features; [
@@ -174,7 +186,7 @@
                 ];
               };
 
-              devcontainers-node = self.lib.mkManuallyLayeredDevcontainer {
+              node = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-node";
                 features = with self.lib.features; [
@@ -185,7 +197,7 @@
                 ];
               };
 
-              devcontainers-rust = self.lib.mkManuallyLayeredDevcontainer {
+              rust = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-rust";
                 features = with self.lib.features; [
@@ -196,7 +208,7 @@
                 ];
               };
 
-              devcontainers-python = self.lib.mkManuallyLayeredDevcontainer {
+              python = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-python";
                 features = with self.lib.features; [
@@ -207,7 +219,7 @@
                 ];
               };
 
-              devcontainers-java = self.lib.mkManuallyLayeredDevcontainer {
+              java = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-java";
                 features = with self.lib.features; [
@@ -218,7 +230,7 @@
                 ];
               };
 
-              devcontainers-php = self.lib.mkManuallyLayeredDevcontainer {
+              php = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-php";
                 features = with self.lib.features; [
@@ -229,7 +241,20 @@
                 ];
               };
 
-              devcontainers-haskell = self.lib.mkManuallyLayeredDevcontainer {
+              php-web = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "devcontainers-php";
+                tag = "web";
+                features = with self.lib.features; [
+                  dev0
+                  dev1
+                  dev2
+                  php
+                  node
+                ];
+              };
+
+              haskell = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-haskell";
                 features = with self.lib.features; [
@@ -240,7 +265,7 @@
                 ];
               };
 
-              devcontainers-dart = self.lib.mkManuallyLayeredDevcontainer {
+              dart = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-dart";
                 features = with self.lib.features; [
@@ -251,7 +276,7 @@
                 ];
               };
 
-              devcontainers-lua = self.lib.mkManuallyLayeredDevcontainer {
+              lua = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-lua";
                 features = with self.lib.features; [
@@ -262,7 +287,7 @@
                 ];
               };
 
-              devcontainers-zig = self.lib.mkManuallyLayeredDevcontainer {
+              zig = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
                 name = "devcontainers-zig";
                 features = with self.lib.features; [
