@@ -507,10 +507,6 @@ pkgs.nix2container.buildImage {
                   mkdir -p $out/etc
                   ln -s ${profileFile} $out/etc/profile
                 '')
-                (pkgs.runCommand "bashrc" { } ''
-                  mkdir -p $out/etc
-                  ln -s ${bashrcFile} $out/etc/bashrc
-                '')
                 osRelease
               ];
             pathsToLink = [ "/etc" ];
@@ -706,7 +702,20 @@ pkgs.nix2container.buildImage {
               feat: builtins.hasAttr "onLogin" feat && builtins.length (builtins.attrNames feat.onLogin) > 0
             ) featuresVal
           )
-        );
+        )
+
+        ++ [
+          {
+            name = "bashrc";
+            paths = [
+              (pkgs.runCommand "bashrc" { } ''
+                mkdir -p $out/etc
+                ln -s ${bashrcFile} $out/etc/bashrc
+              '')
+            ];
+            pathsToLink = [ "/etc" ];
+          }
+        ];
 
     in
     builtins.foldl' (
