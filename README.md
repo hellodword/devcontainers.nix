@@ -17,24 +17,35 @@ After two years of these setups, I decided to completely rework everything using
 
 ## TODO
 
-- [x] environment variables
-- [x] executable packages
-- [x] vscode extensions from nixpkgs
-- [x] vscode extensions from `nix-community/nix-vscode-extensions`
-- [x] github actions dynamic matrix
-- [x] github actions cache
-  - [ ] audit
-- [x] layered image
-- [x] multiple arch
-- [x] manually organized layers (nix2container)
-- [x] devcontainers metadata
-- [x] features
-- [ ] bashrc
-- [ ] FHS
-- [x] onLogin commands
-- [ ] multiple tags
-- [ ] flakeModule
-- [ ] types
+- base
+  - [x] environment variables
+  - [x] executable packages
+  - [x] vscode extensions
+  - [x] bashrc
+  - [ ] FHS
+- ci
+  - [x] github actions dynamic matrix
+  - [x] github actions cache
+    - [ ] audit
+- docker
+  - [x] layered image
+  - [x] multiple arch
+  - [x] multiple tags
+  - [x] manually organized layers (nix2container)
+- Nix
+  - [ ] Nix in docker
+  - [ ] CUDA
+- devcontainer
+  - [x] metadata
+- customization
+  - [x] features
+  - [ ] overridable features
+  - [x] onLogin commands
+  - [ ] bashrc
+  - [ ] pre-install packages via non-Nix tools
+- module
+  - [ ] flakeModule
+  - [ ] types
 
 ## Ref
 

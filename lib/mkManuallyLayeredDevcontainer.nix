@@ -128,14 +128,107 @@ let
   '';
 
   profileFile = pkgs.writeScript "profile" ''
+    # This file is read for login shells.
+    # Only execute this file once per shell.
+    if [ -n "$__ETC_PROFILE_SOURCED" ]; then return; fi
+    __ETC_PROFILE_SOURCED=1
+    # Prevent this file from being sourced by interactive non-login child shells.
+    export __ETC_PROFILE_DONE=1
+
+    if [ "${"$"}{PS1-}" ]; then
+      if [ "${"$"}{BASH-}" ] && [ "$BASH" != "/bin/sh" ]; then
+        if [ -f /etc/bash.bashrc ]; then
+          . /etc/bashrc
+        fi
+      fi
+    fi
+
     if [ -d /etc/profile.d ]; then
       for i in /etc/profile.d/*.sh; do
         if [ -r $i ]; then
-          . $i
+          . $i 2>&1 | tee -a "$HOME/.profile.log"
         fi
       done
       unset i
     fi
+  '';
+
+  aliasDefault = {
+    l = "ls -alh";
+    ll = "ls -l";
+    ls = "ls --color=tty";
+    ".." = "cd ..";
+    mv = "mv -v";
+  };
+
+  aliasFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) aliasDefault (
+    map (v: v.alias) (lib.filter (feat: builtins.hasAttr "alias" feat) featuresVal)
+  );
+
+  bashrcFile = pkgs.writeScript "bashrc" ''
+        # Only execute this file once per shell.
+        if [ -n "$__ETC_BASHRC_SOURCED" ] || [ -n "$NOSYSBASHRC" ]; then return; fi
+        __ETC_BASHRC_SOURCED=1
+
+        # If the profile was not loaded in a parent process, source
+        # it.  But otherwise don't do it because we don't want to
+        # clobber overridden values of $PATH, etc.
+        if [ -z "$__ETC_PROFILE_DONE" ]; then
+            . /etc/profile
+        fi
+
+        # We are not always an interactive shell.
+        if [ -n "$PS1" ]; then
+
+            # Check the window size after every command.
+            shopt -s checkwinsize
+            # Disable hashing (i.e. caching) of command lookups.
+            set +h
+            # Provide a nice prompt if the terminal supports it.
+            if [ "$TERM" != "dumb" ] || [ -n "$INSIDE_EMACS" ]; then
+                PROMPT_COLOR="1;31m"
+                ((UID)) && PROMPT_COLOR="1;32m"
+                if [ -n "$INSIDE_EMACS" ] || [ "$TERM" = "eterm" ] || [ "$TERM" = "eterm-color" ]; then
+                    # Emacs term mode doesn't support xterm title escape sequence (\e]0;)
+                    PS1="\[\033[$PROMPT_COLOR\][\u@\h:\w]\\$\[\033[0m\] "
+                else
+                    PS1="\[\033[$PROMPT_COLOR\][\[\e]0;\u@\h: \w\a\]\u@\h:\w]\\$\[\033[0m\] "
+                fi
+                if test "$TERM" = "xterm"; then
+                    PS1="\[\033]2;\h:\u:\w\007\]$PS1"
+                fi
+            fi
+
+            eval "$(${pkgs.coreutils}/bin/dircolors -b )"
+
+            # Check whether we're running a version of Bash that has support for
+            # programmable completion. If we do, enable all modules installed in
+            # the system and user profile in obsolete /etc/bash_completion.d/
+            # directories. Bash loads completions in all
+            # $XDG_DATA_DIRS/bash-completion/completions/
+            # on demand, so they do not need to be sourced here.
+            if shopt -q progcomp &>/dev/null; then
+                . "${pkgs.bash-completion}/etc/profile.d/bash_completion.sh"
+                nullglobStatus=$(shopt -p nullglob)
+                shopt -s nullglob
+                for p in $NIX_PROFILES; do
+                    for m in "$p/etc/bash_completion.d/"*; do
+                        . "$m"
+                    done
+                done
+                eval "$nullglobStatus"
+                unset nullglobStatus p m
+            fi
+
+    ${builtins.concatStringsSep "\n" (
+      map (aliasName: "alias -- ${aliasName}='${aliasFull."${aliasName}"}'") (
+        builtins.attrNames aliasFull
+      )
+    )}
+
+    ${builtins.concatStringsSep "\n" (map (feat: feat.bashrc or "") featuresVal)}
+
+        fi
   '';
 
   # https://github.com/manesiotise/plutus-apps/blob/dbafa0ffdc1babcf8e9143ca5a7adde78d021a9a/nix/devcontainer-docker-image.nix#L99-L103
@@ -254,7 +347,9 @@ let
     HOME = "/home/${username}";
     USER = username;
     LANG = "en_US.UTF-8";
+    LC_ALL = "en_US.UTF-8";
     TZDIR = "/etc/zoneinfo";
+    LOCALE_ARCHIVE = "${pkgs.glibcLocalesUtf8}/lib/locale/locale-archive";
 
     DO_NOT_TRACK = "true";
 
@@ -412,6 +507,10 @@ pkgs.nix2container.buildImage {
                   mkdir -p $out/etc
                   ln -s ${profileFile} $out/etc/profile
                 '')
+                (pkgs.runCommand "bashrc" { } ''
+                  mkdir -p $out/etc
+                  ln -s ${bashrcFile} $out/etc/bashrc
+                '')
                 osRelease
               ];
             pathsToLink = [ "/etc" ];
@@ -472,6 +571,8 @@ pkgs.nix2container.buildImage {
 
                     ln -s ${
                       mkProfileScript profileName true ''
+                        set -x
+
                         if [ "$CODESPACES" == "true" ]; then
                           VSCODE_DIR=".vscode-remote"
                         else
@@ -579,6 +680,7 @@ pkgs.nix2container.buildImage {
                 mkdir -p $out/etc/profile.d
 
                 ln -s ${pkgs.writeScript "${profileNamePrefix}" ''
+                  set -x
 
                   ${builtins.concatStringsSep "\n" (
                     map (
