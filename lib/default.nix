@@ -237,30 +237,42 @@
         };
 
       go =
+        goPkg:
         { pkgs, envVarsDefault, ... }:
+        let
+          # https://github.com/cachix/devenv/blob/6bde92766ddd3ee1630029a03d36baddd51934e2/src/modules/languages/go.nix#L6
+          # Override the buildGoModule function to use the specified Go package.
+          buildGoModule = pkgs.buildGoModule.override { go = goPkg; };
+          buildWithSpecificGo = pkg: pkg.override { inherit buildGoModule; };
+        in
         {
           name = "go";
           layered = true;
 
           executables =
-            with pkgs;
-            [
-              pkgs.go
-
+            [ goPkg ]
+            ++ (with pkgs; [
               # https://github.com/golang/vscode-go/blob/eeb3c24fe991e47e130a0ac70a9b214664b4a0ea/extension/tools/allTools.ts.in
-              delve
-              gotools
-              gopls
-              go-outline
-              gopkgs
-              gomodifytags
-              impl
-              gotests
-              go-tools
+              # vscode-go expects all tool compiled with the same used go version
+              # https://github.com/NixOS/nixpkgs/pull/383098
+              (buildWithSpecificGo gopls)
+              (buildWithSpecificGo gotests)
+              (buildWithSpecificGo gomodifytags)
+              (buildWithSpecificGo impl)
+
+              # goplay
+
+              (buildWithSpecificGo delve)
+              # staticcheck
+              (buildWithSpecificGo go-tools)
+
+              # https://go.googlesource.com/tools
+              (buildWithSpecificGo gotools)
+
               golangci-lint
 
               k6
-            ]
+            ])
             ++ (ccPkgs pkgs);
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             golang.go
@@ -369,10 +381,8 @@
         };
 
       dotnet =
+        dotnetCore:
         { pkgs, ... }:
-        let
-          dotnetCore = pkgs.dotnetCorePackages.sdk_8_0;
-        in
         {
           name = "dotnet";
           layered = true;
@@ -399,20 +409,23 @@
         };
 
       node =
+        nodePkg:
         { pkgs, ... }:
         {
           name = "node";
           layered = true;
 
           executables =
-            (with pkgs; [
-              nodejs
-              yarn
-              pnpm
-            ])
-            ++ (with pkgs.nodePackages_latest; [
+            [ nodePkg ]
+            # ++ (with pkgs; [
+            #   yarn
+            #   pnpm
+            # ])
+            ++ (with nodePkg.pkgs; [
               typescript
               typescript-language-server
+              yarn
+              pnpm
             ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
@@ -475,10 +488,8 @@
         };
 
       java =
+        jdkPkg:
         { pkgs, envVarsDefault, ... }:
-        let
-          jdkPkg = pkgs.jdk;
-        in
         {
           name = "java";
           layered = true;
@@ -521,18 +532,19 @@
         };
 
       python =
+        pyPkg:
         { pkgs, envVarsDefault, ... }:
         {
           name = "python";
           layered = true;
 
           executables =
-            (with pkgs; [
-              python3
-              pipenv
-              virtualenv
-            ])
-            ++ (with pkgs.python3Packages; [
+            [ pyPkg ]
+            # ++ (with pkgs; [
+            #   pipenv
+            #   virtualenv
+            # ])
+            ++ (with pyPkg.pkgs; [
               flake8
               autopep8
               black
