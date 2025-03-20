@@ -105,12 +105,12 @@
 
               base = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-base";
+                name = "ghcr.io/hellodword/devcontainers-base";
               };
 
               dev = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-dev";
+                name = "ghcr.io/hellodword/devcontainers-dev";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -120,18 +120,19 @@
 
               nix = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-nix";
+                name = "ghcr.io/hellodword/devcontainers-nix";
                 features = with self.lib.features; [
                   dev0
                   dev1
                   dev2
                   nix
                 ];
+                withNix = true;
               };
 
               go = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-go";
+                name = "ghcr.io/hellodword/devcontainers-go";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -142,7 +143,7 @@
 
               go-web = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-go";
+                name = "ghcr.io/hellodword/devcontainers-go";
                 tag = "web";
                 features = with self.lib.features; [
                   dev0
@@ -155,7 +156,7 @@
 
               cpp = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-cpp";
+                name = "ghcr.io/hellodword/devcontainers-cpp";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -166,7 +167,7 @@
 
               vala = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-vala";
+                name = "ghcr.io/hellodword/devcontainers-vala";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -177,7 +178,7 @@
 
               dotnet = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-dotnet";
+                name = "ghcr.io/hellodword/devcontainers-dotnet";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -188,7 +189,7 @@
 
               node = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-node";
+                name = "ghcr.io/hellodword/devcontainers-node";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -199,7 +200,7 @@
 
               rust = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-rust";
+                name = "ghcr.io/hellodword/devcontainers-rust";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -210,7 +211,7 @@
 
               python = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-python";
+                name = "ghcr.io/hellodword/devcontainers-python";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -221,7 +222,7 @@
 
               java = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-java";
+                name = "ghcr.io/hellodword/devcontainers-java";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -232,7 +233,7 @@
 
               php = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-php";
+                name = "ghcr.io/hellodword/devcontainers-php";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -243,7 +244,7 @@
 
               php-web = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-php";
+                name = "ghcr.io/hellodword/devcontainers-php";
                 tag = "web";
                 features = with self.lib.features; [
                   dev0
@@ -256,7 +257,7 @@
 
               haskell = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-haskell";
+                name = "ghcr.io/hellodword/devcontainers-haskell";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -267,7 +268,7 @@
 
               dart = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-dart";
+                name = "ghcr.io/hellodword/devcontainers-dart";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -278,7 +279,7 @@
 
               lua = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-lua";
+                name = "ghcr.io/hellodword/devcontainers-lua";
                 features = with self.lib.features; [
                   dev0
                   dev1
@@ -289,7 +290,7 @@
 
               zig = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs;
-                name = "devcontainers-zig";
+                name = "ghcr.io/hellodword/devcontainers-zig";
                 features = with self.lib.features; [
                   dev0
                   dev1

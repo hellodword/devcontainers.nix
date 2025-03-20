@@ -27,13 +27,14 @@ After two years of these setups, I decided to completely rework everything using
   - [x] github actions dynamic matrix
   - [x] github actions cache
     - [ ] audit
+    - [ ] merge cache
 - docker
   - [x] layered image
   - [x] multiple arch
   - [x] multiple tags
   - [x] manually organized layers (nix2container)
 - Nix
-  - [ ] Nix in docker
+  - [x] Nix in docker
   - [ ] CUDA
 - devcontainer
   - [x] metadata
@@ -41,7 +42,7 @@ After two years of these setups, I decided to completely rework everything using
   - [x] features
   - [ ] overridable features
   - [x] onLogin commands
-  - [ ] bashrc
+  - [x] bashrc
   - [ ] pre-install packages via non-Nix tools
 - module
   - [ ] flakeModule
@@ -64,3 +65,4 @@ After two years of these setups, I decided to completely rework everything using
 - https://github.com/devcontainers/devcontainers.github.io/blob/gh-pages/_data/collection-index.yml
 - https://github.com/devcontainers/features/tree/main/src
 - https://github.com/devcontainers/images/tree/main/src
+- https://github.com/lix-project/lix/blob/2491b7cc2128ee440d24768c4521c38b1859fc28/docker.nix

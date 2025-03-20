@@ -72,6 +72,8 @@
             jq
             wget
             curl
+            gawk
+            diffutils
           ];
 
           vscodeSettings = {
@@ -146,9 +148,11 @@
             openssl
             netcat
 
+            # /bin/uptime
             procps
             gnupg
             rsync
+            # /bin/kill
             util-linux
           ];
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
@@ -157,12 +161,41 @@
           vscodeSettings = prettierSettings;
         };
 
-      # TODO nixpkgs
-      # TODO cli
-      # TODO features
       # https://github.com/NixOS/nix/blob/master/docker.nix
       nix =
-        { pkgs, ... }:
+        { pkgs, envVarsDefault, ... }:
+        let
+          inherit (envVarsDefault) XDG_CONFIG_HOME;
+          lib = pkgs.lib;
+          nixConf = {
+            sandbox = "false";
+            build-users-group = "nixbld";
+            substituters = [ "https://cache.nixos.org/" ];
+            trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
+            experimental-features = [
+              "nix-command"
+              "flakes"
+            ];
+          };
+          nixConfContents =
+            (lib.concatStringsSep "\n" (
+              lib.attrsets.mapAttrsToList (
+                n: v:
+                let
+                  vStr = if builtins.isList v then lib.concatStringsSep " " v else v;
+                in
+                "${n} = ${vStr}"
+              ) nixConf
+            ))
+            + "\n"
+            # GITHUB_TOKEN in codespaces
+            # access-tokens = github.com=${GITHUB_TOKEN}
+            + "!include ${XDG_CONFIG_HOME}/nix/access-token.conf"
+            + "\n"
+            + "!include ${XDG_CONFIG_HOME}/nix/nix.conf"
+            + "\n";
+          nixConfDir = pkgs.writeTextDir "nix.conf" nixConfContents;
+        in
         {
           name = "nix";
           layered = true;
@@ -176,10 +209,31 @@
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             jnoortheen.nix-ide
           ];
+          envVars = {
+            NIX_PAGER = "cat";
+            NIX_CONF_DIR = "${nixConfDir}";
+            NIX_PATH = "nixpkgs=${pkgs.path}";
+          };
           vscodeSettings = {
             "nix.enableLanguageServer" = true;
             "nix.serverPath" = "nixd";
           };
+
+          onLogin =
+            let
+              nixAccessToken = pkgs.writeScript "exe" ''
+                set -x
+                if [ -n "$GITHUB_TOKEN" ]; then
+                  mkdir -p "${XDG_CONFIG_HOME}/nix"
+                  echo "access-tokens = github.com=$GITHUB_TOKEN" > "${XDG_CONFIG_HOME}/nix/access-token.conf"
+                fi
+              '';
+            in
+            {
+              "write nix.conf#access-token" = {
+                command = "${nixAccessToken}";
+              };
+            };
         };
 
       go =

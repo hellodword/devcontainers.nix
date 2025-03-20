@@ -1,14 +1,20 @@
 {
   pkgs,
   name,
+
+  username ? "vscode",
+  group ? username,
+  uid ? 1000,
+  gid ? uid,
+
   tag ? "latest",
   timeZone ? "UTC",
+  # !!! it makes the whole /nix writable
+  withNix ? false,
   features ? [ ],
 }:
 let
   lib = pkgs.lib;
-
-  username = "vscode";
 
   mkExtensions =
     exts:
@@ -391,10 +397,6 @@ let
     mkdir -p $out/tmp
   '';
 
-  group = username;
-  uid = 1000;
-  gid = uid;
-
   mkUser = (
     pkgs.runCommand "mkUser" { } ''
       mkdir -p $out/etc/pam.d
@@ -459,6 +461,8 @@ in
 pkgs.nix2container.buildImage {
   inherit name tag;
   initializeNixDatabase = true;
+  nixUid = if withNix then uid else null;
+  nixGid = if withNix then gid else null;
 
   # https://github.com/docker/docs/issues/8230#issuecomment-468630187
   maxLayers = 100;
@@ -477,6 +481,12 @@ pkgs.nix2container.buildImage {
       uname = username;
       gname = group;
     }
+    # {
+    #   regex = "/vscode";
+    #   mode = "0744";
+    #   uid = uid;
+    #   gid = gid;
+    # }
   ];
 
   copyToRoot = [
