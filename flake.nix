@@ -236,6 +236,49 @@
                   ];
                 };
 
+                shell = self.lib.mkManuallyLayeredDevcontainer {
+                  inherit pkgs;
+                  name = "ghcr.io/hellodword/devcontainers-shell";
+                  features = with self.lib.features; [
+                    dev0
+                    dev1
+                    dev2
+                    shell
+                  ];
+                };
+
+                writer = self.lib.mkManuallyLayeredDevcontainer {
+                  inherit pkgs;
+                  name = "ghcr.io/hellodword/devcontainers-writer";
+                  features = with self.lib.features; [
+                    dev0
+                    dev1
+                    dev2
+
+                    writer
+                    (
+                      { ... }:
+                      {
+                        vscodeSettings = {
+                          "autocorrect.formatOnSave" = true;
+                        };
+                      }
+                    )
+
+                  ];
+                };
+
+                latex = self.lib.mkManuallyLayeredDevcontainer {
+                  inherit pkgs;
+                  name = "ghcr.io/hellodword/devcontainers-latex";
+                  features = with self.lib.features; [
+                    dev0
+                    dev1
+                    dev2
+                    latex
+                  ];
+                };
+
               }
 
               # https://devguide.python.org/versions/

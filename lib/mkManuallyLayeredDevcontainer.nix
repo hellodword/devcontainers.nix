@@ -90,6 +90,7 @@ let
     # "editor.fontFamily" = "'JetBrainsMono Nerd Font', 'monospace', monospace";
     "editor.tabSize" = 2;
     "extensions.ignoreRecommendations" = true;
+    "files.eol" = "\n";
   };
 
   vscodeSettingsFull =

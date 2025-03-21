@@ -100,6 +100,7 @@
           '';
         };
 
+      # TODO ldd/strings/...
       dev1 =
         { pkgs, ... }:
         {
@@ -851,11 +852,150 @@
           };
         };
 
+      # https://github.com/koalaman/shellcheck
+      # https://github.com/vscode-shellcheck/vscode-shellcheck
+      shell =
+        { pkgs, ... }:
+        {
+          name = "shell";
+          layered = true;
+
+          executables = with pkgs; [
+            shellcheck
+          ];
+
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            timonwong.shellcheck
+          ];
+          envVars = { };
+          vscodeSettings = {
+            "shellcheck.enable" = true;
+            "shellcheck.enableQuickFix" = true;
+            "shellcheck.run" = "onSave";
+            # do not use the precompiled binaries
+            "shellcheck.executablePath" = "/bin/shellcheck";
+            "shellcheck.exclude" = [ ];
+            "shellcheck.customArgs" = [ ];
+            "shellcheck.ignorePatterns" = {
+              "**/*.csh" = true;
+              "**/*.cshrc" = true;
+              "**/*.fish" = true;
+              "**/*.login" = true;
+              "**/*.logout" = true;
+              "**/*.tcsh" = true;
+              "**/*.tcshrc" = true;
+              "**/*.xonshrc" = true;
+              "**/*.xsh" = true;
+              "**/*.zsh" = true;
+              "**/*.zshrc" = true;
+              "**/zshrc" = true;
+              "**/*.zprofile" = true;
+              "**/zprofile" = true;
+              "**/*.zlogin" = true;
+              "**/zlogin" = true;
+              "**/*.zlogout" = true;
+              "**/zlogout" = true;
+              "**/*.zshenv" = true;
+              "**/zshenv" = true;
+              "**/*.zsh-theme" = true;
+            };
+            "shellcheck.ignoreFileSchemes" = [
+              "git"
+              "gitfs"
+              "output"
+            ];
+          };
+        };
+
+      # markdown (math)
+      # autocorrect
+      # grammarly alternative
+      writer =
+        { pkgs, ... }:
+        {
+          name = "writer";
+          layered = true;
+
+          executables = with pkgs; [
+            harper
+          ];
+
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/shd101wyy/vscode-markdown-preview-enhanced
+            shd101wyy.markdown-preview-enhanced
+            # https://github.com/huacnlee/vscode-autocorrect
+            huacnlee.autocorrect
+            # https://github.com/automattic/harper
+            elijah-potter.harper
+          ];
+          envVars = { };
+          vscodeSettings = {
+            "markdown-preview-enhanced.liveUpdate" = false;
+
+            "autocorrect.enable" = true;
+            "autocorrect.enableLint" = true;
+            # override this
+            "autocorrect.formatOnSave" = false;
+
+            "harper.markdown.IgnoreLinkTitle" = true;
+            # do not use the precompiled binaries
+            "harper.path" = "/bin/harper-ls";
+          };
+        };
+
+      # TODO minimize texlive
+      latex =
+        { pkgs, ... }:
+        {
+          name = "latex";
+          layered = true;
+
+          executables = with pkgs; [
+            texliveMedium
+            # tectonic
+            # ltex-ls
+          ];
+
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/James-Yu/LaTeX-Workshop
+            james-yu.latex-workshop
+          ];
+          envVars = { };
+          vscodeSettings = {
+            "latex-workshop.formatting.latex" = "latexindent";
+            "latex-workshop.latex.tools" = [
+              {
+                "name" = "latexmk";
+                "command" = "latexmk";
+                "args" = [
+                  "-synctex=1"
+                  "-interaction=nonstopmode"
+                  "-file-line-error"
+                  "-pdf"
+                  "-outdir=%OUTDIR%"
+                  "%DOC%"
+                ];
+              }
+              {
+                "name" = "bibtex";
+                "command" = "bibtex";
+                "env" = { };
+                "args" = [ "%DOCFILE%" ];
+              }
+            ];
+            "latex-workshop.latex.recipes" = [
+              {
+                "name" = "latexmk 🔃";
+                "tools" = [ "latexmk" ];
+              }
+            ];
+            "latex-workshop.view.pdf.viewer" = "tab";
+          };
+        };
+
       gpu = { ... }: { };
 
       windows = { ... }: { };
-
-      web3 = { ... }: { };
 
     };
 }

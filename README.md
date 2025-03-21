@@ -48,6 +48,15 @@ After two years of these setups, I decided to completely rework everything using
   - [ ] flakeModule
   - [ ] types
 
+## Misc
+
+```shell
+nix eval --json $"github:hellodword/devcontainers.nix#packages.x86_64-linux" \
+  --apply 'x: map (p: "${x."${p}".imageName}:${x."${p}".imageTag}") (builtins.attrNames x)' | \
+    jq -r '.[]' | \
+    xargs -I {} bash -c 'echo pulling {}; while ! docker pull {}; do (sleep 2s;); done; echo'
+```
+
 ## Ref
 
 - https://github.com/niksi-aalto/niksi-devcontainer
