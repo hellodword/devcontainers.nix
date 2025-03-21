@@ -165,7 +165,7 @@
       nix =
         { pkgs, envVarsDefault, ... }:
         let
-          inherit (envVarsDefault) XDG_CONFIG_HOME;
+          inherit (envVarsDefault) XDG_CONFIG_HOME HOME XDG_STATE_HOME;
           lib = pkgs.lib;
           nixConf = {
             sandbox = "false";
@@ -176,6 +176,7 @@
               "nix-command"
               "flakes"
             ];
+            accept-flake-config = "true";
           };
           nixConfContents =
             (lib.concatStringsSep "\n" (
@@ -205,6 +206,9 @@
 
             nixd
             nixfmt-rfc-style
+
+            # required by nix* --help
+            man
           ];
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             jnoortheen.nix-ide
@@ -213,6 +217,7 @@
             NIX_PAGER = "cat";
             NIX_CONF_DIR = "${nixConfDir}";
             NIX_PATH = "nixpkgs=${pkgs.path}";
+            PATH = "${HOME}/.nix-profile/bin:${XDG_STATE_HOME}/nix/profiles/profile/bin";
           };
           vscodeSettings = {
             "nix.enableLanguageServer" = true;
@@ -234,6 +239,9 @@
                 command = "${nixAccessToken}";
               };
             };
+          alias = {
+            "nix-env-add" = ''nix-env --verbose -f "<nixpkgs>" -iA'';
+          };
         };
 
       go =
