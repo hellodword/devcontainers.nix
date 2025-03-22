@@ -38,25 +38,29 @@
 
   features =
     let
-      ccPkgs = pkgs: with pkgs; [ stdenv.cc ];
-      # mingwPkgs =
-      #   pkgs: with pkgs.pkgsCross; [
-      #     mingw32.buildPackages.gcc
-      #     mingwW64.buildPackages.gcc
-      #   ];
+      ccPkgs =
+        pkgs: with pkgs; [
+          stdenv.cc
+          stdenv.cc.bintools
 
-      prettierSettings = {
-        "json.format.enable" = false;
-        "prettier.enable" = true;
-        "[json]" = {
-          "editor.defaultFormatter" = "esbenp.prettier-vscode";
-        };
-        "[jsonc]" = {
-          "editor.defaultFormatter" = "esbenp.prettier-vscode";
-        };
-        "[markdown]" = {
-          "editor.defaultFormatter" = "esbenp.prettier-vscode";
-        };
+          pkg-config
+          autoconf
+          automake
+          gnumake
+        ];
+      mingw64Pkgs =
+        pkgs: with pkgs.pkgsCross.mingwW64; [
+          stdenv.cc
+          stdenv.cc.bintools
+        ];
+      metadataPtrace = {
+        # https://github.com/devcontainers/features/blob/c264b4e837f3273789fc83dae898152daae4cd90/src/go/devcontainer-feature.json#L38-L43
+        "capAdd" = [
+          "SYS_PTRACE"
+        ];
+        "securityOpt" = [
+          "seccomp=unconfined"
+        ];
       };
     in
     {
@@ -100,7 +104,6 @@
           '';
         };
 
-      # TODO ldd/strings/...
       dev1 =
         { pkgs, ... }:
         {
@@ -123,6 +126,8 @@
             less
             lsof
             htop
+
+            stdenv.cc.bintools
           ];
           envVars = {
             PAGER = "less";
@@ -156,12 +161,41 @@
             # /bin/kill
             util-linux
           ];
+        };
+
+      prettier =
+        { pkgs, ... }:
+        {
+          name = "prettier";
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             esbenp.prettier-vscode
           ];
-          vscodeSettings = prettierSettings;
+          vscodeSettings = {
+            "json.format.enable" = false;
+            "prettier.enable" = true;
+            "[json]" = {
+              "editor.defaultFormatter" = "esbenp.prettier-vscode";
+            };
+            "[jsonc]" = {
+              "editor.defaultFormatter" = "esbenp.prettier-vscode";
+            };
+            "[markdown]" = {
+              "editor.defaultFormatter" = "esbenp.prettier-vscode";
+            };
+            "[javascript]" = {
+              "editor.defaultFormatter" = "esbenp.prettier-vscode";
+            };
+            "[typescript]" = {
+              "editor.defaultFormatter" = "esbenp.prettier-vscode";
+            };
+            "[yaml]" = {
+              "editor.defaultFormatter" = "esbenp.prettier-vscode";
+            };
+          };
         };
 
+      # TODO nix-index
+      # TODO nix-locate
       # https://github.com/NixOS/nix/blob/master/docker.nix
       nix =
         { pkgs, envVarsDefault, ... }:
@@ -281,8 +315,7 @@
               golangci-lint
 
               k6
-            ])
-            ++ (ccPkgs pkgs);
+            ]);
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             golang.go
           ];
@@ -300,68 +333,124 @@
             "go.toolsManagement.autoUpdate" = false;
             "go.logging.level" = "verbose";
           };
-          metadata = {
-            # https://github.com/devcontainers/features/blob/c264b4e837f3273789fc83dae898152daae4cd90/src/go/devcontainer-feature.json#L38-L43
-            "capAdd" = [
-              "SYS_PTRACE"
-            ];
-            "securityOpt" = [
-              "seccomp=unconfined"
-            ];
-          };
+          metadata = metadataPtrace;
         };
 
       # https://github.com/devcontainers/images/tree/main/src/cpp
       # https://discourse.nixos.org/t/how-to-set-up-a-nix-shell-with-gnu-build-toolchain-build-essential/38579
+      cc =
+        { pkgs, ... }:
+        {
+          name = "cc";
+          layered = true;
+          executables = ccPkgs pkgs;
+        };
+
+      # FIXME
+      mingw64 =
+        { pkgs, ... }:
+        {
+          name = "mingw64";
+          layered = true;
+          libraries = with pkgs.pkgsCross.mingwW64.windows; [
+            mingw_w64_pthreads
+            mcfgthreads
+          ];
+          executables = mingw64Pkgs pkgs;
+        };
+
       cpp =
         { pkgs, ... }:
         {
           name = "cpp";
           layered = true;
 
-          libraries = with pkgs; [ glib.dev ];
+          # libraries = with pkgs; [
+          #   # glib.dev
+          #   # stdenv.cc.cc.lib
+          #   # libiconv
+          #   # libtool
+          # ];
 
-          executables = with pkgs; [
-            gnumake
-            clang
-            pkg-config
-            cmake
-            vcpkg
-            lldb
-            llvm
-            gdb
-            valgrind
-            cppcheck
+          executables = ccPkgs pkgs;
+          # ++ (with pkgs; [
 
-            bison
-            flex
-            fontforge
-            makeWrapper
-            gcc
-            libiconv
-            autoconf
-            automake
-            libtool # freetype calls glibtoolize
+          #   # clang
+          #   # vcpkg
+          #   # lldb
+          #   # llvm
+          #   # valgrind
+          #   # cppcheck
 
-            clang-tools
-          ];
+          #   # # clangd
+          #   # clang-tools
+          # ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             ms-vscode.cpptools
             ms-vscode.cpptools-extension-pack
-            ms-vscode.cmake-tools
           ];
           vscodeSettings = {
             # TODO
           };
-          metadata = {
-            "capAdd" = [
-              "SYS_PTRACE"
-            ];
-            "securityOpt" = [
-              "seccomp=unconfined"
-            ];
-          };
+        };
+
+      gdb =
+        { pkgs, ... }:
+        {
+          name = "gdb";
+          layered = true;
+          executables = with pkgs; [
+            gdb
+          ];
+          metadata = metadataPtrace;
+        };
+
+      cmake =
+        { pkgs, ... }:
+        {
+          name = "cmake";
+          layered = true;
+          executables = with pkgs; [
+            cmake
+          ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            ms-vscode.cmake-tools
+          ];
+        };
+
+      meson =
+        { pkgs, ... }:
+        {
+          name = "meson";
+          layered = true;
+          executables = with pkgs; [
+            meson
+          ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/mesonbuild/vscode-meson
+            mesonbuild.mesonbuild
+          ];
+        };
+
+      ninja =
+        { pkgs, ... }:
+        {
+          name = "ninja";
+          layered = true;
+          executables = with pkgs; [
+            ninja
+          ];
+        };
+
+      gn =
+        { pkgs, ... }:
+        {
+          name = "gn";
+          layered = true;
+          executables = with pkgs; [
+            gn
+          ];
         };
 
       vala =
@@ -377,8 +466,8 @@
             vala-language-server
             uncrustify
 
-            clang
-            pkg-config
+            # clang
+            # pkg-config
           ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
@@ -438,20 +527,11 @@
             ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
-            esbenp.prettier-vscode
             dbaeumer.vscode-eslint
             vue.volar
           ];
           envVars = {
             NODE_ENV = "development";
-          };
-          vscodeSettings = pkgs.lib.attrsets.recursiveUpdate prettierSettings {
-            "[javascript]" = {
-              "editor.defaultFormatter" = "esbenp.prettier-vscode";
-            };
-            "[typescript]" = {
-              "editor.defaultFormatter" = "esbenp.prettier-vscode";
-            };
           };
         };
 
@@ -461,11 +541,15 @@
           name = "rust";
           layered = true;
 
-          executables = with pkgs; [
-            stdenv.cc
-            openssl
+          libraries = with pkgs; [
             openssl.dev
-            pkg-config
+          ];
+
+          executables = with pkgs; [
+            openssl
+
+            # stdenv.cc
+            # pkg-config
 
             (rust-bin.stable.latest.default.override {
               extensions = [
@@ -788,6 +872,43 @@
           vscodeSettings = { };
         };
 
+      zigcc-windows =
+        { pkgs, ... }:
+        {
+          name = "zigcc-windows";
+          executables = with pkgs; [
+            zig
+          ];
+          envVars = {
+            /*
+              $ zig --help | grep drop-in
+                ar               Use Zig as a drop-in archiver
+                cc               Use Zig as a drop-in C compiler
+                c++              Use Zig as a drop-in C++ compiler
+                dlltool          Use Zig as a drop-in dlltool.exe
+                lib              Use Zig as a drop-in lib.exe
+                ranlib           Use Zig as a drop-in ranlib
+                objcopy          Use Zig as a drop-in objcopy
+                rc               Use Zig as a drop-in rc.exe
+            */
+
+            ZIG_AR = "zig ar -target x86_64-windows-gnu";
+            ZIG_CC = "zig cc -target x86_64-windows-gnu";
+            ZIG_CXX = "zig c++ -target x86_64-windows-gnu";
+            ZIG_LD = "zig ld -target x86_64-windows-gnu";
+          };
+        };
+
+      # FIXME wine-mono
+      wine =
+        { pkgs, ... }:
+        {
+          name = "wine";
+          executables = with pkgs; [
+            wineWowPackages.stable
+          ];
+        };
+
       zig =
         { pkgs, ... }:
         {
@@ -854,10 +975,10 @@
 
       # https://github.com/koalaman/shellcheck
       # https://github.com/vscode-shellcheck/vscode-shellcheck
-      shell =
+      shellcheck =
         { pkgs, ... }:
         {
-          name = "shell";
+          name = "shellcheck";
           layered = true;
 
           executables = with pkgs; [
@@ -907,39 +1028,56 @@
           };
         };
 
-      # markdown (math)
-      # autocorrect
-      # grammarly alternative
-      writer =
+      grammarly =
         { pkgs, ... }:
         {
-          name = "writer";
-          layered = true;
-
+          name = "grammarly";
           executables = with pkgs; [
             harper
           ];
-
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
-            # https://github.com/shd101wyy/vscode-markdown-preview-enhanced
-            shd101wyy.markdown-preview-enhanced
-            # https://github.com/huacnlee/vscode-autocorrect
-            huacnlee.autocorrect
             # https://github.com/automattic/harper
             elijah-potter.harper
           ];
-          envVars = { };
+          vscodeSettings = {
+            "harper.markdown.IgnoreLinkTitle" = true;
+            # do not use the precompiled binaries
+            "harper.path" = "/bin/harper-ls";
+
+            "harper.linters.SentenceCapitalization" = false;
+            "harper.linters.RepeatedWords" = false;
+            "harper.linters.LongSentences" = false;
+
+            # TODO custom dict: min/webhook/LANG/vip ...
+          };
+        };
+
+      markdown =
+        { pkgs, ... }:
+        {
+          name = "markdown";
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/shd101wyy/vscode-markdown-preview-enhanced
+            shd101wyy.markdown-preview-enhanced
+          ];
           vscodeSettings = {
             "markdown-preview-enhanced.liveUpdate" = false;
+          };
+        };
 
+      autocorrect =
+        { pkgs, ... }:
+        {
+          name = "autocorrect";
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/huacnlee/vscode-autocorrect
+            huacnlee.autocorrect
+          ];
+          vscodeSettings = {
             "autocorrect.enable" = true;
             "autocorrect.enableLint" = true;
             # override this
             "autocorrect.formatOnSave" = false;
-
-            "harper.markdown.IgnoreLinkTitle" = true;
-            # do not use the precompiled binaries
-            "harper.path" = "/bin/harper-ls";
           };
         };
 
@@ -993,9 +1131,57 @@
           };
         };
 
+      xml =
+        { pkgs, ... }:
+        {
+          name = "xml";
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            redhat.vscode-xml
+          ];
+          vscodeSettings = {
+            "xml.format.enabled" = true;
+          };
+        };
+
+      toml =
+        { pkgs, ... }:
+        {
+          name = "toml";
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            tamasfe.even-better-toml
+          ];
+          vscodeSettings = {
+            "[toml]" = {
+              "editor.defaultFormatter" = "tamasfe.even-better-toml";
+            };
+            "evenBetterToml.formatter.crlf" = false;
+          };
+        };
+
+      nginx =
+        { pkgs, ... }:
+        {
+          name = "nginx";
+          executables = with pkgs; [
+            nginx
+          ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/raynigon/vscode-nginx-formatter
+            raynigon.nginx-formatter
+            # https://github.com/ahmadalli/vscode-nginx-conf
+            ahmadalli.vscode-nginx-conf
+          ];
+          vscodeSettings = {
+            # https://github.com/ahmadalli/vscode-nginx-conf#formatting
+            "[nginx]" = {
+              "editor.defaultFormatter" = "raynigon.nginx-formatter";
+            };
+          };
+        };
+
       gpu = { ... }: { };
 
-      windows = { ... }: { };
+      llvm = { ... }: { };
 
     };
 }

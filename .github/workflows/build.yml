@@ -43,9 +43,11 @@ jobs:
         runs-on: ["ubuntu-24.04-arm", "ubuntu-latest"]
         package: ${{ fromJson(needs.generate-matrix.outputs.packages).package }}
         exclude:
-          # no kvm for buildImage
+          # # no kvm for buildImage
+          # - runs-on: ubuntu-24.04-arm
+          #   package: hello
           - runs-on: ubuntu-24.04-arm
-            package: hello
+            package: go-windows
 
     steps:
       - uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793
