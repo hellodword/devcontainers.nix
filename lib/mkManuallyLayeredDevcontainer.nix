@@ -243,12 +243,12 @@ let
   lib64 = pkgs.runCommand "lib64" { } ''
     mkdir -p $out/lib64
     ln -s ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 $out/lib64/ld-linux-x86-64.so.2
-    ln -s ${pkgs.gcc-unwrapped.lib}/lib64/libstdc++.so.6 $out/lib64/libstdc++.so.6
+    ln -s ${pkgs.gcc-unwrapped.lib.lib}/lib/libstdc++.so.6 $out/lib64/libstdc++.so.6
   '';
 
   librariesDefault = with pkgs; [
     glibc
-    gcc-unwrapped.lib
+    gcc-unwrapped.lib.lib
   ];
 
   librariesFull = lib.lists.unique (
