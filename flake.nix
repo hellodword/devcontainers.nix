@@ -198,7 +198,7 @@
                     commonFeats
                     ++ (with self.lib.features; [
                       php
-                      (node pkgs.nodejs-slim_latest)
+                      (node pkgs.nodejs_latest)
                     ]);
                 };
 
@@ -309,11 +309,11 @@
               // (
                 let
                   nodePkgs = {
-                    latest = pkgs.nodejs-slim_latest;
-                    "23" = pkgs.nodejs-slim_23;
-                    "22" = pkgs.nodejs-slim_22;
-                    "20" = pkgs.nodejs-slim_20;
-                    "18" = pkgs.nodejs-slim_18;
+                    latest = pkgs.nodejs_latest;
+                    "23" = pkgs.nodejs_23;
+                    "22" = pkgs.nodejs_22;
+                    "20" = pkgs.nodejs_20;
+                    "18" = pkgs.nodejs_18;
                   };
                 in
                 builtins.listToAttrs (
@@ -454,7 +454,7 @@
                         ++ (with self.lib.features; [
                           cc
                           (go goPkgs."${tag}")
-                          (node pkgs.nodejs-slim_latest)
+                          (node pkgs.nodejs_latest)
                         ]);
                     };
                   }) (builtins.attrNames goPkgs))
