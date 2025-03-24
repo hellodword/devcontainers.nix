@@ -387,6 +387,8 @@
           # ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # FIXME too large because of the clang-tools: pkgs/applications/editors/vscode/extensions/ms-vscode.cpptools/default.nix
+            # build a static clangd and set the `"C_Cpp.clang_format_path"`?
             ms-vscode.cpptools
             ms-vscode.cpptools-extension-pack
           ];
