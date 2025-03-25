@@ -36,6 +36,7 @@ After two years of these setups, I decided to completely rework everything using
 - Nix
   - [x] Nix in docker
   - [ ] CUDA
+  - [ ] deprecated/broken packages
 - devcontainer
   - [x] metadata
 - customization

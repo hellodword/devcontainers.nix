@@ -11,94 +11,219 @@
   timeZone ? "UTC",
   # !!! it makes the whole /nix writable
   withNix ? false,
+  /*
+    {
+      name = "foo";
+
+      layered = true;
+
+      users = {
+        foo = {
+          uid = 1001;
+          shell = "${pkgs.bashInteractive}/bin/bash";
+          home = "/home/foo";
+          gid = 1001;
+          groups = [ "foo" ];
+          # description = "foo user";
+        };
+      };
+      groups = {
+        foo.gid = 1001;
+      };
+
+      libraries = [];
+      executables = [];
+      deps = [];
+
+      extensions = [];
+
+      envVars = {
+        FOO = "bar";
+      };
+      vscodeSettings = {};
+      metadata = {};
+
+      bashrc = '''';
+      onLogin = {
+        "dart disable analytics" = {
+          command = "dart --disable-analytics || true";
+          once = true;
+        };
+      };
+      alias = {
+        ll = "ls -l";
+      };
+
+      layers = [
+        {
+          deps = [];
+        }
+        # for copyToRoot
+        {
+          paths = [];
+          pathsToLink = [];
+        }
+      ];
+    }
+  */
   features ? [ ],
 }:
 let
   lib = pkgs.lib;
-
-  mkExtensions =
-    exts:
-    map (x: {
-      identifier.id = x.vscodeExtUniqueId;
-      version = x.version;
-      location = {
-        "$mid" = 1;
-        scheme = "file";
-        path = "${x}/share/vscode/extensions/${x.vscodeExtUniqueId}";
-      };
-    }) exts;
-
-  # https://devcontainers.github.io/implementors/json_reference/
-  metadataDefault = {
-    # forwardPorts = [ ];
-    # portsAttributes = {
-    #   "3000" = {
-    #     label = "Application port";
-    #     protocol = "https";
-    #     onAutoForward = "ignore";
-    #     requireLocalPort = true;
-    #     elevateIfNeeded = false;
-    #   };
-    # };
-    # otherPortsAttributes = {
-    #   "onAutoForward" = "silent";
-    # };
-    containerEnv = {
-      # USER = username;
-    };
-    # remoteEnv = { };
-    remoteUser = username;
-    # containerUser = "root";
-    # userEnvProbe = "loginInteractiveShell";
-    # overrideCommand = true;
-    # shutdownAction = "stopContainer";
-    # init = false;
-    privileged = false;
-
-    # capAdd = [ ];
-    # securityOpt = [ ];
-    # mounts = [ ];
-    # customizations = { };
-
-    # # execute the command without a shell
-    # onCreateCommand = '''';
-    # updateContentCommand = '''';
-    # postCreateCommand = '''';
-    # postStartCommand = '''';
-    # postAttachCommand = '''';
-    # waitFor = "updateContentCommand";
-    # hostRequirements = {
-    #   cpus = 2;
-    #   memory = "4gb";
-    #   storage = "32gb";
-    #   gpu = "optional";
-    # };
-
-    updateRemoteUserUID = false;
-
-  };
-
   featuresVal = map (x: x { inherit pkgs envVarsDefault; }) features;
 
-  vscodeSettingsDefault = {
-    "diffEditor.wordWrap" = "on";
-    "editor.formatOnSave" = true;
-    "editor.formatOnType" = false;
-    "editor.wordWrap" = "on";
-    "workbench.localHistory.enabled" = false;
-    "remote.autoForwardPortsSource" = "hybrid";
-    # "editor.fontFamily" = "'JetBrainsMono Nerd Font', 'monospace', monospace";
-    "editor.tabSize" = 2;
-    "extensions.ignoreRecommendations" = true;
-    "files.eol" = "\n";
-  };
+  #####################################################
+  ################### base system #####################
 
-  vscodeSettingsFull =
-    builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) vscodeSettingsDefault
-      (map (v: v.vscodeSettings) (lib.filter (feat: builtins.hasAttr "vscodeSettings" feat) featuresVal));
+  usersDefault = {
+    root = {
+      uid = 0;
+      shell = "${pkgs.bashInteractive}/bin/bash";
+      home = "/root";
+      gid = 0;
+      groups = [ "root" ];
+      description = "System administrator";
+    };
+
+    ${username} = {
+      uid = uid;
+      shell = "${pkgs.bashInteractive}/bin/bash";
+      home = "/home/${username}";
+      gid = gid;
+      groups = [ username ];
+      description = "default user";
+    };
+  };
+  usersFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) usersDefault (
+    map (v: v.users or { }) featuresVal
+  );
+
+  groupsDefault = {
+    root.gid = 0;
+    ${username}.gid = gid;
+  };
+  groupsFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) groupsDefault (
+    map (v: v.groups or { }) featuresVal
+  );
+
+  userToPasswd = (
+    k:
+    {
+      uid,
+      gid ? 65534,
+      home ? "/var/empty",
+      description ? "",
+      shell ? "/bin/false",
+      ...
+    }:
+    "${k}:x:${toString uid}:${toString gid}:${description}:${home}:${shell}"
+  );
+  passwdContents = (lib.concatStringsSep "\n" (lib.attrValues (lib.mapAttrs userToPasswd usersFull)));
+
+  userToShadow = k: { ... }: "${k}:!:1::::::";
+  shadowContents = (lib.concatStringsSep "\n" (lib.attrValues (lib.mapAttrs userToShadow usersFull)));
+
+  # Map groups to members
+  # {
+  #   group = [ "user1" "user2" ];
+  # }
+  groupMemberMap = (
+    let
+      # Create a flat list of user/group mappings
+      mappings = (
+        builtins.foldl' (
+          acc: user:
+          let
+            groups = usersFull.${user}.groups or [ ];
+          in
+          acc ++ map (group: { inherit user group; }) groups
+        ) [ ] (lib.attrNames usersFull)
+      );
+    in
+    (builtins.foldl' (
+      acc: v: acc // { ${v.group} = acc.${v.group} or [ ] ++ [ v.user ]; }
+    ) { } mappings)
+  );
+
+  groupToGroup =
+    k:
+    { gid }:
+    let
+      members = groupMemberMap.${k} or [ ];
+    in
+    "${k}:x:${toString gid}:${lib.concatStringsSep "," members}";
+  groupContents = (lib.concatStringsSep "\n" (lib.attrValues (lib.mapAttrs groupToGroup groupsFull)));
+
+  mkBaseSystem =
+    pkgs.runCommand "base-system"
+      {
+        inherit
+          passwdContents
+          groupContents
+          shadowContents
+          ;
+        passAsFile = [
+          "passwdContents"
+          "groupContents"
+          "shadowContents"
+        ];
+        allowSubstitutes = false;
+        preferLocalBuild = true;
+      }
+      ''
+        env
+        set -x
+
+        mkdir -p $out/etc
+
+        cat $passwdContentsPath > $out/etc/passwd
+        echo "" >> $out/etc/passwd
+
+        cat $groupContentsPath > $out/etc/group
+        echo "" >> $out/etc/group
+
+        cat $shadowContentsPath > $out/etc/shadow
+        echo "" >> $out/etc/shadow
+
+        mkdir -p $out/tmp
+
+        mkdir -p $out/home/${username}
+      '';
+
+  librariesBaseSystem = [ ];
+  executablesBaseSystem = [ pkgs.bashInteractive ];
+  layersBaseSystem = [
+    {
+      name = "packages for base system";
+      deps = librariesBaseSystem ++ executablesBaseSystem;
+    }
+    {
+      name = "base system";
+      copyToRoot = mkBaseSystem;
+      perms = [
+        {
+          path = mkBaseSystem;
+          regex = "/tmp";
+          mode = "1777";
+        }
+        {
+          path = mkBaseSystem;
+          regex = "/home/${username}";
+          mode = "0744";
+          uid = uid;
+          gid = gid;
+          uname = username;
+          gname = group;
+        }
+      ];
+    }
+  ];
+
+  #####################################################
+  ################# vscode runtime ####################
 
   # nixos/modules/misc/version.nix
-  osReleaseFile =
+  osReleaseContents =
     let
       trivial = pkgs.lib.trivial;
       cfg = {
@@ -107,7 +232,7 @@ let
         distroId = "nixos";
         vendorName = "NixOS";
       };
-      osReleaseContents = {
+      osReleaseAttrs = {
         PRETTY_NAME = "${cfg.distroName} ${cfg.release} (${cfg.codeName})";
         NAME = "${cfg.distroName}";
         VERSION_ID = cfg.release;
@@ -128,13 +253,125 @@ let
         )
         + "\n";
     in
-    pkgs.writeText "os-release" (attrsToText osReleaseContents);
-  osRelease = pkgs.runCommand "os-release" { } ''
-    mkdir -p $out/etc
-    ln -s ${osReleaseFile} $out/etc/os-release
+    attrsToText osReleaseAttrs;
+  osRelease =
+    pkgs.runCommand "os-release"
+      {
+        inherit
+          osReleaseContents
+          ;
+        passAsFile = [
+          "osReleaseContents"
+        ];
+        allowSubstitutes = false;
+        preferLocalBuild = true;
+      }
+      ''
+        mkdir -p $out/etc
+        cat $osReleaseContentsPath > $out/etc/os-release
+      '';
+
+  # https://github.com/manesiotise/plutus-apps/blob/dbafa0ffdc1babcf8e9143ca5a7adde78d021a9a/nix/devcontainer-docker-image.nix#L99-L103
+  # allow ubuntu ELF binaries to run. VSCode copies it's own.
+  # ln -s ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 $out/lib64/libstdc++.so.6
+  lib64 = pkgs.runCommand "lib64" { } ''
+    mkdir -p $out/lib64
+    ln -s ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 $out/lib64/ld-linux-x86-64.so.2
   '';
 
-  profileFile = pkgs.writeScript "profile" ''
+  depsVSCodeRuntime = with pkgs; [
+    glibc
+    cacert
+  ];
+  librariesVSCodeRuntime = [
+    # required by vscode-server and its node
+    pkgs.stdenv.cc.cc.lib
+  ];
+  executablesVSCodeRuntime = with pkgs; [
+    coreutils
+    gnutar
+    gzip
+    gnused
+    gnugrep
+  ];
+  layersVSCodeRuntime = [
+    {
+      name = "packages for vscode runtime";
+      deps = depsVSCodeRuntime ++ librariesVSCodeRuntime ++ executablesVSCodeRuntime;
+    }
+    {
+      name = "vscode runtime";
+      paths = [
+        pkgs.dockerTools.caCertificates
+        pkgs.dockerTools.binSh
+        pkgs.dockerTools.usrBinEnv
+        osRelease
+      ];
+      pathsToLink = [ "/" ];
+    }
+    {
+      name = "/lib64 for vscode runtime";
+      paths = [ lib64 ];
+      pathsToLink = [ "/lib64" ];
+    }
+  ];
+
+  #####################################################
+  ################# profile bashrc ####################
+
+  mkProfileScript =
+    profileName: once: command:
+    pkgs.writeScript "${profileName}" ''
+      mkdir -p $HOME/state
+
+      ${
+        if once then
+          ''
+            if [ ! -f "$HOME/state/.${profileName}" ]; then
+              echo executing ${profileName}
+              ${command}
+
+              touch "$HOME/state/.${profileName}"
+            fi
+          ''
+        else
+          ''
+            echo executing ${profileName}
+            ${command}
+          ''
+      }
+    '';
+
+  mkExtensions =
+    exts:
+    map (x: {
+      identifier.id = x.vscodeExtUniqueId;
+      version = x.version;
+      location = {
+        "$mid" = 1;
+        scheme = "file";
+        path = "${x}/share/vscode/extensions/${x.vscodeExtUniqueId}";
+      };
+    }) exts;
+
+  vscodeSettingsDefault = {
+    "diffEditor.wordWrap" = "on";
+    "editor.formatOnSave" = true;
+    "editor.formatOnType" = false;
+    "editor.wordWrap" = "on";
+    "workbench.localHistory.enabled" = false;
+    "remote.autoForwardPortsSource" = "hybrid";
+    # "editor.fontFamily" = "'JetBrainsMono Nerd Font', 'monospace', monospace";
+    "editor.tabSize" = 2;
+    "extensions.ignoreRecommendations" = true;
+    "files.eol" = "\n";
+  };
+
+  vscodeSettingsFull = builtins.foldl' (
+    x: y: lib.attrsets.recursiveUpdate x y
+  ) vscodeSettingsDefault (map (v: v.vscodeSettings or { }) featuresVal);
+
+  profileContents = ''
     # This file is read for login shells.
     # Only execute this file once per shell.
     if [ -n "$__ETC_PROFILE_SOURCED" ]; then return; fi
@@ -153,12 +390,30 @@ let
     if [ -d /etc/profile.d ]; then
       for i in /etc/profile.d/*.sh; do
         if [ -r $i ]; then
-          . $i 2>&1 | tee -a "$HOME/.profile.log"
+          . $i >> "$HOME/.profile.log" 2>&1
         fi
       done
       unset i
     fi
   '';
+
+  profileFile =
+    pkgs.runCommand "profile"
+      {
+        inherit
+          profileContents
+          ;
+        passAsFile = [
+          "profileContents"
+        ];
+        allowSubstitutes = false;
+        preferLocalBuild = true;
+      }
+      ''
+        mkdir -p $out/etc
+        cat $profileContentsPath > $out/etc/profile
+        chmod +x $out/etc/profile
+      '';
 
   aliasDefault = {
     l = "ls -alh";
@@ -169,10 +424,10 @@ let
   };
 
   aliasFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) aliasDefault (
-    map (v: v.alias) (lib.filter (feat: builtins.hasAttr "alias" feat) featuresVal)
+    map (v: v.alias or { }) featuresVal
   );
 
-  bashrcFile = pkgs.writeScript "bashrc" ''
+  bashrcContents = ''
         # Only execute this file once per shell.
         if [ -n "$__ETC_BASHRC_SOURCED" ] || [ -n "$NOSYSBASHRC" ]; then return; fi
         __ETC_BASHRC_SOURCED=1
@@ -238,47 +493,61 @@ let
         fi
   '';
 
-  # https://github.com/manesiotise/plutus-apps/blob/dbafa0ffdc1babcf8e9143ca5a7adde78d021a9a/nix/devcontainer-docker-image.nix#L99-L103
-  # allow ubuntu ELF binaries to run. VSCode copies it's own.
-  lib64 = pkgs.runCommand "lib64" { } ''
-    mkdir -p $out/lib64
-    ln -s ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 $out/lib64/ld-linux-x86-64.so.2
-    ln -s ${pkgs.gcc-unwrapped.lib.lib}/lib/libstdc++.so.6 $out/lib64/libstdc++.so.6
-  '';
+  bashrcFile =
+    pkgs.runCommand "bashrc"
+      {
+        inherit
+          bashrcContents
+          ;
+        passAsFile = [
+          "bashrcContents"
+        ];
+        allowSubstitutes = false;
+        preferLocalBuild = true;
+      }
+      ''
+        mkdir -p $out/etc
+        cat $bashrcContentsPath > $out/etc/bashrc
+        chmod +x $out/etc/bashrc
+      '';
 
-  librariesDefault = with pkgs; [
-    glibc
-    gcc-unwrapped.lib.lib
+  depsInit = with pkgs; [
+    bash-completion
+    tzdata
   ];
+  layersInit = [
+    {
+      name = "packages for init";
+      deps = depsInit;
+    }
+    {
+      name = "init";
+      paths = [
+        profileFile
+
+        bashrcFile
+
+        # not necessary
+        # nixos/modules/config/locale.nix
+        (pkgs.runCommand "zoneinfo" { } ''
+          mkdir -p $out/etc
+          ln -s ${pkgs.tzdata}/share/zoneinfo $out/etc/zoneinfo
+          ln -s ${pkgs.tzdata}/share/zoneinfo/${timeZone} $out/etc/localtime
+        '')
+      ];
+      pathsToLink = [ "/" ];
+    }
+  ];
+
+  #####################################################
+  ######################## lib ########################
+
+  librariesDefault = librariesBaseSystem ++ librariesVSCodeRuntime;
 
   librariesFull = lib.lists.unique (
-    librariesDefault
-    ++ (lib.lists.concatLists (
-      map (v: v.libraries) (
-        lib.filter (
-          feat: builtins.hasAttr "libraries" feat && builtins.length feat.libraries > 0
-        ) featuresVal
-      )
-    ))
+    librariesDefault ++ (lib.lists.concatLists (map (v: v.libraries or [ ]) featuresVal))
   );
 
-  essentialExecutablesRequried = with pkgs; [
-    bash
-    coreutils
-    gnutar
-    gzip
-    gnused
-    gnugrep
-  ];
-
-  # customExecutables = lib.lists.sort (a: b: (a.name or "${a}") < (b.name or "${b}")) (
-  #   lib.filter (
-  #     x:
-  #     lib.lists.mutuallyExclusive [ x ] essentialExecutablesRequried
-  #   ) (lib.lists.unique executables)
-  # );
-
-  # required by vscode-server and its node
   LD_LIBRARY_PATH_Default = pkgs.lib.makeLibraryPath librariesFull;
 
   LD_LIBRARY_PATH_Full =
@@ -325,28 +594,34 @@ let
         )
       );
 
-  PATH_Default = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+  #####################################################
+  ######################## exe ########################
 
-  PATH_Full =
-    builtins.foldl'
+  # 1. envVars.PATH has higher priority than executables
+  # 2. in order
+  PATH_Full = builtins.concatStringsSep ":" (
+    [
+      (lib.makeBinPath executablesBaseSystem)
+      (lib.makeBinPath executablesVSCodeRuntime)
+    ]
+    ++ (map (
+      feat:
       (
-        x: y:
-        builtins.concatStringsSep ":" [
-          x
-          y
-        ]
+        if
+          builtins.hasAttr "envVars" feat
+          && builtins.hasAttr "PATH" feat.envVars
+          && builtins.stringLength feat.envVars.PATH > 0
+        then
+          feat.envVars.PATH + ":"
+        else
+          ""
       )
-      PATH_Default
-      (
-        map (v: v.envVars.PATH) (
-          lib.filter (
-            feat:
-            builtins.hasAttr "envVars" feat
-            && builtins.hasAttr "PATH" feat.envVars
-            && builtins.stringLength feat.envVars.PATH > 0
-          ) featuresVal
-        )
-      );
+      + (lib.makeBinPath (feat.executables or [ ]))
+    ) featuresVal)
+  );
+
+  #####################################################
+  ######################## env ########################
 
   envVarsDefault = rec {
     # required by vscode terminal, but allow overriding
@@ -382,7 +657,7 @@ let
 
   envVarsList =
     [ envVarsDefault ]
-    ++ (map (v: v.envVars) (lib.filter (feat: builtins.hasAttr "envVars" feat) featuresVal))
+    ++ (map (v: v.envVars or { }) featuresVal)
     ++ [
 
       {
@@ -394,70 +669,80 @@ let
 
   envVarsFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) { } envVarsList;
 
-  mkTmp = pkgs.runCommand "container-tmp" { } ''
-    mkdir -p $out/tmp
-  '';
+  #####################################################
+  #################### metadata ######################
 
-  mkUser = (
-    pkgs.runCommand "mkUser" { } ''
-      mkdir -p $out/etc/pam.d
+  # https://devcontainers.github.io/implementors/json_reference/
+  metadataDefault = {
+    # forwardPorts = [ ];
+    # portsAttributes = {
+    #   "3000" = {
+    #     label = "Application port";
+    #     protocol = "https";
+    #     onAutoForward = "ignore";
+    #     requireLocalPort = true;
+    #     elevateIfNeeded = false;
+    #   };
+    # };
+    # otherPortsAttributes = {
+    #   "onAutoForward" = "silent";
+    # };
+    containerEnv = {
+      # USER = username;
+    };
+    # remoteEnv = { };
+    remoteUser = username;
+    # containerUser = "root";
+    # userEnvProbe = "loginInteractiveShell";
+    # overrideCommand = true;
+    # shutdownAction = "stopContainer";
+    # init = false;
+    privileged = false;
 
-      echo "root:x:0:0:System administrator:/root:/bin/bash" > \
-            $out/etc/passwd
-      echo "${username}:x:${builtins.toString uid}:${builtins.toString gid}::/home/${username}:/bin/bash" >> \
-            $out/etc/passwd
+    # capAdd = [ ];
+    # securityOpt = [ ];
+    # mounts = [ ];
+    # customizations = { };
 
-      echo "root:!x:::::::" > $out/etc/shadow
-      echo "${username}:!x:::::::" >> $out/etc/shadow
+    # # execute the command without a shell
+    # onCreateCommand = '''';
+    # updateContentCommand = '''';
+    # postCreateCommand = '''';
+    # postStartCommand = '''';
+    # postAttachCommand = '''';
+    # waitFor = "updateContentCommand";
+    # hostRequirements = {
+    #   cpus = 2;
+    #   memory = "4gb";
+    #   storage = "32gb";
+    #   gpu = "optional";
+    # };
 
-      echo "root:x:0:" > $out/etc/group
-      echo "${group}:x:${builtins.toString gid}:" >> $out/etc/group
+    updateRemoteUserUID = false;
 
-      cat > $out/etc/pam.d/other <<EOF
-      account sufficient pam_unix.so
-      auth sufficient pam_rootok.so
-      password requisite pam_unix.so nullok sha512
-      session required pam_unix.so
-      EOF
+  };
 
-      touch $out/etc/login.defs
-      mkdir -p $out/home/${username}
-    ''
-  );
-
-  mkProfileScript =
-    profileName: once: command:
-    pkgs.writeScript "${profileName}" ''
-      mkdir -p $HOME/state
-
-      ${
-        if once then
-          ''
-            if [ ! -f "$HOME/state/.${profileName}" ]; then
-              echo executing ${profileName}
-              ${command}
-
-              touch "$HOME/state/.${profileName}"
-            fi
-          ''
-        else
-          ''
-            echo executing ${profileName}
-            ${command}
-          ''
-      }
-    '';
-
-  metadataFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) metadataDefault (
-    (map (v: v.metadata) (
+  metadataOnCreateCommand = builtins.concatStringsSep "\n" (
+    [
+      "/etc/profile"
+    ]
+    ++ (map (v: v.metadata.onCreateCommand) (
       lib.filter (
-        feat: builtins.hasAttr "metadata" feat && builtins.length (builtins.attrNames feat.metadata) > 0
+        feat: builtins.hasAttr "metadata" feat && builtins.hasAttr "onCreateCommand" feat.metadata
       ) featuresVal
     ))
-    ++ [
-      { customizations.vscode.settings = vscodeSettingsFull; }
-    ]
   );
+
+  metadataFull =
+    (builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) metadataDefault (
+      (map (v: v.metadata or { }) featuresVal)
+      ++ [
+        { customizations.vscode.settings = vscodeSettingsFull; }
+      ]
+    ))
+    // {
+      onCreateCommand = metadataOnCreateCommand;
+    };
 in
 pkgs.nix2container.buildImage {
   inherit name tag;
@@ -466,34 +751,7 @@ pkgs.nix2container.buildImage {
   nixGid = if withNix then gid else null;
 
   # https://github.com/docker/docs/issues/8230#issuecomment-468630187
-  maxLayers = 100;
-
-  perms = [
-    {
-      path = mkTmp;
-      mode = "1777";
-    }
-    {
-      path = mkUser;
-      regex = "/home/${username}";
-      mode = "0744";
-      uid = uid;
-      gid = gid;
-      uname = username;
-      gname = group;
-    }
-    # {
-    #   regex = "/vscode";
-    #   mode = "0744";
-    #   uid = uid;
-    #   gid = gid;
-    # }
-  ];
-
-  copyToRoot = [
-    mkTmp
-    mkUser
-  ];
+  maxLayers = 127;
 
   config = {
     User = "${username}:${username}";
@@ -506,80 +764,74 @@ pkgs.nix2container.buildImage {
   layers =
     let
       layersList =
-        [
-          {
-            name = "/etc/* required by devcontainers";
-            paths =
-              (with pkgs.dockerTools; [
-                caCertificates
-              ])
-              ++ [
-                (pkgs.runCommand "profile" { } ''
-                  mkdir -p $out/etc
-                  ln -s ${profileFile} $out/etc/profile
-                '')
-                osRelease
-              ];
-            pathsToLink = [ "/etc" ];
-          }
+        layersBaseSystem
+        ++ layersVSCodeRuntime
+        ++ layersInit
 
-          # nixos/modules/config/locale.nix
-          {
-            name = "set timezone";
-            paths = [
-              (pkgs.runCommand "zoneinfo" { } ''
-                mkdir -p $out/etc
-                ln -s ${pkgs.tzdata}/share/zoneinfo $out/etc/zoneinfo
-                ln -s ${pkgs.tzdata}/share/zoneinfo/${timeZone} $out/etc/localtime
-              '')
-            ];
-            pathsToLink = [ "/etc" ];
-          }
-
-          {
-            name = "required /lib64";
-            paths = [ lib64 ];
-            pathsToLink = [
-              "/lib64"
-            ];
-          }
-
-          {
-            name = "default libraries";
-            paths = librariesDefault;
-            pathsToLink = [
-              "/nix/store"
-            ];
-          }
-
-          {
-            name = "/usr/bin/env";
-            paths = [ pkgs.dockerTools.usrBinEnv ];
-            pathsToLink = [ "/usr/bin" ];
-          }
-
-          {
-            name = "essential executables required by vscode";
-            paths = essentialExecutablesRequried;
-            pathsToLink = [ "/bin" ];
-          }
-        ]
+        ++ (lib.lists.concatLists (map (feat: feat.layers or [ ]) featuresVal))
 
         ++ (lib.lists.concatLists (
-          map
-            (
-              feat:
-              let
-                # TODO or download VSIX files and using `code --install-extension --force <foo.VSIX>`
-                mkExtProfilePkg =
-                  profileName: extensions:
-                  pkgs.runCommand profileName { } ''
+          map (
+            feat:
+            let
+              packages = (feat.executables or [ ]) ++ (feat.libraries or [ ]) ++ (feat.deps or [ ]);
+            in
+            if builtins.length packages == 0 then
+              [ ]
+            else if feat.layered or false then
+              (map (package: {
+                name = "feat:${feat.name}:${package.name}";
+                deps = [ package ];
+              }) packages)
+            else
+              [
+                {
+                  name = "feat:${feat.name}";
+                  deps = packages;
+                }
+              ]
+          ) featuresVal
+        ))
+
+        ++ (lib.lists.concatLists (
+          map (
+            feat:
+            let
+              packages = feat.extensions or [ ];
+            in
+            if builtins.length packages == 0 then
+              [ ]
+            else if feat.layered or false then
+              (map (package: {
+                name = "feat:${feat.name}:${package.name}";
+                deps = [ package ];
+              }) packages)
+            else
+              [
+                {
+                  name = "feat:${feat.name}";
+                  deps = packages;
+                }
+              ]
+          ) featuresVal
+        ))
+
+        ++ (lib.lists.concatLists (
+          map (
+            feat:
+            let
+              mkExtProfilePkg =
+                profileName: extensions:
+                pkgs.runCommand profileName
+                  {
+                    allowSubstitutes = false;
+                    preferLocalBuild = true;
+                  }
+                  ''
                     mkdir -p $out/etc/profile.d
 
                     ln -s ${
                       mkProfileScript profileName true ''
-                        set -x
-
                         if [ "$CODESPACES" == "true" ]; then
                           VSCODE_DIR=".vscode-remote"
                         else
@@ -599,83 +851,29 @@ pkgs.nix2container.buildImage {
                       ''
                     } $out/etc/profile.d/11-${profileName}.sh
                   '';
-              in
-              if feat.layered or false then
-                (map (ext: {
-                  name = "feat:${feat.name}:ext:${ext.name}";
+              packages = feat.extensions or [ ];
+            in
+            if builtins.length packages == 0 then
+              [ ]
+            else if feat.layered or false then
+              (map (package: {
+                name = "feat:${feat.name}:ext:${package.name}";
+                paths = [
+                  (mkExtProfilePkg "feat:${feat.name}:ext:${package.name}" [ package ])
+                ];
+                pathsToLink = [ "/etc/profile.d" ];
+              }) packages)
+            else
+              [
+                {
+                  name = "feat:${feat.name}:ext";
                   paths = [
-                    (mkExtProfilePkg "feat:${feat.name}:ext:${ext.name}" [ ext ])
+                    (mkExtProfilePkg "feat:${feat.name}:ext" packages)
                   ];
                   pathsToLink = [ "/etc/profile.d" ];
-                }) feat.extensions)
-              else
-                [
-                  {
-                    name = "feat:${feat.name}:ext";
-                    paths = [
-                      (mkExtProfilePkg "feat:${feat.name}:ext" feat.extensions)
-                    ];
-                    pathsToLink = [ "/etc/profile.d" ];
-                  }
-                ]
-            )
-            (
-              lib.filter (
-                feat: builtins.hasAttr "extensions" feat && builtins.length feat.extensions > 0
-              ) featuresVal
-            )
-        ))
-
-        ++ (lib.lists.concatLists (
-          map
-            (
-              feat:
-              if feat.layered or false then
-                (map (library: {
-                  name = "feat:${feat.name}:lib:${library.name or "${library}"}";
-                  paths = [ library ];
-                  pathsToLink = [ "/nix/store" ];
-                }) feat.libraries)
-              else
-                [
-                  {
-                    name = "feat:${feat.name}:lib";
-                    paths = feat.libraries;
-                    pathsToLink = [ "/nix/store" ];
-                  }
-                ]
-            )
-            (
-              lib.filter (
-                feat: builtins.hasAttr "libraries" feat && builtins.length feat.libraries > 0
-              ) featuresVal
-            )
-        ))
-
-        ++ (lib.lists.concatLists (
-          map
-            (
-              feat:
-              if feat.layered or false then
-                (map (exe: {
-                  name = "feat:${feat.name}:exe:${exe.name or "${exe}"}";
-                  paths = [ exe ];
-                  pathsToLink = [ "/bin" ];
-                }) feat.executables)
-              else
-                [
-                  {
-                    name = "feat:${feat.name}:exe";
-                    paths = feat.executables;
-                    pathsToLink = [ "/bin" ];
-                  }
-                ]
-            )
-            (
-              lib.filter (
-                feat: builtins.hasAttr "executables" feat && builtins.length feat.executables > 0
-              ) featuresVal
-            )
+                }
+              ]
+          ) featuresVal
         ))
 
         ++ (map
@@ -683,24 +881,28 @@ pkgs.nix2container.buildImage {
             feat:
             let
               profileNamePrefix = "feat:${feat.name}:onLogin";
-              profilePkg = pkgs.runCommand profileNamePrefix { } ''
-                mkdir -p $out/etc/profile.d
+              profilePkg =
+                pkgs.runCommand profileNamePrefix
+                  {
+                    allowSubstitutes = false;
+                    preferLocalBuild = true;
+                  }
+                  ''
+                    mkdir -p $out/etc/profile.d
 
-                ln -s ${pkgs.writeScript "${profileNamePrefix}" ''
-                  set -x
+                    ln -s ${pkgs.writeScript "${profileNamePrefix}" ''
+                      ${builtins.concatStringsSep "\n" (
+                        map (
+                          onLoginName:
+                          let
+                            onLogin = feat.onLogin."${onLoginName}";
+                          in
+                          mkProfileScript "${profileNamePrefix}:${onLoginName}" (onLogin.once or false) onLogin.command
+                        ) (builtins.attrNames feat.onLogin)
+                      )}
 
-                  ${builtins.concatStringsSep "\n" (
-                    map (
-                      onLoginName:
-                      let
-                        onLogin = feat.onLogin."${onLoginName}";
-                      in
-                      mkProfileScript "${profileNamePrefix}:${onLoginName}" (onLogin.once or false) onLogin.command
-                    ) (builtins.attrNames feat.onLogin)
-                  )}
-
-                ''} $out/etc/profile.d/11-${profileNamePrefix}.sh
-              '';
+                    ''} $out/etc/profile.d/11-${profileNamePrefix}.sh
+                  '';
             in
             {
               name = profileNamePrefix;
@@ -715,34 +917,31 @@ pkgs.nix2container.buildImage {
           )
         )
 
-        ++ [
-          {
-            name = "bashrc";
-            paths = [
-              (pkgs.runCommand "bashrc" { } ''
-                mkdir -p $out/etc
-                ln -s ${bashrcFile} $out/etc/bashrc
-              '')
-            ];
-            pathsToLink = [ "/etc" ];
-          }
-        ];
+      ;
 
     in
     builtins.foldl' (
       layersList: el:
       let
-        layer = pkgs.nix2container.buildLayer {
-          metadata = {
-            author = el.name;
-            created_by = el.name;
-            comment = el.name;
-          };
-          copyToRoot = pkgs.buildEnv {
-            inherit (el) name paths pathsToLink;
-          };
-          layers = layersList;
-        };
+        layer = pkgs.nix2container.buildLayer (
+          {
+            metadata = {
+              author = el.name;
+              created_by = el.name;
+              comment = el.name;
+            };
+            layers = layersList;
+            deps = el.deps or [ ];
+            copyToRoot = el.copyToRoot or null;
+            perms = el.perms or [ ];
+            ignore = el.ignore or null;
+          }
+          // (lib.optionalAttrs (builtins.hasAttr "paths" el) {
+            copyToRoot = pkgs.buildEnv {
+              inherit (el) name paths pathsToLink;
+            };
+          })
+        );
       in
       layersList ++ [ layer ]
     ) [ ] layersList;

@@ -88,8 +88,6 @@
             "git.openRepositoryInParentFolders" = "always";
           };
 
-          alias = { };
-
           bashrc = ''
             # Set the default git editor if not already set
             if [ -z "$(git config --get core.editor)" ] && [ -z "${"$"}{GIT_EDITOR}" ]; then
@@ -131,7 +129,7 @@
           ];
           envVars = {
             PAGER = "less";
-            EDITOR = "/bin/vim";
+            EDITOR = pkgs.lib.getExe pkgs.vim;
           };
           alias = {
             vi = "vim";
@@ -154,11 +152,9 @@
             openssl
             netcat
 
-            # /bin/uptime
             procps
             gnupg
             rsync
-            # /bin/kill
             util-linux
           ];
         };
@@ -373,6 +369,8 @@
           # ];
 
           executables = ccPkgs pkgs;
+          # for ms-vscode.cpptools
+          deps = with pkgs; [ clang-tools ];
           # ++ (with pkgs; [
 
           #   # clang
@@ -392,9 +390,6 @@
             ms-vscode.cpptools
             ms-vscode.cpptools-extension-pack
           ];
-          vscodeSettings = {
-            # TODO
-          };
         };
 
       gdb =
@@ -476,7 +471,7 @@
             prince781.vala
           ];
           vscodeSettings = {
-            "vala.languageServerPath" = "/bin/vala-language-server";
+            "vala.languageServerPath" = pkgs.lib.getExe pkgs.vala-language-server;
           };
         };
 
@@ -505,7 +500,6 @@
             DOTNET_SKIP_FIRST_TIME_EXPERIENCE = true;
             DOTNET_ROOT = "${dotnetCore}";
           };
-          vscodeSettings = { };
         };
 
       node =
@@ -578,7 +572,7 @@
           };
           vscodeSettings = {
             # https://github.com/nix-community/nix-vscode-extensions/blob/adcb8b54d64484bb74f1480acefc3c686f318917/mkExtension.nix#L99-L109
-            "rust-analyzer.server.path" = "/bin/rust-analyzer";
+            "rust-analyzer.server.path" = pkgs.lib.getExe pkgs.rust-analyzer;
           };
         };
 
@@ -670,7 +664,7 @@
               XDG_STATE_HOME
               ;
 
-            PYTHON_PATH = "/bin/python";
+            PYTHON_PATH = pkgs.lib.getExe pyPkg;
             PYTHONUSERBASE = "${XDG_DATA_HOME}/python";
 
             PYTHONPYCACHEPREFIX = "${XDG_CACHE_HOME}/python";
@@ -692,7 +686,7 @@
             PYENV = "${XDG_DATA_HOME}/pyenv";
           };
           vscodeSettings = {
-            "python.defaultInterpreterPath" = "/bin/python";
+            "python.defaultInterpreterPath" = pkgs.lib.getExe pyPkg;
             "[python]" = {
               "editor.defaultFormatter" = "ms-python.autopep8";
             };
@@ -745,9 +739,8 @@
             bmewburn.vscode-intelephense-client
             mrmlnc.vscode-apache
           ];
-          envVars = { };
           vscodeSettings = {
-            "php.validate.executablePath" = "/bin/php";
+            "php.validate.executablePath" = pkgs.lib.getExe phpWithExt;
           };
         };
 
@@ -792,14 +785,11 @@
           name = "dart";
           layered = true;
 
-          executables = with pkgs; [
-            dart
-          ];
+          executables = with pkgs; [ dart ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             dart-code.dart-code
           ];
-          envVars = { };
           vscodeSettings = {
             "dart.checkForSdkUpdates" = false;
             "dart.updateDevTools" = false;
@@ -839,7 +829,6 @@
             "dart.updateDevTools" = false;
             "dart.debugSdkLibraries" = true;
           };
-          metadata = { };
           onLogin = {
             "dart disable analytics" = {
               command = "dart --disable-analytics || true";
@@ -851,10 +840,6 @@
             };
           };
         };
-
-      chromium = { ... }: { };
-
-      aosp = { ... }: { };
 
       lua =
         { pkgs, ... }:
@@ -870,8 +855,6 @@
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             sumneko.lua
           ];
-          envVars = { };
-          vscodeSettings = { };
         };
 
       zigcc-windows =
@@ -925,10 +908,9 @@
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             ziglang.vscode-zig
           ];
-          envVars = { };
           vscodeSettings = {
-            "zig.path" = "/bin/zig";
-            "zig.zls.path" = "/bin/zls";
+            "zig.path" = pkgs.lib.getExe pkgs.zig;
+            "zig.zls.path" = pkgs.lib.getExe pkgs.zls;
             "zig.checkForUpdate" = false;
             "zig.initialSetupDone" = true;
             "zig.formattingProvider" = "zls";
@@ -968,7 +950,6 @@
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             swiftlang.swift-vscode
           ];
-          envVars = { };
           vscodeSettings = {
             # "lldb.library" = "${pkgs.swift}/lib/liblldb.so";
             # "swift.backgroundCompilation" = true;
@@ -983,20 +964,17 @@
           name = "shellcheck";
           layered = true;
 
-          executables = with pkgs; [
-            shellcheck
-          ];
+          executables = with pkgs; [ shellcheck ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             timonwong.shellcheck
           ];
-          envVars = { };
           vscodeSettings = {
             "shellcheck.enable" = true;
             "shellcheck.enableQuickFix" = true;
             "shellcheck.run" = "onSave";
             # do not use the precompiled binaries
-            "shellcheck.executablePath" = "/bin/shellcheck";
+            "shellcheck.executablePath" = pkgs.lib.getExe pkgs.shellcheck;
             "shellcheck.exclude" = [ ];
             "shellcheck.customArgs" = [ ];
             "shellcheck.ignorePatterns" = {
@@ -1044,7 +1022,7 @@
           vscodeSettings = {
             "harper.markdown.IgnoreLinkTitle" = true;
             # do not use the precompiled binaries
-            "harper.path" = "/bin/harper-ls";
+            "harper.path" = pkgs.lib.getExe pkgs.harper;
 
             "harper.linters.SentenceCapitalization" = false;
             "harper.linters.RepeatedWords" = false;
@@ -1100,7 +1078,6 @@
             # https://github.com/James-Yu/LaTeX-Workshop
             james-yu.latex-workshop
           ];
-          envVars = { };
           vscodeSettings = {
             "latex-workshop.formatting.latex" = "latexindent";
             "latex-workshop.latex.tools" = [
@@ -1180,6 +1157,10 @@
             };
           };
         };
+
+      chromium = { ... }: { };
+
+      aosp = { ... }: { };
 
       gpu = { ... }: { };
 
