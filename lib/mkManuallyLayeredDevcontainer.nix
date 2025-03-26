@@ -188,6 +188,12 @@ let
         mkdir -p $out/tmp
 
         mkdir -p $out/home/${username}
+
+        ${builtins.concatStringsSep "\n" (
+          map (key: "mkdir -p $out${envVarsDefault."${key}"}") (
+            lib.filter (key: lib.strings.hasPrefix "XDG_" key) (builtins.attrNames envVarsDefault)
+          )
+        )}
       '';
 
   librariesBaseSystem = [ ];
@@ -294,6 +300,11 @@ let
     gnused
     gnugrep
   ];
+  # required by vscode-node and GDB
+  binBash = pkgs.runCommand "bin-bash" { } ''
+    mkdir -p $out/bin
+    ln -s ${pkgs.bashInteractive}/bin/bash $out/bin/bash
+  '';
   layersVSCodeRuntime = [
     {
       name = "packages for vscode runtime";
@@ -305,9 +316,14 @@ let
         pkgs.dockerTools.caCertificates
         pkgs.dockerTools.binSh
         pkgs.dockerTools.usrBinEnv
+        binBash
         osRelease
       ];
-      pathsToLink = [ "/" ];
+      pathsToLink = [
+        "/bin"
+        "/usr/bin"
+        "/etc"
+      ];
     }
     {
       name = "/lib64 for vscode runtime";
@@ -535,7 +551,7 @@ let
           ln -s ${pkgs.tzdata}/share/zoneinfo/${timeZone} $out/etc/localtime
         '')
       ];
-      pathsToLink = [ "/" ];
+      pathsToLink = [ "/etc" ];
     }
   ];
 
@@ -663,6 +679,12 @@ let
       {
         LD_LIBRARY_PATH = LD_LIBRARY_PATH_Full;
         PKG_CONFIG_PATH = PKG_CONFIG_PATH_Full;
+        # https://gcc.gnu.org/onlinedocs/gcc-14.2.0/gcc/Environment-Variables.html
+        # https://clang.llvm.org/docs/CommandGuide/clang.html#environment
+        # C_INCLUDE_PATH
+        # CPLUS_INCLUDE_PATH
+        # CMAKE_LIBRARY_PATH
+        # CMAKE_INCLUDE_PATH
         PATH = PATH_Full;
       }
     ];
@@ -768,13 +790,36 @@ pkgs.nix2container.buildImage {
         ++ layersVSCodeRuntime
         ++ layersInit
 
+        ++ (lib.lists.concatLists (
+          map (
+            feat:
+            let
+              packages = (feat.deps or [ ]);
+            in
+            if builtins.length packages == 0 then
+              [ ]
+            else if feat.layered or false then
+              (map (package: {
+                name = "feat:${feat.name}:${package.name}";
+                deps = [ package ];
+              }) packages)
+            else
+              [
+                {
+                  name = "feat:${feat.name}";
+                  deps = packages;
+                }
+              ]
+          ) featuresVal
+        ))
+
         ++ (lib.lists.concatLists (map (feat: feat.layers or [ ]) featuresVal))
 
         ++ (lib.lists.concatLists (
           map (
             feat:
             let
-              packages = (feat.executables or [ ]) ++ (feat.libraries or [ ]) ++ (feat.deps or [ ]);
+              packages = (feat.libraries or [ ]) ++ (feat.executables or [ ]);
             in
             if builtins.length packages == 0 then
               [ ]
