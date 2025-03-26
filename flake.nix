@@ -165,6 +165,8 @@
                     ++ (with self.lib.features; [
                       cc
                       vala
+                      ninja
+                      meson
                       gdb
                     ]);
                 };
@@ -175,8 +177,8 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      cc
                       rust
+                      cpp
                     ]);
                 };
 
@@ -208,6 +210,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
+                      cc
                       haskell
                     ]);
                 };

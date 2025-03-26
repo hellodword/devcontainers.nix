@@ -48,6 +48,32 @@
           automake
           gnumake
         ];
+      ccLibs =
+        pkgs: with pkgs; [
+          zlib.out
+          zlib.dev
+
+          openssl.out
+          openssl.dev
+
+          libxml2.out
+          libxml2.dev
+
+          curl.out
+          curl.dev
+
+          zstd.out
+          zstd.dev
+
+          z3.out
+          z3.dev
+
+          xz.out
+          xz.dev
+
+          xmlsec.out
+          xmlsec.dev
+        ];
       mingw64Pkgs =
         pkgs: with pkgs.pkgsCross.mingwW64; [
           stdenv.cc
@@ -339,6 +365,7 @@
         {
           name = "cc";
           layered = true;
+          libraries = ccLibs pkgs;
           executables = ccPkgs pkgs;
         };
 
@@ -368,6 +395,7 @@
           #   # libtool
           # ];
 
+          libraries = ccLibs pkgs;
           executables = ccPkgs pkgs;
           # for ms-vscode.cpptools
           deps = with pkgs; [ clang-tools ];
@@ -423,11 +451,29 @@
           layered = true;
           executables = with pkgs; [
             meson
+            mesonlsp
+            muon
           ];
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             # https://github.com/mesonbuild/vscode-meson
             mesonbuild.mesonbuild
           ];
+          vscodeSettings = {
+            "mesonbuild.downloadLanguageServer" = false;
+            "mesonbuild.languageServer" = "mesonlsp";
+            "mesonbuild.languageServerPath" = pkgs.lib.getExe pkgs.mesonlsp;
+            "mesonbuild.mesonPath" = pkgs.lib.getExe pkgs.meson;
+            "mesonbuild.muonPath" = pkgs.lib.getExe pkgs.muon;
+            "mesonbuild.mesonlsp.others.muonPath" = pkgs.lib.getExe pkgs.muon;
+            "mesonbuild.formatting.enabled" = true;
+            "[meson]" = {
+              "editor.defaultFormatter" = "mesonbuild.mesonbuild";
+            };
+            "mesonbuild.formatting.provider" = "auto";
+            "mesonbuild.linting.enabled" = true;
+            # any security issue?
+            "mesonbuild.configureOnOpen" = true;
+          };
         };
 
       ninja =
@@ -461,7 +507,7 @@
           executables = with pkgs; [
             vala
             vala-language-server
-            uncrustify
+            # uncrustify
 
             # clang
             # pkg-config
@@ -533,6 +579,20 @@
 
       rust =
         { pkgs, envVarsDefault, ... }:
+        let
+          rustBin = pkgs.rust-bin.stable.latest.default.override {
+            extensions = [
+              "rust-src"
+              "rust-analyzer"
+              "rustfmt"
+              "clippy"
+              "rust-std"
+            ];
+            # targets = [
+            #   "x86_64-unknown-linux-gnu"
+            # ];
+          };
+        in
         {
           name = "rust";
           layered = true;
@@ -541,25 +601,24 @@
             openssl.dev
           ];
 
-          executables = with pkgs; [
-            openssl
-
-            # stdenv.cc
-            # pkg-config
-
-            (rust-bin.stable.latest.default.override {
-              extensions = [
-                "rust-src"
-                "rust-analyzer"
-                "rustfmt"
-                "clippy"
-                "rust-std"
-              ];
-              # targets = [
-              #   "x86_64-unknown-linux-gnu"
-              # ];
-            })
+          deps = with rustBin.availableComponents; [
+            rust-docs
+            rust-analyzer-preview
+            clippy-preview
+            rustfmt-preview
+            rust-std
+            cargo
+            rust-src
           ];
+
+          executables =
+            [ rustBin ]
+            ++ (with pkgs; [
+              openssl
+
+              # stdenv.cc
+              # pkg-config
+            ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             rust-lang.rust-analyzer
@@ -694,7 +753,7 @@
         };
 
       php =
-        { pkgs, ... }:
+        { pkgs, envVarsDefault, ... }:
         let
           phpPkg = pkgs.php;
           phpWithExt = phpPkg.buildEnv {
@@ -732,15 +791,28 @@
             ++ (with phpPkg.packages; [
               composer
               phive
-            ]);
+            ])
+            ++ [ pkgs.laravel ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             xdebug.php-debug
             bmewburn.vscode-intelephense-client
             mrmlnc.vscode-apache
+            # https://github.com/laravel/vs-code-extension
+            laravel.vscode-laravel
           ];
+          envVars = rec {
+            inherit (envVarsDefault) XDG_CONFIG_HOME;
+            # for `composer global require foo-cli`
+            PATH = "${XDG_CONFIG_HOME}/composer/vendor/bin";
+          };
           vscodeSettings = {
             "php.validate.executablePath" = pkgs.lib.getExe phpWithExt;
+            "php.debug.executablePath" = pkgs.lib.getExe phpWithExt;
+            "php.suggest.basic" = true;
+            "php.validate.enable" = true;
+            "php.validate.run" = "onSave";
+
           };
         };
 
@@ -751,36 +823,48 @@
           name = "haskell";
           layered = true;
 
-          libraries = with pkgs; [
-            zlib
-          ];
-
-          executables = with pkgs; [
-            ghc
-            haskell-language-server
-            stack
-            cabal-install
-            hpack
-          ];
+          executables =
+            (with pkgs; [
+              ghc
+              haskell-language-server
+              # stack
+              cabal-install
+              hpack
+            ])
+            ++ (with pkgs.haskellPackages; [
+              cabal-gild
+              ormolu
+              fourmolu
+              cabal-fmt
+              ghci-dap
+              haskell-debug-adapter
+            ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             haskell.haskell
             justusadam.language-haskell
+            phoityne.phoityne-vscode
           ];
           envVars = rec {
             inherit (envVarsDefault) XDG_DATA_HOME XDG_CONFIG_HOME;
             GHCUP_USE_XDG_DIRS = "1";
             CABAL_DIR = "${XDG_DATA_HOME}/cabal";
-            STACK_ROOT = "${XDG_DATA_HOME}/stack";
-            STACK_XDG = "1";
+            PATH = "${CABAL_DIR}/bin";
+            # STACK_ROOT = "${XDG_DATA_HOME}/stack";
+            # STACK_XDG = "1";
           };
           vscodeSettings = {
             "haskell.manageHLS" = "PATH";
+            "haskell.formattingProvider" = "ormolu";
+            # "haskell.serverExecutablePath" = "";
+            "haskell.plugin.fourmolu.config.path" = pkgs.lib.getExe pkgs.haskellPackages.fourmolu;
+            "haskell.plugin.cabal-fmt.config.path" = pkgs.lib.getExe pkgs.haskellPackages.cabal-fmt;
+            "haskell.plugin.cabal-gild.config.path" = pkgs.lib.getExe pkgs.haskellPackages.cabal-gild;
           };
         };
 
       dart =
-        { pkgs, ... }:
+        { pkgs, envVarsDefault, ... }:
         {
           name = "dart";
           layered = true;
@@ -790,10 +874,16 @@
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             dart-code.dart-code
           ];
+          envVars = rec {
+            inherit (envVarsDefault) HOME;
+            PATH = "${HOME}/.pub-cache/bin";
+          };
           vscodeSettings = {
             "dart.checkForSdkUpdates" = false;
             "dart.updateDevTools" = false;
             "dart.debugSdkLibraries" = true;
+            "dart.debugExtensionBackendProtocol" = "ws";
+            "dart.debugExternalPackageLibraries" = true;
           };
           onLogin = {
             "dart disable analytics" = {
@@ -842,19 +932,41 @@
         };
 
       lua =
-        { pkgs, ... }:
+        { pkgs, envVarsDefault, ... }:
+        let
+          luaPkg = pkgs.lua5_4_compat;
+          shortVersion = builtins.concatStringsSep "." (
+            pkgs.lib.lists.take 2 (builtins.splitVersion luaPkg.version)
+          );
+        in
         {
           name = "lua";
           layered = true;
 
-          executables = with pkgs; [
-            lua
-            lua-language-server
-          ];
+          executables =
+            [ luaPkg ]
+            ++ (with pkgs; [
+              lua-language-server
+            ])
+            ++ (with luaPkg.pkgs; [
+              luarocks
+            ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             sumneko.lua
           ];
+          envVars = rec {
+            inherit (envVarsDefault) HOME;
+            PATH = "${HOME}/.luarocks/bin";
+            LUA_PATH = "${HOME}/.luarocks/share/lua/${shortVersion}/?.lua;;";
+            LUA_CPATH = "${HOME}/.luarocks/lib/lua/${shortVersion}/?.so;;";
+          };
+          onLogin = {
+            "luarocks local_by_default" = {
+              command = "luarocks config local_by_default true";
+              once = true;
+            };
+          };
         };
 
       zigcc-windows =
@@ -894,6 +1006,7 @@
           ];
         };
 
+      # TODO `zig env`
       zig =
         { pkgs, ... }:
         {
@@ -911,7 +1024,6 @@
           vscodeSettings = {
             "zig.path" = pkgs.lib.getExe pkgs.zig;
             "zig.zls.path" = pkgs.lib.getExe pkgs.zls;
-            "zig.checkForUpdate" = false;
             "zig.initialSetupDone" = true;
             "zig.formattingProvider" = "zls";
             "[zig]" = {
@@ -1165,6 +1277,8 @@
       gpu = { ... }: { };
 
       llvm = { ... }: { };
+
+      tailscale = { ... }: { };
 
     };
 }
