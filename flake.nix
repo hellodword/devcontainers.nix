@@ -29,10 +29,27 @@
     flake-parts.lib.mkFlake { inherit inputs; } (
       {
         # config,
-        # withSystem,
+        withSystem,
         # moduleWithSystem,
         ...
       }:
+      let
+        commonFeats = with self.lib.features; [
+          dev0
+          dev1
+          dev2
+
+          prettier
+          markdown
+          xml
+          toml
+
+          autocorrect
+          grammarly
+
+          shellcheck
+        ];
+      in
       {
         imports = [ ];
         systems = [
@@ -42,6 +59,25 @@
 
         flake = {
           lib = import ./lib;
+
+          # GOOS=windows CC=$ZIG_CC go build -o main.exe .
+          # wine main.exe
+          packages.x86_64-linux.go-windows = withSystem "x86_64-linux" (
+            { pkgs, ... }:
+            self.lib.mkManuallyLayeredDevcontainer {
+              inherit pkgs;
+              tag = "windows";
+              name = "ghcr.io/hellodword/devcontainers-go";
+              features =
+                commonFeats
+                ++ (with self.lib.features; [
+                  cc
+                  (go pkgs.go)
+                  zigcc-windows
+                  wine
+                ]);
+            }
+          );
         };
 
         perSystem =
@@ -106,23 +142,6 @@
             );
 
             packages =
-              let
-                commonFeats = with self.lib.features; [
-                  dev0
-                  dev1
-                  dev2
-
-                  prettier
-                  markdown
-                  xml
-                  toml
-
-                  autocorrect
-                  grammarly
-
-                  shellcheck
-                ];
-              in
               {
 
                 base = self.lib.mkManuallyLayeredDevcontainer {
@@ -279,22 +298,6 @@
                     commonFeats
                     ++ (with self.lib.features; [
                       nginx
-                    ]);
-                };
-
-                # GOOS=windows CC=$ZIG_CC go build -o main.exe .
-                # wine main.exe
-                go-windows = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
-                  tag = "windows";
-                  name = "ghcr.io/hellodword/devcontainers-go";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      cc
-                      (go pkgs.go)
-                      zigcc-windows
-                      wine
                     ]);
                 };
 
