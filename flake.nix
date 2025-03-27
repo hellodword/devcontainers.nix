@@ -119,6 +119,8 @@
 
                   autocorrect
                   grammarly
+
+                  shellcheck
                 ];
               in
               {
@@ -242,16 +244,6 @@
                     commonFeats
                     ++ (with self.lib.features; [
                       zig
-                    ]);
-                };
-
-                shell = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
-                  name = "ghcr.io/hellodword/devcontainers-shell";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      shellcheck
                     ]);
                 };
 
