@@ -2,55 +2,49 @@ name: build
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["master"]
+    inputs:
+      package:
+        required: true
+        type: string
+      runs-on:
+        required: true
+        default: 'ubuntu-latest'
+        type: choice
+        options:
+        - ubuntu-latest
+        - ubuntu-24.04-arm
+      free-disk-space:
+        required: false
+        default: false
+        type: boolean
+
+  workflow_call:
+    inputs:
+      package:
+        required: true
+        type: string
+      runs-on:
+        required: true
+        type: string
+      free-disk-space:
+        required: false
+        default: false
+        type: boolean
 
 env:
   REGISTRY: ghcr.io
 
-concurrency:
-  group: ${{ github.repository }}
-  cancel-in-progress: false
-
 jobs:
-  # https://www.kenmuse.com/blog/dynamic-build-matrices-in-github-actions/
-  generate-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      packages: ${{ steps.dataStep.outputs.myoutput }}
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
-
-      - name: dynamic matrix for next job
-        id: dataStep
-        run: |
-          packages="$(nix eval --json $".#packages.x86_64-linux" --apply 'x: builtins.attrNames x' )"
-          echo "myoutput=$(jq -cn --argjson packages "$packages" '{package: $packages}')" >> $GITHUB_OUTPUT
-
-  push:
-    runs-on: ${{ matrix.runs-on }}
+  build-and-push:
+    runs-on: ${{ inputs.runs-on }}
 
     permissions:
       packages: write
 
-    continue-on-error: true
-    needs: generate-matrix
-    strategy:
-      fail-fast: false
-      matrix:
-        runs-on: ["ubuntu-24.04-arm", "ubuntu-latest"]
-        package: ${{ fromJson(needs.generate-matrix.outputs.packages).package }}
-        exclude:
-          # # no kvm for buildImage
-          # - runs-on: ubuntu-24.04-arm
-          #   package: hello
-          - runs-on: ubuntu-24.04-arm
-            package: go-windows
-
     steps:
       - uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793
+        if: ${{ inputs.free-disk-space }}
         with:
           remove-dotnet: "true"
           remove-android: "true"
@@ -83,14 +77,14 @@ jobs:
         with:
           enable_kvm: true
 
-      - uses: nix-community/cache-nix-action@aee88ae5efbbeb38ac5d9862ecbebdb404a19e69 # v6
-        with:
-          # The Nix store is already hash-based, so there's no need to use hashFile to bypass caching—just periodically purging it will suffice.
-          primary-key: build-${{ runner.os }}-${{ runner.arch }}-${{ matrix.package }} # -${{ hashFiles('flake.lock') }}
-          purge: true
-          purge-last-accessed: 2629800 # 1 month
-          purge-prefixes: build-${{ runner.os }}-${{ runner.arch }}-${{ matrix.package }}-
-          purge-primary-key: never
+      # - uses: nix-community/cache-nix-action@aee88ae5efbbeb38ac5d9862ecbebdb404a19e69 # v6
+      #   with:
+      #     # The Nix store is already hash-based, so there's no need to use hashFile to bypass caching—just periodically purging it will suffice.
+      #     primary-key: build-${{ runner.os }}-${{ runner.arch }}
+      #     purge: true
+      #     purge-last-accessed: 2629800 # 1 month
+      #     purge-prefixes: build-${{ runner.os }}-${{ runner.arch }}-
+      #     purge-primary-key: never
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -99,10 +93,10 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: build and push ${{ matrix.package }}
+      - name: build and push ${{ inputs.package }}
         run: |
-          IMAGE_NAME="$(nix eval --json $".#packages.x86_64-linux.${{ matrix.package }}" --apply 'x: "${x.imageName}"' | jq -r)"
-          IMAGE_TAG="$(nix eval --json $".#packages.x86_64-linux.${{ matrix.package }}" --apply 'x: "${x.imageTag}"' | jq -r)"
+          IMAGE_NAME="$(nix eval --json $".#packages.x86_64-linux.${{ inputs.package }}" --apply 'x: "${x.imageName}"' | jq -r)"
+          IMAGE_TAG="$(nix eval --json $".#packages.x86_64-linux.${{ inputs.package }}" --apply 'x: "${x.imageTag}"' | jq -r)"
 
           IMAGE_FULL_NAME="$IMAGE_NAME:$IMAGE_TAG"
 
@@ -110,7 +104,7 @@ jobs:
           ori_digest="$(docker inspect "$IMAGE_FULL_NAME" | jq -r '.[] | .Id' || true)"
           echo ori_digest $ori_digest
 
-          nix run .#${{ matrix.package }}
+          nix run .#${{ inputs.package }}
           new_digest="$(docker inspect "$IMAGE_FULL_NAME" | jq -r '.[] | .Id' || true)"
           echo new_digest $new_digest
 
@@ -132,66 +126,3 @@ jobs:
 
           docker rmi "$IMAGE_FULL_NAME"
           docker rmi "$IMAGE_FULL_NAME-$ARCH"
-
-  docker-manifest:
-    runs-on: ubuntu-latest
-
-    permissions:
-      packages: write
-
-    needs:
-      - generate-matrix
-      - push
-
-    strategy:
-      fail-fast: false
-      matrix:
-        package: ${{ fromJson(needs.generate-matrix.outputs.packages).package }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # https://github.com/orgs/community/discussions/42479#discussioncomment-4484937
-      # https://github.com/wph95/opentelemetry-demo-webstore/blob/ae08811157db7ba590a7c8dd6faa2cb9d1473bef/.github/workflows/release.yml#L24-L29
-      # limit docker push image concurrency to 1
-      # to avoid github package return 429 ratelimit error
-      - name: Set docker upload concurrent
-        run: |
-          echo $'{"max-concurrent-uploads": 2}' | sudo dd status=none of=/etc/docker/daemon.json
-          sudo service docker restart
-
-      - uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
-        with:
-          enable_kvm: true
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: manifest push ${{ matrix.package }}
-        run: |
-          IMAGE_NAME="$(nix eval --json $".#packages.x86_64-linux.${{ matrix.package }}" --apply 'x: "${x.imageName}"' | jq -r)"
-          IMAGE_TAG="$(nix eval --json $".#packages.x86_64-linux.${{ matrix.package }}" --apply 'x: "${x.imageTag}"' | jq -r)"
-
-          IMAGE_FULL_NAME="$IMAGE_NAME:$IMAGE_TAG"
-
-          args=()
-          if docker pull "$IMAGE_FULL_NAME-arm64"; then
-            args+=(--amend "$IMAGE_FULL_NAME-arm64")
-          fi
-          if docker pull "$IMAGE_FULL_NAME-amd64"; then
-            args+=(--amend "$IMAGE_FULL_NAME-amd64")
-          fi
-
-          if [[ ${#args[@]} -eq 0 ]]; then
-            echo "No valid images"
-            exit 1
-          fi
-
-          docker manifest create "$IMAGE_FULL_NAME" \
-            "${args[@]}"
-
-          docker manifest push "$IMAGE_FULL_NAME"

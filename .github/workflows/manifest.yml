@@ -1,0 +1,72 @@
+name: manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      package:
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+
+  docker-manifest:
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # https://github.com/orgs/community/discussions/42479#discussioncomment-4484937
+      # https://github.com/wph95/opentelemetry-demo-webstore/blob/ae08811157db7ba590a7c8dd6faa2cb9d1473bef/.github/workflows/release.yml#L24-L29
+      # limit docker push image concurrency to 1
+      # to avoid github package return 429 ratelimit error
+      - name: Set docker upload concurrent
+        run: |
+          echo $'{"max-concurrent-uploads": 2}' | sudo dd status=none of=/etc/docker/daemon.json
+          sudo service docker restart
+
+      - uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
+        with:
+          enable_kvm: true
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: manifest push ${{ inputs.package }}
+        run: |
+          IMAGE_NAME="$(nix eval --json $".#packages.x86_64-linux.${{ inputs.package }}" --apply 'x: "${x.imageName}"' | jq -r)"
+          IMAGE_TAG="$(nix eval --json $".#packages.x86_64-linux.${{ inputs.package }}" --apply 'x: "${x.imageTag}"' | jq -r)"
+
+          IMAGE_FULL_NAME="$IMAGE_NAME:$IMAGE_TAG"
+
+          args=()
+          if docker pull "$IMAGE_FULL_NAME-arm64"; then
+            args+=(--amend "$IMAGE_FULL_NAME-arm64")
+          fi
+          if docker pull "$IMAGE_FULL_NAME-amd64"; then
+            args+=(--amend "$IMAGE_FULL_NAME-amd64")
+          fi
+
+          if [[ ${#args[@]} -eq 0 ]]; then
+            echo "No valid images"
+            exit 1
+          fi
+
+          docker manifest create "$IMAGE_FULL_NAME" \
+            "${args[@]}"
+
+          docker manifest push "$IMAGE_FULL_NAME"
