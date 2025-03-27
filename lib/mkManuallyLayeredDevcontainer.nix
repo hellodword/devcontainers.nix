@@ -619,6 +619,7 @@ let
     [
       (lib.makeBinPath executablesBaseSystem)
       (lib.makeBinPath executablesVSCodeRuntime)
+      envVarsDefault.XDG_BIN_HOME
     ]
     ++ (map (
       feat:
@@ -651,24 +652,34 @@ let
 
     DO_NOT_TRACK = "true";
 
-    XDG_BIN_HOME = "${HOME}/bin";
-    XDG_CONFIG_HOME = "${HOME}/config";
-    XDG_CACHE_HOME = "${HOME}/cache";
-    XDG_DATA_HOME = "${HOME}/share";
-    XDG_STATE_HOME = "${HOME}/state";
+    # https://specifications.freedesktop.org/basedir-spec/latest/
+    # https://www.freedesktop.org/wiki/Software/xdg-user-dirs/
+    # https://gist.github.com/roalcantara/107ba66dfa3b9d023ac9329e639bc58c
+
+    XDG_CACHE_HOME = "${HOME}/.cache";
+    # XDG_CONFIG_DIRS
+    XDG_CONFIG_HOME = "${HOME}/.config";
+    # XDG_DATA_DIRS
+    XDG_DATA_HOME = "${HOME}/.local/share";
+    # XDG_RUNTIME_DIR
+    XDG_STATE_HOME = "${HOME}/.local/state";
 
     XDG_USER_HOME = "/home";
-    XDG_VAR_HOME = "${HOME}/var";
+    XDG_BIN_HOME = "${HOME}/.local/bin";
+    XDG_VAR_HOME = "${HOME}/.local/var";
+    XDG_OPT_HOME = "${HOME}/.local/opt";
+    XDG_LIB_HOME = "${HOME}/.local/lib";
+    XDG_SRC_HOME = "${HOME}/.local/src";
 
     XDG_DESKTOP_DIR = "${XDG_USER_HOME}/Desktop";
     XDG_DOCUMENTS_DIR = "${XDG_USER_HOME}/Documents";
     XDG_DOWNLOAD_DIR = "${XDG_USER_HOME}/Downloads";
     XDG_MUSIC_DIR = "${XDG_USER_HOME}/Music";
-    XDG_PICTURES_DIR = "${XDG_USER_HOME}/Images";
-    XDG_PUBLICSHARE_DIR = "${XDG_USER_HOME}/Shared";
+    XDG_PICTURES_DIR = "${XDG_USER_HOME}/Pictures";
+    XDG_PUBLICSHARE_DIR = "${XDG_USER_HOME}/Public";
     XDG_REPOSITORY_DIR = "${XDG_USER_HOME}/Repositories";
     XDG_TEMPLATES_DIR = "${XDG_USER_HOME}/Templates";
-    XDG_VIDEOS_DIR = "${XDG_USER_HOME}/Videos";
+    XDG_VIDEOS_DIR = "${XDG_USER_HOME}/Movies";
   };
 
   envVarsList =
