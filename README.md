@@ -23,6 +23,7 @@ After two years of these setups, I decided to completely rework everything using
   - [x] vscode extensions
   - [x] bashrc
   - [ ] FHS
+  - [ ] daemon
 - ci
   - [x] github actions dynamic matrix
   - [x] github actions cache

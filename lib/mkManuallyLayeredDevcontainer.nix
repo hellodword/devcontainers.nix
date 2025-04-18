@@ -277,6 +277,7 @@ let
         cat $osReleaseContentsPath > $out/etc/os-release
       '';
 
+  # TODO https://github.com/microsoft/vscode/blob/3dcca830e652b47f80991b400a269cd4d1b3e9e7/resources/server/bin/helpers/check-requirements-linux.sh#L16-L24
   # https://github.com/manesiotise/plutus-apps/blob/dbafa0ffdc1babcf8e9143ca5a7adde78d021a9a/nix/devcontainer-docker-image.nix#L99-L103
   # allow ubuntu ELF binaries to run. VSCode copies it's own.
   # ln -s ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 $out/lib64/libstdc++.so.6

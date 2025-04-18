@@ -931,6 +931,7 @@
           };
         };
 
+      # TODO: https://github.com/nvim-neorocks/lux
       lua =
         { pkgs, envVarsDefault, ... }:
         let
@@ -1270,6 +1271,35 @@
           };
         };
 
+      pg =
+        { pkgs, ... }:
+        {
+          name = "pg";
+          executables = with pkgs; [
+            postgres-lsp
+          ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/supabase-community/postgres-language-server/tree/main/editors/code
+            Supabase.postgrestools
+          ];
+          vscodeSettings = {
+            "postgrestools.bin" = pkgs.lib.getExe pkgs.postgres-lsp;
+          };
+        };
+
+      drawio =
+        { pkgs, ... }:
+        {
+          name = "drawio";
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/hediet/vscode-drawio
+            hediet.vscode-drawio
+          ];
+        };
+
+      # https://graphviz.org/doc/info/lang.html
+      dot = { ... }: { };
+
       chromium = { ... }: { };
 
       aosp = { ... }: { };
@@ -1279,6 +1309,9 @@
       llvm = { ... }: { };
 
       tailscale = { ... }: { };
+
+      # binfmt
+      qemu = { ... }: { };
 
     };
 }
