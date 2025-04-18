@@ -153,14 +153,28 @@
                     ];
                     text =
                       let
-                        largePackages = builtins.concatStringsSep "," [
+                        largePackages = builtins.concatStringsSep " " [
                           "haskell"
                           # "cpp"
                           # "rust"
                           # "go-windows"
+                          "dotnet"
                         ];
                       in
                       ''
+                        function is_large {
+                            local string="$1"
+                            local largePackages=(${largePackages})
+
+                            for item in "${"$"}{largePackages[@]}"; do
+                                if [[ "$string" == *"$item"* ]]; then
+                                    return 0
+                                fi
+                            done
+
+                            return 1
+                        }
+
                         IFS=" " read -r -a packages_amd64 <<< "$(nix eval --json $".#packages.x86_64-linux" --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' | jq -r)"
                         IFS=" " read -r -a packages_arm64 <<< "$(nix eval --json $".#packages.aarch64-linux" --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' | jq -r)"
 
@@ -181,7 +195,7 @@
                             args+=(-D systems="x86_64-linux")
                           fi
 
-                          if [[ "$package" == *"${largePackages}"* ]]; then
+                          if is_large "$package"; then
                             args+=(-D large=true)
                           else
                             args+=(-D large=false)

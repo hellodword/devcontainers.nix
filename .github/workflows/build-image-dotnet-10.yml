@@ -21,7 +21,7 @@ jobs:
     with:
       runs-on: ubuntu-latest
       package: dotnet-10
-      free-disk-space: false
+      free-disk-space: true
 
 
 
