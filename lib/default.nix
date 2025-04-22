@@ -261,24 +261,14 @@
           executables = with pkgs; [
             nix
 
-            nixd
-            nixfmt-rfc-style
-
             # required by nix* --help
             man
-          ];
-          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
-            jnoortheen.nix-ide
           ];
           envVars = {
             NIX_PAGER = "cat";
             NIX_CONF_DIR = "${nixConfDir}";
             NIX_PATH = "nixpkgs=${pkgs.path}";
             PATH = "${HOME}/.nix-profile/bin:${XDG_STATE_HOME}/nix/profiles/profile/bin";
-          };
-          vscodeSettings = {
-            "nix.enableLanguageServer" = true;
-            "nix.serverPath" = "nixd";
           };
 
           onLogin =
@@ -298,6 +288,28 @@
             };
           alias = {
             "nix-env-add" = ''nix-env --verbose -f "<nixpkgs>" -iA'';
+          };
+        };
+
+      nix-lang =
+        { pkgs, ... }:
+        {
+          name = "nix-lang";
+          layered = true;
+
+          executables = with pkgs; [
+            nixd
+            nixfmt-rfc-style
+          ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            jnoortheen.nix-ide
+          ];
+          vscodeSettings = {
+            "nix.enableLanguageServer" = true;
+            "nix.serverPath" = "nixd";
+            "files.associations" = {
+              "**/flake.lock" = "json";
+            };
           };
         };
 
@@ -1140,8 +1152,12 @@
             "harper.linters.SentenceCapitalization" = false;
             "harper.linters.RepeatedWords" = false;
             "harper.linters.LongSentences" = false;
+            "harper.linters.Dashes" = false;
+            "harper.linters.ToDoHyphen" = false;
+            "harper.linters.ExpandMinimum" = false;
+            "harper.linters.Spaces" = false;
 
-            # TODO custom dict: min/webhook/LANG/vip ...
+            "harper.userDictPath" = ../.harper.dict;
           };
         };
 
@@ -1297,8 +1313,23 @@
           ];
         };
 
+      # TODO formatter linter
       # https://graphviz.org/doc/info/lang.html
-      dot = { ... }: { };
+      graphviz =
+        { pkgs, ... }:
+        {
+          name = "graphviz";
+          executables = with pkgs; [
+            graphviz
+          ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/EFanZh/Graphviz-Preview
+            efanzh.graphviz-preview
+          ];
+          vscodeSettings = {
+            "graphvizPreview.dotPath" = pkgs.lib.getExe' pkgs.graphviz "dot";
+          };
+        };
 
       chromium = { ... }: { };
 

@@ -39,6 +39,8 @@
           dev1
           dev2
 
+          nix
+
           prettier
           markdown
           xml
@@ -48,6 +50,9 @@
           grammarly
 
           shellcheck
+
+          drawio
+          graphviz
         ];
       in
       {
@@ -155,9 +160,9 @@
                       let
                         largePackages = builtins.concatStringsSep " " [
                           "haskell"
-                          # "cpp"
-                          # "rust"
-                          # "go-windows"
+                          "cpp"
+                          "rust"
+                          "go-windows"
                           "dotnet"
                         ];
                       in
@@ -243,7 +248,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      nix
+                      nix-lang
                     ]);
                   withNix = true;
                 };

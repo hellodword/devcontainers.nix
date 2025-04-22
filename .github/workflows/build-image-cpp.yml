@@ -21,7 +21,7 @@ jobs:
     with:
       runs-on: ubuntu-latest
       package: cpp
-      free-disk-space: false
+      free-disk-space: true
 
 
 
