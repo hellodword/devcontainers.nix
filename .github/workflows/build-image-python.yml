@@ -3,6 +3,10 @@
 
 name: build-image-python
 
+concurrency:
+  group: "devcontainers.nix-build-image-python"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

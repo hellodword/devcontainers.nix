@@ -3,6 +3,10 @@
 
 name: build-image-java-21
 
+concurrency:
+  group: "devcontainers.nix-build-image-java-21"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

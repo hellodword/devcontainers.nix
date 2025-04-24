@@ -3,6 +3,10 @@
 
 name: build-image-nginx
 
+concurrency:
+  group: "devcontainers.nix-build-image-nginx"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

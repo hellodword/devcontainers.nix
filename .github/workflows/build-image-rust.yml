@@ -3,6 +3,10 @@
 
 name: build-image-rust
 
+concurrency:
+  group: "devcontainers.nix-build-image-rust"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

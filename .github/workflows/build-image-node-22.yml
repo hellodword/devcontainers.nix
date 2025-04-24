@@ -3,6 +3,10 @@
 
 name: build-image-node-22
 
+concurrency:
+  group: "devcontainers.nix-build-image-node-22"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

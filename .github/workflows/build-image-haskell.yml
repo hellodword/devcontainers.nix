@@ -3,6 +3,10 @@
 
 name: build-image-haskell
 
+concurrency:
+  group: "devcontainers.nix-build-image-haskell"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

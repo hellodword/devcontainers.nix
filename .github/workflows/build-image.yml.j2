@@ -3,6 +3,10 @@
 
 name: build-image-{{ package }}
 
+concurrency:
+  group: "devcontainers.nix-build-image-{{ package }}"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

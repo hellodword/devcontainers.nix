@@ -3,6 +3,10 @@
 
 name: build-image-base
 
+concurrency:
+  group: "devcontainers.nix-build-image-base"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

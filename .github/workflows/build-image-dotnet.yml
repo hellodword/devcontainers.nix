@@ -3,6 +3,10 @@
 
 name: build-image-dotnet
 
+concurrency:
+  group: "devcontainers.nix-build-image-dotnet"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

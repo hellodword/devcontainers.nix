@@ -3,6 +3,10 @@
 
 name: build-image-writer
 
+concurrency:
+  group: "devcontainers.nix-build-image-writer"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

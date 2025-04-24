@@ -3,6 +3,10 @@
 
 name: build-image-latex
 
+concurrency:
+  group: "devcontainers.nix-build-image-latex"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

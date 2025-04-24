@@ -3,6 +3,10 @@
 
 name: build-image-zig
 
+concurrency:
+  group: "devcontainers.nix-build-image-zig"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

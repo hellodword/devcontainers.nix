@@ -3,6 +3,10 @@
 
 name: build-image-php-web
 
+concurrency:
+  group: "devcontainers.nix-build-image-php-web"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

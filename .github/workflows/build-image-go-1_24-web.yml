@@ -3,6 +3,10 @@
 
 name: build-image-go-1_24-web
 
+concurrency:
+  group: "devcontainers.nix-build-image-go-1_24-web"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:

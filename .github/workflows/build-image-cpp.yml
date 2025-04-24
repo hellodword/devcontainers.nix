@@ -3,6 +3,10 @@
 
 name: build-image-cpp
 
+concurrency:
+  group: "devcontainers.nix-build-image-cpp"
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
