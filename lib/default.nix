@@ -650,6 +650,28 @@
       java =
         jdkPkg:
         { pkgs, envVarsDefault, ... }:
+        let
+          # https://github.com/ratson/nixtras/blob/af65f24d77f2829761263bc501ce017014bc412e/pkgs/kotlin-debug-adapter.nix
+          kotlin-debug-adapter = pkgs.stdenv.mkDerivation rec {
+            pname = "kotlin-debug-adapter";
+            version = "0.4.4";
+
+            src = pkgs.fetchzip {
+              url = "https://github.com/fwcd/kotlin-debug-adapter/releases/download/${version}/adapter.zip";
+              hash = "sha256-gNbGomFcWqOLTa83/RWS4xpRGr+jmkovns9Sy7HX9bg=";
+            };
+
+            installPhase = ''
+              runHook preInstall
+
+              mkdir -p $out/{bin,libexec}
+              cp -a . "$out/libexec/${pname}"
+              ln -s "$out/libexec/${pname}/bin/${pname}" "$out/bin/${pname}"
+
+              runHook postInstall
+            '';
+          };
+        in
         {
           name = "java";
           layered = true;
@@ -659,6 +681,8 @@
               maven
               gradle
               kotlin
+              kotlin-language-server
+              kotlin-debug-adapter
             ])
             ++ [ jdkPkg ];
 
@@ -675,7 +699,8 @@
             visualstudioexptteam.vscodeintellicode
             redhat.java
 
-            # TODO kotlin
+            # https://github.com/fwcd/vscode-kotlin
+            fwcd.kotlin
           ];
           envVars = rec {
             inherit (envVarsDefault) XDG_DATA_HOME;
@@ -688,6 +713,11 @@
             "java.import.gradle.java.home" = jdkPkg.home;
             "java.autobuild.enabled" = false;
             "java.compile.nullAnalysis.mode" = "disabled";
+            "kotlin.languageServer.enabled" = true;
+            "kotlin.languageServer.path" =
+              pkgs.lib.getExe' pkgs.kotlin-language-server "kotlin-language-server";
+            "kotlin.debugAdapter.enabled" = true;
+            "kotlin.debugAdapter.path" = pkgs.lib.getExe' kotlin-debug-adapter "kotlin-debug-adapter";
           };
         };
 
@@ -700,10 +730,12 @@
 
           executables =
             [ pyPkg ]
-            # ++ (with pkgs; [
-            #   pipenv
-            #   virtualenv
-            # ])
+            ++ (with pkgs; [
+              pipenv
+              virtualenv
+              poetry
+              uv
+            ])
             ++ (with pyPkg.pkgs; [
               flake8
               autopep8
