@@ -73,6 +73,9 @@
 
           xmlsec.out
           xmlsec.dev
+
+          gtest.out
+          gtest.dev
         ];
       mingw64Pkgs =
         pkgs: with pkgs.pkgsCross.mingwW64; [
@@ -454,6 +457,16 @@
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             ms-vscode.cmake-tools
           ];
+          envVars = {
+            # TODO
+            CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" (ccLibs pkgs);
+          };
+          vscodeSettings = {
+            "cmake.enableAutomaticKitScan" = false;
+            "cmake.cmakePath" = pkgs.lib.getExe' pkgs.cmake "cmake";
+            "cmake.cpackPath" = pkgs.lib.getExe' pkgs.cmake "cpack";
+            "cmake.ctestPath" = pkgs.lib.getExe' pkgs.cmake "ctest";
+          };
         };
 
       meson =
@@ -519,7 +532,7 @@
           executables = with pkgs; [
             vala
             vala-language-server
-            # uncrustify
+            uncrustify
 
             # clang
             # pkg-config

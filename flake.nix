@@ -261,6 +261,8 @@
                     ++ (with self.lib.features; [
                       cpp
                       cmake
+                      ninja
+                      meson
                       gdb
                     ]);
                 };
