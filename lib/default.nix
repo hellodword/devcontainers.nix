@@ -65,14 +65,8 @@
           zstd.out
           zstd.dev
 
-          z3.out
-          z3.dev
-
           xz.out
           xz.dev
-
-          xmlsec.out
-          xmlsec.dev
 
           gtest.out
           gtest.dev
@@ -1047,21 +1041,37 @@
                 rc               Use Zig as a drop-in rc.exe
             */
 
-            ZIG_AR = "zig ar -target x86_64-windows-gnu";
-            ZIG_CC = "zig cc -target x86_64-windows-gnu";
-            ZIG_CXX = "zig c++ -target x86_64-windows-gnu";
-            ZIG_LD = "zig ld -target x86_64-windows-gnu";
+            ZIG_AR_WINDOWS = "zig ar -target x86_64-windows-gnu";
+            ZIG_CC_WINDOWS = "zig cc -target x86_64-windows-gnu";
+            ZIG_CXX_WINDOWS = "zig c++ -target x86_64-windows-gnu";
+            ZIG_LD_WINDOWS = "zig ld -target x86_64-windows-gnu";
+
+            ZIG_AR_LINUX = "zig ar -target x86_64-linux-gnu";
+            ZIG_CC_LINUX = "zig cc -target x86_64-linux-gnu";
+            ZIG_CXX_LINUX = "zig c++ -target x86_64-linux-gnu";
+            ZIG_LD_LINUX = "zig ld -target x86_64-linux-gnu";
           };
         };
 
       # FIXME wine-mono
       wine =
         { pkgs, ... }:
+        let
+          # FIXME
+          libraries = ccLibs pkgs.pkgsCross.mingwW64;
+        in
         {
           name = "wine";
+          layered = true;
+          inherit libraries;
           executables = with pkgs; [
             wineWowPackages.stable
           ];
+          envVars = {
+            WINDOWS_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libraries;
+            WINDOWS_PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" libraries;
+            WINDOWS_CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" libraries;
+          };
         };
 
       # TODO `zig env`

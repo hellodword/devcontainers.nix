@@ -66,7 +66,8 @@
         flake = {
           lib = import ./lib;
 
-          # GOOS=windows CC=$ZIG_CC go build -o main.exe .
+          # CC="zig cc -target x86_64-linux-gnu" GOOS=linux CGO_ENABLED=1 go build -o main.elf .
+          # LD_LIBRARY_PATH="$WINDOWS_LD_LIBRARY_PATH:$LD_LIBRARY_PATH" PKG_CONFIG_PATH="$WINDOWS_PKG_CONFIG_PATH:$PKG_CONFIG_PATH" CC="zig cc -target x86_64-windows-gnu" GOOS=windows CGO_ENABLED=1 go build -o main.exe .
           # wine main.exe
           packages.x86_64-linux.go-windows = withSystem "x86_64-linux" (
             { pkgs, ... }:
