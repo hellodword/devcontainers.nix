@@ -401,7 +401,6 @@
                     "23" = pkgs.nodejs_23;
                     "22" = pkgs.nodejs_22;
                     "20" = pkgs.nodejs_20;
-                    "18" = pkgs.nodejs_18;
                   };
                 in
                 builtins.listToAttrs (
