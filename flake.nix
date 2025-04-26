@@ -169,6 +169,8 @@
                         ];
                       in
                       ''
+                        rm -rf .github/workflows/build-image-*.yml
+
                         function is_large {
                             local string="$1"
                             local largePackages=(${largePackages})
