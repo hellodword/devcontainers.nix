@@ -34,26 +34,27 @@
         ...
       }:
       let
-        commonFeats = with self.lib.features; [
-          dev0
-          dev1
-          dev2
+        withNix = true;
+        commonFeats =
+          (with self.lib.features; [
+            dev0
+            dev1
+            dev2
 
-          nix
+            prettier
+            markdown
+            xml
+            toml
 
-          prettier
-          markdown
-          xml
-          toml
+            autocorrect
+            grammarly
 
-          autocorrect
-          grammarly
+            shellcheck
 
-          shellcheck
-
-          drawio
-          graphviz
-        ];
+            drawio
+            graphviz
+          ])
+          ++ (if withNix then [ self.lib.features.nix ] else [ ]);
       in
       {
         imports = [ ];
@@ -70,7 +71,7 @@
           packages.x86_64-linux.go-windows = withSystem "x86_64-linux" (
             { pkgs, ... }:
             self.lib.mkManuallyLayeredDevcontainer {
-              inherit pkgs;
+              inherit pkgs withNix;
               tag = "windows";
               name = "ghcr.io/hellodword/devcontainers-go";
               features =
@@ -237,7 +238,7 @@
                 };
 
                 dev = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-dev";
                   features = commonFeats;
                 };
@@ -254,7 +255,7 @@
                 };
 
                 cpp = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-cpp";
                   features =
                     commonFeats
@@ -268,7 +269,7 @@
                 };
 
                 vala = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-vala";
                   features =
                     commonFeats
@@ -282,7 +283,7 @@
                 };
 
                 rust = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-rust";
                   features =
                     commonFeats
@@ -293,7 +294,7 @@
                 };
 
                 php = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-php";
                   features =
                     commonFeats
@@ -303,7 +304,7 @@
                 };
 
                 php-web = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-php";
                   tag = "web";
                   features =
@@ -315,7 +316,7 @@
                 };
 
                 haskell = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-haskell";
                   features =
                     commonFeats
@@ -326,7 +327,7 @@
                 };
 
                 dart = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-dart";
                   features =
                     commonFeats
@@ -336,7 +337,7 @@
                 };
 
                 lua = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-lua";
                   features =
                     commonFeats
@@ -346,7 +347,7 @@
                 };
 
                 zig = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-zig";
                   features =
                     commonFeats
@@ -356,7 +357,7 @@
                 };
 
                 writer = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-writer";
                   features = commonFeats ++ [
                     (
@@ -371,7 +372,7 @@
                 };
 
                 latex = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-latex";
                   features =
                     commonFeats
@@ -381,7 +382,7 @@
                 };
 
                 nginx = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-nginx";
                   features =
                     commonFeats
@@ -407,7 +408,7 @@
                   map (tag: {
                     name = "node${formatName tag}";
                     value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs tag;
+                      inherit pkgs withNix tag;
                       name = "ghcr.io/hellodword/devcontainers-node";
                       features =
                         commonFeats
@@ -436,7 +437,7 @@
                   map (tag: {
                     name = "python${formatName tag}";
                     value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs tag;
+                      inherit pkgs withNix tag;
                       name = "ghcr.io/hellodword/devcontainers-python";
                       features =
                         commonFeats
@@ -460,7 +461,7 @@
                   map (tag: {
                     name = "java${formatName tag}";
                     value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs tag;
+                      inherit pkgs withNix tag;
                       name = "ghcr.io/hellodword/devcontainers-java";
                       features =
                         commonFeats
@@ -485,7 +486,7 @@
                   map (tag: {
                     name = "dotnet${formatName tag}";
                     value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs tag;
+                      inherit pkgs withNix tag;
                       name = "ghcr.io/hellodword/devcontainers-dotnet";
                       features =
                         commonFeats
@@ -520,7 +521,7 @@
                   (map (tag: {
                     name = "go${formatName tag}";
                     value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs tag;
+                      inherit pkgs withNix tag;
                       name = "ghcr.io/hellodword/devcontainers-go";
                       features =
                         commonFeats
@@ -533,7 +534,7 @@
                   ++ (map (tag: {
                     name = "go${formatName tag}-web";
                     value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs;
+                      inherit pkgs withNix;
                       tag = "${tag}-web";
                       name = "ghcr.io/hellodword/devcontainers-go";
                       features =
