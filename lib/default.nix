@@ -1384,6 +1384,19 @@
           };
         };
 
+      jinja =
+        { pkgs, ... }:
+        {
+          name = "jinja";
+          layered = true;
+          executables = with pkgs; [
+            minijinja
+          ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            samuelcolvin.jinjahtml
+          ];
+        };
+
       chromium = { ... }: { };
 
       aosp = { ... }: { };

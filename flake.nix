@@ -49,6 +49,7 @@
             markdown
             xml
             toml
+            jinja
 
             autocorrect
             grammarly
