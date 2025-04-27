@@ -16,6 +16,10 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nix-index-database = {
+      url = "github:nix-community/nix-index-database";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -119,6 +123,7 @@
                 inputs.nix-vscode-extensions.overlays.default
                 (prev: final: { inherit (inputs.nix2container.packages.${system}) nix2container; })
                 inputs.rust-overlay.overlays.default
+                inputs.nix-index-database.overlays.nix-index
               ];
             };
 

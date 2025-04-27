@@ -213,8 +213,6 @@
           };
         };
 
-      # TODO nix-index
-      # TODO nix-locate
       # https://github.com/NixOS/nix/blob/master/docker.nix
       nix =
         { pkgs, envVarsDefault, ... }:
@@ -260,6 +258,8 @@
 
             # required by nix* --help
             man
+
+            nix-index-with-db
           ];
           envVars = {
             NIX_PAGER = "cat";
