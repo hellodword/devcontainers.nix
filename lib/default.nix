@@ -1057,24 +1057,22 @@
       wine =
         { pkgs, ... }:
         let
-          # FIXME
-          libraries = ccLibs pkgs.pkgsCross.mingwW64;
+          winLibraries = ccLibs pkgs.pkgsCross.mingwW64;
         in
         {
           name = "wine";
           layered = true;
-          inherit libraries;
+          deps = winLibraries;
           executables = with pkgs; [
             wineWowPackages.stable
           ];
           envVars = {
-            WINDOWS_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libraries;
-            WINDOWS_PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" libraries;
-            WINDOWS_CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" libraries;
+            WINDOWS_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath winLibraries;
+            WINDOWS_PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" winLibraries;
+            WINDOWS_CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" winLibraries;
           };
         };
 
-      # TODO `zig env`
       zig =
         { pkgs, ... }:
         {
