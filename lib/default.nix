@@ -1070,6 +1070,9 @@
             WINDOWS_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath winLibraries;
             WINDOWS_PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" winLibraries;
             WINDOWS_CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" winLibraries;
+
+            # https://github.com/Woynert/notas-tambien/blob/2fc1dced7280e045010cfc1db2444b98cddd8590/shell.nix#L146-L147
+            WINEDLLOVERRIDES = "mscoree,mshtml=";
           };
         };
 
