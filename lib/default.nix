@@ -71,11 +71,6 @@
           gtest.out
           gtest.dev
         ];
-      mingw64Pkgs =
-        pkgs: with pkgs.pkgsCross.mingwW64; [
-          stdenv.cc
-          stdenv.cc.bintools
-        ];
       metadataPtrace = {
         # https://github.com/devcontainers/features/blob/c264b4e837f3273789fc83dae898152daae4cd90/src/go/devcontainer-feature.json#L38-L43
         "capAdd" = [
@@ -214,7 +209,7 @@
         };
 
       # https://github.com/NixOS/nix/blob/master/docker.nix
-      nix =
+      nix-core =
         { pkgs, envVarsDefault, ... }:
         let
           inherit (envVarsDefault) XDG_CONFIG_HOME HOME XDG_STATE_HOME;
@@ -250,7 +245,7 @@
           nixConfDir = pkgs.writeTextDir "nix.conf" nixConfContents;
         in
         {
-          name = "nix";
+          name = "nix-core";
           layered = true;
 
           executables = with pkgs; [
@@ -288,10 +283,10 @@
           };
         };
 
-      nix-lang =
+      nix =
         { pkgs, ... }:
         {
-          name = "nix-lang";
+          name = "nix";
           layered = true;
 
           executables = with pkgs; [
@@ -378,17 +373,28 @@
           executables = ccPkgs pkgs;
         };
 
-      # FIXME
+      # TODO remove gcc and keep mingw gcc
       mingw64 =
         { pkgs, ... }:
+        let
+          useWin32ThreadModel =
+            stdenv:
+            pkgs.overrideCC stdenv (
+              stdenv.cc.override (old: {
+                cc = old.cc.override {
+                  threadsCross = {
+                    model = "win32";
+                    package = null;
+                  };
+                };
+              })
+            );
+          mingwW64Stdenv = useWin32ThreadModel pkgs.pkgsCross.mingwW64.stdenv;
+        in
         {
           name = "mingw64";
           layered = true;
-          libraries = with pkgs.pkgsCross.mingwW64.windows; [
-            mingw_w64_pthreads
-            mcfgthreads
-          ];
-          executables = mingw64Pkgs pkgs;
+          executables = [ mingwW64Stdenv.cc ];
         };
 
       cpp =
@@ -451,10 +457,22 @@
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             ms-vscode.cmake-tools
           ];
-          envVars = {
-            # TODO
-            CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" (ccLibs pkgs);
+          envVarsFunc = {
+            CMAKE_PREFIX_PATH =
+              feat:
+              (
+                if
+                  builtins.hasAttr "envVars" feat
+                  && builtins.hasAttr "CMAKE_PREFIX_PATH" feat.envVars
+                  && builtins.stringLength feat.envVars.CMAKE_PREFIX_PATH > 0
+                then
+                  feat.envVars.CMAKE_PREFIX_PATH + ":"
+                else
+                  ""
+              )
+              + (pkgs.lib.makeSearchPath "lib/cmake" (feat.libraries or [ ]));
           };
+
           vscodeSettings = {
             "cmake.enableAutomaticKitScan" = false;
             "cmake.cmakePath" = pkgs.lib.getExe' pkgs.cmake "cmake";
@@ -983,6 +1001,8 @@
         };
 
       # TODO: https://github.com/nvim-neorocks/lux
+      # TODO: formatter https://github.com/JohnnyMorganz/StyLua
+      # TODO: linter https://github.com/lunarmodules/luacheck
       lua =
         { pkgs, envVarsDefault, ... }:
         let
@@ -1021,10 +1041,10 @@
           };
         };
 
-      zigcc-windows =
+      zigcc =
         { pkgs, ... }:
         {
-          name = "zigcc-windows";
+          name = "zigcc";
           executables = with pkgs; [
             zig
           ];
@@ -1053,24 +1073,31 @@
           };
         };
 
-      # FIXME wine-mono
-      wine =
+      clibs-windows =
         { pkgs, ... }:
         let
           winLibraries = ccLibs pkgs.pkgsCross.mingwW64;
         in
         {
-          name = "wine";
+          name = "clibs-windows";
           layered = true;
           deps = winLibraries;
-          executables = with pkgs; [
-            wineWowPackages.stable
-          ];
           envVars = {
             WINDOWS_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath winLibraries;
             WINDOWS_PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" winLibraries;
             WINDOWS_CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" winLibraries;
+          };
+        };
 
+      wine =
+        { pkgs, ... }:
+        {
+          name = "wine";
+          layered = true;
+          executables = with pkgs; [
+            wineWowPackages.stable
+          ];
+          envVars = {
             # https://github.com/Woynert/notas-tambien/blob/2fc1dced7280e045010cfc1db2444b98cddd8590/shell.nix#L146-L147
             WINEDLLOVERRIDES = "mscoree,mshtml=";
           };

@@ -59,7 +59,7 @@
             drawio
             graphviz
           ])
-          ++ (if withNix then [ self.lib.features.nix ] else [ ]);
+          ++ (if withNix then [ self.lib.features.nix-core ] else [ ]);
       in
       {
         imports = [ ];
@@ -71,9 +71,19 @@
         flake = {
           lib = import ./lib;
 
-          # CC="zig cc -target x86_64-linux-gnu" GOOS=linux CGO_ENABLED=1 go build -o main.elf .
-          # LD_LIBRARY_PATH="$WINDOWS_LD_LIBRARY_PATH:$LD_LIBRARY_PATH" PKG_CONFIG_PATH="$WINDOWS_PKG_CONFIG_PATH:$PKG_CONFIG_PATH" CC="zig cc -target x86_64-windows-gnu" GOOS=windows CGO_ENABLED=1 go build -o main.exe .
-          # wine main.exe
+          /*
+            CC="zig cc -target x86_64-linux-gnu" GOOS=linux CGO_ENABLED=1 go build -o main.elf .
+            ./main.elf
+
+            CC="zig cc -target x86_64-windows-gnu" LD_LIBRARY_PATH="$WINDOWS_LD_LIBRARY_PATH:$LD_LIBRARY_PATH" PKG_CONFIG_PATH="$WINDOWS_PKG_CONFIG_PATH:$PKG_CONFIG_PATH" GOOS=windows CGO_ENABLED=1 CGO_LDFLAGS="-static -static-libgcc -static-libstdc++" go build -o main.exe .
+            wine main.exe
+
+            CC="gcc" GOOS=linux CGO_ENABLED=1 go build -o main.elf .
+            ./main.elf
+
+            CC="x86_64-w64-mingw32-gcc" LD_LIBRARY_PATH="$WINDOWS_LD_LIBRARY_PATH:$LD_LIBRARY_PATH" PKG_CONFIG_PATH="$WINDOWS_PKG_CONFIG_PATH:$PKG_CONFIG_PATH" GOOS=windows CGO_ENABLED=1 CGO_LDFLAGS="-static -static-libgcc -static-libstdc++" go build -o main.exe .
+            wine main.exe
+          */
           packages.x86_64-linux.go-windows = withSystem "x86_64-linux" (
             { pkgs, ... }:
             self.lib.mkManuallyLayeredDevcontainer {
@@ -83,10 +93,17 @@
               features =
                 commonFeats
                 ++ (with self.lib.features; [
-                  cc
                   (go pkgs.go)
-                  zigcc-windows
+
+                  zigcc
+
+                  # override gcc
+                  mingw64
+                  cc
+
+                  cmake
                   wine
+                  clibs-windows
                 ]);
             }
           );
@@ -253,14 +270,13 @@
                 };
 
                 nix = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
+                  inherit pkgs withNix;
                   name = "ghcr.io/hellodword/devcontainers-nix";
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      nix-lang
+                      nix
                     ]);
-                  withNix = true;
                 };
 
                 cpp = self.lib.mkManuallyLayeredDevcontainer {
