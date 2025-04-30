@@ -1472,6 +1472,8 @@
             };
 
             "continue.telemetryEnabled" = false;
+            "continue.enableConsole" = true;
+            "continue.pauseCodebaseIndexOnStart" = true;
           };
           onLogin = {
             "init continue" = {
