@@ -1,0 +1,61 @@
+name: "My assistant"
+version: 0.1.0
+schema: v1
+
+models:
+  # chat
+  # https://docs.continue.dev/customize/model-roles/chat#recommended-chat-models
+  # https://openrouter.ai/anthropic/claude-3.7-sonnet/api
+  # edit
+  # https://docs.continue.dev/customize/model-roles/edit
+  - name: OpenRouter Claude 3.7 Sonnet
+    provider: openrouter
+    model: anthropic/claude-3.7-sonnet
+    apiBase: https://openrouter.ai/api/v1
+    apiKey: ${{ secrets.OPEN_ROUTER_API_KEY }}
+    roles:
+      - chat
+      - edit
+
+  # autocomplete
+  # https://docs.continue.dev/customize/deep-dives/autocomplete#setting-up-with-codestral-recommended
+  # https://openrouter.ai/mistralai/codestral-2501/api
+  - name: OpenRouter Codestral
+    provider: openrouter
+    model: mistralai/codestral-2501
+    apiBase: https://openrouter.ai/api/v1
+    apiKey: ${{ secrets.OPEN_ROUTER_API_KEY }}
+    roles:
+      - autocomplete
+
+  # apply
+  # https://blog.continue.dev/instant-apply-with-relace/
+  # https://docs.continue.dev/customize/model-roles/apply#recommended-apply-models
+  # https://app.relace.ai/settings/api-keys
+  - uses: relace/instant-apply
+    with:
+      RELACE_API_KEY: ${{ secrets.RELACE_API_KEY }}
+
+  # embed
+  # https://docs.continue.dev/customize/model-roles/embeddings#recommended-embedding-models
+  # https://www.voyageai.com/
+  # https://docs.voyageai.com/docs/pricing
+  - uses: voyageai/voyage-code-3
+    with:
+      VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+
+  # rerank
+  # https://docs.continue.dev/customize/model-roles/reranking#recommended-reranking-models
+  # https://www.voyageai.com/
+  - uses: voyageai/rerank-2
+    with:
+      VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+
+context:
+  - provider: code
+  - provider: docs
+  - provider: diff
+  - provider: terminal
+  - provider: problems
+  - provider: folder
+  - provider: codebase

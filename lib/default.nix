@@ -1440,5 +1440,65 @@
       # binfmt
       qemu = { ... }: { };
 
+      /*
+        ranking:
+          https://aider.chat/docs/leaderboards/
+          https://openrouter.ai/rankings/programming
+
+        buy:
+          https://www.requesty.ai/
+          https://openrouter.ai
+          https://cloud.google.com/vertex-ai/pricing
+      */
+      copilot =
+        { pkgs, ... }:
+        {
+          name = "copilot";
+          layered = true;
+          executables = with pkgs; [
+            # https://docs.continue.dev/customize/deep-dives/codebase#ignore-files-during-indexing
+            sqlite
+          ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # # https://github.com/RooVetGit/Roo-Code
+            # rooveterinaryinc.roo-cline
+
+            # https://github.com/continuedev/continue
+            continue.continue
+          ];
+          vscodeSettings = {
+            "files.associations" = {
+              "**/.continueignore" = "plaintext";
+            };
+
+            "continue.telemetryEnabled" = false;
+          };
+          onLogin = {
+            "init continue" = {
+              command = ''
+                mkdir -p ~/.continue/index
+                touch ~/.continue/.env
+                cat ${../.continue/assistants/config.yaml} > ~/.continue/config.yaml
+                cat ${../.continueignore} > ~/.continue/.continueignore
+
+                # workaround of declarative `disableAutocompleteInFiles`
+                # https://docs.continue.dev/json-reference#fully-deprecated-settings
+                echo '${
+                  builtins.toJSON {
+                    sharedConfig.disableAutocompleteInFiles = pkgs.lib.lists.unique (
+                      [
+                        "*.md"
+                      ]
+                      ++ (pkgs.lib.filter (
+                        x: builtins.typeOf x == "string" && pkgs.lib.strings.match "^[^# \t][^\r\n]*" x != null
+                      ) (builtins.split "\n" (builtins.readFile ../.continueignore)))
+                    );
+                  }
+                }' > ~/.continue/index/globalContext.json
+              '';
+              once = true;
+            };
+          };
+        };
     };
 }

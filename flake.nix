@@ -58,6 +58,8 @@
 
             drawio
             graphviz
+
+            copilot
           ])
           ++ (if withNix then [ self.lib.features.nix-core ] else [ ]);
       in
