@@ -101,7 +101,7 @@
 
                   # override gcc
                   mingw64
-                  cc
+                  cpp
 
                   cmake
                   wine
