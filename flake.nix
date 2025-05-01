@@ -447,6 +447,20 @@
               )
 
               # https://devguide.python.org/versions/
+              // {
+                python-web = self.lib.mkManuallyLayeredDevcontainer {
+                  inherit pkgs withNix;
+                  tag = "web";
+                  name = "ghcr.io/hellodword/devcontainers-python";
+                  features =
+                    commonFeats
+                    ++ (with self.lib.features; [
+                      cc
+                      (python pkgs.python313)
+                      (node pkgs.nodejs_latest)
+                    ]);
+                };
+              }
               // (
                 let
                   pyPkgs = {
@@ -468,6 +482,7 @@
                       features =
                         commonFeats
                         ++ (with self.lib.features; [
+                          cc
                           (python pyPkgs."${tag}")
                         ]);
                     };
@@ -528,6 +543,20 @@
               # the latest two major versions
               # https://go.dev/doc/devel/release#policy
               # https://github.com/NixOS/nixpkgs/pull/384229
+              // {
+                go-web = self.lib.mkManuallyLayeredDevcontainer {
+                  inherit pkgs withNix;
+                  tag = "web";
+                  name = "ghcr.io/hellodword/devcontainers-go";
+                  features =
+                    commonFeats
+                    ++ (with self.lib.features; [
+                      cc
+                      (go pkgs.go)
+                      (node pkgs.nodejs_latest)
+                    ]);
+                };
+              }
               // (
                 let
                   lib = pkgs.lib;
@@ -544,7 +573,7 @@
                   };
                 in
                 builtins.listToAttrs (
-                  (map (tag: {
+                  map (tag: {
                     name = "go${formatName tag}";
                     value = self.lib.mkManuallyLayeredDevcontainer {
                       inherit pkgs withNix tag;
@@ -556,22 +585,7 @@
                           (go goPkgs."${tag}")
                         ]);
                     };
-                  }) (builtins.attrNames goPkgs))
-                  ++ (map (tag: {
-                    name = "go${formatName tag}-web";
-                    value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs withNix;
-                      tag = "${tag}-web";
-                      name = "ghcr.io/hellodword/devcontainers-go";
-                      features =
-                        commonFeats
-                        ++ (with self.lib.features; [
-                          cc
-                          (go goPkgs."${tag}")
-                          (node pkgs.nodejs_latest)
-                        ]);
-                    };
-                  }) (builtins.attrNames goPkgs))
+                  }) (builtins.attrNames goPkgs)
                 )
               );
 
