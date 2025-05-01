@@ -735,6 +735,7 @@
             PATH = "${JAVA_HOME}/bin:${SDKMAN_DIR}/bin:${GRADLE_USER_HOME}/bin";
           };
           vscodeSettings = {
+            "java.configuration.updateBuildConfiguration" = "automatic";
             "java.import.gradle.java.home" = jdkPkg.home;
             "java.autobuild.enabled" = false;
             "java.compile.nullAnalysis.mode" = "disabled";
@@ -1001,8 +1002,6 @@
         };
 
       # TODO: https://github.com/nvim-neorocks/lux
-      # TODO: formatter https://github.com/JohnnyMorganz/StyLua
-      # TODO: linter https://github.com/lunarmodules/luacheck
       lua =
         { pkgs, envVarsDefault, ... }:
         let
@@ -1449,6 +1448,7 @@
           https://www.requesty.ai/
           https://openrouter.ai
           https://cloud.google.com/vertex-ai/pricing
+          https://aws.amazon.com/bedrock/
       */
       copilot =
         { pkgs, ... }:
@@ -1474,6 +1474,19 @@
             "continue.telemetryEnabled" = false;
             "continue.enableConsole" = true;
             "continue.pauseCodebaseIndexOnStart" = true;
+
+            # disable bundled GitHub Copilot
+            "chat.agent.enabled" = false;
+            "chat.mcp.enabled" = false;
+            "chat.edits2.enabled" = false;
+            "chat.commandCenter.enabled" = false;
+            "chat.mcp.discovery.enabled" = false;
+            "chat.extensionTools.enabled" = false;
+            "chat.implicitContext.enabled" = {
+              "panel" = "never";
+              "editing-session" = "never";
+            };
+            "chat.detectParticipant.enabled" = false;
           };
           onLogin = {
             "init continue" = {

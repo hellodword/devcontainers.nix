@@ -201,6 +201,9 @@ let
       "editor.tabSize" = 2;
       "extensions.ignoreRecommendations" = true;
       "files.eol" = "\n";
+      "github.gitAuthentication" = false;
+      "github.branchProtection" = false;
+      "github.showAvatar" = false;
     };
 
     # https://devcontainers.github.io/implementors/json_reference/

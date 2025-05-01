@@ -20,9 +20,11 @@ models:
   # autocomplete
   # https://docs.continue.dev/customize/deep-dives/autocomplete#setting-up-with-codestral-recommended
   # https://openrouter.ai/mistralai/codestral-2501/api
+  # https://blog.continue.dev/a-shift-to-parallel-ai-embracing-mercury-diffusion-language-models/
   - name: OpenRouter Codestral
     provider: openrouter
     model: mistralai/codestral-2501
+    # model: inception/mercury-coder-small-beta
     apiBase: https://openrouter.ai/api/v1
     apiKey: ${{ secrets.OPEN_ROUTER_API_KEY }}
     roles:
