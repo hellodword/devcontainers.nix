@@ -41,27 +41,27 @@
         withNix = true;
         commonFeats =
           (with self.lib.features; [
-            dev0
-            dev1
-            dev2
+            (dev0 { })
+            (dev1 { })
+            (dev2 { })
 
-            prettier
-            markdown
-            xml
-            toml
-            jinja
+            (prettier { })
+            (markdown { })
+            (xml { })
+            (toml { })
+            (jinja { })
 
-            autocorrect
-            grammarly
+            (autocorrect { })
+            (grammarly { })
 
-            shellcheck
+            (shellcheck { })
 
-            drawio
-            graphviz
+            (drawio { })
+            (graphviz { })
 
-            copilot
+            (copilot { })
           ])
-          ++ (if withNix then [ self.lib.features.nix-core ] else [ ]);
+          ++ (if withNix then [ (self.lib.features.nix-core { }) ] else [ ]);
       in
       {
         imports = [ ];
@@ -95,17 +95,24 @@
               features =
                 commonFeats
                 ++ (with self.lib.features; [
-                  (go pkgs.go)
+                  (go { goPackage = pkgs.go; })
 
-                  zigcc
+                  (zigcc { })
 
-                  # override gcc
-                  mingw64
-                  cpp
+                  (mingw32 { })
+                  (mingw64 { })
+                  # override gcc of mingw stdenv
+                  (cpp { })
 
-                  cmake
-                  wine
-                  clibs-windows
+                  (python {
+                    pythonPackage = pkgs.python313;
+                    # FATA[0180] committing the finished image: docker engine reported: "max depth exceeded"
+                    layered = false;
+                  })
+
+                  (cmake { })
+                  (wine { })
+                  (clibs-windows { })
                 ]);
             }
           );
@@ -277,7 +284,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      nix
+                      (nix { })
                     ]);
                 };
 
@@ -287,11 +294,11 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      cpp
-                      cmake
-                      ninja
-                      meson
-                      gdb
+                      (cpp { })
+                      (cmake { })
+                      (ninja { })
+                      (meson { })
+                      (gdb { })
                     ]);
                 };
 
@@ -301,11 +308,11 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      cc
-                      vala
-                      ninja
-                      meson
-                      gdb
+                      (cc { })
+                      (vala { })
+                      (ninja { })
+                      (meson { })
+                      (gdb { })
                     ]);
                 };
 
@@ -315,8 +322,8 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      rust
-                      cpp
+                      (rust { })
+                      (cpp { })
                     ]);
                 };
 
@@ -326,7 +333,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      php
+                      (php { })
                     ]);
                 };
 
@@ -337,8 +344,8 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      php
-                      (node pkgs.nodejs_latest)
+                      (php { })
+                      (node { nodePackage = pkgs.nodejs_latest; })
                     ]);
                 };
 
@@ -348,8 +355,8 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      cc
-                      haskell
+                      (cc { })
+                      (haskell { })
                     ]);
                 };
 
@@ -359,7 +366,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      dart
+                      (dart { })
                     ]);
                 };
 
@@ -369,7 +376,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      lua
+                      (lua { })
                     ]);
                 };
 
@@ -379,7 +386,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      zig
+                      (zig { })
                     ]);
                 };
 
@@ -404,7 +411,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      latex
+                      (latex { })
                     ]);
                 };
 
@@ -414,7 +421,7 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      nginx
+                      (nginx { })
                     ]);
                 };
 
@@ -423,7 +430,7 @@
               # https://nodejs.org/en/about/previous-releases
               // (
                 let
-                  nodePkgs = {
+                  nodePackages = {
                     latest = pkgs.nodejs_latest;
                     "23" = pkgs.nodejs_23;
                     "22" = pkgs.nodejs_22;
@@ -439,10 +446,10 @@
                       features =
                         commonFeats
                         ++ (with self.lib.features; [
-                          (node nodePkgs."${tag}")
+                          (node { nodePackage = nodePackages."${tag}"; })
                         ]);
                     };
-                  }) (builtins.attrNames nodePkgs)
+                  }) (builtins.attrNames nodePackages)
                 )
               )
 
@@ -455,15 +462,15 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      cc
-                      (python pkgs.python313)
-                      (node pkgs.nodejs_latest)
+                      (cc { })
+                      (python { pythonPackage = pkgs.python313; })
+                      (node { nodePackage = pkgs.nodejs_latest; })
                     ]);
                 };
               }
               // (
                 let
-                  pyPkgs = {
+                  pythonPackages = {
                     latest = pkgs.python313;
                     # "3.10" = pkgs.python310;
                     "3.11" = pkgs.python311;
@@ -482,17 +489,17 @@
                       features =
                         commonFeats
                         ++ (with self.lib.features; [
-                          cc
-                          (python pyPkgs."${tag}")
+                          (cc { })
+                          (python { pythonPackage = pythonPackages."${tag}"; })
                         ]);
                     };
-                  }) (builtins.attrNames pyPkgs)
+                  }) (builtins.attrNames pythonPackages)
                 )
               )
 
               // (
                 let
-                  jdkPkgs = {
+                  jdkPackages = {
                     latest = pkgs.jdk_headless;
                     "8" = pkgs.jdk8_headless;
                     "21" = pkgs.jdk21_headless;
@@ -507,16 +514,16 @@
                       features =
                         commonFeats
                         ++ (with self.lib.features; [
-                          (java jdkPkgs."${tag}")
+                          (java { jdkPackage = jdkPackages."${tag}"; })
                         ]);
                     };
-                  }) (builtins.attrNames jdkPkgs)
+                  }) (builtins.attrNames jdkPackages)
                 )
               )
 
               // (
                 let
-                  dotnetCores = {
+                  dotnetPackages = {
                     latest = pkgs.dotnet-sdk;
                     "8" = pkgs.dotnet-sdk_8;
                     "9" = pkgs.dotnet-sdk_9;
@@ -532,10 +539,10 @@
                       features =
                         commonFeats
                         ++ (with self.lib.features; [
-                          (dotnet dotnetCores."${tag}")
+                          (dotnet { dotnetPackage = dotnetPackages."${tag}"; })
                         ]);
                     };
-                  }) (builtins.attrNames dotnetCores)
+                  }) (builtins.attrNames dotnetPackages)
                 )
               )
 
@@ -551,9 +558,9 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      cc
-                      (go pkgs.go)
-                      (node pkgs.nodejs_latest)
+                      (cc { })
+                      (go { goPackage = pkgs.go; })
+                      (node { nodePackage = pkgs.nodejs_latest; })
                     ]);
                 };
               }
@@ -566,7 +573,7 @@
                     (lib.strings.toInt (builtins.elemAt (lib.splitString "." goLatest.version) 1)) - 1
                   );
                   goLast = pkgs."go_1_${goLastMajor}";
-                  goPkgs = {
+                  goPackages = {
                     latest = goLatest;
                     "${versionWithoutMinor goLatest.version}" = goLatest;
                     "${versionWithoutMinor goLast.version}" = goLast;
@@ -581,11 +588,11 @@
                       features =
                         commonFeats
                         ++ (with self.lib.features; [
-                          cc
-                          (go goPkgs."${tag}")
+                          (cc { })
+                          (go { goPackage = goPackages."${tag}"; })
                         ]);
                     };
-                  }) (builtins.attrNames goPkgs)
+                  }) (builtins.attrNames goPackages)
                 )
               );
 

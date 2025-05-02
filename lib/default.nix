@@ -84,10 +84,13 @@
     {
 
       dev0 =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "dev0";
-          layered = false;
+          inherit layered;
 
           executables = with pkgs; [
             gitMinimal
@@ -121,10 +124,13 @@
         };
 
       dev1 =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "dev1";
-          layered = false;
+          inherit layered;
 
           executables = with pkgs; [
             findutils
@@ -156,10 +162,13 @@
         };
 
       dev2 =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "dev2";
-          layered = false;
+          inherit layered;
 
           executables = with pkgs; [
             fd
@@ -178,9 +187,13 @@
         };
 
       prettier =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "prettier";
+          inherit layered;
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             esbenp.prettier-vscode
           ];
@@ -210,6 +223,9 @@
 
       # https://github.com/NixOS/nix/blob/master/docker.nix
       nix-core =
+        {
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         let
           inherit (envVarsDefault) XDG_CONFIG_HOME HOME XDG_STATE_HOME;
@@ -246,7 +262,7 @@
         in
         {
           name = "nix-core";
-          layered = true;
+          inherit layered;
 
           executables = with pkgs; [
             nix
@@ -284,10 +300,13 @@
         };
 
       nix =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "nix";
-          layered = true;
+          inherit layered;
 
           executables = with pkgs; [
             nixd
@@ -306,20 +325,23 @@
         };
 
       go =
-        goPkg:
+        {
+          goPackage,
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         let
           # https://github.com/cachix/devenv/blob/6bde92766ddd3ee1630029a03d36baddd51934e2/src/modules/languages/go.nix#L6
           # Override the buildGoModule function to use the specified Go package.
-          buildGoModule = pkgs.buildGoModule.override { go = goPkg; };
+          buildGoModule = pkgs.buildGoModule.override { go = goPackage; };
           buildWithSpecificGo = pkg: pkg.override { inherit buildGoModule; };
         in
         {
           name = "go";
-          layered = true;
+          inherit layered;
 
           executables =
-            [ goPkg ]
+            [ goPackage ]
             ++ (with pkgs; [
               # https://github.com/golang/vscode-go/blob/eeb3c24fe991e47e130a0ac70a9b214664b4a0ea/extension/tools/allTools.ts.in
               # vscode-go expects all tool compiled with the same used go version
@@ -368,16 +390,22 @@
       # https://github.com/devcontainers/images/tree/main/src/cpp
       # https://discourse.nixos.org/t/how-to-set-up-a-nix-shell-with-gnu-build-toolchain-build-essential/38579
       cc =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "cc";
-          layered = true;
+          inherit layered;
           libraries = ccLibs pkgs;
           executables = ccPkgs pkgs;
         };
 
       # TODO remove gcc and keep mingw gcc
       mingw64 =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         let
           useWin32ThreadModel =
@@ -396,15 +424,43 @@
         in
         {
           name = "mingw64";
-          layered = true;
+          inherit layered;
           executables = [ mingwW64Stdenv.cc ];
+        };
+      mingw32 =
+        {
+          layered ? false,
+        }:
+        { pkgs, ... }:
+        let
+          useWin32ThreadModel =
+            stdenv:
+            pkgs.overrideCC stdenv (
+              stdenv.cc.override (old: {
+                cc = old.cc.override {
+                  threadsCross = {
+                    model = "win32";
+                    package = null;
+                  };
+                };
+              })
+            );
+          mingw32Stdenv = useWin32ThreadModel pkgs.pkgsCross.mingw32.stdenv;
+        in
+        {
+          name = "mingw32";
+          inherit layered;
+          executables = [ mingw32Stdenv.cc ];
         };
 
       cpp =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "cpp";
-          layered = true;
+          inherit layered;
 
           # libraries = with pkgs; [
           #   # glib.dev
@@ -439,10 +495,13 @@
         };
 
       gdb =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "gdb";
-          layered = true;
+          inherit layered;
           executables = with pkgs; [
             gdb
           ];
@@ -450,10 +509,13 @@
         };
 
       cmake =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "cmake";
-          layered = true;
+          inherit layered;
           executables = with pkgs; [
             cmake
           ];
@@ -485,10 +547,13 @@
         };
 
       meson =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "meson";
-          layered = true;
+          inherit layered;
           executables = with pkgs; [
             meson
             mesonlsp
@@ -517,30 +582,39 @@
         };
 
       ninja =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "ninja";
-          layered = true;
+          inherit layered;
           executables = with pkgs; [
             ninja
           ];
         };
 
       gn =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "gn";
-          layered = true;
+          inherit layered;
           executables = with pkgs; [
             gn
           ];
         };
 
       vala =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "vala";
-          layered = true;
+          inherit layered;
 
           libraries = with pkgs; [ glib.dev ];
 
@@ -562,14 +636,17 @@
         };
 
       dotnet =
-        dotnetCore:
+        {
+          dotnetPackage,
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "dotnet";
-          layered = true;
+          inherit layered;
 
           executables =
-            [ dotnetCore ]
+            [ dotnetPackage ]
             ++ (with pkgs; [
               netcoredbg
             ]);
@@ -584,24 +661,27 @@
             DOTNET_NOLOGO = true;
             DOTNET_CLI_TELEMETRY_OPTOUT = true;
             DOTNET_SKIP_FIRST_TIME_EXPERIENCE = true;
-            DOTNET_ROOT = "${dotnetCore}";
+            DOTNET_ROOT = "${dotnetPackage}";
           };
         };
 
       node =
-        nodePkg:
+        {
+          nodePackage,
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "node";
-          layered = true;
+          inherit layered;
 
           executables =
-            [ nodePkg ]
+            [ nodePackage ]
             # ++ (with pkgs; [
             #   yarn
             #   pnpm
             # ])
-            ++ (with nodePkg.pkgs; [
+            ++ (with nodePackage.pkgs; [
               typescript
               typescript-language-server
               yarn
@@ -618,6 +698,9 @@
         };
 
       rust =
+        {
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         let
           rustBin = pkgs.rust-bin.stable.latest.default.override {
@@ -635,7 +718,7 @@
         in
         {
           name = "rust";
-          layered = true;
+          inherit layered;
 
           libraries = with pkgs; [
             openssl.dev
@@ -676,7 +759,10 @@
         };
 
       java =
-        jdkPkg:
+        {
+          jdkPackage,
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         let
           # https://github.com/ratson/nixtras/blob/af65f24d77f2829761263bc501ce017014bc412e/pkgs/kotlin-debug-adapter.nix
@@ -702,7 +788,7 @@
         in
         {
           name = "java";
-          layered = true;
+          inherit layered;
 
           executables =
             (with pkgs; [
@@ -712,7 +798,7 @@
               kotlin-language-server
               kotlin-debug-adapter
             ])
-            ++ [ jdkPkg ];
+            ++ [ jdkPackage ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             vscjava.vscode-maven
@@ -732,14 +818,14 @@
           ];
           envVars = rec {
             inherit (envVarsDefault) XDG_DATA_HOME;
-            JAVA_HOME = jdkPkg.home;
+            JAVA_HOME = jdkPackage.home;
             SDKMAN_DIR = "${XDG_DATA_HOME}/sdkman";
             GRADLE_USER_HOME = "${XDG_DATA_HOME}/gradle";
             PATH = "${JAVA_HOME}/bin:${SDKMAN_DIR}/bin:${GRADLE_USER_HOME}/bin";
           };
           vscodeSettings = {
             "java.configuration.updateBuildConfiguration" = "automatic";
-            "java.import.gradle.java.home" = jdkPkg.home;
+            "java.import.gradle.java.home" = jdkPackage.home;
             "java.autobuild.enabled" = false;
             "java.compile.nullAnalysis.mode" = "disabled";
             "kotlin.languageServer.enabled" = true;
@@ -751,21 +837,24 @@
         };
 
       python =
-        pyPkg:
+        {
+          pythonPackage,
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         {
           name = "python";
-          layered = true;
+          inherit layered;
 
           executables =
-            [ pyPkg ]
+            [ pythonPackage ]
             ++ (with pkgs; [
               pipenv
               virtualenv
               poetry
               uv
             ])
-            ++ (with pyPkg.pkgs; [
+            ++ (with pythonPackage.pkgs; [
               flake8
               autopep8
               black
@@ -796,7 +885,7 @@
               XDG_STATE_HOME
               ;
 
-            PYTHON_PATH = pkgs.lib.getExe pyPkg;
+            PYTHON_PATH = pkgs.lib.getExe pythonPackage;
             PYTHONUSERBASE = "${XDG_DATA_HOME}/python";
 
             PYTHONPYCACHEPREFIX = "${XDG_CACHE_HOME}/python";
@@ -818,7 +907,7 @@
             PYENV = "${XDG_DATA_HOME}/pyenv";
           };
           vscodeSettings = {
-            "python.defaultInterpreterPath" = pkgs.lib.getExe pyPkg;
+            "python.defaultInterpreterPath" = pkgs.lib.getExe pythonPackage;
             "[python]" = {
               "editor.defaultFormatter" = "ms-python.autopep8";
             };
@@ -826,6 +915,9 @@
         };
 
       php =
+        {
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         let
           phpPkg = pkgs.php;
@@ -857,7 +949,7 @@
         in
         {
           name = "php";
-          layered = true;
+          inherit layered;
 
           executables =
             [ phpWithExt ]
@@ -891,10 +983,13 @@
 
       # TODO minimize ghc and hls
       haskell =
+        {
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         {
           name = "haskell";
-          layered = true;
+          inherit layered;
 
           executables =
             (with pkgs; [
@@ -937,10 +1032,13 @@
         };
 
       dart =
+        {
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         {
           name = "dart";
-          layered = true;
+          inherit layered;
 
           executables = with pkgs; [ dart ];
 
@@ -968,13 +1066,16 @@
 
       # TODO android
       flutter =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         let
           flutterPkg = pkgs.flutter;
         in
         {
           name = "flutter";
-          layered = true;
+          inherit layered;
 
           executables = [ flutterPkg ];
 
@@ -1006,6 +1107,9 @@
 
       # TODO: https://github.com/nvim-neorocks/lux
       lua =
+        {
+          layered ? true,
+        }:
         { pkgs, envVarsDefault, ... }:
         let
           luaPkg = pkgs.lua5_4_compat;
@@ -1015,7 +1119,7 @@
         in
         {
           name = "lua";
-          layered = true;
+          inherit layered;
 
           executables =
             [ luaPkg ]
@@ -1044,9 +1148,14 @@
         };
 
       zigcc =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "zigcc";
+          inherit layered;
+
           executables = with pkgs; [
             zig
           ];
@@ -1076,13 +1185,16 @@
         };
 
       clibs-windows =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         let
           winLibraries = ccLibs pkgs.pkgsCross.mingwW64;
         in
         {
           name = "clibs-windows";
-          layered = true;
+          inherit layered;
           deps = winLibraries;
           envVars = {
             WINDOWS_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath winLibraries;
@@ -1092,10 +1204,13 @@
         };
 
       wine =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "wine";
-          layered = true;
+          inherit layered;
           executables = with pkgs; [
             wineWowPackages.stable
           ];
@@ -1106,10 +1221,13 @@
         };
 
       zig =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "zig";
-          layered = true;
+          inherit layered;
 
           executables = with pkgs; [
             zig
@@ -1132,10 +1250,13 @@
 
       # FIXME
       swift =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "swift";
-          layered = true;
+          inherit layered;
 
           libraries = with pkgs; [
             gcc-unwrapped.lib
@@ -1169,10 +1290,13 @@
       # https://github.com/koalaman/shellcheck
       # https://github.com/vscode-shellcheck/vscode-shellcheck
       shellcheck =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "shellcheck";
-          layered = true;
+          inherit layered;
 
           executables = with pkgs; [ shellcheck ];
 
@@ -1219,9 +1343,14 @@
         };
 
       grammarly =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "grammarly";
+          inherit layered;
+
           executables = with pkgs; [
             harper
           ];
@@ -1247,9 +1376,14 @@
         };
 
       markdown =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "markdown";
+          inherit layered;
+
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             # https://github.com/shd101wyy/vscode-markdown-preview-enhanced
             shd101wyy.markdown-preview-enhanced
@@ -1260,9 +1394,13 @@
         };
 
       autocorrect =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "autocorrect";
+          inherit layered;
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             # https://github.com/huacnlee/vscode-autocorrect
             huacnlee.autocorrect
@@ -1277,10 +1415,13 @@
 
       # TODO minimize texlive
       latex =
+        {
+          layered ? true,
+        }:
         { pkgs, ... }:
         {
           name = "latex";
-          layered = true;
+          inherit layered;
 
           executables = with pkgs; [
             texliveMedium
@@ -1325,9 +1466,13 @@
         };
 
       xml =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "xml";
+          inherit layered;
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             redhat.vscode-xml
           ];
@@ -1337,9 +1482,13 @@
         };
 
       toml =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "toml";
+          inherit layered;
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             tamasfe.even-better-toml
           ];
@@ -1352,9 +1501,13 @@
         };
 
       nginx =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "nginx";
+          inherit layered;
           executables = with pkgs; [
             nginx
           ];
@@ -1373,9 +1526,13 @@
         };
 
       pg =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "pg";
+          inherit layered;
           executables = with pkgs; [
             postgres-lsp
           ];
@@ -1389,9 +1546,13 @@
         };
 
       drawio =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "drawio";
+          inherit layered;
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             # https://github.com/hediet/vscode-drawio
             hediet.vscode-drawio
@@ -1401,9 +1562,13 @@
       # TODO formatter linter
       # https://graphviz.org/doc/info/lang.html
       graphviz =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "graphviz";
+          inherit layered;
           executables = with pkgs; [
             graphviz
           ];
@@ -1417,10 +1582,13 @@
         };
 
       jinja =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "jinja";
-          layered = true;
+          inherit layered;
           executables = with pkgs; [
             minijinja
           ];
@@ -1454,10 +1622,13 @@
           https://aws.amazon.com/bedrock/
       */
       copilot =
+        {
+          layered ? false,
+        }:
         { pkgs, ... }:
         {
           name = "copilot";
-          layered = true;
+          inherit layered;
           executables = with pkgs; [
             # https://docs.continue.dev/customize/deep-dives/codebase#ignore-files-during-indexing
             sqlite

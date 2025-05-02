@@ -73,7 +73,7 @@ let
 
   featureDefault = {
     name = "default";
-    layered = true;
+    layered = false;
 
     users = {
       root = {
@@ -259,7 +259,7 @@ let
 
   featureVSCodeRuntime = {
     name = "vscode-runtime";
-    layered = true;
+    layered = false;
 
     deps = with pkgs; [
       glibc
@@ -308,7 +308,7 @@ let
 
   featureInit = {
     name = "init";
-    layered = true;
+    layered = false;
 
     deps = with pkgs; [
       bash-completion
