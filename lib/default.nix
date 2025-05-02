@@ -359,6 +359,9 @@
             "go.toolsManagement.autoUpdate" = false;
             "go.logging.level" = "verbose";
           };
+          alias = {
+            go-build = ''go build -trimpath -ldflags "-s -w -buildid="'';
+          };
           metadata = metadataPtrace;
         };
 
