@@ -99,6 +99,22 @@
 
                   (zigcc { })
 
+                  # https://github.com/mstorsjo/msvc-wine/pull/187
+                  (
+                    { pkgs, ... }:
+                    {
+                      layered = true;
+                      executables = with pkgs; [
+                        wineWow64Packages.stable
+                        python3
+                        msitools
+                        clang.cc
+                        lld
+                        samba
+                      ];
+                    }
+                  )
+
                   (mingw32 { })
                   (mingw64 { })
                   # override gcc of mingw stdenv

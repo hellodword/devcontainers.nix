@@ -801,13 +801,13 @@ pkgs.nix2container.buildImage {
               [ ]
             else if feat.layered or false then
               (map (package: {
-                name = "feat:${feat.name}:${package.name}";
+                name = "feat:${feat.name or "unknown"}:${package.name}";
                 deps = [ package ];
               }) packages)
             else
               [
                 {
-                  name = "feat:${feat.name}";
+                  name = "feat:${feat.name or "unknown"}";
                   deps = packages;
                 }
               ]
@@ -826,13 +826,13 @@ pkgs.nix2container.buildImage {
               [ ]
             else if feat.layered or false then
               (map (package: {
-                name = "feat:${feat.name}:${package.name}";
+                name = "feat:${feat.name or "unknown"}:${package.name}";
                 deps = [ package ];
               }) packages)
             else
               [
                 {
-                  name = "feat:${feat.name}";
+                  name = "feat:${feat.name or "unknown"}";
                   deps = packages;
                 }
               ]
@@ -849,13 +849,13 @@ pkgs.nix2container.buildImage {
               [ ]
             else if feat.layered or false then
               (map (package: {
-                name = "feat:${feat.name}:${package.name}";
+                name = "feat:${feat.name or "unknown"}:${package.name}";
                 deps = [ package ];
               }) packages)
             else
               [
                 {
-                  name = "feat:${feat.name}";
+                  name = "feat:${feat.name or "unknown"}";
                   deps = packages;
                 }
               ]
@@ -903,18 +903,18 @@ pkgs.nix2container.buildImage {
               [ ]
             else if feat.layered or false then
               (map (package: {
-                name = "feat:${feat.name}:ext:${package.name}";
+                name = "feat:${feat.name or "unknown"}:ext:${package.name}";
                 paths = [
-                  (mkExtProfilePkg "feat:${feat.name}:ext:${package.name}" [ package ])
+                  (mkExtProfilePkg "feat:${feat.name or "unknown"}:ext:${package.name}" [ package ])
                 ];
                 pathsToLink = [ "/etc/profile.d" ];
               }) packages)
             else
               [
                 {
-                  name = "feat:${feat.name}:ext";
+                  name = "feat:${feat.name or "unknown"}:ext";
                   paths = [
-                    (mkExtProfilePkg "feat:${feat.name}:ext" packages)
+                    (mkExtProfilePkg "feat:${feat.name or "unknown"}:ext" packages)
                   ];
                   pathsToLink = [ "/etc/profile.d" ];
                 }
@@ -926,7 +926,7 @@ pkgs.nix2container.buildImage {
           (
             feat:
             let
-              profileNamePrefix = "feat:${feat.name}:onLogin";
+              profileNamePrefix = "feat:${feat.name or "unknown"}:onLogin";
               profilePkg =
                 pkgs.runCommand profileNamePrefix
                   {
