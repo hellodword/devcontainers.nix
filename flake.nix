@@ -125,6 +125,10 @@
                     # FATA[0180] committing the finished image: docker engine reported: "max depth exceeded"
                     layered = false;
                   })
+                  (node {
+                    nodePackage = pkgs.nodejs_latest;
+                    layered = false;
+                  })
 
                   (cmake { })
                   (wine { })
