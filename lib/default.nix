@@ -38,11 +38,13 @@
 
   features =
     let
-      ccPkgs =
+      ccCore =
         pkgs: with pkgs; [
           stdenv.cc
           stdenv.cc.bintools
-
+        ];
+      ccBin =
+        pkgs: with pkgs; [
           pkg-config
           autoconf
           automake
@@ -374,7 +376,7 @@
             GOROOT = "${pkgs.go}/share/go";
             GOPATH = "${HOME}/go";
             PATH = "${GOPATH}/bin";
-            CGO_ENABLED = "1";
+            CGO_ENABLED = "0";
           };
           vscodeSettings = {
             "go.toolsManagement.checkForUpdates" = "off";
@@ -398,7 +400,7 @@
           name = "cc";
           inherit layered;
           libraries = ccLibs pkgs;
-          executables = ccPkgs pkgs;
+          executables = (ccCore pkgs) ++ (ccBin pkgs);
         };
 
       # TODO remove gcc and keep mingw gcc
@@ -470,7 +472,7 @@
           # ];
 
           libraries = ccLibs pkgs;
-          executables = ccPkgs pkgs;
+          executables = (ccCore pkgs) ++ (ccBin pkgs);
           # for ms-vscode.cpptools
           deps = with pkgs; [ clang-tools ];
           # ++ (with pkgs; [
@@ -1156,10 +1158,12 @@
           name = "zigcc";
           inherit layered;
 
-          executables = with pkgs; [
-            zig
-          ];
-          envVars = {
+          executables =
+            (with pkgs; [
+              zig
+            ])
+            ++ (ccBin pkgs);
+          envVars = rec {
             /*
               $ zig --help | grep drop-in
                 ar               Use Zig as a drop-in archiver
@@ -1181,10 +1185,13 @@
             ZIG_CC_LINUX = "zig cc -target x86_64-linux-gnu";
             ZIG_CXX_LINUX = "zig c++ -target x86_64-linux-gnu";
             ZIG_LD_LINUX = "zig ld -target x86_64-linux-gnu";
+
+            CC = ZIG_CC_LINUX;
+            CXX = ZIG_CXX_LINUX;
           };
         };
 
-      clibs-windows =
+      clibs-win64 =
         {
           layered ? false,
         }:
@@ -1197,9 +1204,9 @@
           inherit layered;
           deps = winLibraries;
           envVars = {
-            WINDOWS_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath winLibraries;
-            WINDOWS_PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" winLibraries;
-            WINDOWS_CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" winLibraries;
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath winLibraries;
+            PKG_CONFIG_PATH = pkgs.lib.makeSearchPath "lib/pkgconfig" winLibraries;
+            CMAKE_PREFIX_PATH = pkgs.lib.makeSearchPath "lib/cmake" winLibraries;
           };
         };
 
@@ -1609,6 +1616,8 @@
 
       # binfmt
       qemu = { ... }: { };
+
+      msvc = { ... }: { };
 
       /*
         ranking:

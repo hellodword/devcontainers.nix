@@ -132,10 +132,40 @@
 
                   (cmake { })
                   (wine { })
-                  (clibs-windows { })
+                  (clibs-win64 { })
                 ]);
             }
           );
+
+          packages.x86_64-linux.go-win64-zigcc = withSystem "x86_64-linux" (
+            { pkgs, ... }:
+            self.lib.mkManuallyLayeredDevcontainer {
+              inherit pkgs withNix;
+              tag = "win64-zigcc";
+              name = "ghcr.io/hellodword/devcontainers-go";
+              features =
+                commonFeats
+                ++ (with self.lib.features; [
+                  (zigcc { })
+                  (go { goPackage = pkgs.go; })
+                  (
+                    { ... }:
+                    {
+                      name = "zigcc-win64";
+                      envVars = {
+                        CGO_ENABLED = "1";
+                        GOOS = "windows";
+                        CC = "zig cc -target x86_64-windows-gnu";
+                        CXX = "zig c++ -target x86_64-windows-gnu";
+                      };
+                    }
+                  )
+                  (wine { })
+                  (clibs-win64 { })
+                ]);
+            }
+          );
+
         };
 
         perSystem =
@@ -578,9 +608,48 @@
                   features =
                     commonFeats
                     ++ (with self.lib.features; [
-                      (cc { })
                       (go { goPackage = pkgs.go; })
                       (node { nodePackage = pkgs.nodejs_latest; })
+                    ]);
+                };
+                go-cc = self.lib.mkManuallyLayeredDevcontainer {
+                  inherit pkgs withNix;
+                  tag = "cc";
+                  name = "ghcr.io/hellodword/devcontainers-go";
+                  features =
+                    commonFeats
+                    ++ (with self.lib.features; [
+                      (cc { })
+                      (go { goPackage = pkgs.go; })
+                      (
+                        { ... }:
+                        {
+                          name = "cgo-enabled";
+                          envVars = {
+                            CGO_ENABLED = "1";
+                          };
+                        }
+                      )
+                    ]);
+                };
+                go-zigcc = self.lib.mkManuallyLayeredDevcontainer {
+                  inherit pkgs withNix;
+                  tag = "zigcc";
+                  name = "ghcr.io/hellodword/devcontainers-go";
+                  features =
+                    commonFeats
+                    ++ (with self.lib.features; [
+                      (zigcc { })
+                      (go { goPackage = pkgs.go; })
+                      (
+                        { ... }:
+                        {
+                          name = "cgo-enabled";
+                          envVars = {
+                            CGO_ENABLED = "1";
+                          };
+                        }
+                      )
                     ]);
                 };
               }
@@ -608,7 +677,6 @@
                       features =
                         commonFeats
                         ++ (with self.lib.features; [
-                          (cc { })
                           (go { goPackage = goPackages."${tag}"; })
                         ]);
                     };
