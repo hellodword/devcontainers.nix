@@ -86,18 +86,16 @@
             CC="x86_64-w64-mingw32-gcc" LD_LIBRARY_PATH="$WINDOWS_LD_LIBRARY_PATH:$LD_LIBRARY_PATH" PKG_CONFIG_PATH="$WINDOWS_PKG_CONFIG_PATH:$PKG_CONFIG_PATH" GOOS=windows CGO_ENABLED=1 CGO_LDFLAGS="-static -static-libgcc -static-libstdc++" go build -o main.exe .
             wine main.exe
           */
-          packages.x86_64-linux.go-windows = withSystem "x86_64-linux" (
+          packages.x86_64-linux.frida-windows = withSystem "x86_64-linux" (
             { pkgs, ... }:
             self.lib.mkManuallyLayeredDevcontainer {
               inherit pkgs withNix;
               tag = "windows";
-              name = "ghcr.io/hellodword/devcontainers-go";
+              name = "ghcr.io/hellodword/devcontainers-frida";
               features =
                 commonFeats
                 ++ (with self.lib.features; [
                   (go { goPackage = pkgs.go; })
-
-                  (zigcc { })
 
                   # https://github.com/mstorsjo/msvc-wine/pull/187
                   (
@@ -115,7 +113,6 @@
                     }
                   )
 
-                  (mingw32 { })
                   (mingw64 { })
                   # override gcc of mingw stdenv
                   (cpp { })
@@ -246,8 +243,9 @@
                           "haskell"
                           "cpp"
                           "rust"
-                          "go-windows"
+                          "windows"
                           "dotnet"
+                          "frida"
                         ];
                       in
                       ''
