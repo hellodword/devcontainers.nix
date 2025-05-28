@@ -246,6 +246,8 @@
                           "windows"
                           "dotnet"
                           "frida"
+                          "win64"
+                          "win32"
                         ];
                       in
                       ''
