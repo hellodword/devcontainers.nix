@@ -1256,6 +1256,7 @@
         };
 
       # FIXME
+      # https://github.com/NixOS/nixpkgs/issues/242779
       swift =
         {
           layered ? true,
@@ -1266,27 +1267,34 @@
           inherit layered;
 
           libraries = with pkgs; [
-            gcc-unwrapped.lib
-            libgcc
-            swift
-            glibc
+            swiftPackages.swift
+            swiftPackages.Dispatch
+            swiftPackages.Foundation
+            swiftPackages.XCTest
 
-            libedit
-            ncurses5
-            util-linux
-            zlib
+            swiftPackages.stdenv.cc.libc
+            swiftPackages.stdenv.cc.libc_dev
+            swiftPackages.stdenv.cc.libc_lib
           ];
 
           executables = with pkgs; [
-            sourcekit-lsp
-            swift
-            swift-format
+            lldb
+
+            swiftPackages.stdenv.cc
+
+            swiftPackages.bintools
+            swiftPackages.swift
             swiftPackages.swiftpm
-            clang
+            swiftPackages.swift-format
+            swiftPackages.sourcekit-lsp
+            swiftPackages.Dispatch
+            swiftPackages.Foundation
+            swiftPackages.XCTest
           ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             swiftlang.swift-vscode
+            llvm-vs-code-extensions.lldb-dap
           ];
           vscodeSettings = {
             # "lldb.library" = "${pkgs.swift}/lib/liblldb.so";
@@ -1546,6 +1554,9 @@
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             # https://github.com/supabase-community/postgres-language-server/tree/main/editors/code
             Supabase.postgrestools
+            # https://techcommunity.microsoft.com/blog/adforpostgresql/announcing-a-new-ide-for-postgresql-in-vs-code-from-microsoft/4414648
+
+            ms-ossdata.vscode-pgsql
           ];
           vscodeSettings = {
             "postgrestools.bin" = pkgs.lib.getExe pkgs.postgres-lsp;
@@ -1618,6 +1629,8 @@
       qemu = { ... }: { };
 
       msvc = { ... }: { };
+
+      prolog = { ... }: { };
 
       /*
         ranking:
