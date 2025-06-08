@@ -77,3 +77,4 @@ nix eval --json $"github:hellodword/devcontainers.nix#packages.x86_64-linux" \
 - https://github.com/devcontainers/features/tree/main/src
 - https://github.com/devcontainers/images/tree/main/src
 - https://github.com/lix-project/lix/blob/2491b7cc2128ee440d24768c4521c38b1859fc28/docker.nix
+- https://tazj.in/blog/nixery-layers
