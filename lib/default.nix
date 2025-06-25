@@ -337,7 +337,7 @@
           # Override the buildGoModule function to use the specified Go package.
           buildGoModule = pkgs.buildGoModule.override { go = goPackage; };
           buildWithSpecificGo = pkg: pkg.override { inherit buildGoModule; };
-          buildWithSpecificLatestGo = pkg: pkg.override { buildGoLatestModule = buildGoModule; };
+          # buildWithSpecificLatestGo = pkg: pkg.override { buildGoLatestModule = buildGoModule; };
         in
         {
           name = "go";
@@ -346,10 +346,10 @@
           executables =
             [ goPackage ]
             ++ (with pkgs; [
+              gopls
               # https://github.com/golang/vscode-go/blob/eeb3c24fe991e47e130a0ac70a9b214664b4a0ea/extension/tools/allTools.ts.in
               # vscode-go expects all tool compiled with the same used go version
               # https://github.com/NixOS/nixpkgs/pull/383098
-              (buildWithSpecificLatestGo gopls)
               (buildWithSpecificGo gotests)
               (buildWithSpecificGo gomodifytags)
               (buildWithSpecificGo impl)
