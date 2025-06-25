@@ -58,14 +58,14 @@
           openssl.out
           openssl.dev
 
-          libxml2.out
-          libxml2.dev
+          # libxml2.out
+          # libxml2.dev
 
-          curl.out
-          curl.dev
+          # curl.out
+          # curl.dev
 
-          zstd.out
-          zstd.dev
+          # zstd.out
+          # zstd.dev
 
           xz.out
           xz.dev
