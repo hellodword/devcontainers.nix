@@ -908,6 +908,8 @@
             PIPX_GLOBAL_HOME = "${XDG_DATA_HOME}/pipx-global";
             PIPX_GLOBAL_BIN_DIR = "${PIPX_GLOBAL_HOME}/bin";
             PYENV = "${XDG_DATA_HOME}/pyenv";
+
+            PATH = "${PIPX_BIN_DIR}:${PIPX_GLOBAL_BIN_DIR}";
           };
           vscodeSettings = {
             "python.defaultInterpreterPath" = pkgs.lib.getExe pythonPackage;
