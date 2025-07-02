@@ -1714,5 +1714,19 @@
             };
           };
         };
+
+      protobuf =
+        {
+          layered ? false,
+        }:
+        { pkgs, ... }:
+        {
+          name = "protobuf";
+          inherit layered;
+          executables = with pkgs; [
+            protobuf
+          ];
+        };
+
     };
 }

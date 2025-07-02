@@ -50,6 +50,7 @@
             (xml { })
             (toml { })
             (jinja { })
+            (protobuf { })
 
             (autocorrect { })
             (grammarly { })
