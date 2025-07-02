@@ -34,6 +34,7 @@ jobs:
     with:
       runs-on: ubuntu-24.04-arm
       package: haskell
+      free-disk-space: true
 
 
   manifest:

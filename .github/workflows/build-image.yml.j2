@@ -25,7 +25,7 @@ jobs:
     with:
       runs-on: ubuntu-latest
       package: {{ package }}
-      free-disk-space: {{ large or false }}
+      free-disk-space: true
 {% endif %}
 
 {% if "aarch64-linux" in systems %}
@@ -34,6 +34,7 @@ jobs:
     with:
       runs-on: ubuntu-24.04-arm
       package: {{ package }}
+      free-disk-space: true
 {% endif %}
 
   manifest:

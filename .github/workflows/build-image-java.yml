@@ -25,7 +25,7 @@ jobs:
     with:
       runs-on: ubuntu-latest
       package: java
-      free-disk-space: false
+      free-disk-space: true
 
 
 
@@ -34,6 +34,7 @@ jobs:
     with:
       runs-on: ubuntu-24.04-arm
       package: java
+      free-disk-space: true
 
 
   manifest:

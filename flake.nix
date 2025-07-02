@@ -238,79 +238,47 @@
                       minijinja
                       jq
                     ];
-                    text =
-                      let
-                        largePackages = builtins.concatStringsSep " " [
-                          "haskell"
-                          "cpp"
-                          "rust"
-                          "windows"
-                          "dotnet"
-                          "frida"
-                          "win64"
-                          "win32"
-                        ];
-                      in
-                      ''
-                        rm -rf .github/workflows/build-image-*.yml
+                    text = ''
+                      rm -rf .github/workflows/build-image-*.yml
 
-                        function is_large {
-                            local string="$1"
-                            local largePackages=(${largePackages})
+                      IFS=" " read -r -a packages_amd64 <<< "$(nix eval --json $".#packages.x86_64-linux" --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' | jq -r)"
+                      IFS=" " read -r -a packages_arm64 <<< "$(nix eval --json $".#packages.aarch64-linux" --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' | jq -r)"
 
-                            for item in "${"$"}{largePackages[@]}"; do
-                                if [[ "$string" == *"$item"* ]]; then
-                                    return 0
-                                fi
-                            done
-
-                            return 1
-                        }
-
-                        IFS=" " read -r -a packages_amd64 <<< "$(nix eval --json $".#packages.x86_64-linux" --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' | jq -r)"
-                        IFS=" " read -r -a packages_arm64 <<< "$(nix eval --json $".#packages.aarch64-linux" --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' | jq -r)"
-
-                        for package in "${"$"}{packages_amd64[@]}"; do
-                          found=false
-                          for arm64_package in "${"$"}{packages_arm64[@]}"; do
-                            if [[ "$package" == "$arm64_package" ]]; then
-                              found=true
-                              break
-                            fi
-                          done
-
-                          args=()
-
-                          if $found; then
-                            args+=(-D systems="x86_64-linux,aarch64-linux")
-                          else
-                            args+=(-D systems="x86_64-linux")
-                          fi
-
-                          if is_large "$package"; then
-                            args+=(-D large=true)
-                          else
-                            args+=(-D large=false)
-                          fi
-
-                          minijinja-cli .github/workflows/build-image.yml.j2 -D package="$package" -a none "${"$"}{args[@]}" | tee ".github/workflows/build-image-$package.yml"
-                        done
-
-                        for package in "${"$"}{packages_arm64[@]}"; do
-                          found=false
-                          for amd64_package in "${"$"}{packages_amd64[@]}"; do
-                            if [[ "$package" == "$amd64_package" ]]; then
-                              found=true
-                              break
-                            fi
-                          done
-
-                          if ! $found; then
-                            minijinja-cli .github/workflows/build-image.yml.j2 -D package="$package" -a none -D systems="aarch64-linux" | tee ".github/workflows/build-image-$package.yml"
+                      for package in "${"$"}{packages_amd64[@]}"; do
+                        found=false
+                        for arm64_package in "${"$"}{packages_arm64[@]}"; do
+                          if [[ "$package" == "$arm64_package" ]]; then
+                            found=true
+                            break
                           fi
                         done
 
-                      '';
+                        args=()
+
+                        if $found; then
+                          args+=(-D systems="x86_64-linux,aarch64-linux")
+                        else
+                          args+=(-D systems="x86_64-linux")
+                        fi
+
+                        minijinja-cli .github/workflows/build-image.yml.j2 -D package="$package" -a none "${"$"}{args[@]}" | tee ".github/workflows/build-image-$package.yml"
+                      done
+
+                      for package in "${"$"}{packages_arm64[@]}"; do
+                        found=false
+                        for amd64_package in "${"$"}{packages_amd64[@]}"; do
+                          if [[ "$package" == "$amd64_package" ]]; then
+                            found=true
+                            break
+                          fi
+                        done
+
+                        if ! $found; then
+                          minijinja-cli .github/workflows/build-image.yml.j2 -D package="$package" -a none -D systems="aarch64-linux" | tee ".github/workflows/build-image-$package.yml"
+                        fi
+                      done
+
+                    '';
                   };
                 };
               };
