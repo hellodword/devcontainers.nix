@@ -1725,6 +1725,7 @@
           inherit layered;
           executables = with pkgs; [
             protobuf
+            go-protobuf
           ];
         };
 
