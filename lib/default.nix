@@ -366,6 +366,7 @@
               golangci-lint
 
               k6
+              protoc-gen-go
             ]);
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             golang.go
@@ -1045,7 +1046,10 @@
           name = "dart";
           inherit layered;
 
-          executables = with pkgs; [ dart ];
+          executables = with pkgs; [
+            dart
+            protoc-gen-dart
+          ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             dart-code.dart-code
@@ -1725,8 +1729,16 @@
           inherit layered;
           executables = with pkgs; [
             protobuf
-            go-protobuf
+            # https://github.com/coder3101/protols
+            protols
           ];
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            # https://github.com/ianandhum/vscode-protobuf-support
+            ianandhum.protobuf-support
+          ];
+          vscodeSettings = {
+            "protobuf-support.protols.path" = pkgs.lib.getExe' pkgs.protols "protols";
+          };
         };
 
     };
