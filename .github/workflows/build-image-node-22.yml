@@ -29,21 +29,12 @@ jobs:
 
 
 
-  build-node-22-arm64:
-    uses: ./.github/workflows/build.yml
-    with:
-      runs-on: ubuntu-24.04-arm
-      package: node-22
-      free-disk-space: true
-
 
   manifest:
     needs:
 
       - build-node-22-amd64
 
-
-      - build-node-22-arm64
 
     uses: ./.github/workflows/manifest.yml
     with:

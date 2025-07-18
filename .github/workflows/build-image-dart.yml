@@ -29,21 +29,12 @@ jobs:
 
 
 
-  build-dart-arm64:
-    uses: ./.github/workflows/build.yml
-    with:
-      runs-on: ubuntu-24.04-arm
-      package: dart
-      free-disk-space: true
-
 
   manifest:
     needs:
 
       - build-dart-amd64
 
-
-      - build-dart-arm64
 
     uses: ./.github/workflows/manifest.yml
     with:

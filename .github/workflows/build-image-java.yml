@@ -29,21 +29,12 @@ jobs:
 
 
 
-  build-java-arm64:
-    uses: ./.github/workflows/build.yml
-    with:
-      runs-on: ubuntu-24.04-arm
-      package: java
-      free-disk-space: true
-
 
   manifest:
     needs:
 
       - build-java-amd64
 
-
-      - build-java-arm64
 
     uses: ./.github/workflows/manifest.yml
     with:

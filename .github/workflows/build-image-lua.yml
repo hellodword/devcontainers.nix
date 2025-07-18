@@ -29,21 +29,12 @@ jobs:
 
 
 
-  build-lua-arm64:
-    uses: ./.github/workflows/build.yml
-    with:
-      runs-on: ubuntu-24.04-arm
-      package: lua
-      free-disk-space: true
-
 
   manifest:
     needs:
 
       - build-lua-amd64
 
-
-      - build-lua-arm64
 
     uses: ./.github/workflows/manifest.yml
     with:

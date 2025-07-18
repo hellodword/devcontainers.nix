@@ -29,21 +29,12 @@ jobs:
 
 
 
-  build-vala-arm64:
-    uses: ./.github/workflows/build.yml
-    with:
-      runs-on: ubuntu-24.04-arm
-      package: vala
-      free-disk-space: true
-
 
   manifest:
     needs:
 
       - build-vala-amd64
 
-
-      - build-vala-arm64
 
     uses: ./.github/workflows/manifest.yml
     with:

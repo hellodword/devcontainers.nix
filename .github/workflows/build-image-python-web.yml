@@ -29,21 +29,12 @@ jobs:
 
 
 
-  build-python-web-arm64:
-    uses: ./.github/workflows/build.yml
-    with:
-      runs-on: ubuntu-24.04-arm
-      package: python-web
-      free-disk-space: true
-
 
   manifest:
     needs:
 
       - build-python-web-amd64
 
-
-      - build-python-web-arm64
 
     uses: ./.github/workflows/manifest.yml
     with:
