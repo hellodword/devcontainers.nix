@@ -101,6 +101,7 @@
             curl
             gawk
             diffutils
+            perl
           ];
 
           vscodeSettings = {
