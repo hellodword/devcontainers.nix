@@ -545,7 +545,7 @@
                   latest = pkgs.dotnet-sdk;
                   "8" = pkgs.dotnet-sdk_8;
                   "9" = pkgs.dotnet-sdk_9;
-                  "10" = pkgs.dotnet-sdk_10;
+                  # "10" = pkgs.dotnet-sdk_10;
                 };
               in
               builtins.listToAttrs (
