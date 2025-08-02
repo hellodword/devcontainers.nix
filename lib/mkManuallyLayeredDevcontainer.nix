@@ -343,7 +343,8 @@ let
     featureDefault
     featureVSCodeRuntime
     featureInit
-  ] ++ (map (x: x { inherit pkgs envVarsDefault; }) features);
+  ]
+  ++ (map (x: x { inherit pkgs envVarsDefault; }) features);
 
   envVarsFuncFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) { } (
     map (v: v.envVarsFunc or { }) featuresVal

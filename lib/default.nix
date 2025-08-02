@@ -344,31 +344,32 @@
           name = "go";
           inherit layered;
 
-          executables =
-            [ goPackage ]
-            ++ (with pkgs; [
-              gopls
-              # https://github.com/golang/vscode-go/blob/eeb3c24fe991e47e130a0ac70a9b214664b4a0ea/extension/tools/allTools.ts.in
-              # vscode-go expects all tool compiled with the same used go version
-              # https://github.com/NixOS/nixpkgs/pull/383098
-              (buildWithSpecificGo gotests)
-              (buildWithSpecificGo gomodifytags)
-              (buildWithSpecificGo impl)
+          executables = [
+            goPackage
+          ]
+          ++ (with pkgs; [
+            gopls
+            # https://github.com/golang/vscode-go/blob/eeb3c24fe991e47e130a0ac70a9b214664b4a0ea/extension/tools/allTools.ts.in
+            # vscode-go expects all tool compiled with the same used go version
+            # https://github.com/NixOS/nixpkgs/pull/383098
+            (buildWithSpecificGo gotests)
+            (buildWithSpecificGo gomodifytags)
+            (buildWithSpecificGo impl)
 
-              # goplay
+            # goplay
 
-              (buildWithSpecificGo delve)
-              # staticcheck
-              (buildWithSpecificGo go-tools)
+            (buildWithSpecificGo delve)
+            # staticcheck
+            (buildWithSpecificGo go-tools)
 
-              # https://go.googlesource.com/tools
-              (buildWithSpecificGo gotools)
+            # https://go.googlesource.com/tools
+            (buildWithSpecificGo gotools)
 
-              golangci-lint
+            golangci-lint
 
-              k6
-              protoc-gen-go
-            ]);
+            k6
+            protoc-gen-go
+          ]);
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             golang.go
           ];
@@ -650,11 +651,12 @@
           name = "dotnet";
           inherit layered;
 
-          executables =
-            [ dotnetPackage ]
-            ++ (with pkgs; [
-              netcoredbg
-            ]);
+          executables = [
+            dotnetPackage
+          ]
+          ++ (with pkgs; [
+            netcoredbg
+          ]);
 
           extensions = with pkgs.vscode-extensions; [
             ms-dotnettools.vscodeintellicode-csharp
@@ -680,18 +682,19 @@
           name = "node";
           inherit layered;
 
-          executables =
-            [ nodePackage ]
-            # ++ (with pkgs; [
-            #   yarn
-            #   pnpm
-            # ])
-            ++ (with nodePackage.pkgs; [
-              typescript
-              typescript-language-server
-              yarn
-              pnpm
-            ]);
+          executables = [
+            nodePackage
+          ]
+          # ++ (with pkgs; [
+          #   yarn
+          #   pnpm
+          # ])
+          ++ (with nodePackage.pkgs; [
+            typescript
+            typescript-language-server
+            yarn
+            pnpm
+          ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             dbaeumer.vscode-eslint
@@ -739,14 +742,15 @@
             rust-src
           ];
 
-          executables =
-            [ rustBin ]
-            ++ (with pkgs; [
-              openssl
+          executables = [
+            rustBin
+          ]
+          ++ (with pkgs; [
+            openssl
 
-              # stdenv.cc
-              # pkg-config
-            ]);
+            # stdenv.cc
+            # pkg-config
+          ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             rust-lang.rust-analyzer
@@ -851,31 +855,32 @@
           name = "python";
           inherit layered;
 
-          executables =
-            [ pythonPackage ]
-            ++ (with pkgs; [
-              pipenv
-              virtualenv
-              poetry
-              uv
-            ])
-            ++ (with pythonPackage.pkgs; [
-              flake8
-              autopep8
-              black
-              yapf
-              mypy
-              pydocstyle
-              pycodestyle
-              bandit
-              pytest
-              pylint
+          executables = [
+            pythonPackage
+          ]
+          ++ (with pkgs; [
+            pipenv
+            virtualenv
+            poetry
+            uv
+          ])
+          ++ (with pythonPackage.pkgs; [
+            flake8
+            autopep8
+            black
+            yapf
+            mypy
+            pydocstyle
+            pycodestyle
+            bandit
+            pytest
+            pylint
 
-              pipx
+            pipx
 
-              setuptools
-              gitpython
-            ]);
+            setuptools
+            gitpython
+          ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             ms-python.python
@@ -958,13 +963,14 @@
           name = "php";
           inherit layered;
 
-          executables =
-            [ phpWithExt ]
-            ++ (with phpPkg.packages; [
-              composer
-              phive
-            ])
-            ++ [ pkgs.laravel ];
+          executables = [
+            phpWithExt
+          ]
+          ++ (with phpPkg.packages; [
+            composer
+            phive
+          ])
+          ++ [ pkgs.laravel ];
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             xdebug.php-debug
@@ -1131,14 +1137,15 @@
           name = "lua";
           inherit layered;
 
-          executables =
-            [ luaPkg ]
-            ++ (with pkgs; [
-              lua-language-server
-            ])
-            ++ (with luaPkg.pkgs; [
-              luarocks
-            ]);
+          executables = [
+            luaPkg
+          ]
+          ++ (with pkgs; [
+            lua-language-server
+          ])
+          ++ (with luaPkg.pkgs; [
+            luarocks
+          ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             sumneko.lua

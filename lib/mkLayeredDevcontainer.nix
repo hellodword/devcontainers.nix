@@ -143,18 +143,17 @@ let
 
   LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libs;
 
-  envVarsFull =
-    {
-      # required by vscode terminal, but allow overriding
-      SHELL = "/bin/bash";
-    }
-    // envVars
-    // {
-      # required by vscode-server and its node
-      LD_LIBRARY_PATH = "${LD_LIBRARY_PATH}${
-        if builtins.hasAttr "LD_LIBRARY_PATH" envVars then ":${envVars.LD_LIBRARY_PATH}" else ""
-      }";
-    };
+  envVarsFull = {
+    # required by vscode terminal, but allow overriding
+    SHELL = "/bin/bash";
+  }
+  // envVars
+  // {
+    # required by vscode-server and its node
+    LD_LIBRARY_PATH = "${LD_LIBRARY_PATH}${
+      if builtins.hasAttr "LD_LIBRARY_PATH" envVars then ":${envVars.LD_LIBRARY_PATH}" else ""
+    }";
+  };
 
 in
 pkgs.dockerTools.streamLayeredImage {

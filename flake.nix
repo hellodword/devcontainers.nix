@@ -283,375 +283,374 @@
                 };
               };
 
-            packages =
-              {
+            packages = {
 
-                base = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs;
-                  name = "ghcr.io/hellodword/devcontainers-base";
+              base = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs;
+                name = "ghcr.io/hellodword/devcontainers-base";
+              };
+
+              dev = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-dev";
+                features = commonFeats;
+              };
+
+              nix = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-nix";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (nix { })
+                  ]);
+              };
+
+              cpp = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-cpp";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (cpp { })
+                    (cmake { })
+                    (ninja { })
+                    (meson { })
+                    (gdb { })
+                  ]);
+              };
+
+              vala = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-vala";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (cc { })
+                    (vala { })
+                    (ninja { })
+                    (meson { })
+                    (gdb { })
+                  ]);
+              };
+
+              rust = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-rust";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (rust { })
+                    (cpp { })
+                  ]);
+              };
+
+              php = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-php";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (php { })
+                  ]);
+              };
+
+              php-web = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-php";
+                tag = "web";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (php { })
+                    (node { nodePackage = pkgs.nodejs_latest; })
+                  ]);
+              };
+
+              haskell = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-haskell";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (cc { })
+                    (haskell { })
+                  ]);
+              };
+
+              dart = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-dart";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (dart { })
+                  ]);
+              };
+
+              lua = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-lua";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (lua { })
+                  ]);
+              };
+
+              zig = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-zig";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (zig { })
+                  ]);
+              };
+
+              writer = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-writer";
+                features = commonFeats ++ [
+                  (
+                    { ... }:
+                    {
+                      vscodeSettings = {
+                        "autocorrect.formatOnSave" = true;
+                      };
+                    }
+                  )
+                ];
+              };
+
+              latex = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-latex";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (latex { })
+                  ]);
+              };
+
+              nginx = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-nginx";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (nginx { })
+                  ]);
+              };
+
+            }
+
+            # https://nodejs.org/en/about/previous-releases
+            // (
+              let
+                nodePackages = {
+                  latest = pkgs.nodejs_latest;
+                  "24" = pkgs.nodejs_24;
+                  "22" = pkgs.nodejs_22;
+                  "20" = pkgs.nodejs_20;
                 };
+              in
+              builtins.listToAttrs (
+                map (tag: {
+                  name = "node${formatName tag}";
+                  value = self.lib.mkManuallyLayeredDevcontainer {
+                    inherit pkgs withNix tag;
+                    name = "ghcr.io/hellodword/devcontainers-node";
+                    features =
+                      commonFeats
+                      ++ (with self.lib.features; [
+                        (node { nodePackage = nodePackages."${tag}"; })
+                      ]);
+                  };
+                }) (builtins.attrNames nodePackages)
+              )
+            )
 
-                dev = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-dev";
-                  features = commonFeats;
+            # https://devguide.python.org/versions/
+            // {
+              python-web = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                tag = "web";
+                name = "ghcr.io/hellodword/devcontainers-python";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (cc { })
+                    (python { pythonPackage = pkgs.python313; })
+                    (node { nodePackage = pkgs.nodejs_latest; })
+                  ]);
+              };
+            }
+            // (
+              let
+                pythonPackages = {
+                  latest = pkgs.python313;
+                  # "3.10" = pkgs.python310;
+                  "3.11" = pkgs.python311;
+                  "3.12" = pkgs.python312;
+                  "3.13" = pkgs.python313;
+                  # # wait for fixes
+                  # "3.14" = pkgs.python314;
                 };
+              in
+              builtins.listToAttrs (
+                map (tag: {
+                  name = "python${formatName tag}";
+                  value = self.lib.mkManuallyLayeredDevcontainer {
+                    inherit pkgs withNix tag;
+                    name = "ghcr.io/hellodword/devcontainers-python";
+                    features =
+                      commonFeats
+                      ++ (with self.lib.features; [
+                        (cc { })
+                        (python { pythonPackage = pythonPackages."${tag}"; })
+                      ]);
+                  };
+                }) (builtins.attrNames pythonPackages)
+              )
+            )
 
-                nix = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-nix";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (nix { })
-                    ]);
+            // (
+              let
+                jdkPackages = {
+                  latest = pkgs.jdk_headless;
+                  "8" = pkgs.jdk8_headless;
+                  "21" = pkgs.jdk21_headless;
                 };
+              in
+              builtins.listToAttrs (
+                map (tag: {
+                  name = "java${formatName tag}";
+                  value = self.lib.mkManuallyLayeredDevcontainer {
+                    inherit pkgs withNix tag;
+                    name = "ghcr.io/hellodword/devcontainers-java";
+                    features =
+                      commonFeats
+                      ++ (with self.lib.features; [
+                        (java { jdkPackage = jdkPackages."${tag}"; })
+                      ]);
+                  };
+                }) (builtins.attrNames jdkPackages)
+              )
+            )
 
-                cpp = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-cpp";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (cpp { })
-                      (cmake { })
-                      (ninja { })
-                      (meson { })
-                      (gdb { })
-                    ]);
+            // (
+              let
+                dotnetPackages = {
+                  latest = pkgs.dotnet-sdk;
+                  "8" = pkgs.dotnet-sdk_8;
+                  "9" = pkgs.dotnet-sdk_9;
+                  "10" = pkgs.dotnet-sdk_10;
                 };
+              in
+              builtins.listToAttrs (
+                map (tag: {
+                  name = "dotnet${formatName tag}";
+                  value = self.lib.mkManuallyLayeredDevcontainer {
+                    inherit pkgs withNix tag;
+                    name = "ghcr.io/hellodword/devcontainers-dotnet";
+                    features =
+                      commonFeats
+                      ++ (with self.lib.features; [
+                        (dotnet { dotnetPackage = dotnetPackages."${tag}"; })
+                      ]);
+                  };
+                }) (builtins.attrNames dotnetPackages)
+              )
+            )
 
-                vala = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-vala";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (cc { })
-                      (vala { })
-                      (ninja { })
-                      (meson { })
-                      (gdb { })
-                    ]);
-                };
-
-                rust = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-rust";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (rust { })
-                      (cpp { })
-                    ]);
-                };
-
-                php = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-php";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (php { })
-                    ]);
-                };
-
-                php-web = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-php";
-                  tag = "web";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (php { })
-                      (node { nodePackage = pkgs.nodejs_latest; })
-                    ]);
-                };
-
-                haskell = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-haskell";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (cc { })
-                      (haskell { })
-                    ]);
-                };
-
-                dart = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-dart";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (dart { })
-                    ]);
-                };
-
-                lua = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-lua";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (lua { })
-                    ]);
-                };
-
-                zig = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-zig";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (zig { })
-                    ]);
-                };
-
-                writer = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-writer";
-                  features = commonFeats ++ [
+            # Go and Go web
+            # the latest two major versions
+            # https://go.dev/doc/devel/release#policy
+            # https://github.com/NixOS/nixpkgs/pull/384229
+            // {
+              go-web = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                tag = "web";
+                name = "ghcr.io/hellodword/devcontainers-go";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (go { goPackage = pkgs.go; })
+                    (node { nodePackage = pkgs.nodejs_latest; })
+                  ]);
+              };
+              go-cc = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                tag = "cc";
+                name = "ghcr.io/hellodword/devcontainers-go";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (cc { })
+                    (go { goPackage = pkgs.go; })
                     (
                       { ... }:
                       {
-                        vscodeSettings = {
-                          "autocorrect.formatOnSave" = true;
+                        name = "cgo-enabled";
+                        envVars = {
+                          CGO_ENABLED = "1";
                         };
                       }
                     )
-                  ];
+                  ]);
+              };
+              go-zigcc = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                tag = "zigcc";
+                name = "ghcr.io/hellodword/devcontainers-go";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (zigcc { })
+                    (go { goPackage = pkgs.go; })
+                    (
+                      { ... }:
+                      {
+                        name = "cgo-enabled";
+                        envVars = {
+                          CGO_ENABLED = "1";
+                        };
+                      }
+                    )
+                  ]);
+              };
+            }
+            // (
+              let
+                lib = pkgs.lib;
+                goLatest = pkgs.go;
+                versionWithoutMinor = version: "1.${builtins.elemAt (lib.splitString "." version) 1}";
+                goLastMajor = builtins.toString (
+                  (lib.strings.toInt (builtins.elemAt (lib.splitString "." goLatest.version) 1)) - 1
+                );
+                goLast = pkgs."go_1_${goLastMajor}";
+                goPackages = {
+                  latest = goLatest;
+                  "${versionWithoutMinor goLatest.version}" = goLatest;
+                  "${versionWithoutMinor goLast.version}" = goLast;
                 };
-
-                latex = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-latex";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (latex { })
-                    ]);
-                };
-
-                nginx = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  name = "ghcr.io/hellodword/devcontainers-nginx";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (nginx { })
-                    ]);
-                };
-
-              }
-
-              # https://nodejs.org/en/about/previous-releases
-              // (
-                let
-                  nodePackages = {
-                    latest = pkgs.nodejs_latest;
-                    "24" = pkgs.nodejs_24;
-                    "22" = pkgs.nodejs_22;
-                    "20" = pkgs.nodejs_20;
+              in
+              builtins.listToAttrs (
+                map (tag: {
+                  name = "go${formatName tag}";
+                  value = self.lib.mkManuallyLayeredDevcontainer {
+                    inherit pkgs withNix tag;
+                    name = "ghcr.io/hellodword/devcontainers-go";
+                    features =
+                      commonFeats
+                      ++ (with self.lib.features; [
+                        (go { goPackage = goPackages."${tag}"; })
+                      ]);
                   };
-                in
-                builtins.listToAttrs (
-                  map (tag: {
-                    name = "node${formatName tag}";
-                    value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs withNix tag;
-                      name = "ghcr.io/hellodword/devcontainers-node";
-                      features =
-                        commonFeats
-                        ++ (with self.lib.features; [
-                          (node { nodePackage = nodePackages."${tag}"; })
-                        ]);
-                    };
-                  }) (builtins.attrNames nodePackages)
-                )
+                }) (builtins.attrNames goPackages)
               )
-
-              # https://devguide.python.org/versions/
-              // {
-                python-web = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  tag = "web";
-                  name = "ghcr.io/hellodword/devcontainers-python";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (cc { })
-                      (python { pythonPackage = pkgs.python313; })
-                      (node { nodePackage = pkgs.nodejs_latest; })
-                    ]);
-                };
-              }
-              // (
-                let
-                  pythonPackages = {
-                    latest = pkgs.python313;
-                    # "3.10" = pkgs.python310;
-                    "3.11" = pkgs.python311;
-                    "3.12" = pkgs.python312;
-                    "3.13" = pkgs.python313;
-                    # # wait for fixes
-                    # "3.14" = pkgs.python314;
-                  };
-                in
-                builtins.listToAttrs (
-                  map (tag: {
-                    name = "python${formatName tag}";
-                    value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs withNix tag;
-                      name = "ghcr.io/hellodword/devcontainers-python";
-                      features =
-                        commonFeats
-                        ++ (with self.lib.features; [
-                          (cc { })
-                          (python { pythonPackage = pythonPackages."${tag}"; })
-                        ]);
-                    };
-                  }) (builtins.attrNames pythonPackages)
-                )
-              )
-
-              // (
-                let
-                  jdkPackages = {
-                    latest = pkgs.jdk_headless;
-                    "8" = pkgs.jdk8_headless;
-                    "21" = pkgs.jdk21_headless;
-                  };
-                in
-                builtins.listToAttrs (
-                  map (tag: {
-                    name = "java${formatName tag}";
-                    value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs withNix tag;
-                      name = "ghcr.io/hellodword/devcontainers-java";
-                      features =
-                        commonFeats
-                        ++ (with self.lib.features; [
-                          (java { jdkPackage = jdkPackages."${tag}"; })
-                        ]);
-                    };
-                  }) (builtins.attrNames jdkPackages)
-                )
-              )
-
-              // (
-                let
-                  dotnetPackages = {
-                    latest = pkgs.dotnet-sdk;
-                    "8" = pkgs.dotnet-sdk_8;
-                    "9" = pkgs.dotnet-sdk_9;
-                    "10" = pkgs.dotnet-sdk_10;
-                  };
-                in
-                builtins.listToAttrs (
-                  map (tag: {
-                    name = "dotnet${formatName tag}";
-                    value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs withNix tag;
-                      name = "ghcr.io/hellodword/devcontainers-dotnet";
-                      features =
-                        commonFeats
-                        ++ (with self.lib.features; [
-                          (dotnet { dotnetPackage = dotnetPackages."${tag}"; })
-                        ]);
-                    };
-                  }) (builtins.attrNames dotnetPackages)
-                )
-              )
-
-              # Go and Go web
-              # the latest two major versions
-              # https://go.dev/doc/devel/release#policy
-              # https://github.com/NixOS/nixpkgs/pull/384229
-              // {
-                go-web = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  tag = "web";
-                  name = "ghcr.io/hellodword/devcontainers-go";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (go { goPackage = pkgs.go; })
-                      (node { nodePackage = pkgs.nodejs_latest; })
-                    ]);
-                };
-                go-cc = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  tag = "cc";
-                  name = "ghcr.io/hellodword/devcontainers-go";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (cc { })
-                      (go { goPackage = pkgs.go; })
-                      (
-                        { ... }:
-                        {
-                          name = "cgo-enabled";
-                          envVars = {
-                            CGO_ENABLED = "1";
-                          };
-                        }
-                      )
-                    ]);
-                };
-                go-zigcc = self.lib.mkManuallyLayeredDevcontainer {
-                  inherit pkgs withNix;
-                  tag = "zigcc";
-                  name = "ghcr.io/hellodword/devcontainers-go";
-                  features =
-                    commonFeats
-                    ++ (with self.lib.features; [
-                      (zigcc { })
-                      (go { goPackage = pkgs.go; })
-                      (
-                        { ... }:
-                        {
-                          name = "cgo-enabled";
-                          envVars = {
-                            CGO_ENABLED = "1";
-                          };
-                        }
-                      )
-                    ]);
-                };
-              }
-              // (
-                let
-                  lib = pkgs.lib;
-                  goLatest = pkgs.go;
-                  versionWithoutMinor = version: "1.${builtins.elemAt (lib.splitString "." version) 1}";
-                  goLastMajor = builtins.toString (
-                    (lib.strings.toInt (builtins.elemAt (lib.splitString "." goLatest.version) 1)) - 1
-                  );
-                  goLast = pkgs."go_1_${goLastMajor}";
-                  goPackages = {
-                    latest = goLatest;
-                    "${versionWithoutMinor goLatest.version}" = goLatest;
-                    "${versionWithoutMinor goLast.version}" = goLast;
-                  };
-                in
-                builtins.listToAttrs (
-                  map (tag: {
-                    name = "go${formatName tag}";
-                    value = self.lib.mkManuallyLayeredDevcontainer {
-                      inherit pkgs withNix tag;
-                      name = "ghcr.io/hellodword/devcontainers-go";
-                      features =
-                        commonFeats
-                        ++ (with self.lib.features; [
-                          (go { goPackage = goPackages."${tag}"; })
-                        ]);
-                    };
-                  }) (builtins.attrNames goPackages)
-                )
-              );
+            );
 
           };
       }
