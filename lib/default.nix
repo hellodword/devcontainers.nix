@@ -358,7 +358,7 @@
 
             # goplay
 
-            (buildWithSpecificGo delve)
+            delve
             # staticcheck
             (buildWithSpecificGo go-tools)
 
