@@ -476,7 +476,7 @@
           # ];
 
           libraries = ccLibs pkgs;
-          executables = (ccCore pkgs) ++ (ccBin pkgs);
+          executables = (ccCore pkgs) ++ (ccBin pkgs) ++ [ pkgs.mbake ];
           # for ms-vscode.cpptools
           deps = with pkgs; [ clang-tools ];
           # ++ (with pkgs; [
@@ -497,7 +497,18 @@
             # build a static clangd and set the `"C_Cpp.clang_format_path"`?
             ms-vscode.cpptools
             ms-vscode.cpptools-extension-pack
+
+            # https://github.com/EbodShojaei/bake/issues/45
+            eshojaei.mbake-makefile-formatter
           ];
+
+          vscodeSettings = {
+            "mbake.autoInit" = true;
+            "mbake.executablePath" = pkgs.lib.getExe' pkgs.mbake "mbake";
+            "mbake.formatOnSave" = true;
+            "mbake.showDiff" = false;
+            "mbake.verbose" = true;
+          };
         };
 
       gdb =
