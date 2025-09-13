@@ -130,7 +130,7 @@
 
                   (cmake { })
                   (wine { })
-                  (clibs-win64 { })
+                  (clibs-win64 { layered = false; })
                 ]);
             }
           );
