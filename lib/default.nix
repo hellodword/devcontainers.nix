@@ -862,12 +862,15 @@
           layered ? true,
         }:
         { pkgs, envVarsDefault, ... }:
+        let
+          pythonLnPath = "/usr/local/bin";
+        in
         {
           name = "python";
           inherit layered;
 
           executables = [
-            pythonPackage
+            # pythonPackage
           ]
           ++ (with pkgs; [
             pipenv
@@ -927,7 +930,7 @@
             PIPX_GLOBAL_BIN_DIR = "${PIPX_GLOBAL_HOME}/bin";
             PYENV = "${XDG_DATA_HOME}/pyenv";
 
-            PATH = "${PIPX_BIN_DIR}:${PIPX_GLOBAL_BIN_DIR}";
+            PATH = "${pythonLnPath}:${PIPX_BIN_DIR}:${PIPX_GLOBAL_BIN_DIR}";
           };
           vscodeSettings = {
             "python.defaultInterpreterPath" = pkgs.lib.getExe pythonPackage;
@@ -935,6 +938,25 @@
               "editor.defaultFormatter" = "ms-python.autopep8";
             };
           };
+          layers = [
+            # pin the python path
+            {
+              name = "python bin";
+              paths = [
+                (pkgs.runCommand "zoneinfo" { } ''
+                  mkdir -p $out${pythonLnPath}
+
+                  for file in "${pythonPackage}/bin"/*; do
+                    if [ -f "$file" ] && [ -x "$file" ]; then
+                      filename=$(basename "$file")
+                      ln -s $file $out${pythonLnPath}/$filename
+                    fi
+                  done
+                '')
+              ];
+              pathsToLink = [ pythonLnPath ];
+            }
+          ];
         };
 
       php =
