@@ -96,7 +96,10 @@
               features =
                 commonFeats
                 ++ (with self.lib.features; [
-                  (go { goPackage = pkgs.go; })
+                  (go {
+                    goPackage = pkgs.go;
+                    layered = false;
+                  })
 
                   # https://github.com/mstorsjo/msvc-wine/pull/187
                   (
