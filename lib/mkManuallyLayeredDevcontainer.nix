@@ -297,6 +297,9 @@ let
           "/usr/bin"
           "/etc"
         ];
+        envVars = {
+          PATH = "/bin:/usr/bin";
+        };
       }
       {
         name = "/lib64 for vscode runtime";
