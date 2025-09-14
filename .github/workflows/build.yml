@@ -8,11 +8,11 @@ on:
         type: string
       runs-on:
         required: true
-        default: 'ubuntu-latest'
+        default: "ubuntu-latest"
         type: choice
         options:
-        - ubuntu-latest
-        - ubuntu-24.04-arm
+          - ubuntu-latest
+          - ubuntu-24.04-arm
       free-disk-space:
         required: false
         default: false
@@ -35,7 +35,6 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-
   build-and-push:
     runs-on: ${{ inputs.runs-on }}
 
@@ -95,8 +94,19 @@ jobs:
 
       - name: build and push ${{ inputs.package }}
         run: |
+          nix eval --json $".#packages.x86_64-linux.${{ inputs.package }}" --apply 'x: "${x.imageName}"'
+
           IMAGE_NAME="$(nix eval --json $".#packages.x86_64-linux.${{ inputs.package }}" --apply 'x: "${x.imageName}"' | jq -r)"
+          if [ -z "$IMAGE_NAME" ]; then
+            echo failed to get IMAGE_NAME
+            exit 1
+          fi
+
           IMAGE_TAG="$(nix eval --json $".#packages.x86_64-linux.${{ inputs.package }}" --apply 'x: "${x.imageTag}"' | jq -r)"
+          if [ -z "$IMAGE_TAG" ]; then
+            echo failed to get IMAGE_TAG
+            exit 1
+          fi
 
           IMAGE_FULL_NAME="$IMAGE_NAME:$IMAGE_TAG"
 
