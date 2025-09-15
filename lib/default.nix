@@ -1731,6 +1731,7 @@
               "editing-session" = "never";
             };
             "chat.detectParticipant.enabled" = false;
+            "chat.mcp.access" = "none";
           };
           onLogin = {
             "init continue" = {
