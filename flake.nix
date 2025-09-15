@@ -202,7 +202,43 @@
                 (prev: final: { inherit (inputs.nix2container.packages.${system}) nix2container; })
                 inputs.rust-overlay.overlays.default
                 inputs.nix-index-database.overlays.nix-index
-              ];
+              ]
+              # https://github.com/NixOS/nixpkgs/issues/442652#issuecomment-3289343303
+              # https://discourse.nixos.org/t/add-python-package-via-overlay/19783/4
+              # https://nixos.org/manual/nixpkgs/unstable/#how-to-override-a-python-package-for-all-python-versions-using-extensions
+              ++ (nixpkgs.lib.optionals (nixpkgs.rev == "c23193b943c6c689d70ee98ce3128239ed9e32d1") [
+                (final: prev: {
+                  # # pythonPackagesOverlays = (prev.pythonPackagesOverlays or [ ]) ++ [
+                  # #   (python-final: python-prev: {
+                  # #     tkinter = python-prev.tkinter.overrideAttrs (old: {
+                  # #       buildInputs = old.buildInputs ++ [ prev.libtommath ];
+                  # #       env.NIX_CFLAGS_COMPILE = "-Wno-error=incompatible-pointer-types";
+                  # #     });
+                  # #   })
+                  # # ];
+
+                  # # python311 =
+                  # #   let
+                  # #     self = prev.python311.override {
+                  # #       inherit self;
+                  # #       packageOverrides = prev.lib.composeManyExtensions final.pythonPackagesOverlays;
+                  # #     };
+                  # #   in
+                  # #   self;
+
+                  # # python311Packages = final.python311.pkgs;
+
+                  pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+                    (python-final: python-prev: {
+                      tkinter = python-prev.tkinter.overrideAttrs (old: {
+                        buildInputs = old.buildInputs ++ [ prev.libtommath ];
+                        env.NIX_CFLAGS_COMPILE = "-Wno-error=incompatible-pointer-types";
+                      });
+                    })
+                  ];
+                })
+              ])
+              ++ [ ];
             };
 
             apps =
