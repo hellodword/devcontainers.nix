@@ -1721,7 +1721,7 @@
 
             # disable bundled GitHub Copilot
             "chat.agent.enabled" = false;
-            "chat.mcp.enabled" = false;
+            # "chat.mcp.enabled" = false;
             "chat.edits2.enabled" = false;
             "chat.commandCenter.enabled" = false;
             "chat.mcp.discovery.enabled" = {
