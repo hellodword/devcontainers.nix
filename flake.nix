@@ -206,7 +206,7 @@
               # https://github.com/NixOS/nixpkgs/issues/442652#issuecomment-3289343303
               # https://discourse.nixos.org/t/add-python-package-via-overlay/19783/4
               # https://nixos.org/manual/nixpkgs/unstable/#how-to-override-a-python-package-for-all-python-versions-using-extensions
-              ++ (nixpkgs.lib.optionals (nixpkgs.rev == "c23193b943c6c689d70ee98ce3128239ed9e32d1") [
+              ++ (nixpkgs.lib.optionals (nixpkgs.rev == "8d4ddb19d03c65a36ad8d189d001dc32ffb0306b") [
                 (final: prev: {
                   # # pythonPackagesOverlays = (prev.pythonPackagesOverlays or [ ]) ++ [
                   # #   (python-final: python-prev: {
