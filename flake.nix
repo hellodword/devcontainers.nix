@@ -167,6 +167,46 @@
             }
           );
 
+          packages.x86_64-linux.frida-android = withSystem "x86_64-linux" (
+            { pkgs, ... }:
+            self.lib.mkManuallyLayeredDevcontainer {
+              inherit pkgs withNix;
+              tag = "android";
+              name = "ghcr.io/hellodword/devcontainers-frida";
+              features =
+                commonFeats
+                ++ (with self.lib.features; [
+                  (go {
+                    goPackage = pkgs.go;
+                    layered = false;
+                  })
+
+                  (python {
+                    pythonPackage = pkgs.python313;
+                    # FATA[0180] committing the finished image: docker engine reported: "max depth exceeded"
+                    layered = false;
+                  })
+                  (node {
+                    nodePackage = pkgs.nodejs_latest;
+                    layered = false;
+                  })
+
+                  (
+                    { ... }:
+                    {
+                      layered = false;
+                      name = "android-tools";
+                      executables = with pkgs; [
+                        android-tools
+                        usbutils
+                      ];
+                    }
+                  )
+
+                ]);
+            }
+          );
+
         };
 
         perSystem =
