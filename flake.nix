@@ -268,14 +268,14 @@
 
                   # # python311Packages = final.python311.pkgs;
 
-                  pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-                    (python-final: python-prev: {
-                      tkinter = python-prev.tkinter.overrideAttrs (old: {
-                        buildInputs = old.buildInputs ++ [ prev.libtommath ];
-                        env.NIX_CFLAGS_COMPILE = "-Wno-error=incompatible-pointer-types";
-                      });
-                    })
-                  ];
+                  # pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+                  #   (python-final: python-prev: {
+                  #     tkinter = python-prev.tkinter.overrideAttrs (old: {
+                  #       buildInputs = old.buildInputs ++ [ prev.libtommath ];
+                  #       env.NIX_CFLAGS_COMPILE = "-Wno-error=incompatible-pointer-types";
+                  #     });
+                  #   })
+                  # ];
                 })
               ])
               ++ [ ];
