@@ -180,7 +180,7 @@
                     goPackage = pkgs.go;
                     layered = false;
                   })
-
+                  (cpp { })
                   (python {
                     pythonPackage = pkgs.python313;
                     # FATA[0180] committing the finished image: docker engine reported: "max depth exceeded"
