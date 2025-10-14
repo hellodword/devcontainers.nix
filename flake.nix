@@ -399,19 +399,19 @@
                   ]);
               };
 
-              vala = self.lib.mkManuallyLayeredDevcontainer {
-                inherit pkgs withNix;
-                name = "ghcr.io/hellodword/devcontainers-vala";
-                features =
-                  commonFeats
-                  ++ (with self.lib.features; [
-                    (cc { })
-                    (vala { })
-                    (ninja { })
-                    (meson { })
-                    (gdb { })
-                  ]);
-              };
+              # vala = self.lib.mkManuallyLayeredDevcontainer {
+              #   inherit pkgs withNix;
+              #   name = "ghcr.io/hellodword/devcontainers-vala";
+              #   features =
+              #     commonFeats
+              #     ++ (with self.lib.features; [
+              #       (cc { })
+              #       (vala { })
+              #       (ninja { })
+              #       (meson { })
+              #       (gdb { })
+              #     ]);
+              # };
 
               rust = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs withNix;
@@ -467,15 +467,15 @@
                   ]);
               };
 
-              lua = self.lib.mkManuallyLayeredDevcontainer {
-                inherit pkgs withNix;
-                name = "ghcr.io/hellodword/devcontainers-lua";
-                features =
-                  commonFeats
-                  ++ (with self.lib.features; [
-                    (lua { })
-                  ]);
-              };
+              # lua = self.lib.mkManuallyLayeredDevcontainer {
+              #   inherit pkgs withNix;
+              #   name = "ghcr.io/hellodword/devcontainers-lua";
+              #   features =
+              #     commonFeats
+              #     ++ (with self.lib.features; [
+              #       (lua { })
+              #     ]);
+              # };
 
               zig = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs withNix;
@@ -502,25 +502,25 @@
                 ];
               };
 
-              latex = self.lib.mkManuallyLayeredDevcontainer {
-                inherit pkgs withNix;
-                name = "ghcr.io/hellodword/devcontainers-latex";
-                features =
-                  commonFeats
-                  ++ (with self.lib.features; [
-                    (latex { })
-                  ]);
-              };
+              # latex = self.lib.mkManuallyLayeredDevcontainer {
+              #   inherit pkgs withNix;
+              #   name = "ghcr.io/hellodword/devcontainers-latex";
+              #   features =
+              #     commonFeats
+              #     ++ (with self.lib.features; [
+              #       (latex { })
+              #     ]);
+              # };
 
-              nginx = self.lib.mkManuallyLayeredDevcontainer {
-                inherit pkgs withNix;
-                name = "ghcr.io/hellodword/devcontainers-nginx";
-                features =
-                  commonFeats
-                  ++ (with self.lib.features; [
-                    (nginx { })
-                  ]);
-              };
+              # nginx = self.lib.mkManuallyLayeredDevcontainer {
+              #   inherit pkgs withNix;
+              #   name = "ghcr.io/hellodword/devcontainers-nginx";
+              #   features =
+              #     commonFeats
+              #     ++ (with self.lib.features; [
+              #       (nginx { })
+              #     ]);
+              # };
 
             }
 
