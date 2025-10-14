@@ -446,16 +446,16 @@
                   ]);
               };
 
-              haskell = self.lib.mkManuallyLayeredDevcontainer {
-                inherit pkgs withNix;
-                name = "ghcr.io/hellodword/devcontainers-haskell";
-                features =
-                  commonFeats
-                  ++ (with self.lib.features; [
-                    (cc { })
-                    (haskell { })
-                  ]);
-              };
+              # haskell = self.lib.mkManuallyLayeredDevcontainer {
+              #   inherit pkgs withNix;
+              #   name = "ghcr.io/hellodword/devcontainers-haskell";
+              #   features =
+              #     commonFeats
+              #     ++ (with self.lib.features; [
+              #       (cc { })
+              #       (haskell { })
+              #     ]);
+              # };
 
               dart = self.lib.mkManuallyLayeredDevcontainer {
                 inherit pkgs withNix;
