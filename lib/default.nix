@@ -1050,7 +1050,7 @@
               ormolu
               fourmolu
               cabal-fmt
-              ghci-dap
+              # ghci-dap
               haskell-debug-adapter
             ]);
 
