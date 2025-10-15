@@ -522,6 +522,18 @@
               #     ]);
               # };
 
+              flutter-go = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                tag = "go";
+                name = "ghcr.io/hellodword/devcontainers-flutter";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (dart { })
+                    (flutter { })
+                    (go { })
+                  ]);
+              };
             }
 
             # https://nodejs.org/en/about/previous-releases

@@ -1113,26 +1113,78 @@
           };
         };
 
-      # TODO android
+      # TODO fix `flutter run -d Linux`
       flutter =
         {
           layered ? true,
+          androidComposition ? null,
+          ndkVersion ? null,
         }:
-        { pkgs, ... }:
+        { pkgs, envVarsDefault, ... }:
         let
           flutterPkg = pkgs.flutter;
+          ndkVersionReal = if ndkVersion == null then "27.0.12077973" else ndkVersion;
+          androidCompositionReal =
+            if androidComposition == null then
+              (pkgs.androidenv.composeAndroidPackages {
+                cmdLineToolsVersion = "latest";
+                toolsVersion = "latest";
+                platformToolsVersion = "latest";
+                buildToolsVersions = [ "35.0.0" ];
+                includeEmulator = false;
+                emulatorVersion = "latest";
+                minPlatformVersion = null;
+                maxPlatformVersion = "latest";
+                numLatestPlatformVersions = 1;
+                platformVersions = [ "36" ];
+
+                includeSources = false;
+                includeSystemImages = false;
+                systemImageTypes = [ ];
+                abiVersions = [
+                  "arm64-v8a"
+                ];
+                includeCmake = true;
+                cmakeVersions = [ "3.22.1" ];
+                includeNDK = true;
+                ndkVersions = [ ndkVersionReal ];
+                useGoogleAPIs = false;
+                useGoogleTVAddOns = false;
+                includeExtras = [ ];
+                extraLicenses = [ ];
+              })
+            else
+              androidComposition;
         in
-        {
+        rec {
           name = "flutter";
           inherit layered;
 
-          executables = [ flutterPkg ];
+          executables = [
+            flutterPkg
+            androidCompositionReal.androidsdk
+            androidCompositionReal.platform-tools
+          ]
+          ++ (with pkgs; [
+            jdk17
+            mesa-demos
+          ]);
 
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             dart-code.dart-code
             dart-code.flutter
           ];
-          envVars = {
+          envVars = rec {
+            inherit (envVarsDefault) XDG_DATA_HOME;
+            NIX_ANDROID_SDK_ROOT = "${androidCompositionReal.androidsdk}/libexec/android-sdk";
+            ANDROID_SDK_ROOT = "${XDG_DATA_HOME}/android-sdk";
+            ANDROID_HOME = ANDROID_SDK_ROOT; # Flutter sometimes expects this
+            ANDROID_NDK_HOME = "${ANDROID_SDK_ROOT}/ndk/${ndkVersionReal}";
+            NDK_PATH = "${ANDROID_NDK_HOME}";
+
+            JAVA_HOME = "${pkgs.jdk17}";
+            ANDROID_USER_HOME = "${XDG_DATA_HOME}/android"; # Create a writable Android SDK location
+
             FLUTTER_ROOT = "${flutterPkg}";
             # FLUTTER_HOME
             # "PATH": "$PATH:$FLUTTER_HOME/bin"
@@ -1149,6 +1201,18 @@
             };
             "flutter disable analytics" = {
               command = "flutter --disable-analytics || true";
+              once = true;
+            };
+            "create writable sdk" = {
+              command = ''
+                mkdir -p "${envVars.ANDROID_SDK_ROOT}"
+
+                # Copy the entire SDK to writable location
+                cp -r "${envVars.NIX_ANDROID_SDK_ROOT}"/* "${envVars.ANDROID_SDK_ROOT}/" 2>/dev/null || true
+
+                # Make sure it's writable
+                chmod -R u+w "${envVars.ANDROID_SDK_ROOT}" 2>/dev/null || true
+              '';
               once = true;
             };
           };
