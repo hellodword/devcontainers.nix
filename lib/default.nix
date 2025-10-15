@@ -153,6 +153,7 @@
             htop
 
             stdenv.cc.bintools
+            strace
           ];
           envVars = {
             PAGER = "less";

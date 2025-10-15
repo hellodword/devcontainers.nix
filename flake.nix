@@ -531,7 +531,7 @@
                   ++ (with self.lib.features; [
                     (dart { })
                     (flutter { })
-                    (go { })
+                    (go { goPackage = pkgs.go; })
                   ]);
               };
             }
