@@ -39,3 +39,4 @@ jobs:
     uses: ./.github/workflows/manifest.yml
     with:
       package: dev
+      free-disk-space: true

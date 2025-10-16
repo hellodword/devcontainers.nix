@@ -39,3 +39,4 @@ jobs:
     uses: ./.github/workflows/manifest.yml
     with:
       package: frida-windows
+      free-disk-space: true

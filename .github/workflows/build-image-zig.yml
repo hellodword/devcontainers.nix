@@ -39,3 +39,4 @@ jobs:
     uses: ./.github/workflows/manifest.yml
     with:
       package: zig
+      free-disk-space: true

@@ -39,3 +39,4 @@ jobs:
     uses: ./.github/workflows/manifest.yml
     with:
       package: go-win64-zigcc
+      free-disk-space: true

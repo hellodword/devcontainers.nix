@@ -113,6 +113,12 @@ jobs:
           docker pull "$IMAGE_FULL_NAME" || true
           ori_digest="$(docker inspect "$IMAGE_FULL_NAME" | jq -r '.[] | .Id' || true)"
           echo ori_digest $ori_digest
+          ori_size="$(docker inspect "$IMAGE_FULL_NAME" | jq -r '.[] | .Size' || true)"
+          echo ori_size $ori_size
+
+          if [[ -n "$ori_size" && "$ori_size" -ge 10000000000 ]]; then
+            docker rmi "$IMAGE_FULL_NAME" || true
+          fi
 
           nix run .#${{ inputs.package }}
           new_digest="$(docker inspect "$IMAGE_FULL_NAME" | jq -r '.[] | .Id' || true)"

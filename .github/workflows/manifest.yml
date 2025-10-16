@@ -6,17 +6,24 @@ on:
       package:
         required: true
         type: string
+      free-disk-space:
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       package:
         required: true
         type: string
+      free-disk-space:
+        required: false
+        default: false
+        type: boolean
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
-
   docker-manifest:
     runs-on: ubuntu-latest
 
@@ -24,6 +31,18 @@ jobs:
       packages: write
 
     steps:
+      - uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793
+        if: ${{ inputs.free-disk-space }}
+        with:
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "false"
+          remove-large-packages: "false"
+          remove-cached-tools: "true"
+          remove-swapfile: "false"
+
       - uses: actions/checkout@v4
 
       # https://github.com/orgs/community/discussions/42479#discussioncomment-4484937

@@ -39,3 +39,4 @@ jobs:
     uses: ./.github/workflows/manifest.yml
     with:
       package: node-22
+      free-disk-space: true
