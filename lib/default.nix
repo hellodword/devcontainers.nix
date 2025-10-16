@@ -1194,6 +1194,15 @@
             "dart.checkForSdkUpdates" = false;
             "dart.updateDevTools" = false;
             "dart.debugSdkLibraries" = true;
+            "files.associations" = {
+              "**/*.arb" = "json";
+            };
+            "json.schemas" = [
+              {
+                "fileMatch" = [ "**/*.arb" ];
+                "url" = "https://github.com/google/app-resource-bundle/raw/refs/heads/main/schema/arb.json";
+              }
+            ];
           };
           onLogin = {
             "dart disable analytics" = {
@@ -1217,6 +1226,9 @@
               once = true;
             };
           };
+          bashrc = ''
+            source <(flutter bash-completion)
+          '';
         };
 
       # TODO: https://github.com/nvim-neorocks/lux

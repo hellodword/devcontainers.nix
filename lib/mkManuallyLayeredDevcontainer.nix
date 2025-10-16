@@ -559,9 +559,32 @@ let
       };
     }) exts;
 
-  vscodeSettingsFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) { } (
+  mergeListAttrs =
+    attr1: attr2:
+    builtins.listToAttrs (
+      builtins.map
+        (attrName: {
+          name = attrName;
+          value = (attr1.${attrName} or [ ]) ++ (attr2.${attrName} or [ ]);
+        })
+        (
+          lib.unique (
+            builtins.filter (
+              attrName:
+              ((builtins.hasAttr attrName attr1) && (builtins.isList attr1.${attrName}))
+              || ((builtins.hasAttr attrName attr2) && (builtins.isList attr2.${attrName}))
+            ) (builtins.attrNames attr1 ++ builtins.attrNames attr2)
+          )
+        )
+    );
+
+  vscodeSettingsListAttrs = builtins.foldl' (x: y: mergeListAttrs x y) { } (
     map (v: v.vscodeSettings or { }) featuresVal
   );
+
+  vscodeSettingsFull = lib.attrsets.recursiveUpdate (builtins.foldl' (
+    x: y: lib.attrsets.recursiveUpdate x y
+  ) { } (map (v: v.vscodeSettings or { }) featuresVal)) vscodeSettingsListAttrs;
 
   profileContents = ''
     # This file is read for login shells.
