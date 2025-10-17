@@ -1254,6 +1254,27 @@
           bashrc = ''
             source <(flutter bash-completion)
           '';
+          layers =
+            let
+              openglDriverPath = "/run/opengl-driver";
+            in
+            [
+              # https://github.com/NixOS/nixpkgs/issues/9415#issuecomment-2558245603
+              {
+                name = "mesa drivers";
+                paths = [
+                  (pkgs.runCommand "zoneinfo" { } ''
+                    mkdir -p $out${openglDriverPath}
+
+                    for file in "${pkgs.mesa}"/*; do
+                      filename=$(basename "$file")
+                      ln -s $file $out${openglDriverPath}/$filename
+                    done
+                  '')
+                ];
+                pathsToLink = [ openglDriverPath ];
+              }
+            ];
         };
 
       # TODO: https://github.com/nvim-neorocks/lux
