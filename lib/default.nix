@@ -1119,25 +1119,48 @@
         {
           layered ? true,
           androidComposition ? null,
-          ndkVersion ? null,
         }:
         { pkgs, envVarsDefault, ... }:
         let
           flutterPkg = pkgs.flutter;
-          ndkVersionReal = if ndkVersion == null then "27.0.12077973" else ndkVersion;
+          # engine/src/flutter/tools/android_sdk/packages.txt
+          matchLineFromFile =
+            f: pattern:
+            let
+              matches = builtins.filter (x: (builtins.isString x) && ((builtins.match pattern x) != null)) (
+                builtins.split "\n" (builtins.readFile f)
+              );
+            in
+            if builtins.length matches == 0 then "" else builtins.elemAt matches 0;
+
+          matchLine =
+            pattern:
+            matchLineFromFile "${pkgs.flutter}/engine/src/flutter/tools/android_sdk/packages.txt" pattern;
+
+          cmdLineTools = builtins.replaceStrings [ "cmdline-tools" ";" ":" ] [ "" "" "" ] (
+            matchLine "cmdline-tools;.*"
+          );
+          ndkVersion = builtins.replaceStrings [ "ndk" ";" ":" ] [ "" "" "" ] (matchLine "ndk;.*");
+          buildTools = builtins.replaceStrings [ "build-tools" ";" ":" ] [ "" "" "" ] (
+            matchLine "build-tools;.*"
+          );
+          platforms = builtins.replaceStrings [ "platforms" ";" ":" "android-" ] [ "" "" "" "" ] (
+            matchLine "platforms;.*"
+          );
+
           androidCompositionReal =
             if androidComposition == null then
               (pkgs.androidenv.composeAndroidPackages {
-                cmdLineToolsVersion = "latest";
+                cmdLineToolsVersion = cmdLineTools;
                 toolsVersion = "latest";
                 platformToolsVersion = "latest";
-                buildToolsVersions = [ "35.0.0" ];
+                buildToolsVersions = [ buildTools ];
                 includeEmulator = false;
                 emulatorVersion = "latest";
                 minPlatformVersion = null;
                 maxPlatformVersion = "latest";
-                numLatestPlatformVersions = 1;
-                platformVersions = [ "36" ];
+                # numLatestPlatformVersions = 1;
+                platformVersions = [ platforms ];
 
                 includeSources = false;
                 includeSystemImages = false;
@@ -1145,10 +1168,10 @@
                 abiVersions = [
                   "arm64-v8a"
                 ];
-                includeCmake = true;
-                cmakeVersions = [ "3.22.1" ];
+                # includeCmake = true;
+                # cmakeVersions = [ "3.22.1" ];
                 includeNDK = true;
-                ndkVersions = [ ndkVersionReal ];
+                ndkVersions = [ ndkVersion ];
                 useGoogleAPIs = false;
                 useGoogleTVAddOns = false;
                 includeExtras = [ ];
@@ -1175,16 +1198,18 @@
             dart-code.dart-code
             dart-code.flutter
           ];
+          # https://cs.opensource.google/flutter/recipes/+/main:recipe_modules/flutter_deps/api.py;l=341
           envVars = rec {
             inherit (envVarsDefault) XDG_DATA_HOME;
             NIX_ANDROID_SDK_ROOT = "${androidCompositionReal.androidsdk}/libexec/android-sdk";
             ANDROID_SDK_ROOT = "${XDG_DATA_HOME}/android-sdk";
             ANDROID_HOME = ANDROID_SDK_ROOT; # Flutter sometimes expects this
-            ANDROID_NDK_HOME = "${ANDROID_SDK_ROOT}/ndk/${ndkVersionReal}";
+            ANDROID_NDK_HOME = "${ANDROID_SDK_ROOT}/ndk/${ndkVersion}";
             NDK_PATH = "${ANDROID_NDK_HOME}";
 
             JAVA_HOME = "${pkgs.jdk17}";
-            ANDROID_USER_HOME = "${XDG_DATA_HOME}/android"; # Create a writable Android SDK location
+            ANDROID_SDK_HOME = "${XDG_DATA_HOME}/android";
+            ANDROID_USER_HOME = "${ANDROID_SDK_HOME}/.android"; # Create a writable Android SDK location
 
             FLUTTER_ROOT = "${flutterPkg}";
             # FLUTTER_HOME

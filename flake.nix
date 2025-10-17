@@ -531,7 +531,17 @@
                   ++ (with self.lib.features; [
                     (dart { })
                     (flutter { })
+                    (zigcc { })
                     (go { goPackage = pkgs.go; })
+                    (
+                      { ... }:
+                      {
+                        name = "cgo-enabled";
+                        envVars = {
+                          CGO_ENABLED = "1";
+                        };
+                      }
+                    )
                   ]);
               };
             }
