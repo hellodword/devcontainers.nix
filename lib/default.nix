@@ -61,8 +61,8 @@
           libxml2.out
           libxml2.dev
 
-          curl.out
-          curl.dev
+          # curl.out
+          # curl.dev
 
           zstd.out
           zstd.dev
