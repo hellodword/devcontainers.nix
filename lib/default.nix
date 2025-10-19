@@ -36,6 +36,64 @@
   mkLayeredDevcontainer = import ./mkLayeredDevcontainer.nix;
   mkManuallyLayeredDevcontainer = import ./mkManuallyLayeredDevcontainer.nix;
 
+  generateAndroidCompositionFromFlutter =
+    pkgs: flutterPkg:
+    let
+      # engine/src/flutter/tools/android_sdk/packages.txt
+      matchLineFromFile =
+        f: pattern:
+        let
+          matches = builtins.filter (x: (builtins.isString x) && ((builtins.match pattern x) != null)) (
+            builtins.split "\n" (builtins.readFile f)
+          );
+        in
+        if builtins.length matches == 0 then "" else builtins.elemAt matches 0;
+
+      matchLine =
+        pattern:
+        matchLineFromFile "${flutterPkg}/engine/src/flutter/tools/android_sdk/packages.txt" pattern;
+
+      cmdLineTools = builtins.replaceStrings [ "cmdline-tools" ";" ":" ] [ "" "" "" ] (
+        matchLine "cmdline-tools;.*"
+      );
+      ndkVersion = builtins.replaceStrings [ "ndk" ";" ":" ] [ "" "" "" ] (matchLine "ndk;.*");
+      buildTools = builtins.replaceStrings [ "build-tools" ";" ":" ] [ "" "" "" ] (
+        matchLine "build-tools;.*"
+      );
+      platforms = builtins.replaceStrings [ "platforms" ";" ":" "android-" ] [ "" "" "" "" ] (
+        matchLine "platforms;.*"
+      );
+
+      androidComposition = pkgs.androidenv.composeAndroidPackages {
+        cmdLineToolsVersion = cmdLineTools;
+        toolsVersion = "latest";
+        platformToolsVersion = "latest";
+        buildToolsVersions = [ buildTools ];
+        includeEmulator = false;
+        emulatorVersion = "latest";
+        minPlatformVersion = null;
+        maxPlatformVersion = "latest";
+        # numLatestPlatformVersions = 1;
+        platformVersions = [ platforms ];
+
+        includeSources = false;
+        includeSystemImages = false;
+        systemImageTypes = [ ];
+        abiVersions = [
+          "arm64-v8a"
+        ];
+        # includeCmake = true;
+        # cmakeVersions = [ "3.22.1" ];
+        includeNDK = true;
+        ndkVersions = [ ndkVersion ];
+        useGoogleAPIs = false;
+        useGoogleTVAddOns = false;
+        includeExtras = [ ];
+        extraLicenses = [ ];
+      };
+    in
+    androidComposition;
+
   features =
     let
       ccCore =
@@ -1114,130 +1172,34 @@
           };
         };
 
-      # TODO fix `flutter run -d Linux`
-      flutter =
+      android-sdk =
         {
           layered ? true,
-          androidComposition ? null,
+          androidComposition,
         }:
-        { pkgs, envVarsDefault, ... }:
-        let
-          flutterPkg = pkgs.flutter;
-          # engine/src/flutter/tools/android_sdk/packages.txt
-          matchLineFromFile =
-            f: pattern:
-            let
-              matches = builtins.filter (x: (builtins.isString x) && ((builtins.match pattern x) != null)) (
-                builtins.split "\n" (builtins.readFile f)
-              );
-            in
-            if builtins.length matches == 0 then "" else builtins.elemAt matches 0;
-
-          matchLine =
-            pattern:
-            matchLineFromFile "${pkgs.flutter}/engine/src/flutter/tools/android_sdk/packages.txt" pattern;
-
-          cmdLineTools = builtins.replaceStrings [ "cmdline-tools" ";" ":" ] [ "" "" "" ] (
-            matchLine "cmdline-tools;.*"
-          );
-          ndkVersion = builtins.replaceStrings [ "ndk" ";" ":" ] [ "" "" "" ] (matchLine "ndk;.*");
-          buildTools = builtins.replaceStrings [ "build-tools" ";" ":" ] [ "" "" "" ] (
-            matchLine "build-tools;.*"
-          );
-          platforms = builtins.replaceStrings [ "platforms" ";" ":" "android-" ] [ "" "" "" "" ] (
-            matchLine "platforms;.*"
-          );
-
-          androidCompositionReal =
-            if androidComposition == null then
-              (pkgs.androidenv.composeAndroidPackages {
-                cmdLineToolsVersion = cmdLineTools;
-                toolsVersion = "latest";
-                platformToolsVersion = "latest";
-                buildToolsVersions = [ buildTools ];
-                includeEmulator = false;
-                emulatorVersion = "latest";
-                minPlatformVersion = null;
-                maxPlatformVersion = "latest";
-                # numLatestPlatformVersions = 1;
-                platformVersions = [ platforms ];
-
-                includeSources = false;
-                includeSystemImages = false;
-                systemImageTypes = [ ];
-                abiVersions = [
-                  "arm64-v8a"
-                ];
-                # includeCmake = true;
-                # cmakeVersions = [ "3.22.1" ];
-                includeNDK = true;
-                ndkVersions = [ ndkVersion ];
-                useGoogleAPIs = false;
-                useGoogleTVAddOns = false;
-                includeExtras = [ ];
-                extraLicenses = [ ];
-              })
-            else
-              androidComposition;
-        in
+        { envVarsDefault, ... }:
         rec {
-          name = "flutter";
+          name = "android-sdk";
           inherit layered;
 
           executables = [
-            flutterPkg
-            androidCompositionReal.androidsdk
-            androidCompositionReal.platform-tools
-          ]
-          ++ (with pkgs; [
-            jdk17
-            mesa-demos
-          ]);
-
-          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
-            dart-code.dart-code
-            dart-code.flutter
+            androidComposition.androidsdk
+            androidComposition.platform-tools
           ];
-          # https://cs.opensource.google/flutter/recipes/+/main:recipe_modules/flutter_deps/api.py;l=341
+
           envVars = rec {
             inherit (envVarsDefault) XDG_DATA_HOME;
-            NIX_ANDROID_SDK_ROOT = "${androidCompositionReal.androidsdk}/libexec/android-sdk";
+            NIX_ANDROID_SDK_ROOT = "${androidComposition.androidsdk}/libexec/android-sdk";
             ANDROID_SDK_ROOT = "${XDG_DATA_HOME}/android-sdk";
-            ANDROID_HOME = ANDROID_SDK_ROOT; # Flutter sometimes expects this
-            ANDROID_NDK_HOME = "${ANDROID_SDK_ROOT}/ndk/${ndkVersion}";
+            ANDROID_HOME = ANDROID_SDK_ROOT;
+            ANDROID_NDK_HOME = "${ANDROID_SDK_ROOT}/ndk-bundle";
             NDK_PATH = "${ANDROID_NDK_HOME}";
 
-            JAVA_HOME = "${pkgs.jdk17}";
             ANDROID_SDK_HOME = "${XDG_DATA_HOME}/android";
             ANDROID_USER_HOME = "${ANDROID_SDK_HOME}/.android"; # Create a writable Android SDK location
+          };
 
-            FLUTTER_ROOT = "${flutterPkg}";
-            # FLUTTER_HOME
-            # "PATH": "$PATH:$FLUTTER_HOME/bin"
-          };
-          vscodeSettings = {
-            "dart.checkForSdkUpdates" = false;
-            "dart.updateDevTools" = false;
-            "dart.debugSdkLibraries" = true;
-            "files.associations" = {
-              "**/*.arb" = "json";
-            };
-            "json.schemas" = [
-              {
-                "fileMatch" = [ "**/*.arb" ];
-                "url" = "https://github.com/google/app-resource-bundle/raw/refs/heads/main/schema/arb.json";
-              }
-            ];
-          };
           onLogin = {
-            "dart disable analytics" = {
-              command = "dart --disable-analytics || true";
-              once = true;
-            };
-            "flutter disable analytics" = {
-              command = "flutter --disable-analytics || true";
-              once = true;
-            };
             "create writable sdk" = {
               command = ''
                 mkdir -p "${envVars.ANDROID_SDK_ROOT}"
@@ -1251,6 +1213,57 @@
               once = true;
             };
           };
+        };
+
+      flutter =
+        {
+          layered ? true,
+        }:
+        { pkgs, ... }:
+        let
+          flutterPkg = pkgs.flutter;
+        in
+        {
+          name = "flutter";
+          inherit layered;
+
+          executables = [
+            flutterPkg
+          ]
+          ++ (with pkgs; [
+            jdk17
+            mesa-demos
+          ]);
+
+          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
+            dart-code.dart-code
+            dart-code.flutter
+          ];
+          # https://cs.opensource.google/flutter/recipes/+/main:recipe_modules/flutter_deps/api.py;l=341
+          envVars = {
+            JAVA_HOME = "${pkgs.jdk17}";
+
+            FLUTTER_ROOT = "${flutterPkg}";
+            # FLUTTER_HOME
+            # "PATH": "$PATH:$FLUTTER_HOME/bin"
+          };
+          vscodeSettings = {
+            "files.associations" = {
+              "**/*.arb" = "json";
+            };
+            "json.schemas" = [
+              {
+                "fileMatch" = [ "**/*.arb" ];
+                "url" = "https://github.com/google/app-resource-bundle/raw/refs/heads/main/schema/arb.json";
+              }
+            ];
+          };
+          onLogin = {
+            "flutter disable analytics" = {
+              command = "flutter --disable-analytics || true";
+              once = true;
+            };
+          };
           bashrc = ''
             source <(flutter bash-completion)
           '';
@@ -1259,6 +1272,7 @@
               openglDriverPath = "/run/opengl-driver";
             in
             [
+              # fix `flutter run -d Linux`
               # https://github.com/NixOS/nixpkgs/issues/9415#issuecomment-2558245603
               {
                 name = "mesa drivers";

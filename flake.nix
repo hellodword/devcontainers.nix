@@ -531,8 +531,20 @@
                   ++ (with self.lib.features; [
                     (dart { })
                     (flutter { })
+
+                    (java {
+                      jdkPackage = pkgs.jdk17;
+                      layered = false;
+                    })
+                    (android-sdk {
+                      androidComposition = (self.lib.generateAndroidCompositionFromFlutter pkgs pkgs.flutter);
+                    })
+
                     (zigcc { })
-                    (go { goPackage = pkgs.go; })
+                    (go {
+                      goPackage = pkgs.go;
+                      layered = false;
+                    })
                     (
                       { ... }:
                       {
@@ -544,6 +556,22 @@
                     )
                   ]);
               };
+
+              android = self.lib.mkManuallyLayeredDevcontainer {
+                inherit pkgs withNix;
+                name = "ghcr.io/hellodword/devcontainers-android";
+                features =
+                  commonFeats
+                  ++ (with self.lib.features; [
+                    (java {
+                      jdkPackage = pkgs.jdk17;
+                    })
+                    (android-sdk {
+                      androidComposition = (self.lib.generateAndroidCompositionFromFlutter pkgs pkgs.flutter);
+                    })
+                  ]);
+              };
+
             }
 
             # https://nodejs.org/en/about/previous-releases
