@@ -990,6 +990,9 @@
             PYENV = "${XDG_DATA_HOME}/pyenv";
 
             PATH = "${pythonLnPath}:${PIPX_BIN_DIR}:${PIPX_GLOBAL_BIN_DIR}";
+
+            # https://github.com/astral-sh/uv/blob/main/docs/reference/environment.md
+            UV_LINK_MODE = "copy";
           };
           vscodeSettings = {
             "python.defaultInterpreterPath" = pkgs.lib.getExe pythonPackage;
