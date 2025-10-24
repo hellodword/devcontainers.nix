@@ -278,6 +278,23 @@
                   # ];
                 })
               ])
+              ++ (nixpkgs.lib.optionals (nixpkgs.rev == "01f116e4df6a15f4ccdffb1bcd41096869fb385c") [
+                (final: prev: {
+                  pkgsCross = prev.pkgsCross // {
+                    mingwW64 = prev.pkgsCross.mingwW64 // {
+                      openssl = prev.pkgsCross.mingwW64.openssl.overrideAttrs (old: {
+                        patches = old.patches ++ [
+                          # https://github.com/openssl/openssl/issues/28679
+                          (prev.fetchpatch {
+                            url = "https://github.com/openssl/openssl/commit/af3a3f8205968f9e652efa7adf2a359f4eb9d9cc.patch";
+                            hash = "sha256-vOihzJnkPApLm3PblqJE7Rbm6x+TS+T6ZD33kO/7gw0=";
+                          })
+                        ];
+                      });
+                    };
+                  };
+                })
+              ])
               ++ [ ];
             };
 
