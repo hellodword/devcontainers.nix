@@ -278,7 +278,7 @@
                   # ];
                 })
               ])
-              ++ (nixpkgs.lib.optionals (nixpkgs.rev == "01f116e4df6a15f4ccdffb1bcd41096869fb385c") [
+              ++ (nixpkgs.lib.optionals (nixpkgs.rev == "6a08e6bb4e46ff7fcbb53d409b253f6bad8a28ce") [
                 (final: prev: {
                   pkgsCross = prev.pkgsCross // {
                     mingwW64 = prev.pkgsCross.mingwW64 // {
