@@ -52,13 +52,13 @@
             (jinja { })
             (protobuf { })
 
-            (autocorrect { })
-            (grammarly { })
+            # (autocorrect { })
+            # (grammarly { })
 
             (shellcheck { })
 
-            (drawio { })
-            (graphviz { })
+            # (drawio { })
+            # (graphviz { })
 
             (copilot { })
           ])
