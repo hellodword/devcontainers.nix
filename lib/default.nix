@@ -837,6 +837,7 @@
           };
         };
 
+      # TODO fix kotlin
       java =
         {
           jdkPackage,
@@ -1203,7 +1204,7 @@
           };
 
           onLogin = {
-            "create writable sdk" = {
+            "create writable android sdk" = {
               command = ''
                 mkdir -p "${envVars.ANDROID_SDK_ROOT}"
 
@@ -1218,6 +1219,8 @@
           };
         };
 
+      # TODO not to use /nix/store in generated files
+      # TODO Cannot create directory '/nix/store/d6iak8469933f517c9ybb9zbsrbimi1g-flutter-wrapped-3.35.5-sdk-links/packages/flutter_tools/gradle/.gradle/buildOutputCleanup'
       flutter =
         {
           layered ? true,
@@ -1824,6 +1827,7 @@
         ranking:
           https://aider.chat/docs/leaderboards/
           https://openrouter.ai/rankings/programming
+          https://swe-rebench.com/
 
         buy:
           https://www.requesty.ai/
@@ -1836,29 +1840,52 @@
           layered ? false,
         }:
         { pkgs, ... }:
+        let
+          mcpServers = {
+            cloudflare-docs = {
+              type = "streamable-http";
+              url = "https://docs.mcp.cloudflare.com/mcp";
+            };
+            context7 = {
+              alwaysAllow = [ "resolve-library-id" ];
+              args = [
+                "-y"
+                "@upstash/context7-mcp"
+              ];
+              command = "npx";
+              env = {
+                DEFAULT_MINIMUM_TOKENS = "";
+              };
+            };
+            microsoft-learn = {
+              description = "Microsoft documentation MCP server for accessing official Microsoft and Azure documentation";
+              type = "streamable-http";
+              url = "https://learn.microsoft.com/api/mcp";
+            };
+            sequential-thinking = {
+              alwaysAllow = [ "sequentialthinking" ];
+              args = [
+                "-y"
+                "@modelcontextprotocol/server-sequential-thinking"
+              ];
+              command = "npx";
+              description = "Sequential thinking MCP server for complex reasoning and problem-solving workflows";
+              type = "stdio";
+            };
+          };
+        in
         {
           name = "copilot";
           inherit layered;
           executables = with pkgs; [
-            # https://docs.continue.dev/customize/deep-dives/codebase#ignore-files-during-indexing
-            sqlite
+            # for mcp
+            nodejs
           ];
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
-            # # https://github.com/RooVetGit/Roo-Code
-            # rooveterinaryinc.roo-cline
-
-            # https://github.com/continuedev/continue
-            continue.continue
+            # https://github.com/RooVetGit/Roo-Code
+            rooveterinaryinc.roo-cline
           ];
           vscodeSettings = {
-            "files.associations" = {
-              "**/.continueignore" = "plaintext";
-            };
-
-            "continue.telemetryEnabled" = false;
-            "continue.enableConsole" = true;
-            "continue.pauseCodebaseIndexOnStart" = true;
-
             # disable bundled GitHub Copilot
             "chat.agent.enabled" = false;
             # "chat.mcp.enabled" = false;
@@ -1878,29 +1905,19 @@
             "chat.detectParticipant.enabled" = false;
             "chat.mcp.access" = "none";
             "chat.disableAIFeatures" = true;
+            "inlineChat.enableV2" = false;
+
+            "roo-cline.allowedCommands" = [
+              "git log"
+              "git diff"
+              "git show"
+            ];
           };
           onLogin = {
-            "init continue" = {
+            "write default mcp json" = {
               command = ''
-                mkdir -p ~/.continue/index
-                touch ~/.continue/.env
-                cat ${../.continue/assistants/config.yaml} > ~/.continue/config.yaml
-                cat ${../.continueignore} > ~/.continue/.continueignore
-
-                # workaround of declarative `disableAutocompleteInFiles`
-                # https://docs.continue.dev/json-reference#fully-deprecated-settings
-                echo '${
-                  builtins.toJSON {
-                    sharedConfig.disableAutocompleteInFiles = pkgs.lib.lists.unique (
-                      [
-                        "*.md"
-                      ]
-                      ++ (pkgs.lib.filter (
-                        x: builtins.typeOf x == "string" && pkgs.lib.strings.match "^[^# \t][^\r\n]*" x != null
-                      ) (builtins.split "\n" (builtins.readFile ../.continueignore)))
-                    );
-                  }
-                }' > ~/.continue/index/globalContext.json
+                mkdir -p ~/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings
+                echo '${builtins.toJSON mcpServers}' > ~/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json
               '';
               once = true;
             };
