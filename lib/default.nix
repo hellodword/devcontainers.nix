@@ -108,6 +108,11 @@
           automake
           gnumake
         ];
+      ccLibsLinuxOnly =
+        pkgs: with pkgs; [
+          libsecret.out
+          libsecret.dev
+        ];
       ccLibs =
         pkgs: with pkgs; [
           zlib.out
@@ -130,9 +135,6 @@
 
           gtest.out
           gtest.dev
-
-          libsecret.out
-          libsecret.dev
         ];
       metadataPtrace = {
         # https://github.com/devcontainers/features/blob/c264b4e837f3273789fc83dae898152daae4cd90/src/go/devcontainer-feature.json#L38-L43
@@ -465,7 +467,7 @@
         {
           name = "cc";
           inherit layered;
-          libraries = ccLibs pkgs;
+          libraries = (ccLibs pkgs) ++ (ccLibsLinuxOnly pkgs);
           executables = (ccCore pkgs) ++ (ccBin pkgs);
         };
 
@@ -537,7 +539,7 @@
           #   # libtool
           # ];
 
-          libraries = ccLibs pkgs;
+          libraries = (ccLibs pkgs) ++ (ccLibsLinuxOnly pkgs);
           executables = (ccCore pkgs) ++ (ccBin pkgs) ++ [ pkgs.mbake ];
           # for ms-vscode.cpptools
           deps = with pkgs; [ clang-tools ];
