@@ -130,6 +130,9 @@
 
           gtest.out
           gtest.dev
+
+          libsecret.out
+          libsecret.dev
         ];
       metadataPtrace = {
         # https://github.com/devcontainers/features/blob/c264b4e837f3273789fc83dae898152daae4cd90/src/go/devcontainer-feature.json#L38-L43
