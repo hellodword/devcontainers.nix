@@ -1246,6 +1246,7 @@
             mesa-demos
           ]);
 
+          libraries = (ccLibs pkgs) ++ (ccLibsLinuxOnly pkgs);
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             dart-code.dart-code
             dart-code.flutter
