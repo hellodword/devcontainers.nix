@@ -1288,7 +1288,7 @@
               {
                 name = "mesa drivers";
                 paths = [
-                  (pkgs.runCommand "zoneinfo" { } ''
+                  (pkgs.runCommand "mesa-drivers" { } ''
                     mkdir -p $out${openglDriverPath}
 
                     for file in "${pkgs.mesa}"/*; do
@@ -1877,6 +1877,15 @@
                 command = "npx";
                 description = "Sequential thinking MCP server for complex reasoning and problem-solving workflows";
                 type = "stdio";
+              };
+              deepwiki = {
+                type = "sse";
+                url = "https://mcp.deepwiki.com/sse";
+                alwaysAllow = [
+                  "read_wiki_structure"
+                  "read_wiki_contents"
+                  "ask_question"
+                ];
               };
             };
           };
