@@ -293,6 +293,17 @@
                       });
                     };
                   };
+
+                  mesa = prev.mesa.overrideAttrs (old: rec {
+                    version = "25.2.6";
+                    src = prev.fetchFromGitLab {
+                      domain = "gitlab.freedesktop.org";
+                      owner = "mesa";
+                      repo = "mesa";
+                      rev = "mesa-${version}";
+                      hash = "sha256-erfvNR1Yor3k8gVVClyiBJsgyaOv7BMFd1NSgieTY5I=";
+                    };
+                  });
                 })
               ])
               ++ [ ];
