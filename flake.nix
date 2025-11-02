@@ -278,7 +278,7 @@
                   # ];
                 })
               ])
-              ++ (nixpkgs.lib.optionals (nixpkgs.rev == "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c") [
+              ++ (nixpkgs.lib.optionals (nixpkgs.rev == "2fb006b87f04c4d3bdf08cfdbc7fab9c13d94a15") [
                 (final: prev: {
                   pkgsCross = prev.pkgsCross // {
                     mingwW64 = prev.pkgsCross.mingwW64 // {
@@ -293,17 +293,6 @@
                       });
                     };
                   };
-
-                  mesa = prev.mesa.overrideAttrs (old: rec {
-                    version = "25.2.6";
-                    src = prev.fetchFromGitLab {
-                      domain = "gitlab.freedesktop.org";
-                      owner = "mesa";
-                      repo = "mesa";
-                      rev = "mesa-${version}";
-                      hash = "sha256-erfvNR1Yor3k8gVVClyiBJsgyaOv7BMFd1NSgieTY5I=";
-                    };
-                  });
                 })
               ])
               ++ [ ];
