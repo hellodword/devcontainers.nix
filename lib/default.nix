@@ -285,6 +285,9 @@
             "[yaml]" = {
               "editor.defaultFormatter" = "esbenp.prettier-vscode";
             };
+            "[html]" = {
+              "editor.defaultFormatter" = "esbenp.prettier-vscode";
+            };
           };
         };
 
