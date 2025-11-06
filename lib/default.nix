@@ -1891,6 +1891,11 @@
                   "ask_question"
                 ];
               };
+              exa = {
+                type = "http";
+                url = "https://mcp.exa.ai/mcp";
+                headers = { };
+              };
             };
           };
         in
