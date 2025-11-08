@@ -1892,7 +1892,7 @@
                 ];
               };
               exa = {
-                type = "http";
+                type = "streamable-http";
                 url = "https://mcp.exa.ai/mcp";
                 headers = { };
               };
