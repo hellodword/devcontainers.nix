@@ -173,6 +173,9 @@
             "git.enableCommitSigning" = false;
             "git.enableStatusBarSync" = false;
             "git.openRepositoryInParentFolders" = "always";
+            "files.associations" = {
+              "**/.env.*" = "properties";
+            };
           };
 
           bashrc = ''
