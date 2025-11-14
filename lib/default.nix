@@ -1170,7 +1170,9 @@
           ];
           envVars = rec {
             inherit (envVarsDefault) HOME;
-            PATH = "${HOME}/.pub-cache/bin";
+            # https://dart.dev/tools/pub/environment-variables
+            PUB_CACHE = "${HOME}/.pub-cache";
+            PATH = "${PUB_CACHE}/bin";
           };
           vscodeSettings = {
             "dart.checkForSdkUpdates" = false;
@@ -1192,7 +1194,25 @@
           layered ? true,
           androidComposition,
         }:
-        { envVarsDefault, ... }:
+        { pkgs, envVarsDefault, ... }:
+        let
+          ndk-bundles =
+            (pkgs.lib.optionals (
+              (builtins.typeOf androidComposition.ndk-bundles) == "list"
+            ) androidComposition.ndk-bundles)
+            ++ (pkgs.lib.optionals ((builtins.typeOf androidComposition.ndk-bundle) == "set") [
+              androidComposition.ndk-bundle
+            ]);
+
+          ndk-bundles-versions = builtins.sort (v1: v2: builtins.compareVersions v1 v2 > 0) (
+            pkgs.lib.unique (map (x: x.version) ndk-bundles)
+          );
+
+          ndk-bundle-version = pkgs.lib.optionalString (builtins.length ndk-bundles-versions > 0) (
+            builtins.elemAt ndk-bundles-versions 0
+          );
+
+        in
         rec {
           name = "android-sdk";
           inherit layered;
@@ -1207,12 +1227,17 @@
             NIX_ANDROID_SDK_ROOT = "${androidComposition.androidsdk}/libexec/android-sdk";
             ANDROID_SDK_ROOT = "${XDG_DATA_HOME}/android-sdk";
             ANDROID_HOME = ANDROID_SDK_ROOT;
-            ANDROID_NDK_HOME = "${ANDROID_SDK_ROOT}/ndk-bundle";
-            NDK_PATH = "${ANDROID_NDK_HOME}";
 
             ANDROID_SDK_HOME = "${XDG_DATA_HOME}/android";
             ANDROID_USER_HOME = "${ANDROID_SDK_HOME}/.android"; # Create a writable Android SDK location
-          };
+          }
+          // (pkgs.lib.optionalAttrs (builtins.stringLength ndk-bundle-version > 0) rec {
+            # https://github.com/flutter/flutter/blob/42d62b5c26e7985e49f7444111383ebcbdf3a1d0/packages/flutter_tools/lib/src/android/android_sdk.dart#L349-L355
+            ANDROID_NDK_HOME = "${envVars.ANDROID_SDK_ROOT}/ndk/${ndk-bundle-version}";
+            ANDROID_NDK_PATH = "${ANDROID_NDK_HOME}";
+            ANDROID_NDK_ROOT = "${ANDROID_NDK_HOME}";
+            NDK_PATH = "${ANDROID_NDK_HOME}";
+          });
 
           onLogin = {
             "create writable android sdk" = {
@@ -1249,7 +1274,7 @@
           ]
           ++ (with pkgs; [
             jdk17
-            mesa-demos
+            # mesa-demos
           ]);
 
           libraries = (ccLibs pkgs) ++ (ccLibsLinuxOnly pkgs);
@@ -1259,11 +1284,16 @@
           ];
           # https://cs.opensource.google/flutter/recipes/+/main:recipe_modules/flutter_deps/api.py;l=341
           envVars = {
+            # inherit (envVarsDefault) XDG_DATA_HOME;
+
             JAVA_HOME = "${pkgs.jdk17}";
 
             FLUTTER_ROOT = "${flutterPkg}";
-            # FLUTTER_HOME
-            # "PATH": "$PATH:$FLUTTER_HOME/bin"
+            # FLUTTER_HOME = "${XDG_DATA_HOME}/flutter-home";
+            # PATH = "${FLUTTER_ROOT}/bin:${FLUTTER_HOME}/bin";
+
+            FLUTTER_SUPPRESS_ANALYTICS = true;
+            COMPILER_INDEX_STORE_ENABLE = "NO";
           };
           vscodeSettings = {
             "files.associations" = {
