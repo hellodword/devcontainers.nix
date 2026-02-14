@@ -39,6 +39,10 @@
   generateAndroidCompositionFromFlutter =
     pkgs: flutterPkg:
     let
+
+      # utils
+      splitString = sep: s: builtins.filter (x: builtins.typeOf x == "string") (builtins.split sep s);
+
       # engine/src/flutter/tools/android_sdk/packages.txt
       matchLineFromFile =
         f: pattern:
@@ -56,25 +60,29 @@
       cmdLineTools = builtins.replaceStrings [ "cmdline-tools" ";" ":" ] [ "" "" "" ] (
         matchLine "cmdline-tools;.*"
       );
-      ndkVersion = builtins.replaceStrings [ "ndk" ";" ":" ] [ "" "" "" ] (matchLine "ndk;.*");
-      buildTools = builtins.replaceStrings [ "build-tools" ";" ":" ] [ "" "" "" ] (
-        matchLine "build-tools;.*"
+      ndkVersions = splitString "," (
+        builtins.replaceStrings [ "ndk" ";" ":" ] [ "" "" "" ] (matchLine "ndk;.*")
       );
-      platforms = builtins.replaceStrings [ "platforms" ";" ":" "android-" ] [ "" "" "" "" ] (
-        matchLine "platforms;.*"
+      buildTools = splitString "," (
+        builtins.replaceStrings [ "build-tools" ";" ":" ] [ "" "" "" ] (matchLine "build-tools;.*")
+      );
+      platforms = splitString "," (
+        builtins.replaceStrings [ "platforms" ";" ":" "android-" ] [ "" "" "" "" ] (
+          matchLine "platforms;.*"
+        )
       );
 
       androidComposition = pkgs.androidenv.composeAndroidPackages {
         cmdLineToolsVersion = cmdLineTools;
         toolsVersion = "latest";
         platformToolsVersion = "latest";
-        buildToolsVersions = [ buildTools ];
+        buildToolsVersions = buildTools;
         includeEmulator = false;
         emulatorVersion = "latest";
         minPlatformVersion = null;
         maxPlatformVersion = "latest";
         # numLatestPlatformVersions = 1;
-        platformVersions = [ platforms ];
+        platformVersions = platforms;
 
         includeSources = false;
         includeSystemImages = false;
@@ -85,7 +93,7 @@
         # includeCmake = true;
         # cmakeVersions = [ "3.22.1" ];
         includeNDK = true;
-        ndkVersions = [ ndkVersion ];
+        ndkVersions = ndkVersions;
         useGoogleAPIs = false;
         useGoogleTVAddOns = false;
         includeExtras = [ ];
