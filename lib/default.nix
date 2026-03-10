@@ -1983,6 +1983,7 @@
               "git show"
             ];
             "roo-code-nightly.deniedCommands" = [ ];
+            "roo-code-nightly.debug" = false;
           };
           onLogin = {
             "write default mcp json" = {
