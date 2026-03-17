@@ -97,7 +97,7 @@
                 commonFeats
                 ++ (with self.lib.features; [
                   (go {
-                    goPackage = pkgs.go;
+                    goPackage = pkgs.go_latest;
                     layered = false;
                   })
 
@@ -148,7 +148,7 @@
                 commonFeats
                 ++ (with self.lib.features; [
                   (zigcc { })
-                  (go { goPackage = pkgs.go; })
+                  (go { goPackage = pkgs.go_latest; })
                   (
                     { ... }:
                     {
@@ -177,7 +177,7 @@
                 commonFeats
                 ++ (with self.lib.features; [
                   (go {
-                    goPackage = pkgs.go;
+                    goPackage = pkgs.go_latest;
                     layered = false;
                   })
                   (cpp { })
@@ -559,7 +559,7 @@
 
                     (zigcc { })
                     (go {
-                      goPackage = pkgs.go;
+                      goPackage = pkgs.go_latest;
                       layered = false;
                     })
                     (
@@ -763,7 +763,7 @@
                 features =
                   commonFeats
                   ++ (with self.lib.features; [
-                    (go { goPackage = pkgs.go; })
+                    (go { goPackage = pkgs.go_latest; })
                     (node { nodePackage = pkgs.nodejs_latest; })
                   ]);
               };
@@ -775,7 +775,7 @@
                   commonFeats
                   ++ (with self.lib.features; [
                     (cc { })
-                    (go { goPackage = pkgs.go; })
+                    (go { goPackage = pkgs.go_latest; })
                     (
                       { ... }:
                       {
@@ -795,7 +795,7 @@
                   commonFeats
                   ++ (with self.lib.features; [
                     (zigcc { })
-                    (go { goPackage = pkgs.go; })
+                    (go { goPackage = pkgs.go_latest; })
                     (
                       { ... }:
                       {
@@ -811,7 +811,7 @@
             // (
               let
                 lib = pkgs.lib;
-                goLatest = pkgs.go;
+                goLatest = pkgs.go_latest;
                 versionWithoutMinor = version: "1.${builtins.elemAt (lib.splitString "." version) 1}";
                 goLastMajor = toString (
                   (lib.strings.toInt (builtins.elemAt (lib.splitString "." goLatest.version) 1)) - 1
