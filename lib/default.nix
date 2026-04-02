@@ -777,7 +777,7 @@
           #   yarn
           #   pnpm
           # ])
-          ++ (with nodePackage.pkgs; [
+          ++ (with pkgs; [
             typescript
             typescript-language-server
             yarn
