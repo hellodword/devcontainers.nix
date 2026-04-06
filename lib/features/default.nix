@@ -1,0 +1,3 @@
+{
+  fontconfig = import ./fontconfig.nix;
+}

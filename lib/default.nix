@@ -31,76 +31,15 @@
 #       };
 #     });
 # in
+let
+  importedFeatures = import ./features;
+in
 {
   mkDevcontainer = import ./mkDevcontainer.nix;
   mkLayeredDevcontainer = import ./mkLayeredDevcontainer.nix;
   mkManuallyLayeredDevcontainer = import ./mkManuallyLayeredDevcontainer.nix;
 
-  generateAndroidCompositionFromFlutter =
-    pkgs: flutterPkg:
-    let
-
-      # utils
-      splitString = sep: s: builtins.filter (x: builtins.typeOf x == "string") (builtins.split sep s);
-
-      # engine/src/flutter/tools/android_sdk/packages.txt
-      matchLineFromFile =
-        f: pattern:
-        let
-          matches = builtins.filter (x: (builtins.isString x) && ((builtins.match pattern x) != null)) (
-            builtins.split "\n" (builtins.readFile f)
-          );
-        in
-        if builtins.length matches == 0 then "" else builtins.elemAt matches 0;
-
-      matchLine =
-        pattern:
-        matchLineFromFile "${flutterPkg}/engine/src/flutter/tools/android_sdk/packages.txt" pattern;
-
-      cmdLineTools = builtins.replaceStrings [ "cmdline-tools" ";" ":" ] [ "" "" "" ] (
-        matchLine "cmdline-tools;.*"
-      );
-      ndkVersions = splitString "," (
-        builtins.replaceStrings [ "ndk" ";" ":" ] [ "" "" "" ] (matchLine "ndk;.*")
-      );
-      buildTools = splitString "," (
-        builtins.replaceStrings [ "build-tools" ";" ":" ] [ "" "" "" ] (matchLine "build-tools;.*")
-      );
-      platforms = splitString "," (
-        builtins.replaceStrings [ "platforms" ";" ":" "android-" ] [ "" "" "" "" ] (
-          matchLine "platforms;.*"
-        )
-      );
-
-      androidComposition = pkgs.androidenv.composeAndroidPackages {
-        cmdLineToolsVersion = cmdLineTools;
-        toolsVersion = "latest";
-        platformToolsVersion = "latest";
-        buildToolsVersions = buildTools;
-        includeEmulator = false;
-        emulatorVersion = "latest";
-        minPlatformVersion = null;
-        maxPlatformVersion = "latest";
-        # numLatestPlatformVersions = 1;
-        platformVersions = platforms;
-
-        includeSources = false;
-        includeSystemImages = false;
-        systemImageTypes = [ ];
-        abiVersions = [
-          "arm64-v8a"
-        ];
-        # includeCmake = true;
-        # cmakeVersions = [ "3.22.1" ];
-        includeNDK = true;
-        ndkVersions = ndkVersions;
-        useGoogleAPIs = false;
-        useGoogleTVAddOns = false;
-        includeExtras = [ ];
-        extraLicenses = [ ];
-      };
-    in
-    androidComposition;
+  generateAndroidCompositionFromFlutter = import ./android/generateCompositionFromFlutter.nix;
 
   features =
     let
@@ -2020,6 +1959,6 @@
           };
         };
 
-      fontconfig = import ./features/fontconfig.nix;
+      inherit (importedFeatures) fontconfig;
     };
 }
