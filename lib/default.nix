@@ -346,14 +346,16 @@ in
 
       go =
         {
-          goPackage,
+          goPackage ? null,
           layered ? true,
         }:
         { pkgs, envVarsDefault, ... }:
         let
+          goPackageReal = if (isNull goPackage) then pkgs.go_latest else goPackage;
+
           # https://github.com/cachix/devenv/blob/6bde92766ddd3ee1630029a03d36baddd51934e2/src/modules/languages/go.nix#L6
           # Override the buildGoModule function to use the specified Go package.
-          buildGoModule = pkgs.buildGoModule.override { go = goPackage; };
+          buildGoModule = pkgs.buildGoModule.override { go = goPackageReal; };
           buildWithSpecificGo = pkg: pkg.override { inherit buildGoModule; };
           # buildWithSpecificLatestGo = pkg: pkg.override { buildGoLatestModule = buildGoModule; };
         in
@@ -362,7 +364,7 @@ in
           inherit layered;
 
           executables = [
-            goPackage
+            goPackageReal
           ]
           ++ (with pkgs; [
             gopls
@@ -701,16 +703,19 @@ in
 
       node =
         {
-          nodePackage,
+          nodePackage ? null,
           layered ? true,
         }:
         { pkgs, ... }:
+        let
+          nodePackageReal = if (isNull nodePackage) then pkgs.nodejs_latest else nodePackage;
+        in
         {
           name = "node";
           inherit layered;
 
           executables = [
-            nodePackage
+            nodePackageReal
           ]
           # ++ (with pkgs; [
           #   yarn
@@ -877,19 +882,20 @@ in
 
       python =
         {
-          pythonPackage,
+          pythonPackage ? null,
           layered ? true,
         }:
         { pkgs, envVarsDefault, ... }:
         let
           pythonLnPath = "/usr/local/bin";
+          pythonPackageReal = if (isNull pythonPackage) then pkgs.python3 else pythonPackage;
         in
         {
           name = "python";
           inherit layered;
 
           executables = [
-            # pythonPackage
+            # pythonPackageReal
           ]
           ++ (with pkgs; [
             pipenv
@@ -897,7 +903,7 @@ in
             poetry
             uv
           ])
-          ++ (with pythonPackage.pkgs; [
+          ++ (with pythonPackageReal.pkgs; [
             flake8
             autopep8
             black
@@ -928,7 +934,7 @@ in
               XDG_STATE_HOME
               ;
 
-            PYTHON_PATH = pkgs.lib.getExe pythonPackage;
+            PYTHON_PATH = pkgs.lib.getExe pythonPackageReal;
             PYTHONUSERBASE = "${XDG_DATA_HOME}/python";
 
             PYTHONPYCACHEPREFIX = "${XDG_CACHE_HOME}/python";
@@ -955,7 +961,7 @@ in
             UV_LINK_MODE = "copy";
           };
           vscodeSettings = {
-            "python.defaultInterpreterPath" = pkgs.lib.getExe pythonPackage;
+            "python.defaultInterpreterPath" = pkgs.lib.getExe pythonPackageReal;
             "[python]" = {
               "editor.defaultFormatter" = "ms-python.autopep8";
             };
@@ -968,7 +974,7 @@ in
                 (pkgs.runCommand "zoneinfo" { } ''
                   mkdir -p $out${pythonLnPath}
 
-                  for file in "${pythonPackage}/bin"/*; do
+                  for file in "${pythonPackageReal}/bin"/*; do
                     if [ -f "$file" ] && [ -x "$file" ]; then
                       filename=$(basename "$file")
                       ln -s $file $out${pythonLnPath}/$filename

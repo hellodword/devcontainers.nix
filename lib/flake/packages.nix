@@ -22,6 +22,16 @@ let
     tag: "${if tag == "latest" then "" else "-${builtins.replaceStrings [ "." ] [ "_" ] tag}"}";
 
   androidComposition = self.lib.generateAndroidCompositionFromFlutter pkgs pkgs.flutter;
+
+  mkCopilotDepFeats =
+    {
+      layered ? true,
+    }:
+    with features;
+    [
+      (python { inherit layered; })
+      (node { inherit layered; })
+    ];
 in
 {
   base = self.lib.mkManuallyLayeredDevcontainer {
@@ -33,32 +43,42 @@ in
     inherit pkgs withNix;
     name = "ghcr.io/hellodword/devcontainers-dev";
     features = commonFeats;
+    featureList = mkCopilotDepFeats { };
   };
 
   nix = mk {
     imageName = "ghcr.io/hellodword/devcontainers-nix";
-    featureList = with features; [
-      (nix { })
-    ];
+    featureList =
+      with features;
+      [
+        (nix { })
+      ]
+      ++ (mkCopilotDepFeats { });
   };
 
   cpp = mk {
     imageName = "ghcr.io/hellodword/devcontainers-cpp";
-    featureList = with features; [
-      (cpp { })
-      (cmake { })
-      (ninja { })
-      (meson { })
-      (gdb { })
-    ];
+    featureList =
+      with features;
+      [
+        (cpp { })
+        (cmake { })
+        (ninja { })
+        (meson { })
+        (gdb { })
+      ]
+      ++ (mkCopilotDepFeats { layered = false; });
   };
 
   rust = mk {
     imageName = "ghcr.io/hellodword/devcontainers-rust";
-    featureList = with features; [
-      (rust { })
-      (cpp { })
-    ];
+    featureList =
+      with features;
+      [
+        (rust { })
+        (cpp { })
+      ]
+      ++ (mkCopilotDepFeats { layered = false; });
   };
 
   php = mk {
@@ -73,7 +93,7 @@ in
     tag = "web";
     featureList = with features; [
       (php { })
-      (node { nodePackage = pkgs.nodejs_latest; })
+      (node { })
     ];
   };
 
@@ -120,10 +140,7 @@ in
         inherit androidComposition;
       })
       (zigcc { })
-      (go {
-        goPackage = pkgs.go_latest;
-        layered = false;
-      })
+      (go { layered = false; })
       (
         { ... }:
         {
@@ -185,10 +202,7 @@ in
     imageName = "ghcr.io/hellodword/devcontainers-frida";
     tag = "windows";
     featureList = with features; [
-      (go {
-        goPackage = pkgs.go_latest;
-        layered = false;
-      })
+      (go { layered = false; })
       (
         { pkgs, ... }:
         {
@@ -209,10 +223,7 @@ in
         pythonPackage = pkgs.python313;
         layered = false;
       })
-      (node {
-        nodePackage = pkgs.nodejs_latest;
-        layered = false;
-      })
+      (node { layered = false; })
       (cmake { })
       (wine { })
       (clibs-win64 { layered = false; })
@@ -224,7 +235,7 @@ in
     tag = "win64-zigcc";
     featureList = with features; [
       (zigcc { })
-      (go { goPackage = pkgs.go_latest; })
+      (go { })
       (
         { ... }:
         {
@@ -246,19 +257,13 @@ in
     imageName = "ghcr.io/hellodword/devcontainers-frida";
     tag = "android";
     featureList = with features; [
-      (go {
-        goPackage = pkgs.go_latest;
-        layered = false;
-      })
+      (go { layered = false; })
       (cpp { })
       (python {
         pythonPackage = pkgs.python313;
         layered = false;
       })
-      (node {
-        nodePackage = pkgs.nodejs_latest;
-        layered = false;
-      })
+      (node { layered = false; })
       (
         { ... }:
         {
@@ -301,15 +306,15 @@ in
     tag = "web";
     featureList = with features; [
       (cc { })
-      (python { pythonPackage = pkgs.python313; })
-      (node { nodePackage = pkgs.nodejs_latest; })
+      (python { })
+      (node { })
     ];
   };
 }
 // (
   let
     pythonPackages = {
-      latest = pkgs.python313;
+      latest = pkgs.python3;
       "3.12" = pkgs.python312;
       "3.13" = pkgs.python313;
       "3.14" = pkgs.python314;
@@ -372,21 +377,12 @@ in
   )
 )
 // {
-  go-web = mk {
-    imageName = "ghcr.io/hellodword/devcontainers-go";
-    tag = "web";
-    featureList = with features; [
-      (go { goPackage = pkgs.go_latest; })
-      (node { nodePackage = pkgs.nodejs_latest; })
-    ];
-  };
-
   go-cc = mk {
     imageName = "ghcr.io/hellodword/devcontainers-go";
     tag = "cc";
     featureList = with features; [
       (cc { })
-      (go { goPackage = pkgs.go_latest; })
+      (go { })
       (
         { ... }:
         {
@@ -404,7 +400,7 @@ in
     tag = "zigcc";
     featureList = with features; [
       (zigcc { })
-      (go { goPackage = pkgs.go_latest; })
+      (go { })
       (
         { ... }:
         {
@@ -438,9 +434,12 @@ in
       value = mk {
         imageName = "ghcr.io/hellodword/devcontainers-go";
         inherit tag;
-        featureList = with features; [
-          (go { goPackage = goPackages.${tag}; })
-        ];
+        featureList =
+          with features;
+          [
+            (go { goPackage = goPackages.${tag}; })
+          ]
+          ++ (mkCopilotDepFeats { });
       };
     }) (builtins.attrNames goPackages)
   )

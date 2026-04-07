@@ -33,7 +33,7 @@
     flake-parts.lib.mkFlake { inherit inputs; } (
       {
         # config,
-        withSystem,
+        # withSystem,
         # moduleWithSystem,
         ...
       }:
