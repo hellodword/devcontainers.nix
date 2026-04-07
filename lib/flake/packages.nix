@@ -39,10 +39,8 @@ in
     name = "ghcr.io/hellodword/devcontainers-base";
   };
 
-  dev = self.lib.mkManuallyLayeredDevcontainer {
-    inherit pkgs withNix;
-    name = "ghcr.io/hellodword/devcontainers-dev";
-    features = commonFeats;
+  dev = mk {
+    imageName = "ghcr.io/hellodword/devcontainers-dev";
     featureList = mkCopilotDepFeats { };
   };
 
