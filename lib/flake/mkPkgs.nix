@@ -18,6 +18,7 @@ import inputs.nixpkgs {
     (prev: final: { inherit (inputs.nix2container.packages.${system}) nix2container; })
     inputs.rust-overlay.overlays.default
     inputs.nix-index-database.overlays.nix-index
+    inputs.llm-agents.overlays.default
   ]
   ++ (nixpkgs.lib.optionals (nixpkgs.rev == "e643668fd71b949c53f8626614b21ff71a07379d") [
     (final: prev: {

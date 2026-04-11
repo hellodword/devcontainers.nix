@@ -1895,6 +1895,9 @@ in
           executables = with pkgs; [
             # for mcp
             nodejs
+
+            llm-agents.codex
+            llm-agents.gemini-cli
           ];
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             # https://github.com/RooVetGit/Roo-Code
