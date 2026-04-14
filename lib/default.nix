@@ -1897,7 +1897,10 @@ in
             nodejs
 
             llm-agents.codex
+            llm-agents.claude-code
             llm-agents.gemini-cli
+
+            llm-agents.oh-my-opencode
           ];
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             # https://github.com/RooVetGit/Roo-Code
