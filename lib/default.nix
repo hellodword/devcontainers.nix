@@ -200,6 +200,8 @@ in
             gnupg
             rsync
             util-linux
+
+            sqlite
           ];
         };
 
