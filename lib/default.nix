@@ -1900,11 +1900,8 @@ in
             llm-agents.claude-code
             llm-agents.gemini-cli
 
+            llm-agents.opencode
             llm-agents.oh-my-opencode
-          ];
-          extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
-            # https://github.com/RooVetGit/Roo-Code
-            rooveterinaryinc.roo-code-nightly
           ];
           vscodeSettings = {
             # disable bundled GitHub Copilot
@@ -1927,23 +1924,6 @@ in
             "chat.mcp.access" = "none";
             "chat.disableAIFeatures" = true;
             "inlineChat.enableV2" = false;
-
-            "roo-code-nightly.allowedCommands" = [
-              "git log"
-              "git diff"
-              "git show"
-            ];
-            "roo-code-nightly.deniedCommands" = [ ];
-            "roo-code-nightly.debug" = false;
-          };
-          onLogin = {
-            "write default mcp json" = {
-              command = ''
-                mkdir -p ~/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-code-nightly/settings
-                echo '${builtins.toJSON mcpServers}' > ~/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-code-nightly/settings/mcp_settings.json
-              '';
-              once = true;
-            };
           };
         };
 
