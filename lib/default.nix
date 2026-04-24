@@ -1840,56 +1840,76 @@ in
         {
           layered ? false,
         }:
-        { pkgs, ... }:
+        {
+          pkgs,
+          username,
+          uid,
+          gid,
+          group,
+          ...
+        }:
         let
-          mcpServers = {
-            mcpServers = {
-              cloudflare-docs = {
-                type = "streamable-http";
-                url = "https://docs.mcp.cloudflare.com/mcp";
-              };
-              context7 = {
-                alwaysAllow = [ "resolve-library-id" ];
-                args = [
-                  "-y"
-                  "@upstash/context7-mcp"
-                ];
-                command = "npx";
-                env = {
-                  DEFAULT_MINIMUM_TOKENS = "";
-                };
-              };
-              microsoft-learn = {
-                description = "Microsoft documentation MCP server for accessing official Microsoft and Azure documentation";
-                type = "streamable-http";
-                url = "https://learn.microsoft.com/api/mcp";
-              };
-              sequential-thinking = {
-                alwaysAllow = [ "sequentialthinking" ];
-                args = [
-                  "-y"
-                  "@modelcontextprotocol/server-sequential-thinking"
-                ];
-                command = "npx";
-                description = "Sequential thinking MCP server for complex reasoning and problem-solving workflows";
-                type = "stdio";
-              };
-              deepwiki = {
-                type = "sse";
-                url = "https://mcp.deepwiki.com/sse";
-                alwaysAllow = [
-                  "read_wiki_structure"
-                  "read_wiki_contents"
-                  "ask_question"
-                ];
-              };
-              exa = {
-                type = "streamable-http";
-                url = "https://mcp.exa.ai/mcp";
-                headers = { };
-              };
-            };
-          };
+          #   mcpServers = {
+          #     mcpServers = {
+          #       cloudflare-docs = {
+          #         type = "streamable-http";
+          #         url = "https://docs.mcp.cloudflare.com/mcp";
+          #       };
+          #       context7 = {
+          #         alwaysAllow = [ "resolve-library-id" ];
+          #         args = [
+          #           "-y"
+          #           "@upstash/context7-mcp"
+          #         ];
+          #         command = "npx";
+          #         env = {
+          #           DEFAULT_MINIMUM_TOKENS = "";
+          #         };
+          #       };
+          #       microsoft-learn = {
+          #         description = "Microsoft documentation MCP server for accessing official Microsoft and Azure documentation";
+          #         type = "streamable-http";
+          #         url = "https://learn.microsoft.com/api/mcp";
+          #       };
+          #       sequential-thinking = {
+          #         alwaysAllow = [ "sequentialthinking" ];
+          #         args = [
+          #           "-y"
+          #           "@modelcontextprotocol/server-sequential-thinking"
+          #         ];
+          #         command = "npx";
+          #         description = "Sequential thinking MCP server for complex reasoning and problem-solving workflows";
+          #         type = "stdio";
+          #       };
+          #       deepwiki = {
+          #         type = "sse";
+          #         url = "https://mcp.deepwiki.com/sse";
+          #         alwaysAllow = [
+          #           "read_wiki_structure"
+          #           "read_wiki_contents"
+          #           "ask_question"
+          #         ];
+          #       };
+          #       exa = {
+          #         type = "streamable-http";
+          #         url = "https://mcp.exa.ai/mcp";
+          #         headers = { };
+          #       };
+          #     };
+          #   };
+
+          mkCodexHome =
+            pkgs.runCommand "codex-home"
+              {
+                allowSubstitutes = false;
+                preferLocalBuild = true;
+              }
+              ''
+                env
+                set -x
+
+                mkdir -p $out/home/${username}/.codex
+              '';
         in
         {
           name = "copilot";
@@ -1927,6 +1947,34 @@ in
             "chat.disableAIFeatures" = true;
             "inlineChat.enableV2" = false;
           };
+          layers = [
+            {
+              name = "codex home";
+              copyToRoot = mkCodexHome;
+              perms = [
+                {
+                  path = mkCodexHome;
+                  regex = "/home/${username}";
+                  mode = "0744";
+                  uid = uid;
+                  gid = gid;
+                  uname = username;
+                  gname = group;
+                }
+                # --mount type=bind,src=/home/ubuntu/.codex,dst=/home/vscode/.codex
+                # "mounts": [{ "source": "${localEnv:HOME}/.codex", "target": "/home/vscode/.codex", "type": "bind" }]
+                {
+                  path = mkCodexHome;
+                  regex = "/home/${username}/.codex";
+                  mode = "0744";
+                  uid = uid;
+                  gid = gid;
+                  uname = username;
+                  gname = group;
+                }
+              ];
+            }
+          ];
         };
 
       protobuf =

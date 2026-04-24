@@ -352,7 +352,19 @@ let
     featureVSCodeRuntime
     featureInit
   ]
-  ++ (map (x: x { inherit pkgs envVarsDefault; }) features);
+  ++ (map (
+    x:
+    x {
+      inherit
+        pkgs
+        envVarsDefault
+        username
+        uid
+        gid
+        group
+        ;
+    }
+  ) features);
 
   envVarsFuncFull = builtins.foldl' (x: y: lib.attrsets.recursiveUpdate x y) { } (
     map (v: v.envVarsFunc or { }) featuresVal
@@ -489,7 +501,7 @@ let
       attrsToText =
         attrs:
         builtins.concatStringsSep "\n" (
-          lib.mapAttrsToList (n: v: ''${n}=${escapeIfNecessary (toString v)}'') attrs
+          lib.mapAttrsToList (n: v: "${n}=${escapeIfNecessary (toString v)}") attrs
         )
         + "\n";
     in
