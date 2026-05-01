@@ -215,6 +215,10 @@ in
           inherit layered;
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             esbenp.prettier-vscode
+            redhat.vscode-yaml
+          ];
+          executables = with pkgs; [
+            yaml-language-server
           ];
           vscodeSettings = {
             "json.format.enable" = false;
@@ -235,11 +239,15 @@ in
               "editor.defaultFormatter" = "esbenp.prettier-vscode";
             };
             "[yaml]" = {
-              "editor.defaultFormatter" = "esbenp.prettier-vscode";
+              "editor.defaultFormatter" = "redhat.vscode-yaml";
             };
             "[html]" = {
               "editor.defaultFormatter" = "esbenp.prettier-vscode";
             };
+            "redhat.telemetry.enabled" = false;
+            "yaml.schemaStore.enable" = true;
+            "yaml.format.enable" = true;
+            "yaml.completion" = true;
           };
         };
 
