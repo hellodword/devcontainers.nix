@@ -1918,6 +1918,13 @@ in
 
                 mkdir -p $out/home/${username}/.codex
               '';
+          codexPatch = (
+            pkgs.fetchpatch {
+              name = "timeout-overrides.patch";
+              url = "https://github.com/hellodword/codex/commit/af8902c7e3be8174195dead59d6a26c8fb587129.patch";
+              hash = "sha256-ZVONM2cLHDoeDYQ3tzXyRXqFAVY6Xie0DekNmtzZZKg=";
+            }
+          );
         in
         {
           name = "copilot";
@@ -1926,7 +1933,17 @@ in
             # for mcp
             nodejs
 
-            llm-agents.codex
+            (llm-agents.codex.overrideAttrs (old: {
+              # patches = old.patches ++ [
+              #   ../patches/codex-increase-default-timeout.diff
+              # ];
+              postPatch = (old.postPatch or "") + ''
+                (
+                  cd ..
+                  patch -p1 < ${codexPatch}
+                )
+              '';
+            }))
             llm-agents.claude-code
             llm-agents.gemini-cli
 
