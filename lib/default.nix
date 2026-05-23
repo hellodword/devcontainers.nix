@@ -15,7 +15,7 @@
 #         sha256 = fromImageSha256.${system};
 #       };
 #       paths = with pkgs; [
-#         nixfmt-rfc-style
+#         nixfmt
 #         nixd
 #         bash
 #         coreutils
@@ -340,7 +340,7 @@ in
 
           executables = with pkgs; [
             nixd
-            nixfmt-rfc-style
+            nixfmt
           ];
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
             jnoortheen.nix-ide
