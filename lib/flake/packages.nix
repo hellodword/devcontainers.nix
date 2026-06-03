@@ -282,7 +282,6 @@ in
       latest = pkgs.nodejs_latest;
       "24" = pkgs.nodejs_24;
       "22" = pkgs.nodejs_22;
-      "20" = pkgs.nodejs_20;
     };
   in
   builtins.listToAttrs (
