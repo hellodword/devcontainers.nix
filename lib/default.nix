@@ -925,8 +925,6 @@ in
             pytest
             pylint
 
-            pipx
-
             setuptools
             gitpython
           ]);
@@ -959,13 +957,9 @@ in
 
             PYTHON_HISTORY = "${XDG_STATE_HOME}/python/history";
 
-            PIPX_HOME = "${XDG_DATA_HOME}/pipx";
-            PIPX_BIN_DIR = "${PIPX_HOME}/bin";
-            PIPX_GLOBAL_HOME = "${XDG_DATA_HOME}/pipx-global";
-            PIPX_GLOBAL_BIN_DIR = "${PIPX_GLOBAL_HOME}/bin";
             PYENV = "${XDG_DATA_HOME}/pyenv";
 
-            PATH = "${pythonLnPath}:${PIPX_BIN_DIR}:${PIPX_GLOBAL_BIN_DIR}";
+            PATH = "${pythonLnPath}";
 
             # https://github.com/astral-sh/uv/blob/main/docs/reference/environment.md
             UV_LINK_MODE = "copy";
