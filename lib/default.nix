@@ -1938,11 +1938,11 @@ in
                 )
               '';
             }))
-            llm-agents.claude-code
-            llm-agents.gemini-cli
+            # llm-agents.claude-code
+            # llm-agents.gemini-cli
 
-            llm-agents.opencode
-            llm-agents.oh-my-opencode
+            # llm-agents.opencode
+            # llm-agents.oh-my-opencode
           ];
           vscodeSettings = {
             # disable bundled GitHub Copilot
