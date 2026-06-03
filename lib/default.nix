@@ -395,8 +395,8 @@ in
             (buildWithSpecificGo gotools)
 
             golangci-lint
+            govulncheck
 
-            k6
             protoc-gen-go
           ]);
           extensions = with (pkgs.forVSCodeVersion pkgs.vscode.version).vscode-marketplace; [
