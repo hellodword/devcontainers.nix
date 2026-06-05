@@ -377,37 +377,43 @@ in
   go-cc = mk {
     imageName = "ghcr.io/hellodword/devcontainers-go";
     tag = "cc";
-    featureList = with features; [
-      (cc { })
-      (go { })
-      (
-        { ... }:
-        {
-          name = "cgo-enabled";
-          envVars = {
-            CGO_ENABLED = "1";
-          };
-        }
-      )
-    ];
+    featureList =
+      with features;
+      [
+        (cc { })
+        (go { })
+        (
+          { ... }:
+          {
+            name = "cgo-enabled";
+            envVars = {
+              CGO_ENABLED = "1";
+            };
+          }
+        )
+      ]
+      ++ (mkCopilotDepFeats { });
   };
 
   go-zigcc = mk {
     imageName = "ghcr.io/hellodword/devcontainers-go";
     tag = "zigcc";
-    featureList = with features; [
-      (zigcc { })
-      (go { })
-      (
-        { ... }:
-        {
-          name = "cgo-enabled";
-          envVars = {
-            CGO_ENABLED = "1";
-          };
-        }
-      )
-    ];
+    featureList =
+      with features;
+      [
+        (zigcc { })
+        (go { })
+        (
+          { ... }:
+          {
+            name = "cgo-enabled";
+            envVars = {
+              CGO_ENABLED = "1";
+            };
+          }
+        )
+      ]
+      ++ (mkCopilotDepFeats { });
   };
 }
 // (
