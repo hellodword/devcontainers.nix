@@ -112,6 +112,7 @@ in
             gawk
             diffutils
             perl
+            patchutils
           ];
 
           vscodeSettings = {
@@ -202,6 +203,8 @@ in
             util-linux
 
             sqlite
+
+            just
           ];
         };
 
