@@ -1918,8 +1918,8 @@ in
           codexPatch = (
             pkgs.fetchpatch {
               name = "timeout-overrides.patch";
-              url = "https://github.com/hellodword/agents-misc/raw/04855f77018776e8fb297f712fc9018c13d74e55/codex/patches/rust-v0.139.0/openai-provider-network-timeouts.patch";
-              hash = "sha256-s7hEAMS85Hb0Yuwoh0E6+KTtN/bMT/kSvW4aHCqK3vQ=";
+              url = "https://github.com/hellodword/agents-misc/raw/015e9c1dc46b261cf87d5f31955ec8ae37e2c372/codex/patches/rust-v0.139.0/openai-provider-network-timeouts.patch";
+              hash = "sha256-LhIVzNMiAbOvF+Yd5KBtrnZZLNnP7z0CwyX4iELfDL0=";
             }
           );
         in
