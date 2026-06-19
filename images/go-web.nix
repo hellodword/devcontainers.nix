@@ -9,7 +9,11 @@
     tests.smoke = [
       {
         name = "go-web-stack";
-        command = [ "bash" "-lc" "go version && gopls version && node --version && npm --version && pnpm --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "go version && gopls version && node --version && npm --version && pnpm --version"
+        ];
       }
     ];
   };

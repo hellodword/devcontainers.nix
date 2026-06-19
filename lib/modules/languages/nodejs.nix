@@ -1,15 +1,18 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
-  packages =
-    with pkgs;
-    [
-      pnpm
-      yarn
-      nodePackages.typescript
-      nodePackages.eslint
-      nodePackages.prettier
-      nodePackages.node-gyp
-    ];
+  packages = with pkgs; [
+    pnpm
+    yarn
+    typescript
+    eslint
+    prettier
+    node-gyp
+  ];
 in
 {
   config = lib.mkIf config.devcontainer.languages.nodejs.enable {
@@ -42,23 +45,39 @@ in
     devcontainer.tests.smoke = [
       {
         name = "node-version";
-        command = [ "node" "--version" ];
+        command = [
+          "node"
+          "--version"
+        ];
       }
       {
         name = "pnpm-version";
-        command = [ "pnpm" "--version" ];
+        command = [
+          "pnpm"
+          "--version"
+        ];
       }
       {
         name = "node-package-managers";
-        command = [ "bash" "-lc" "npm --version && npx --version && corepack --version && yarn --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "npm --version && npx --version && corepack --version && yarn --version"
+        ];
       }
       {
         name = "node-python-runtime";
-        command = [ "python" "--version" ];
+        command = [
+          "python"
+          "--version"
+        ];
       }
       {
         name = "node-c-env";
-        command = [ "cc" "--version" ];
+        command = [
+          "cc"
+          "--version"
+        ];
       }
     ];
   };

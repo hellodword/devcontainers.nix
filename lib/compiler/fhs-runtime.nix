@@ -2,11 +2,12 @@
 { config }:
 let
   cfg = config.devcontainer.compat.fhsRuntime;
+  osRelease = config.devcontainer.filesystem.osRelease;
   osReleaseText = ''
-    NAME=devcontainer-nix
-    ID=devcontainer-nix
-    VERSION_ID=0
-    PRETTY_NAME=devcontainer-nix
+    NAME="${osRelease.name}"
+    ID=${osRelease.id}
+    VERSION_ID="${osRelease.versionId}"
+    PRETTY_NAME="${osRelease.prettyName}"
   '';
   currentDynamicLoader =
     if system == "x86_64-linux" then

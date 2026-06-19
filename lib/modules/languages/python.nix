@@ -1,18 +1,21 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
-  packages =
-    with pkgs;
-    [
-      uv
-      pipx
-      python313Packages.ruff
-      python313Packages.mypy
-      python313Packages.pytest
-      python313Packages.ipython
-      python313Packages.black
-      python313Packages.pylint
-      python313Packages.bandit
-    ];
+  packages = with pkgs; [
+    uv
+    pipx
+    python313Packages.ruff
+    python313Packages.mypy
+    python313Packages.pytest
+    python313Packages.ipython
+    python313Packages.black
+    python313Packages.pylint
+    python313Packages.bandit
+  ];
 in
 {
   config = lib.mkIf config.devcontainer.languages.python.enable {
@@ -20,7 +23,6 @@ in
     devcontainer.packages = packages;
     devcontainer.vscode.extensions = [
       "ms-python.python"
-      "ms-python.vscode-pylance"
       "charliermarsh.ruff"
     ];
     devcontainer.vscode.settings = {
@@ -42,27 +44,47 @@ in
     devcontainer.tests.smoke = [
       {
         name = "python-version";
-        command = [ "python" "--version" ];
+        command = [
+          "python"
+          "--version"
+        ];
       }
       {
         name = "uv-version";
-        command = [ "uv" "--version" ];
+        command = [
+          "uv"
+          "--version"
+        ];
       }
       {
         name = "uvx-version";
-        command = [ "uvx" "--version" ];
+        command = [
+          "uvx"
+          "--version"
+        ];
       }
       {
         name = "python-runtime-imports";
-        command = [ "bash" "-lc" "python -c 'import ssl, sqlite3, ctypes'" ];
+        command = [
+          "bash"
+          "-lc"
+          "python -c 'import ssl, sqlite3, ctypes'"
+        ];
       }
       {
         name = "python-node-runtime";
-        command = [ "bash" "-lc" "node --version && npm --version && npx --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "node --version && npm --version && npx --version"
+        ];
       }
       {
         name = "nixd-version";
-        command = [ "nixd" "--version" ];
+        command = [
+          "nixd"
+          "--version"
+        ];
       }
     ];
   };

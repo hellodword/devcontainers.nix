@@ -9,10 +9,10 @@ import sys
 REQUIRED_REPORT_FILES = {
     "ci-plan.json",
     "closure-report.json",
-    "docker-access-report.json",
     "env-report.json",
     "extensions-index.json",
     "extensions-report.json",
+    "filesystem-report.json",
     "fhs-runtime-report.json",
     "graph.json",
     "image-plan.json",
@@ -71,7 +71,7 @@ def main() -> int:
     layer_plan = read_json(reports_dir / "layer-plan.json")
     extensions_report = read_json(reports_dir / "extensions-report.json")
     extensions_index = read_json(reports_dir / "extensions-index.json")
-    docker_access_report = read_json(reports_dir / "docker-access-report.json")
+    filesystem_report = read_json(reports_dir / "filesystem-report.json")
     smoke_plan = read_json(reports_dir / "smoke-test-plan.json")
     image_plan = read_json(reports_dir / "image-plan.json")
     security_report = read_json(reports_dir / "security-report.json")
@@ -82,32 +82,14 @@ def main() -> int:
 
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
-
     if not metadata_schema["hasRemoteUser"]:
         fail("metadata schema must include remoteUser")
     if not metadata_schema["hasLifecycle"]:
         fail("metadata schema must include lifecycle commands")
     if not metadata_schema["hasVscodeCustomizations"]:
         fail("metadata schema must include VS Code customizations")
-
-    if image_name == "nix-dind":
-        if not metadata_schema["hasDockerAccessMetadata"]:
-            fail("metadata schema must include docker access metadata for nix-dind")
-        docker_access_metadata = metadata_preview["dockerAccess"]
-        if docker_access_metadata["privilege"]["level"] != "high":
-            fail("metadata docker access must declare high privilege")
-        if not docker_access_metadata["remoteTcp"]["enabled"]:
-            fail("metadata docker access must declare remote TCP availability")
-        if docker_access_metadata["remoteTcp"]["host"] != docker_access_report["modes"]["remoteTcp"]["host"]:
-            fail("metadata docker access must report the configured remote TCP host")
-        if docker_access_metadata["remoteTcp"]["tls"] != docker_access_report["modes"]["remoteTcp"]["tls"]:
-            fail("metadata docker access must report the configured remote TCP TLS mode")
-        for name, value in docker_access_report["containerEnv"].items():
-            if preview_container_env.get(name) != value:
-                fail(f"metadata merged preview must retain docker access env {name}")
-    else:
-        if metadata_schema["hasDockerAccessMetadata"]:
-            fail(f"{image_name} metadata must not declare docker access metadata")
+    if metadata_schema["hasDockerMetadata"]:
+        fail(f"{image_name} metadata must not declare Docker daemon access metadata")
 
     for report_name in REQUIRED_REPORT_FILES:
         report_data = read_json(reports_dir / report_name)
@@ -119,6 +101,11 @@ def main() -> int:
     layer_max = int(layer_plan["budget"]["max"])
     if layer_count > layer_max:
         fail(f"layer count {layer_count} exceeds budget {layer_max}")
+    for layer in layer_plan["layers"]:
+        if not layer["build"]["copyToRoot"]:
+            fail(f"layer {layer['group']} must be buildable as a copyToRoot layer")
+        if layer["pathCount"] < 1:
+            fail(f"layer {layer['group']} must include at least one store path")
 
     if not smoke_plan["tests"]:
         fail("smoke-test-plan.json must include at least one test")
@@ -132,8 +119,14 @@ def main() -> int:
         check=True,
     )
 
+    if image_plan["backend"] != "nix2container":
+        fail("image-plan.json must report nix2container backend")
     if image_plan["entrypoint"] != ["/usr/local/bin/devcontainer-entrypoint"]:
         fail("image-plan.json entrypoint mismatch")
+    if image_plan["user"] != "vscode":
+        fail("image-plan.json must run as vscode")
+    if image_plan["workingDir"] != "/workspaces":
+        fail("image-plan.json working directory mismatch")
 
     if not fhs_runtime_report["enabled"]:
         fail("fhs-runtime-report.json must confirm FHS runtime is enabled")
@@ -148,6 +141,8 @@ def main() -> int:
         fail("metadata merged preview must retain the compiled PATH entry")
     if preview_container_env.get("EDITOR") != env_report["containerEnv"]["EDITOR"]:
         fail("metadata merged preview must retain the compiled EDITOR entry")
+    if "DOCKER_HOST" in env_report["containerEnv"]:
+        fail("container env must not configure DOCKER_HOST by default")
 
     if not extensions_report["validation"]["noNetworkDuringProjection"]:
         fail("extensions projection must stay offline")
@@ -158,29 +153,38 @@ def main() -> int:
     for extension in extensions_index["extensions"]:
         if extension["version"] == "pinned":
             fail(f"extensions-index.json must record a real version for {extension['id']}")
-        if extension["source"] != "nixpkgs.vscode-extensions":
-            fail(f"extensions-index.json must record nixpkgs source for {extension['id']}")
+        if not extension["source"].startswith("nix-vscode-extensions."):
+            fail(f"extensions-index.json must record nix-vscode-extensions source for {extension['id']}")
         if not extension["sourceLock"]["ref"]:
             fail(f"extensions-index.json must record source ref for {extension['id']}")
+
+    user_report = filesystem_report["user"]
+    if user_report["name"] != "vscode" or user_report["uid"] != 1000:
+        fail("filesystem-report.json must declare vscode uid 1000")
+    if user_report["group"] != "vscode" or user_report["gid"] != 1000:
+        fail("filesystem-report.json must declare vscode gid 1000")
+    if user_report["home"] != "/home/vscode" or user_report["shell"] != "/bin/bash":
+        fail("filesystem-report.json must declare the vscode home and shell")
+    directory_map = {entry["path"]: entry for entry in filesystem_report["directories"]}
+    for required_dir in ["/home/vscode", "/tmp", "/var/tmp", "/run/user/1000", "/workspaces"]:
+        if required_dir not in directory_map:
+            fail(f"filesystem-report.json missing directory: {required_dir}")
+    if directory_map["/tmp"]["mode"] != "1777" or directory_map["/var/tmp"]["mode"] != "1777":
+        fail("filesystem-report.json must declare sticky tmp directories")
+    if directory_map["/home/vscode"]["owner"] != "vscode:vscode":
+        fail("filesystem-report.json must declare vscode home ownership")
 
     ci_report_files = set(ci_plan["reportFiles"])
     missing_ci_reports = sorted(REQUIRED_CI_REPORT_FILES - ci_report_files)
     if missing_ci_reports:
         fail(f"ci-plan.json missing report files: {', '.join(missing_ci_reports)}")
 
-    if image_name == "nix-dind":
-        if not docker_access_report["enabled"]:
-            fail("nix-dind must enable docker access")
-        if docker_access_report["privilegeReport"]["level"] != "high":
-            fail("nix-dind docker access must declare high privilege")
-    else:
-        if docker_access_report["enabled"]:
-            fail(f"{image_name} must not enable docker access")
-        if docker_access_report["privilegeReport"]["level"] != "none":
-            fail(f"{image_name} docker access privilege report must be none")
-
-    if not security_report["dockerAccessOnlyInNixDind"]:
-        fail("security-report.json must confirm docker access isolation")
+    if security_report["dockerDaemonBakedIntoImage"]:
+        fail("security-report.json must confirm no Docker daemon is baked into the image")
+    if security_report["dockerSocketMountedByDefault"]:
+        fail("security-report.json must confirm no default Docker socket mount")
+    if security_report["dockerHostConfiguredByDefault"]:
+        fail("security-report.json must confirm DOCKER_HOST is not configured by default")
     if not security_report["lifecycleLogRedaction"]:
         fail("security-report.json must confirm lifecycle log redaction")
     if not security_report["extensionProjectionLogRedaction"]:
@@ -189,14 +193,10 @@ def main() -> int:
         fail("security-report.json must confirm extension artifacts are locked")
     if not security_report["dynamicPackageFreezeReviewable"]:
         fail("security-report.json must confirm devpkg freeze is reviewable")
-    if not security_report["hostSocketMarkedHighPrivilege"]:
-        fail("security-report.json must confirm host socket mounts are marked high privilege")
     if security_report["uvxAutoRunFromShellInit"]:
         fail("security-report.json must confirm uvx is not auto-run from shell init")
     if security_report["npxAutoRunFromShellInit"]:
         fail("security-report.json must confirm npx is not auto-run from shell init")
-    if security_report["remoteTcpUsesTls"] != docker_access_report["modes"]["remoteTcp"]["tls"]:
-        fail("security-report.json must match the configured remote TCP TLS mode")
     if not security_report["shellInitHasNoSideEffects"]:
         fail("security-report.json must confirm shell init remains side-effect free")
 

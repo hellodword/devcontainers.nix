@@ -9,7 +9,11 @@
     tests.smoke = [
       {
         name = "rust-web-stack";
-        command = [ "bash" "-lc" "rustc --version && cargo --version && node --version && npm --version && pnpm --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "rustc --version && cargo --version && node --version && npm --version && pnpm --version"
+        ];
       }
     ];
   };

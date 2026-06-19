@@ -1,15 +1,18 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
-  packages =
-    with pkgs;
-    [
-      go_1_24
-      gopls
-      delve
-      golangci-lint
-      gotools
-      govulncheck
-    ];
+  packages = with pkgs; [
+    go
+    gopls
+    delve
+    golangci-lint
+    gotools
+    govulncheck
+  ];
 in
 {
   config = lib.mkIf config.devcontainer.languages.go.enable {
@@ -53,19 +56,33 @@ in
     devcontainer.tests.smoke = [
       {
         name = "go-version";
-        command = [ "go" "version" ];
+        command = [
+          "go"
+          "version"
+        ];
       }
       {
         name = "gopls-version";
-        command = [ "gopls" "version" ];
+        command = [
+          "gopls"
+          "version"
+        ];
       }
       {
         name = "go-tooling";
-        command = [ "bash" "-lc" "dlv version && golangci-lint version && govulncheck -version || govulncheck --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "dlv version && golangci-lint version && govulncheck -version || govulncheck --version"
+        ];
       }
       {
         name = "go-runtime-deps";
-        command = [ "bash" "-lc" "python --version && node --version && cc --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "python --version && node --version && cc --version"
+        ];
       }
     ];
   };

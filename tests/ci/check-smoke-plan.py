@@ -4,8 +4,23 @@ import pathlib
 import sys
 
 
+COMMON = {
+    "user-vscode",
+    "filesystem-writable",
+    "docker-client",
+    "docker-buildx",
+    "docker-compose",
+    "docker-remote-version",
+    "codex-version",
+    "nix-index-tools",
+}
+
 REQUIRED = {
-    "nix": {
+    "nix": COMMON
+    | {
+        "nix-version",
+        "nixd-version",
+        "nix-language",
         "extension-index",
         "task-runner-list",
         "devpkg-doctor",
@@ -13,50 +28,51 @@ REQUIRED = {
         "fhs-os-release",
         "fhs-core-tools",
     },
-    "nix-dind": {
-        "docker-version",
-        "docker-info",
-        "docker-buildx",
-        "docker-compose",
-        "docker-build-run",
-    },
-    "python": {
+    "python": COMMON
+    | {
         "python-version",
         "uv-version",
         "uvx-version",
         "python-runtime-imports",
         "python-node-runtime",
     },
-    "nodejs": {
+    "nodejs": COMMON
+    | {
         "node-version",
         "pnpm-version",
         "node-package-managers",
         "node-python-runtime",
         "node-c-env",
     },
-    "go": {
+    "go": COMMON
+    | {
         "go-version",
         "gopls-version",
         "go-tooling",
         "go-runtime-deps",
     },
-    "rust": {
+    "rust": COMMON
+    | {
         "rustc-version",
         "cargo-version",
         "rust-tooling",
         "rust-runtime-deps",
     },
-    "python-web": {
+    "python-web": COMMON
+    | {
         "python-web-stack",
         "python-web-formatters",
     },
-    "go-web": {
+    "go-web": COMMON
+    | {
         "go-web-stack",
     },
-    "rust-web": {
+    "rust-web": COMMON
+    | {
         "rust-web-stack",
     },
-    "flutter": {
+    "flutter": COMMON
+    | {
         "flutter-version",
         "dart-version",
         "flutter-tooling",
@@ -81,6 +97,9 @@ def main() -> int:
 
     with plan_path.open("r", encoding="utf-8") as handle:
         plan = json.load(handle)
+
+    if image_name not in REQUIRED:
+        fail(f"unsupported image in smoke plan: {image_name}")
 
     names = {test["name"] for test in plan["tests"]}
     expected = REQUIRED[image_name]

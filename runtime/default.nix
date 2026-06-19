@@ -26,12 +26,6 @@ in
       pkgs.gnugrep
       pkgs.jq
     ] ./vscode-extension-projector/main.sh;
-  "devcontainer-docker-access" =
-    writeShellApp "devcontainer-docker-access" [
-      pkgs.bash
-      pkgs.coreutils
-      pkgs.gnugrep
-    ] ./docker-access/main.sh;
   devpkg =
     writeShellApp "devpkg" [
       pkgs.bash

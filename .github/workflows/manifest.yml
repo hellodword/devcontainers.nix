@@ -47,7 +47,6 @@ jobs:
           set -euo pipefail
           images=(
             nix
-            nix-dind
             python
             nodejs
             go

@@ -6,10 +6,6 @@ on:
       image-name:
         required: true
         type: string
-      docker-socket-smoke:
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   build:
@@ -43,21 +39,20 @@ jobs:
           name: reports-${{ inputs.image-name }}
           path: reports
 
-      - name: Build OCI tarball
+      - name: Build OCI image artifact
         run: |
           nix build .#images.${{ inputs.image-name }}.oci --print-out-paths --no-link > oci-path.txt
 
-      - name: Validate OCI tarball layout
+      - name: Validate OCI image artifact
         run: |
           python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" "${{ inputs.image-name }}"
 
-      - name: Load OCI tarball
+      - name: Load OCI image
         run: |
-          gzip -dc "$(cat oci-path.txt)" | docker load
+          nix run .#load-${{ inputs.image-name }}
 
       - name: Run smoke plan
         env:
-          DOCKER_RUN_EXTRA_ARGS: ${{ inputs.docker-socket-smoke && '-v /var/run/docker.sock:/var/run/docker.sock' || '' }}
           SMOKE_LOG_DIR: smoke-logs
         run: |
           plan_path="$(nix build .#images.${{ inputs.image-name }}.smoke --print-out-paths --no-link)"

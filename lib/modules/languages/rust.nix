@@ -1,17 +1,24 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
-  packages =
-    with pkgs;
-    [
-      rustc
-      cargo
-      rustfmt
-      clippy
-      rust-analyzer
-      cargo-nextest
-      cargo-edit
-      cargo-audit
+  rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+    extensions = [
+      "rust-src"
+      "rustfmt"
+      "clippy"
+      "rust-analyzer"
     ];
+  };
+  packages = [
+    rustToolchain
+    pkgs.cargo-nextest
+    pkgs.cargo-edit
+    pkgs.cargo-audit
+  ];
 in
 {
   config = lib.mkIf config.devcontainer.languages.rust.enable {
@@ -52,19 +59,33 @@ in
     devcontainer.tests.smoke = [
       {
         name = "rustc-version";
-        command = [ "rustc" "--version" ];
+        command = [
+          "rustc"
+          "--version"
+        ];
       }
       {
         name = "cargo-version";
-        command = [ "cargo" "--version" ];
+        command = [
+          "cargo"
+          "--version"
+        ];
       }
       {
         name = "rust-tooling";
-        command = [ "bash" "-lc" "rustfmt --version && cargo clippy --version && rust-analyzer --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "rustfmt --version && cargo clippy --version && rust-analyzer --version"
+        ];
       }
       {
         name = "rust-runtime-deps";
-        command = [ "bash" "-lc" "python --version && node --version && cc --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "python --version && node --version && cc --version"
+        ];
       }
     ];
   };

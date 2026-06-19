@@ -5,5 +5,8 @@
     "language/rust"
     "language/nodejs"
     "language/flutter"
+    "toolset/docker-client"
+    "toolset/agents"
+    "toolset/nix-index"
   ];
 }

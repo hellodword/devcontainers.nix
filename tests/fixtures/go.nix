@@ -6,5 +6,8 @@
     "runtime/nodejs"
     "runtime/c-env"
     "language/go"
+    "toolset/docker-client"
+    "toolset/agents"
+    "toolset/nix-index"
   ];
 }

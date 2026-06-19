@@ -5,31 +5,16 @@ usage() {
   cat <<'EOF'
 usage:
   tests/smoke/collect-runtime-evidence.sh oci [image-name] [output-dir]
-  tests/smoke/collect-runtime-evidence.sh docker-access [output-dir]
   tests/smoke/collect-runtime-evidence.sh full [output-dir]
 
 examples:
   tests/smoke/collect-runtime-evidence.sh oci nix
-  tests/smoke/collect-runtime-evidence.sh docker-access docker-access-evidence
   tests/smoke/collect-runtime-evidence.sh full runtime-evidence
 
-environment:
-  DEVCONTAINER_HOST_DOCKER_SOCKET
-    Host docker socket to mount into nix-dind. Default: /var/run/docker.sock
-
-  DEVCONTAINER_CONTAINER_DOCKER_MOUNT_TARGET
-    Container mount target for the host docker socket source. Default: /var/run/docker.sock
-
-  DEVCONTAINER_CONTAINER_DOCKER_SOCKET
-    Socket path that devcontainer-docker-access should use inside the container.
-    Default: same as DEVCONTAINER_CONTAINER_DOCKER_MOUNT_TARGET
-
-  DEVCONTAINER_REMOTE_DOCKER_HOST
-  DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR
-    Optional remote TCP validation inputs for nix-dind. When the host is set,
-    the script records helper output and a docker version call routed through
-    devcontainer-docker-access. When certs are also set, the helper is invoked
-    with DOCKER_TLS_VERIFY=1 and DOCKER_CERT_PATH=/run/docker-certs.
+notes:
+  Images are loaded with nix2container through `nix run .#load-<image>`.
+  Docker daemon smoke for the Docker CLI is handled by tests/smoke/run-plan.sh.
+  Set DOCKER_HOST=tcp://... before run-plan.sh to validate a remote daemon.
 EOF
 }
 
@@ -83,7 +68,7 @@ copy_reports() {
   printf '%s\n' "$reports_path" >"$target_dir/source-path.txt"
 }
 
-build_oci_path() {
+build_image_path() {
   local image_name="$1"
   nix build ".#images.${image_name}.oci" --print-out-paths --no-link
 }
@@ -95,112 +80,50 @@ build_smoke_path() {
 
 collect_oci_runtime() {
   local image_name="$1"
-  local section="$2"
+  local section="oci-${image_name}"
   local image_ref="devcontainer-${image_name}:latest"
-  local oci_path
+  local image_path
   local smoke_path
 
-  oci_path="$(build_oci_path "$image_name")"
+  image_path="$(build_image_path "$image_name")"
   smoke_path="$(build_smoke_path "$image_name")"
 
   mkdir -p "$evidence_dir/$section"
   printf '%s\n' "$image_ref" >"$evidence_dir/$section/image-ref.txt"
-  printf '%s\n' "$oci_path" >"$evidence_dir/$section/oci-path.txt"
+  printf '%s\n' "$image_path" >"$evidence_dir/$section/image-path.txt"
   printf '%s\n' "$smoke_path" >"$evidence_dir/$section/smoke-plan-path.txt"
 
   copy_reports "$image_name" "$evidence_dir/$section/reports"
 
-  run_capture "$section" docker-load "gzip -dc '$oci_path' | docker load"
+  run_capture "$section" image-load "nix run '.#load-${image_name}'"
   run_capture "$section" docker-inspect "docker inspect '$image_ref'"
   run_capture "$section" docker-run-env "docker run --rm '$image_ref' env"
   run_capture "$section" docker-run-bash "docker run --rm '$image_ref' /bin/bash -lc 'echo ok'"
+  run_capture "$section" docker-run-user "docker run --rm '$image_ref' id vscode"
   run_capture "$section" docker-run-task-runner "docker run --rm '$image_ref' devcontainer-task-runner list"
-}
-
-collect_docker_access() {
-  local section="$1"
-  local image_name="nix-dind"
-  local image_ref="devcontainer-${image_name}:latest"
-  local oci_path
-  local socket_source="${DEVCONTAINER_HOST_DOCKER_SOCKET:-/var/run/docker.sock}"
-  local socket_mount_target="${DEVCONTAINER_CONTAINER_DOCKER_MOUNT_TARGET:-/var/run/docker.sock}"
-  local container_socket="${DEVCONTAINER_CONTAINER_DOCKER_SOCKET:-$socket_mount_target}"
-  local socket_mount="${socket_source}:${socket_mount_target}"
-  local build_dir
-
-  oci_path="$(build_oci_path "$image_name")"
-  mkdir -p "$evidence_dir/$section"
-  printf '%s\n' "$image_ref" >"$evidence_dir/$section/image-ref.txt"
-  printf '%s\n' "$oci_path" >"$evidence_dir/$section/oci-path.txt"
-  printf '%s\n' "$socket_source" >"$evidence_dir/$section/host-docker-socket.txt"
-  printf '%s\n' "$socket_mount_target" >"$evidence_dir/$section/container-docker-mount-target.txt"
-  printf '%s\n' "$container_socket" >"$evidence_dir/$section/container-docker-socket.txt"
-
-  copy_reports "$image_name" "$evidence_dir/$section/reports"
-
-  run_capture "$section" docker-load "gzip -dc '$oci_path' | docker load"
-  run_capture "$section" docker-version "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' docker version"
-  run_capture "$section" docker-info "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' docker info"
-  run_capture "$section" docker-buildx-version "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' docker buildx version"
-  run_capture "$section" docker-compose-version "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' docker compose version"
-  run_capture "$section" docker-task-runner "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' devcontainer-task-runner list"
-  run_capture "$section" docker-process-list "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' /bin/bash -lc 'ps -ef'"
-
-  build_dir="$(mktemp -d)"
-  cat >"$build_dir/Dockerfile" <<'EOF'
-FROM busybox
-RUN echo ok >/ok
-CMD ["cat", "/ok"]
-EOF
-  printf '%s\n' "$build_dir" >"$evidence_dir/$section/build-context.txt"
-  run_capture \
-    "$section" \
-    docker-build-run-smoke \
-    "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' -v '$build_dir:/tmp/build' '$image_ref' bash -lc 'docker build -t docker-access-smoke /tmp/build && docker run --rm docker-access-smoke'"
-  rm -rf "$build_dir"
-
-  if [ -n "${DEVCONTAINER_REMOTE_DOCKER_HOST:-}" ]; then
-    printf '%s\n' "${DEVCONTAINER_REMOTE_DOCKER_HOST}" >"$evidence_dir/$section/remote-docker-host.txt"
-    if [ -n "${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR:-}" ]; then
-      printf '%s\n' "${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}" >"$evidence_dir/$section/remote-docker-certs-dir.txt"
-      run_capture \
-        "$section" \
-        remote-tcp-explain \
-        "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' -e DOCKER_TLS_VERIFY=1 -e DOCKER_CERT_PATH=/run/docker-certs -v '${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}:/run/docker-certs:ro' '$image_ref' devcontainer-docker-access explain"
-      run_capture \
-        "$section" \
-        remote-tcp-docker-version \
-        "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' -e DOCKER_TLS_VERIFY=1 -e DOCKER_CERT_PATH=/run/docker-certs -v '${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}:/run/docker-certs:ro' '$image_ref' devcontainer-docker-access docker version"
-    else
-      run_capture \
-        "$section" \
-        remote-tcp-explain \
-        "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' '$image_ref' devcontainer-docker-access explain"
-      run_capture \
-        "$section" \
-        remote-tcp-docker-version \
-        "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' '$image_ref' devcontainer-docker-access docker version"
-    fi
-  else
-    cat >"$evidence_dir/$section/remote-tcp-skipped.txt" <<'EOF'
-remote TCP validation was skipped.
-Set DEVCONTAINER_REMOTE_DOCKER_HOST to record remote TCP evidence for step 4.8.
-Set DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR as well to validate an optional TLS setup.
-EOF
-  fi
+  run_capture "$section" docker-run-required-tools "docker run --rm '$image_ref' bash -lc 'command -v docker && command -v codex && command -v nix-locate'"
 }
 
 main() {
   local mode="${1:-}"
   local output_dir_arg=""
+  local image_name=""
+  local images=(
+    nix
+    python
+    nodejs
+    go
+    rust
+    python-web
+    go-web
+    rust-web
+    flutter
+  )
 
   case "$mode" in
     oci)
       image_name="${2:-nix}"
       output_dir_arg="${3:-}"
-      ;;
-    docker-access)
-      output_dir_arg="${2:-}"
       ;;
     full)
       output_dir_arg="${2:-}"
@@ -217,7 +140,6 @@ main() {
 
   require_cmd nix
   require_cmd docker
-  require_cmd gzip
   require_cmd cp
   require_cmd date
 
@@ -238,15 +160,12 @@ main() {
 
   case "$mode" in
     oci)
-      collect_oci_runtime "$image_name" "oci-${image_name}"
-      ;;
-    docker-access)
-      collect_docker_access "docker-access"
+      collect_oci_runtime "$image_name"
       ;;
     full)
-      collect_oci_runtime "nix" "oci-nix"
-      collect_oci_runtime "nix-dind" "oci-nix-dind"
-      collect_docker_access "docker-access"
+      for image_name in "${images[@]}"; do
+        collect_oci_runtime "$image_name"
+      done
       ;;
   esac
 

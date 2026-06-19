@@ -6,7 +6,7 @@ devcontainer-image explain layer <n> [--report <dir>]
 devcontainer-image explain package <name> [--report <dir>]
 devcontainer-image explain extension <id> [--report <dir>]
 devcontainer-image explain env <name> [--report <dir>]
-devcontainer-image explain docker-access [--report <dir>]
+devcontainer-image explain filesystem [--report <dir>]
 devcontainer-image explain image-plan [--report <dir>]
 devcontainer-image explain security [--report <dir>]
 devcontainer-image diff <old-layer-plan.json> <new-layer-plan.json>
@@ -83,9 +83,9 @@ case "$cmd" in
           end
         ' "$report_dir/env-report.json"
         ;;
-      docker-access)
-        require_file "$report_dir/docker-access-report.json"
-        cat "$report_dir/docker-access-report.json"
+      filesystem)
+        require_file "$report_dir/filesystem-report.json"
+        cat "$report_dir/filesystem-report.json"
         ;;
       image-plan)
         require_file "$report_dir/image-plan.json"

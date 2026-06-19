@@ -18,11 +18,21 @@ let
         default = "host";
       };
       stability = mkOption {
-        type = types.enum [ "very-stable" "stable" "medium" "volatile" ];
+        type = types.enum [
+          "very-stable"
+          "stable"
+          "medium"
+          "volatile"
+        ];
         default = "stable";
       };
       sharing = mkOption {
-        type = types.enum [ "global" "cross-language" "image-family" "single-image" ];
+        type = types.enum [
+          "global"
+          "cross-language"
+          "image-family"
+          "single-image"
+        ];
         default = "global";
       };
       priority = mkOption {
@@ -30,7 +40,10 @@ let
         default = 50;
       };
       securityClass = mkOption {
-        type = types.enum [ "trusted" "networked" "docker-daemon-access" ];
+        type = types.enum [
+          "trusted"
+          "networked"
+        ];
         default = "trusted";
       };
     };
@@ -47,7 +60,12 @@ let
   lifecycleTaskType = types.submodule {
     options = {
       phase = mkOption {
-        type = types.enum [ "onCreate" "postCreate" "postStart" "postAttach" ];
+        type = types.enum [
+          "onCreate"
+          "postCreate"
+          "postStart"
+          "postAttach"
+        ];
       };
       once = mkOption {
         type = types.bool;
@@ -125,6 +143,30 @@ in
     };
 
     user = {
+      name = mkOption {
+        type = types.str;
+        default = "vscode";
+      };
+      uid = mkOption {
+        type = types.int;
+        default = 1000;
+      };
+      group = mkOption {
+        type = types.str;
+        default = "vscode";
+      };
+      gid = mkOption {
+        type = types.int;
+        default = 1000;
+      };
+      home = mkOption {
+        type = types.str;
+        default = "/home/vscode";
+      };
+      shell = mkOption {
+        type = types.str;
+        default = "/bin/bash";
+      };
       remoteUser = mkOption {
         type = types.str;
         default = "vscode";
@@ -136,6 +178,39 @@ in
       updateRemoteUserUID = mkOption {
         type = types.bool;
         default = false;
+      };
+    };
+
+    filesystem = {
+      osRelease = {
+        name = mkOption {
+          type = types.str;
+          default = "devcontainer-nix";
+        };
+        id = mkOption {
+          type = types.str;
+          default = "devcontainer-nix";
+        };
+        versionId = mkOption {
+          type = types.str;
+          default = "26.05";
+        };
+        prettyName = mkOption {
+          type = types.str;
+          default = "Devcontainer Nix 26.05";
+        };
+      };
+      directories = mkOption {
+        type = types.attrsOf (
+          types.submodule {
+            options = {
+              mode = mkOption { type = types.str; };
+              uid = mkOption { type = types.int; };
+              gid = mkOption { type = types.int; };
+            };
+          }
+        );
+        default = { };
       };
     };
 
@@ -270,7 +345,12 @@ in
             default = true;
           };
           phase = mkOption {
-            type = types.enum [ "onCreate" "postCreate" "postStart" "postAttach" ];
+            type = types.enum [
+              "onCreate"
+              "postCreate"
+              "postStart"
+              "postAttach"
+            ];
             default = "postCreate";
           };
           mode = mkOption {
@@ -308,82 +388,94 @@ in
       default = { };
     };
 
-    dockerAccess = {
-      enable = mkOption {
-        type = types.bool;
-        default = false;
-      };
-      packages = mkOption {
-        type = types.listOf types.package;
-        default = [ ];
-      };
-      mounts = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
-      };
-      containerEnv = mkOption {
-        type = types.attrsOf types.str;
-        default = { };
-      };
-      defaultMode = mkOption {
-        type = types.str;
-        default = "host-socket";
-      };
-      modes = {
-        hostSocket.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        hostSocket.mount = mkOption {
-          type = types.str;
-          default = "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock";
-        };
-        remoteTcp.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        remoteTcp.host = mkOption {
-          type = types.str;
-          default = "docker.example.internal:2375";
-        };
-        remoteTcp.tls = mkOption {
-          type = types.bool;
-          default = false;
-        };
-        remoteTcp.certMount = mkOption {
-          type = types.str;
-          default = "type=bind,source=${localEnv:HOME}/.docker/devcontainer-certs,target=/run/docker-certs,readonly";
-        };
-      };
-    };
-
     tests.smoke = mkOption {
       type = types.listOf smokeTestType;
       default = [ ];
     };
 
     toolsets = {
-      foundation.enable = mkOption { type = types.bool; default = true; };
-      sourceControl.enable = mkOption { type = types.bool; default = true; };
-      fetchArchive.enable = mkOption { type = types.bool; default = true; };
-      searchNavigation.enable = mkOption { type = types.bool; default = true; };
-      inspectDebug.enable = mkOption { type = types.bool; default = true; };
-      workflowFormat.enable = mkOption { type = types.bool; default = true; };
-      dataNetwork.enable = mkOption { type = types.bool; default = false; };
+      foundation.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      sourceControl.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      fetchArchive.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      searchNavigation.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      inspectDebug.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      workflowFormat.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      dataNetwork.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      dockerClient.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      agents.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      nixIndex.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      nixIndex.comma.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
     };
 
     runtimes = {
-      cEnv.enable = mkOption { type = types.bool; default = false; };
-      python.enable = mkOption { type = types.bool; default = false; };
-      nodejs.enable = mkOption { type = types.bool; default = false; };
+      cEnv.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      python.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      nodejs.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
     };
 
     languages = {
-      python.enable = mkOption { type = types.bool; default = false; };
-      nodejs.enable = mkOption { type = types.bool; default = false; };
-      go.enable = mkOption { type = types.bool; default = false; };
-      rust.enable = mkOption { type = types.bool; default = false; };
-      flutter.enable = mkOption { type = types.bool; default = false; };
+      python.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      nodejs.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      go.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      rust.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      flutter.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
     };
   };
 }

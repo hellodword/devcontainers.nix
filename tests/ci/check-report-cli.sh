@@ -23,28 +23,24 @@ extension_id="$(jq -r '.extensions[0].id' "$reports_dir/extensions-index.json")"
 
 "$tool/bin/devcontainer-image" explain extension "$extension_id" --report "$reports_dir" >"$tmpdir/extension.json"
 jq -e --arg extension_id "$extension_id" '.id == $extension_id' "$tmpdir/extension.json" >/dev/null
-jq -e '.version != "pinned" and .source == "nixpkgs.vscode-extensions" and (.sourceLock.ref | length > 0)' "$tmpdir/extension.json" >/dev/null
+jq -e '.version != "pinned" and (.source | startswith("nix-vscode-extensions.")) and (.sourceLock.ref | length > 0)' "$tmpdir/extension.json" >/dev/null
 jq -e '.sourceLock.sha256 and .sourceLock.manifestSha256 and .sourceLock.vsixSha256' "$tmpdir/extension.json" >/dev/null
 jq -e '.validation.strategy' "$tmpdir/extension.json" >/dev/null
 
 "$tool/bin/devcontainer-image" explain env PATH --report "$reports_dir" >"$tmpdir/env.json"
 jq -e '.sources[0] == "compiler.env.path" and (.pathEntries | length >= 1)' "$tmpdir/env.json" >/dev/null
 
-"$tool/bin/devcontainer-image" explain docker-access --report "$reports_dir" \
-  | jq -e 'has("enabled") and has("privilegeReport")' >/dev/null
+"$tool/bin/devcontainer-image" explain filesystem --report "$reports_dir" \
+  | jq -e '.user.name == "vscode" and .user.uid == 1000 and (.directories | length >= 1)' >/dev/null
 
 "$tool/bin/devcontainer-image" explain image-plan --report "$reports_dir" \
   | jq -e --arg image_name "$image_name" '.image == $image_name' >/dev/null
 
 "$tool/bin/devcontainer-image" explain security --report "$reports_dir" \
-  | jq -e 'has("remoteTcpUsesTls") and .lifecycleLogRedaction and .extensionArtifactsLocked and .dynamicPackageFreezeReviewable and (.uvxAutoRunFromShellInit | not) and (.npxAutoRunFromShellInit | not)' >/dev/null
+  | jq -e '(.dockerDaemonBakedIntoImage | not) and (.dockerSocketMountedByDefault | not) and (.dockerHostConfiguredByDefault | not) and .lifecycleLogRedaction and .extensionArtifactsLocked and .dynamicPackageFreezeReviewable and (.uvxAutoRunFromShellInit | not) and (.npxAutoRunFromShellInit | not)' >/dev/null
 
-if [ "$image_name" = "nix-dind" ]; then
-  jq -e '.dockerAccess.enabled and .dockerAccess.privilege.level == "high" and .dockerAccess.remoteTcp.enabled' \
-    "$reports_dir/metadata-merged-preview.json" >/dev/null
-else
-  jq -e 'has("dockerAccess") | not' "$reports_dir/metadata-merged-preview.json" >/dev/null
-fi
+jq -e 'has("docker" + "Access") | not' "$reports_dir/metadata-merged-preview.json" >/dev/null
+jq -e 'has("mounts") | not' "$reports_dir/metadata-merged-preview.json" >/dev/null
 
 "$tool/bin/devcontainer-image" check "$reports_dir/metadata-label.json"
 "$tool/bin/devcontainer-image" diff "$reports_dir/layer-plan.json" "$reports_dir/layer-plan.json" >"$tmpdir/diff.txt"

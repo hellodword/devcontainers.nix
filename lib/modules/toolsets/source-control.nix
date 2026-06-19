@@ -1,11 +1,16 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
   packages = with pkgs; [
     git
     git-lfs
     openssh
     gnupg
-    pinentry
+    pinentry-curses
     delta
   ];
 in

@@ -66,15 +66,25 @@
     tests.smoke = [
       {
         name = "nix-version";
-        command = [ "nix" "--version" ];
+        command = [
+          "nix"
+          "--version"
+        ];
       }
       {
         name = "nixd-version";
-        command = [ "nixd" "--version" ];
+        command = [
+          "nixd"
+          "--version"
+        ];
       }
       {
         name = "nix-language";
-        command = [ "bash" "-lc" "nixfmt --version && alejandra --version && statix --version && deadnix --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "nixfmt --version && alejandra --version && statix --help >/dev/null && deadnix --version"
+        ];
       }
       {
         name = "extension-index";
@@ -86,11 +96,17 @@
       }
       {
         name = "task-runner-list";
-        command = [ "devcontainer-task-runner" "list" ];
+        command = [
+          "devcontainer-task-runner"
+          "list"
+        ];
       }
       {
         name = "devpkg-doctor";
-        command = [ "devpkg" "doctor" ];
+        command = [
+          "devpkg"
+          "doctor"
+        ];
       }
     ];
   };

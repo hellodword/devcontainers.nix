@@ -1,83 +1,133 @@
-{ pkgs, lib, runtimePackages }:
+{
+  pkgs,
+  lib,
+  runtimePackages,
+  nix2container,
+}:
 {
   config,
   compiledEnv,
   compiledMetadata,
   compiledLifecycle,
   compiledVscodeExtensions,
-  compiledDockerAccess,
   compiledFhsRuntime,
+  compiledFilesystem,
+  compiledGraph,
+  compiledLayers,
 }:
 let
-  mergedContainerEnv = compiledEnv.containerEnv // compiledDockerAccess.containerEnv;
-
   renderJson = value: builtins.toFile "payload.json" (builtins.toJSON value);
 
   tasksFile = renderJson { tasks = compiledLifecycle.tasks; };
-  extensionsFile =
-    renderJson {
-      extensions = compiledVscodeExtensions.extensions;
-      projectionTargets = compiledVscodeExtensions.projectionTargets;
-    };
-  osReleaseFile = builtins.toFile "os-release" compiledFhsRuntime.osReleaseText;
+  extensionsFile = renderJson {
+    extensions = compiledVscodeExtensions.extensions;
+    projectionTargets = compiledVscodeExtensions.projectionTargets;
+  };
 
-  mkDirCommands =
-    builtins.concatStringsSep "\n"
-      (map
-        (extension:
-          ''
-            mkdir -p .$(dirname ${extension.path})
-            mkdir -p .$(dirname ${extension.vsixPath})
-          '')
-        compiledVscodeExtensions.imageExtensions);
-  mkExtensionCommands =
-    builtins.concatStringsSep "\n"
-      (map
-        (extension:
-          ''
-            cp -a ${extension.sourcePath} .${extension.path}
-            cp ${extension.archivePath} .${extension.vsixPath}
-          '')
-        compiledVscodeExtensions.imageExtensions);
-  mkSymlinkCommands =
-    builtins.concatStringsSep "\n"
-      (map
-        (link:
-          let
-            targetDir = builtins.dirOf link.target;
-          in
-          ''
-            mkdir -p .${targetDir}
-            ln -sf ${link.source} .${link.target}
-          '')
-        compiledFhsRuntime.symlinks);
+  mkDirCommands = builtins.concatStringsSep "\n" (
+    map (extension: ''
+      mkdir -p "$out$(dirname ${extension.path})"
+      mkdir -p "$out$(dirname ${extension.vsixPath})"
+    '') compiledVscodeExtensions.imageExtensions
+  );
+  mkExtensionCommands = builtins.concatStringsSep "\n" (
+    map (extension: ''
+      cp -a ${extension.sourcePath} "$out${extension.path}"
+      cp ${extension.archivePath} "$out${extension.vsixPath}"
+    '') compiledVscodeExtensions.imageExtensions
+  );
+  mkSymlinkCommands = builtins.concatStringsSep "\n" (
+    map (
+      link:
+      let
+        targetDir = builtins.dirOf link.target;
+      in
+      ''
+        mkdir -p "$out${targetDir}"
+        ln -sf ${link.source} "$out${link.target}"
+      ''
+    ) compiledFhsRuntime.symlinks
+  );
+
   localBinCommands = ''
-    mkdir -p ./usr/local/bin
-    ln -sf /bin/devcontainer-entrypoint ./usr/local/bin/devcontainer-entrypoint
-  ''
-  + lib.optionalString compiledDockerAccess.enabled ''
-    ln -sf /bin/devcontainer-docker-access ./usr/local/bin/docker
-    ln -sf /bin/docker ./usr/local/bin/docker-real
+    mkdir -p "$out/usr/local/bin"
+    ln -sf /bin/devcontainer-entrypoint "$out/usr/local/bin/devcontainer-entrypoint"
   '';
 
   entrypoint = runtimePackages."devcontainer-entrypoint";
-  runtimeTools =
-    [
-      runtimePackages."devcontainer-task-runner"
-      runtimePackages."vscode-extension-projector"
-      runtimePackages.devpkg
-      runtimePackages."devcontainer-image"
-      entrypoint
-    ]
-    ++ lib.optional compiledDockerAccess.enabled runtimePackages."devcontainer-docker-access";
+  runtimeTools = [
+    runtimePackages."devcontainer-task-runner"
+    runtimePackages."vscode-extension-projector"
+    runtimePackages.devpkg
+    runtimePackages."devcontainer-image"
+    entrypoint
+  ];
+
+  runtimeRoot = pkgs.buildEnv {
+    name = "${config.devcontainer.image.name}-runtime-root";
+    paths = runtimeTools;
+    pathsToLink = [
+      "/bin"
+      "/share"
+    ];
+  };
+
+  metadataRoot = pkgs.runCommand "${config.devcontainer.image.name}-metadata-root" { } ''
+    mkdir -p "$out/usr/share/devcontainer/vscode" "$out/usr/share/devcontainer"
+    cp ${tasksFile} "$out/usr/share/devcontainer/tasks.json"
+    cp ${extensionsFile} "$out/usr/share/devcontainer/vscode/extensions-index.json"
+    mkdir -p "$out/usr/share/devcontainer/vscode/vsix"
+    ${mkDirCommands}
+    ${mkExtensionCommands}
+    ${mkSymlinkCommands}
+    ${localBinCommands}
+  '';
+
+  pathsForMembers =
+    members: lib.unique (lib.concatMap (name: config.devcontainer.graph.nodes.${name}.paths) members);
+
+  mkSemanticLayer =
+    acc: layerReport:
+    let
+      paths = pathsForMembers layerReport.members;
+      layerRoot = pkgs.buildEnv {
+        name = "${config.devcontainer.image.name}-${layerReport.group}-root";
+        inherit paths;
+        pathsToLink = layerReport.build.pathsToLink;
+        ignoreCollisions = true;
+      };
+      layer = nix2container.buildLayer {
+        copyToRoot = layerRoot;
+        layers = acc.layers;
+        maxLayers = layerReport.build.maxLayers;
+        metadata = {
+          created_by = "devcontainers.nix2 semantic layer ${layerReport.group}";
+          comment = builtins.concatStringsSep "," layerReport.members;
+        };
+      };
+    in
+    {
+      layers = acc.layers ++ [ layer ];
+      roots = acc.roots ++ [ layerRoot ];
+    };
+
+  semanticLayerState = lib.foldl' mkSemanticLayer {
+    layers = [ ];
+    roots = [ ];
+  } compiledLayers.layers;
 
   rootfs = pkgs.buildEnv {
     name = "${config.devcontainer.image.name}-rootfs";
     paths = config.devcontainer.packages ++ runtimeTools;
     pathsToLink = [
       "/bin"
+      "/sbin"
+      "/lib"
+      "/lib64"
       "/share"
+      "/etc"
     ];
+    ignoreCollisions = true;
   };
 
   labels = {
@@ -85,37 +135,47 @@ let
   };
 
   containerConfig = {
-    Env =
-      lib.mapAttrsToList
-        (name: value: "${name}=${value}")
-        mergedContainerEnv;
+    User = config.devcontainer.user.containerUser;
+    WorkingDir = "/workspaces";
+    Env = lib.mapAttrsToList (name: value: "${name}=${value}") compiledEnv.containerEnv;
     Entrypoint = [ "/usr/local/bin/devcontainer-entrypoint" ];
-    Cmd = [ "sleep" "infinity" ];
+    Cmd = [
+      "sleep"
+      "infinity"
+    ];
     Labels = labels;
   };
 
-  oci = pkgs.dockerTools.buildLayeredImage {
+  imageTag =
+    if config.devcontainer.image.tags == [ ] then
+      "latest"
+    else
+      builtins.head config.devcontainer.image.tags;
+
+  image = nix2container.buildImage {
     name = "devcontainer-${config.devcontainer.image.name}";
-    tag =
-      if config.devcontainer.image.tags == [ ] then
-        "latest"
-      else
-        builtins.head config.devcontainer.image.tags;
-    contents = [ rootfs ];
+    tag = imageTag;
+    arch = "amd64";
+    # nix2container's built-in database generation shells out with every
+    # image path in one argv. The nix image is large enough to exceed ARG_MAX.
+    initializeNixDatabase = false;
+    layers = semanticLayerState.layers;
+    copyToRoot = [
+      runtimeRoot
+      metadataRoot
+      compiledFilesystem.root
+    ];
+    perms = compiledFilesystem.perms;
+    maxLayers = 4;
     config = containerConfig;
-    extraCommands = ''
-      mkdir -p usr/share/devcontainer/vscode usr/share/devcontainer
-      cp ${tasksFile} usr/share/devcontainer/tasks.json
-      cp ${extensionsFile} usr/share/devcontainer/vscode/extensions-index.json
-      mkdir -p etc usr/share/devcontainer/vscode/vsix
-      cp ${osReleaseFile} etc/os-release
-      ${mkDirCommands}
-      ${mkExtensionCommands}
-      ${mkSymlinkCommands}
-      ${localBinCommands}
-    '';
+    meta = {
+      inherit (compiledGraph) groups;
+      semanticLayerCount = builtins.length semanticLayerState.layers;
+    };
   };
 in
 {
-  inherit rootfs oci;
+  inherit rootfs;
+  oci = image;
+  copyToDockerDaemon = image.copyToDockerDaemon;
 }

@@ -1,12 +1,26 @@
-{ self, pkgs, lib, system }:
+{
+  self,
+  pkgs,
+  lib,
+  system,
+  inputs,
+}:
 let
   compiler = rec {
     runtimePackages = import ../runtime {
       inherit pkgs lib;
     };
 
+    nix2container = inputs.nix2container.packages.${system}.nix2container;
+
     evalImage = import ./compiler/eval.nix {
-      inherit self pkgs lib system;
+      inherit
+        self
+        pkgs
+        lib
+        system
+        inputs
+        ;
     };
 
     compileGraph = import ./compiler/graph.nix {
@@ -26,23 +40,33 @@ let
     };
 
     compileVscodeExtensions = import ./compiler/vscode-extensions.nix {
-      inherit lib pkgs;
+      inherit
+        lib
+        pkgs
+        system
+        inputs
+        ;
     };
 
     compileFhsRuntime = import ./compiler/fhs-runtime.nix {
       inherit lib pkgs system;
     };
 
-    compileDockerAccess = import ./compiler/docker-access.nix {
-      inherit lib;
+    compileFilesystem = import ./compiler/filesystem.nix {
+      inherit pkgs lib;
     };
 
     compileLayers = import ./compiler/layers.nix {
-      inherit lib;
+      inherit lib pkgs;
     };
 
     compileImage = import ./compiler/image.nix {
-      inherit pkgs lib runtimePackages;
+      inherit
+        pkgs
+        lib
+        runtimePackages
+        nix2container
+        ;
     };
 
     compileReports = import ./compiler/reports.nix {
@@ -58,7 +82,6 @@ let
         metadata = compileMetadata {
           config = evaluated.config;
           compiledEnv = env;
-          compiledDockerAccess = dockerAccess;
         };
         lifecycle = compileLifecycle {
           config = evaluated.config;
@@ -69,8 +92,9 @@ let
         fhsRuntime = compileFhsRuntime {
           config = evaluated.config;
         };
-        dockerAccess = compileDockerAccess {
+        filesystem = compileFilesystem {
           config = evaluated.config;
+          compiledFhsRuntime = fhsRuntime;
         };
         layers = compileLayers {
           config = evaluated.config;
@@ -82,8 +106,10 @@ let
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledVscodeExtensions = vscodeExtensions;
-          compiledDockerAccess = dockerAccess;
           compiledFhsRuntime = fhsRuntime;
+          compiledFilesystem = filesystem;
+          compiledGraph = graph;
+          compiledLayers = layers;
         };
         reports = compileReports {
           config = evaluated.config;
@@ -92,16 +118,27 @@ let
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledVscodeExtensions = vscodeExtensions;
-          compiledDockerAccess = dockerAccess;
           compiledFhsRuntime = fhsRuntime;
+          compiledFilesystem = filesystem;
           compiledLayers = layers;
         };
       in
       {
         inherit (evaluated) config options;
-        inherit graph env metadata layers fhsRuntime dockerAccess;
+        inherit
+          graph
+          env
+          metadata
+          layers
+          fhsRuntime
+          filesystem
+          ;
         inherit lifecycle vscodeExtensions;
-        inherit (image) rootfs oci;
+        inherit (image)
+          rootfs
+          oci
+          copyToDockerDaemon
+          ;
         inherit (reports)
           graph-json
           graph-normalized-json
@@ -114,8 +151,8 @@ let
           env-report-json
           closure-report-json
           extensions-report-json
-          docker-access-report-json
           fhs-runtime-report-json
+          filesystem-report-json
           security-report-json
           smoke-test-plan-json
           ci-plan-json

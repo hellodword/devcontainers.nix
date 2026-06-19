@@ -1,4 +1,7 @@
-{ ... }:
+{ config, ... }:
+let
+  user = config.devcontainer.user;
+in
 {
   config.devcontainer = {
     env.container = {
@@ -6,7 +9,7 @@
       XDG_CACHE_HOME = "$HOME/.cache";
       XDG_DATA_HOME = "$HOME/.local/share";
       XDG_STATE_HOME = "$HOME/.local/state";
-      XDG_RUNTIME_DIR = "/run/user/$UID";
+      XDG_RUNTIME_DIR = "/run/user/${toString user.uid}";
       PAGER = "less";
       EDITOR = "vim";
       VISUAL = "vim";
