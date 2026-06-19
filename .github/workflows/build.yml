@@ -22,6 +22,11 @@ jobs:
       - name: Flake check
         run: nix flake check --keep-going
 
+      - name: Check runtime tools
+        run: |
+          chmod +x tests/ci/check-runtime-tools.sh
+          tests/ci/check-runtime-tools.sh
+
       - name: Show CI plan
         run: |
           for image in nix nix-dind python nodejs go rust python-web go-web rust-web flutter; do
