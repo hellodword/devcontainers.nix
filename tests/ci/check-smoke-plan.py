@@ -28,6 +28,7 @@ REQUIRED = {
         "fhs-bash",
         "fhs-os-release",
         "fhs-core-tools",
+        "fhs-nix-ld",
     },
     "python": COMMON
     | {

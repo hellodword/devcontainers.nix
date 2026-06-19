@@ -81,7 +81,13 @@ let
       let
         evaluated = evalImage { modules = modules ++ lib.optional (module != null) module; };
         graph = compileGraph { config = evaluated.config; };
-        env = compileEnv { config = evaluated.config; };
+        fhsRuntime = compileFhsRuntime {
+          config = evaluated.config;
+        };
+        env = compileEnv {
+          config = evaluated.config;
+          compiledFhsRuntime = fhsRuntime;
+        };
         metadata = compileMetadata {
           config = evaluated.config;
           compiledEnv = env;
@@ -90,9 +96,6 @@ let
           config = evaluated.config;
         };
         vscodeExtensions = compileVscodeExtensions {
-          config = evaluated.config;
-        };
-        fhsRuntime = compileFhsRuntime {
           config = evaluated.config;
         };
         filesystem = compileFilesystem {

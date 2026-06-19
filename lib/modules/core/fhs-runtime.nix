@@ -61,6 +61,20 @@ in
           "tar --version && (curl --version || wget --version)"
         ];
       }
+      {
+        name = "fhs-nix-ld";
+        command = [
+          "bash"
+          "-lc"
+          ''
+            test -x /lib64/ld-linux-x86-64.so.2
+            test -n "''${NIX_LD:-}"
+            test -n "''${NIX_LD_LIBRARY_PATH:-}"
+            env -i NIX_LD="$NIX_LD" NIX_LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH" PATH=/bin:/usr/bin \
+              /lib64/ld-linux-x86-64.so.2 /usr/bin/env true
+          ''
+        ];
+      }
     ];
   };
 }

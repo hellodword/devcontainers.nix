@@ -20,14 +20,44 @@ let
       cfg.dynamicLoader.aarch64.path
     else
       null;
-  currentDynamicLoaderTarget =
-    if currentDynamicLoader == null then null else "${glibcLoaderRoot}/lib64/ld-linux-x86-64.so.2";
+  dynamicLoaderFile =
+    if system == "x86_64-linux" then
+      "ld-linux-x86-64.so.2"
+    else if system == "aarch64-linux" then
+      "ld-linux-aarch64.so.1"
+    else
+      null;
+  dynamicLoaderDirectory = if system == "x86_64-linux" then "lib64" else "lib";
+  realGlibcLoader =
+    if currentDynamicLoader == null then
+      null
+    else
+      "${glibcLoaderRoot}/${dynamicLoaderDirectory}/${dynamicLoaderFile}";
+  dynamicLoaderSource =
+    if currentDynamicLoader == null then
+      null
+    else if cfg.dynamicLoader.mode == "nix-ld" then
+      "${pkgs.nix-ld}/bin/nix-ld"
+    else
+      realGlibcLoader;
+  nixLdEnabled = cfg.enable && currentDynamicLoader != null && cfg.dynamicLoader.mode == "nix-ld";
+  nixLdLibraryPath = lib.makeLibraryPath (
+    [
+      pkgs.glibc
+      pkgs.stdenv.cc.cc.lib
+    ]
+    ++ cfg.nixLdLibraries
+  );
+  nixLdEnv = lib.optionalAttrs nixLdEnabled {
+    NIX_LD = realGlibcLoader;
+    NIX_LD_LIBRARY_PATH = nixLdLibraryPath;
+  };
   glibcLoaderRoot = pkgs.runCommand "devcontainer-glibc-loader" { } ''
-    mkdir -p "$out/lib64"
-    if [ -e ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 ]; then
-      ln -s ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 "$out/lib64/ld-linux-x86-64.so.2"
-    elif [ -e ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 ]; then
-      ln -s ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 "$out/lib64/ld-linux-x86-64.so.2"
+    mkdir -p "$out/${dynamicLoaderDirectory}"
+    if [ -e ${pkgs.glibc}/${dynamicLoaderDirectory}/${dynamicLoaderFile} ]; then
+      ln -s ${pkgs.glibc}/${dynamicLoaderDirectory}/${dynamicLoaderFile} "$out/${dynamicLoaderDirectory}/${dynamicLoaderFile}"
+    elif [ -e ${pkgs.glibc}/lib/${dynamicLoaderFile} ]; then
+      ln -s ${pkgs.glibc}/lib/${dynamicLoaderFile} "$out/${dynamicLoaderDirectory}/${dynamicLoaderFile}"
     else
       echo "glibc dynamic loader not found" >&2
       exit 1
@@ -36,6 +66,17 @@ let
 in
 {
   enabled = cfg.enable;
+  dynamicLoaderMode = cfg.dynamicLoader.mode;
+  realGlibcLoader = realGlibcLoader;
+  nixLdEnv = nixLdEnv;
+  env = {
+    container = nixLdEnv;
+  };
+  envOrigins = {
+    container = lib.mapAttrs (_: _: [ "compiler.fhs-runtime.nix-ld" ]) nixLdEnv;
+    remote = { };
+    shell = { };
+  };
   osReleaseText = osReleaseText;
   symlinks = [
     {
@@ -90,7 +131,7 @@ in
   ++ lib.optionals (currentDynamicLoader != null) [
     {
       target = currentDynamicLoader;
-      source = currentDynamicLoaderTarget;
+      source = dynamicLoaderSource;
     }
     {
       target = "/usr/lib/libc.so.6";

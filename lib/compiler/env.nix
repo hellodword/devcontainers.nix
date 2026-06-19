@@ -1,5 +1,11 @@
 { lib }:
-{ config }:
+{
+  config,
+  compiledFhsRuntime ? {
+    env = { };
+    envOrigins = { };
+  },
+}:
 let
   order = config.devcontainer.path.order;
   segmentOrigins = config.devcontainer.path.segmentOrigins;
@@ -8,7 +14,22 @@ let
     remote = { };
     shell = { };
   };
-  envOrigins = config.devcontainer.env.origins or emptyOrigins;
+  configuredEnvOrigins = config.devcontainer.env.origins or emptyOrigins;
+  fhsEnv = compiledFhsRuntime.env or { };
+  fhsEnvOrigins = compiledFhsRuntime.envOrigins or emptyOrigins;
+  mergeOriginScope =
+    scope:
+    let
+      configured = configuredEnvOrigins.${scope} or { };
+      generated = fhsEnvOrigins.${scope} or { };
+      names = lib.unique (builtins.attrNames configured ++ builtins.attrNames generated);
+    in
+    lib.genAttrs names (name: lib.unique ((configured.${name} or [ ]) ++ (generated.${name} or [ ])));
+  envOrigins = {
+    container = mergeOriginScope "container";
+    remote = mergeOriginScope "remote";
+    shell = mergeOriginScope "shell";
+  };
 
   pathEntryState =
     lib.foldl'
@@ -62,11 +83,14 @@ let
       inherit value sources;
       conflict = builtins.length sources > 1;
     };
-  containerEnv = config.devcontainer.env.container // {
-    PATH = compiledPath;
-  };
-  remoteEnv = config.devcontainer.env.remote;
-  shellEnv = config.devcontainer.env.shell;
+  containerEnv =
+    config.devcontainer.env.container
+    // (fhsEnv.container or { })
+    // {
+      PATH = compiledPath;
+    };
+  remoteEnv = config.devcontainer.env.remote // (fhsEnv.remote or { });
+  shellEnv = config.devcontainer.env.shell // (fhsEnv.shell or { });
   containerEnvSources =
     lib.mapAttrs (name: value: mkEnvEntry "container" name value) containerEnv
     // {

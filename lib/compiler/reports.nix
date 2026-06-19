@@ -78,6 +78,9 @@ let
   };
   fhs-runtime-report-json = jsonFile "fhs-runtime-report.json" {
     enabled = compiledFhsRuntime.enabled;
+    dynamicLoaderMode = compiledFhsRuntime.dynamicLoaderMode;
+    realGlibcLoader = compiledFhsRuntime.realGlibcLoader;
+    nixLdEnv = compiledFhsRuntime.nixLdEnv;
     symlinkCount = builtins.length compiledFhsRuntime.symlinks;
     symlinks = compiledFhsRuntime.symlinks;
     dynamicLoader = lib.findFirst (

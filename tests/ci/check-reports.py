@@ -130,6 +130,13 @@ def main() -> int:
 
     if not fhs_runtime_report["enabled"]:
         fail("fhs-runtime-report.json must confirm FHS runtime is enabled")
+    if fhs_runtime_report.get("dynamicLoaderMode") != "nix-ld":
+        fail("fhs-runtime-report.json must confirm nix-ld dynamic loader mode")
+    real_glibc_loader = fhs_runtime_report.get("realGlibcLoader")
+    if not real_glibc_loader or "glibc" not in real_glibc_loader:
+        fail("fhs-runtime-report.json must report the real glibc loader")
+    if real_glibc_loader == "/lib64/ld-linux-x86-64.so.2":
+        fail("NIX_LD must point at the real glibc loader, not the container interpreter")
     fhs_links = {link["target"]: link["source"] for link in fhs_runtime_report["symlinks"]}
     for required_link in [
         "/lib64/ld-linux-x86-64.so.2",
@@ -142,6 +149,8 @@ def main() -> int:
         fail("libc.so.6 must come from glibc")
     if "gcc" not in fhs_links["/usr/lib/libstdc++.so.6"]:
         fail("libstdc++.so.6 must come from the GCC runtime")
+    if "nix-ld" not in fhs_links["/lib64/ld-linux-x86-64.so.2"]:
+        fail("container dynamic loader must enter nix-ld")
 
     if "PATH" not in env_report["containerEnvSources"]:
         fail("env-report.json must include PATH source details")
@@ -155,6 +164,21 @@ def main() -> int:
         fail("metadata merged preview must retain the compiled EDITOR entry")
     if "DOCKER_HOST" in env_report["containerEnv"]:
         fail("container env must not configure DOCKER_HOST by default")
+    nix_ld_env = fhs_runtime_report.get("nixLdEnv") or {}
+    if env_report["containerEnv"].get("NIX_LD") != real_glibc_loader:
+        fail("container env must set NIX_LD to the real glibc loader")
+    if preview_container_env.get("NIX_LD") != real_glibc_loader:
+        fail("metadata merged preview must retain NIX_LD")
+    if env_report["containerEnv"].get("NIX_LD_LIBRARY_PATH") != nix_ld_env.get("NIX_LD_LIBRARY_PATH"):
+        fail("container env must retain the compiled NIX_LD_LIBRARY_PATH")
+    nix_ld_library_path = env_report["containerEnv"].get("NIX_LD_LIBRARY_PATH", "")
+    if "glibc" not in nix_ld_library_path or "gcc" not in nix_ld_library_path:
+        fail("NIX_LD_LIBRARY_PATH must include glibc and GCC runtime libraries")
+    for env_name in ["NIX_LD", "NIX_LD_LIBRARY_PATH"]:
+        if env_name not in env_report["containerEnvSources"]:
+            fail(f"env-report.json must include {env_name} source details")
+        if "compiler.fhs-runtime.nix-ld" not in env_report["containerEnvSources"][env_name]["sources"]:
+            fail(f"{env_name} must be sourced from the FHS runtime compiler")
 
     if not extensions_report["validation"]["noNetworkDuringProjection"]:
         fail("extensions projection must stay offline")
