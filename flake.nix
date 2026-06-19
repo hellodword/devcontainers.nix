@@ -44,6 +44,9 @@
 
       packages.${system} = {
         default = images.nix.reports;
+        "devcontainer-image" = compiler.runtimePackages."devcontainer-image";
+        "devcontainer-task-runner" = compiler.runtimePackages."devcontainer-task-runner";
+        devpkg = compiler.runtimePackages.devpkg;
       };
 
       checks.${system} = reportChecks;

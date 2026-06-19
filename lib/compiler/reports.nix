@@ -4,6 +4,8 @@
   compiledGraph,
   compiledEnv,
   compiledMetadata,
+  compiledLifecycle,
+  compiledVscodeExtensions,
   compiledLayers,
 }:
 let
@@ -17,6 +19,13 @@ let
     jsonFile "metadata-merged-preview.json" compiledMetadata.mergedPreview;
   metadata-schema-report-json =
     jsonFile "metadata-schema-report.json" compiledMetadata.schemaReport;
+  tasks-json =
+    jsonFile "tasks.json" { tasks = compiledLifecycle.tasks; };
+  extensions-index-json =
+    jsonFile "extensions-index.json" {
+      extensions = compiledVscodeExtensions.extensions;
+      projectionTargets = compiledVscodeExtensions.projectionTargets;
+    };
   layer-plan-json = jsonFile "layer-plan.json" compiledLayers;
   env-report-json = jsonFile "env-report.json" compiledEnv;
   closure-report-json =
@@ -92,6 +101,14 @@ let
         path = metadata-schema-report-json;
       }
       {
+        name = "tasks.json";
+        path = tasks-json;
+      }
+      {
+        name = "extensions-index.json";
+        path = extensions-index-json;
+      }
+      {
         name = "layer-plan.json";
         path = layer-plan-json;
       }
@@ -129,6 +146,8 @@ in
     metadata-label-json
     metadata-merged-preview-json
     metadata-schema-report-json
+    tasks-json
+    extensions-index-json
     layer-plan-json
     env-report-json
     closure-report-json
