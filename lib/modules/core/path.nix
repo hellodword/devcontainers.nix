@@ -26,5 +26,23 @@
       "language"
       "system"
     ];
+
+    segmentOrigins = {
+      project = {
+        "$WORKSPACE/.devcontainer/bin" = [ "core.path.project" ];
+        "$WORKSPACE/node_modules/.bin" = [ "core.path.project" ];
+        "$WORKSPACE/.venv/bin" = [ "core.path.project" ];
+      };
+      user = {
+        "$XDG_DATA_HOME/devcontainer/bin" = [ "core.path.user" ];
+        "$XDG_DATA_HOME/nix-profile/bin" = [ "core.path.user" ];
+        "$HOME/.nix-profile/bin" = [ "core.path.user" ];
+      };
+      system = {
+        "/usr/local/bin" = [ "core.path.system" ];
+        "/usr/bin" = [ "core.path.system" ];
+        "/bin" = [ "core.path.system" ];
+      };
+    };
   };
 }

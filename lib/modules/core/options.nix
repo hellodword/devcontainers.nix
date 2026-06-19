@@ -144,12 +144,24 @@ in
         type = types.attrsOf types.str;
         default = { };
       };
+      origins.container = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
       remote = mkOption {
         type = types.attrsOf types.str;
         default = { };
       };
+      origins.remote = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
       shell = mkOption {
         type = types.attrsOf types.str;
+        default = { };
+      };
+      origins.shell = mkOption {
+        type = types.attrsOf (types.listOf types.str);
         default = { };
       };
     };
@@ -157,6 +169,10 @@ in
     path = {
       segments = mkOption {
         type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
+      segmentOrigins = mkOption {
+        type = types.attrsOf (types.attrsOf (types.listOf types.str));
         default = { };
       };
       order = mkOption {

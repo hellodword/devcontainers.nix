@@ -13,7 +13,18 @@ in
       YARN_CACHE_FOLDER = "$XDG_CACHE_HOME/yarn";
       NODE_REPL_HISTORY = "$XDG_STATE_HOME/node_repl_history";
     };
+    devcontainer.env.origins.container = {
+      NODE_ENV = [ "runtimes.nodejs" ];
+      NPM_CONFIG_CACHE = [ "runtimes.nodejs" ];
+      COREPACK_HOME = [ "runtimes.nodejs" ];
+      PNPM_HOME = [ "runtimes.nodejs" ];
+      YARN_CACHE_FOLDER = [ "runtimes.nodejs" ];
+      NODE_REPL_HISTORY = [ "runtimes.nodejs" ];
+    };
     devcontainer.path.segments.language = [ "$PNPM_HOME" ];
+    devcontainer.path.segmentOrigins.language = {
+      "$PNPM_HOME" = [ "runtimes.nodejs" ];
+    };
     devcontainer.graph.nodes."runtime/nodejs" = {
       kind = "runtime";
       group = "40-nodejs-runtime";

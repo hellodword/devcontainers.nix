@@ -30,7 +30,16 @@ in
       RUSTUP_HOME = "$XDG_DATA_HOME/rustup";
       CARGO_TARGET_DIR = "$WORKSPACE/target";
     };
+    devcontainer.env.origins.container = {
+      RUST_BACKTRACE = [ "languages.rust" ];
+      CARGO_HOME = [ "languages.rust" ];
+      RUSTUP_HOME = [ "languages.rust" ];
+      CARGO_TARGET_DIR = [ "languages.rust" ];
+    };
     devcontainer.path.segments.language = [ "$CARGO_HOME/bin" ];
+    devcontainer.path.segmentOrigins.language = {
+      "$CARGO_HOME/bin" = [ "languages.rust" ];
+    };
     devcontainer.graph.nodes."language/rust" = {
       kind = "language";
       group = "51-rust-language";

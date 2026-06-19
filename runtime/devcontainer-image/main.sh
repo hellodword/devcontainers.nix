@@ -5,6 +5,7 @@ usage() {
 devcontainer-image explain layer <n> [--report <dir>]
 devcontainer-image explain package <name> [--report <dir>]
 devcontainer-image explain extension <id> [--report <dir>]
+devcontainer-image explain env <name> [--report <dir>]
 devcontainer-image explain docker-access [--report <dir>]
 devcontainer-image explain image-plan [--report <dir>]
 devcontainer-image explain security [--report <dir>]
@@ -58,6 +59,30 @@ case "$cmd" in
         }
         jq --arg target "$target" '.extensions[] | select(.id == $target)' "$report_dir/extensions-index.json"
         ;;
+      env)
+        require_file "$report_dir/env-report.json"
+        jq -e --arg target "$target" '
+          if $target == "PATH" then
+            .containerEnvSources.PATH
+          else
+            .containerEnvSources[$target]
+            // .remoteEnvSources[$target]
+            // .shellEnvSources[$target]
+          end
+        ' "$report_dir/env-report.json" >/dev/null || {
+          echo "environment entry not found: $target" >&2
+          exit 1
+        }
+        jq --arg target "$target" '
+          if $target == "PATH" then
+            .containerEnvSources.PATH
+          else
+            .containerEnvSources[$target]
+            // .remoteEnvSources[$target]
+            // .shellEnvSources[$target]
+          end
+        ' "$report_dir/env-report.json"
+        ;;
       docker-access)
         require_file "$report_dir/docker-access-report.json"
         cat "$report_dir/docker-access-report.json"
@@ -83,12 +108,73 @@ case "$cmd" in
       usage >&2
       exit 1
     fi
-    old_tmp="$(mktemp)"
-    new_tmp="$(mktemp)"
-    jq -S '.layers | map({group, members, priority, estimatedCompressedSizeMiB})' "$old_file" >"$old_tmp"
-    jq -S '.layers | map({group, members, priority, estimatedCompressedSizeMiB})' "$new_file" >"$new_tmp"
-    diff -u "$old_tmp" "$new_tmp" || true
-    rm -f "$old_tmp" "$new_tmp"
+    old_lines="$(mktemp)"
+    new_lines="$(mktemp)"
+    added_jsonl="$(mktemp)"
+    removed_jsonl="$(mktemp)"
+    changed_jsonl="$(mktemp)"
+
+    jq -c '.layers[] | {group, members, priority, estimatedCompressedSizeMiB}' "$old_file" >"$old_lines"
+    jq -c '.layers[] | {group, members, priority, estimatedCompressedSizeMiB}' "$new_file" >"$new_lines"
+
+    while IFS= read -r group; do
+      before_json="$(jq -c --arg group "$group" 'select(.group == $group)' "$old_lines")"
+      after_json="$(jq -c --arg group "$group" 'select(.group == $group)' "$new_lines")"
+
+      if [ -z "$before_json" ]; then
+        jq -nc --argjson after "$after_json" '{group: $after.group, after: $after, reasons: ["new layer"]}' >>"$added_jsonl"
+        continue
+      fi
+
+      if [ -z "$after_json" ]; then
+        jq -nc --argjson before "$before_json" '{group: $before.group, before: $before, reasons: ["removed layer"]}' >>"$removed_jsonl"
+        continue
+      fi
+
+      reasons=()
+      before_members="$(jq -c '.members' <<<"$before_json")"
+      after_members="$(jq -c '.members' <<<"$after_json")"
+      before_priority="$(jq -r '.priority' <<<"$before_json")"
+      after_priority="$(jq -r '.priority' <<<"$after_json")"
+      before_size="$(jq -r '.estimatedCompressedSizeMiB' <<<"$before_json")"
+      after_size="$(jq -r '.estimatedCompressedSizeMiB' <<<"$after_json")"
+
+      if [ "$before_members" != "$after_members" ]; then
+        reasons+=("members changed")
+      fi
+      if [ "$before_priority" != "$after_priority" ]; then
+        reasons+=("priority changed")
+      fi
+      if [ "$before_size" != "$after_size" ]; then
+        reasons+=("estimatedCompressedSizeMiB changed")
+      fi
+
+      if [ "${#reasons[@]}" -gt 0 ]; then
+        reasons_json="$(printf '%s\n' "${reasons[@]}" | jq -R . | jq -s .)"
+        jq -nc \
+          --argjson before "$before_json" \
+          --argjson after "$after_json" \
+          --argjson reasons "$reasons_json" \
+          '{group: $after.group, before: $before, after: $after, reasons: $reasons}' >>"$changed_jsonl"
+      fi
+    done < <(
+      {
+        jq -r '.group' "$old_lines"
+        jq -r '.group' "$new_lines"
+      } | sort -u
+    )
+
+    jq -n \
+      --slurpfile added "$added_jsonl" \
+      --slurpfile removed "$removed_jsonl" \
+      --slurpfile changed "$changed_jsonl" \
+      '{
+        added: $added,
+        removed: $removed,
+        changed: $changed
+      }'
+
+    rm -f "$old_lines" "$new_lines" "$added_jsonl" "$removed_jsonl" "$changed_jsonl"
     ;;
   check)
     metadata_file="${2:-}"

@@ -24,6 +24,9 @@ extension_id="$(jq -r '.extensions[0].id' "$reports_dir/extensions-index.json")"
 "$tool/bin/devcontainer-image" explain extension "$extension_id" --report "$reports_dir" >"$tmpdir/extension.json"
 jq -e --arg extension_id "$extension_id" '.id == $extension_id' "$tmpdir/extension.json" >/dev/null
 
+"$tool/bin/devcontainer-image" explain env PATH --report "$reports_dir" >"$tmpdir/env.json"
+jq -e '.sources[0] == "compiler.env.path" and (.pathEntries | length >= 1)' "$tmpdir/env.json" >/dev/null
+
 "$tool/bin/devcontainer-image" explain docker-access --report "$reports_dir" \
   | jq -e 'has("enabled") and has("privilegeReport")' >/dev/null
 
@@ -35,12 +38,24 @@ jq -e --arg extension_id "$extension_id" '.id == $extension_id' "$tmpdir/extensi
 
 "$tool/bin/devcontainer-image" check "$reports_dir/metadata-label.json"
 "$tool/bin/devcontainer-image" diff "$reports_dir/layer-plan.json" "$reports_dir/layer-plan.json" >"$tmpdir/diff.txt"
+jq -e '.added == [] and .removed == [] and .changed == []' "$tmpdir/diff.txt" >/dev/null
+
+jq '.layers[0].priority += 1' "$reports_dir/layer-plan.json" >"$tmpdir/layer-plan-modified.json"
+"$tool/bin/devcontainer-image" diff "$reports_dir/layer-plan.json" "$tmpdir/layer-plan-modified.json" >"$tmpdir/diff-changed.txt"
+jq -e '.changed | length == 1' "$tmpdir/diff-changed.txt" >/dev/null
+jq -e '.changed[0].reasons | index("priority changed")' "$tmpdir/diff-changed.txt" >/dev/null
 
 if "$tool/bin/devcontainer-image" explain package does-not-exist --report "$reports_dir" >"$tmpdir/missing-package.out" 2>"$tmpdir/missing-package.err"; then
   echo "expected explain package to fail for missing package" >&2
   exit 1
 fi
 grep -q 'package not found: does-not-exist' "$tmpdir/missing-package.err"
+
+if "$tool/bin/devcontainer-image" explain env DOES_NOT_EXIST --report "$reports_dir" >"$tmpdir/missing-env.out" 2>"$tmpdir/missing-env.err"; then
+  echo "expected explain env to fail for missing entry" >&2
+  exit 1
+fi
+grep -q 'environment entry not found: DOES_NOT_EXIST' "$tmpdir/missing-env.err"
 
 PATH="" "$tool/bin/devcontainer-image" doctor image "ghcr.io/example/devcontainer-$image_name:latest" >"$tmpdir/doctor.txt"
 grep -q 'docker unavailable in current environment' "$tmpdir/doctor.txt"

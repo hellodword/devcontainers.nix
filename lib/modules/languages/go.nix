@@ -29,7 +29,18 @@ in
       GOMODCACHE = "$XDG_CACHE_HOME/go/pkg/mod";
       GOCACHE = "$XDG_CACHE_HOME/go-build";
     };
+    devcontainer.env.origins.container = {
+      GOTELEMETRY = [ "languages.go" ];
+      GOTOOLCHAIN = [ "languages.go" ];
+      GOPATH = [ "languages.go" ];
+      GOBIN = [ "languages.go" ];
+      GOMODCACHE = [ "languages.go" ];
+      GOCACHE = [ "languages.go" ];
+    };
     devcontainer.path.segments.language = [ "$GOBIN" ];
+    devcontainer.path.segmentOrigins.language = {
+      "$GOBIN" = [ "languages.go" ];
+    };
     devcontainer.graph.nodes."language/go" = {
       kind = "language";
       group = "50-go-language";

@@ -60,6 +60,7 @@ def main() -> int:
     security_report = read_json(reports_dir / "security-report.json")
     fhs_runtime_report = read_json(reports_dir / "fhs-runtime-report.json")
     ci_plan = read_json(reports_dir / "ci-plan.json")
+    env_report = read_json(reports_dir / "env-report.json")
 
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
@@ -93,6 +94,13 @@ def main() -> int:
 
     if not fhs_runtime_report["enabled"]:
         fail("fhs-runtime-report.json must confirm FHS runtime is enabled")
+
+    if "PATH" not in env_report["containerEnvSources"]:
+        fail("env-report.json must include PATH source details")
+    if not env_report["containerEnvSources"]["PATH"]["pathEntries"]:
+        fail("env-report.json PATH source details must include path entries")
+    if not env_report["containerEnvSources"]["EDITOR"]["sources"]:
+        fail("env-report.json must include source labels for container env entries")
 
     if not extensions_report["validation"]["noNetworkDuringProjection"]:
         fail("extensions projection must stay offline")
