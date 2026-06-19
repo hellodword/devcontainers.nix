@@ -1,0 +1,79 @@
+name: _build-image
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        required: true
+        type: string
+      docker-socket-smoke:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: build-${{ inputs.image-name }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: build-image-${{ inputs.image-name }}-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+
+      - name: Build reports
+        run: |
+          nix build .#images.${{ inputs.image-name }}.reports --print-out-paths --no-link > report-path.txt
+          cp -R "$(cat report-path.txt)" reports
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ inputs.image-name }}
+          path: reports
+
+      - name: Build OCI tarball
+        run: |
+          nix build .#images.${{ inputs.image-name }}.oci --print-out-paths --no-link > oci-path.txt
+
+      - name: Load OCI tarball
+        run: |
+          gzip -dc "$(cat oci-path.txt)" | docker load
+
+      - name: Run smoke plan
+        env:
+          DOCKER_RUN_EXTRA_ARGS: ${{ inputs.docker-socket-smoke && '-v /var/run/docker.sock:/var/run/docker.sock' || '' }}
+        run: |
+          plan_path="$(nix build .#images.${{ inputs.image-name }}.smoke --print-out-paths --no-link)"
+          chmod +x tests/smoke/run-plan.sh
+          ./tests/smoke/run-plan.sh "devcontainer-${{ inputs.image-name }}:latest" "$plan_path"
+
+      - name: Login to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          image_ref="ghcr.io/${{ github.repository_owner }}/devcontainers-${{ inputs.image-name }}:${{ github.sha }}"
+          docker tag "devcontainer-${{ inputs.image-name }}:latest" "$image_ref"
+          docker push "$image_ref"
+          docker inspect "$image_ref" --format='{{index .RepoDigests 0}}' > digest.txt
+
+      - name: Upload digest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ inputs.image-name }}
+          path: digest.txt

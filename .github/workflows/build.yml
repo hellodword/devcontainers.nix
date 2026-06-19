@@ -1,0 +1,30 @@
+name: build
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ master ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+
+      - name: Flake check
+        run: nix flake check --keep-going
+
+      - name: Show CI plan
+        run: |
+          for image in nix nix-dind python nodejs go rust python-web go-web rust-web flutter; do
+            echo "==> $image"
+            nix build .#images.$image.ci-plan-json --print-out-paths --no-link | xargs cat
+          done

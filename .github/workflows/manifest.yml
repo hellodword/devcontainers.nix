@@ -1,0 +1,22 @@
+name: manifest
+
+on:
+  workflow_dispatch:
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        uses: cli/cli-action@v2
+
+      - name: Explain manifest policy
+        run: |
+          echo "This workflow is reserved for digest aggregation after per-image workflows publish arch tags."
+          echo "Use uploaded digest-* artifacts from successful build-image-* runs to assemble multi-arch manifests."

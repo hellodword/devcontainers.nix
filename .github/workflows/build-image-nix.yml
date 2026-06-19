@@ -1,0 +1,29 @@
+name: build-image-nix
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - flake.nix
+      - flake.lock
+      - images/**
+      - lib/**
+      - runtime/**
+      - tests/**
+      - .github/workflows/**
+  push:
+    branches: [ master ]
+    paths:
+      - flake.nix
+      - flake.lock
+      - images/**
+      - lib/**
+      - runtime/**
+      - tests/**
+      - .github/workflows/**
+
+jobs:
+  build:
+    uses: ./.github/workflows/_build-image.yml
+    with:
+      image-name: nix
