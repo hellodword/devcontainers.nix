@@ -75,6 +75,10 @@
           bash ${./tests/ci/check-runtime-tools.sh}
           touch "$out"
         '';
+        runtime-validation-scripts = pkgs.runCommand "runtime-validation-scripts" { nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.gnugrep ]; } ''
+          bash ${./tests/ci/check-runtime-validation-scripts.sh} ${./.}
+          touch "$out"
+        '';
       };
       fixtureFiles =
         lib.filterAttrs
