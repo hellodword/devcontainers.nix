@@ -239,13 +239,27 @@ def main() -> int:
     if user_report["home"] != "/home/vscode" or user_report["shell"] != "/bin/bash":
         fail("filesystem-report.json must declare the vscode home and shell")
     directory_map = {entry["path"]: entry for entry in filesystem_report["directories"]}
-    for required_dir in ["/home/vscode", "/tmp", "/var/tmp", "/run/user/1000", "/workspaces"]:
+    for required_dir in [
+        "/home/vscode",
+        "/tmp",
+        "/var/tmp",
+        "/run/user/1000",
+        "/workspaces",
+    ]:
         if required_dir not in directory_map:
             fail(f"filesystem-report.json missing directory: {required_dir}")
     if directory_map["/tmp"]["mode"] != "1777" or directory_map["/var/tmp"]["mode"] != "1777":
         fail("filesystem-report.json must declare sticky tmp directories")
     if directory_map["/home/vscode"]["owner"] != "vscode:vscode":
         fail("filesystem-report.json must declare vscode home ownership")
+    for nix_dir in [
+        "/nix",
+        "/nix/store",
+        "/nix/var/nix",
+        "/nix/var/nix/db",
+    ]:
+        if nix_dir in directory_map:
+            fail(f"filesystem-report.json must leave {nix_dir} to initializeNixDatabase")
 
     ci_report_files = set(ci_plan["reportFiles"])
     missing_ci_reports = sorted(REQUIRED_CI_REPORT_FILES - ci_report_files)
@@ -264,8 +278,6 @@ def main() -> int:
         fail("security-report.json must confirm extension projection log redaction")
     if not security_report["extensionArtifactsLocked"]:
         fail("security-report.json must confirm extension artifacts are locked")
-    if not security_report["dynamicPackageFreezeReviewable"]:
-        fail("security-report.json must confirm devpkg freeze is reviewable")
     if security_report["uvxAutoRunFromShellInit"]:
         fail("security-report.json must confirm uvx is not auto-run from shell init")
     if security_report["npxAutoRunFromShellInit"]:

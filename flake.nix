@@ -388,6 +388,7 @@
               export DEVCONTAINER_PROJECTOR=${compiler.runtimePackages."vscode-extension-projector"}
               export DEVCONTAINER_RUNNER=${compiler.runtimePackages."devcontainer-task-runner"}
               export DEVCONTAINER_DEVPKG=${compiler.runtimePackages.devpkg}
+              export DEVPKG_NIXPKGS_REF=path:${nixpkgs.outPath}
               bash ${./tests/ci/check-runtime-tools.sh}
               touch "$out"
             '';
@@ -526,7 +527,7 @@
       lib.${system} = {
         inherit imageNames;
         vscodeExtensionSources = builtins.attrNames nix-vscode-extensions.extensions.${system};
-        nix2container = nix2container.packages.${system}.nix2container;
+        nix2container = compiler.nix2container;
       };
     };
 }

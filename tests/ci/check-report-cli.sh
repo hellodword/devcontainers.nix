@@ -37,7 +37,7 @@ jq -e '.sources[0] == "compiler.env.path" and (.pathEntries | length >= 1)' "$tm
   | jq -e --arg image_name "$image_name" '.image == $image_name' >/dev/null
 
 "$tool/bin/devcontainer-image" explain security --report "$reports_dir" \
-  | jq -e '(.dockerDaemonBakedIntoImage | not) and (.dockerSocketMountedByDefault | not) and (.dockerHostConfiguredByDefault | not) and .lifecycleLogRedaction and .extensionArtifactsLocked and .dynamicPackageFreezeReviewable and (.uvxAutoRunFromShellInit | not) and (.npxAutoRunFromShellInit | not)' >/dev/null
+  | jq -e '(.dockerDaemonBakedIntoImage | not) and (.dockerSocketMountedByDefault | not) and (.dockerHostConfiguredByDefault | not) and .lifecycleLogRedaction and .extensionArtifactsLocked and (.uvxAutoRunFromShellInit | not) and (.npxAutoRunFromShellInit | not)' >/dev/null
 
 jq -e 'has("docker" + "Access") | not' "$reports_dir/metadata-merged-preview.json" >/dev/null
 jq -e 'has("mounts") | not' "$reports_dir/metadata-merged-preview.json" >/dev/null

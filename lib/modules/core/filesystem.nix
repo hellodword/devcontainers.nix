@@ -63,6 +63,14 @@ in
           "test -w /tmp && test -w /var/tmp && test \"$HOME\" = \"${user.home}\""
         ];
       }
+      {
+        name = "nix-single-user-root";
+        command = [
+          "bash"
+          "-lc"
+          "test -d /nix/var/nix && test -w /nix/store && test -w /nix/var/nix/db"
+        ];
+      }
     ];
   };
 }

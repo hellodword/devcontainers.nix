@@ -14,6 +14,7 @@ COMMON = {
     "docker-remote-version",
     "codex-version",
     "nix-index-tools",
+    "nix-single-user-root",
     "fhs-ca-certificates",
 }
 
@@ -25,7 +26,7 @@ REQUIRED = {
         "nix-language",
         "extension-index",
         "task-runner-list",
-        "devpkg-doctor",
+        "devpkg-list",
         "fhs-bash",
         "fhs-os-release",
         "fhs-core-tools",

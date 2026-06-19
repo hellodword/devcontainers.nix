@@ -121,7 +121,6 @@ let
     extensionArtifactsLocked = builtins.all (
       extension: extension ? sourceLock && extension.sourceLock ? sha256
     ) compiledVscodeExtensions.extensions;
-    dynamicPackageFreezeReviewable = true;
     uvxAutoRunFromShellInit = false;
     npxAutoRunFromShellInit = false;
     shellInitHasNoSideEffects = true;

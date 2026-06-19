@@ -90,14 +90,24 @@ grep -q '\[REDACTED\]' "$log_file"
 grep -q '^done$' "$status_file"
 
 project_root="$tmpdir/project"
-mkdir -p "$project_root"
 (
-  cd "$project_root"
-  "$devpkg/bin/devpkg" project init
-  "$devpkg/bin/devpkg" freeze --scope project >"$tmpdir/project-freeze.nix"
+  export HOME="$project_root/home"
+  export XDG_CONFIG_HOME="$project_root/config"
+  export XDG_DATA_HOME="$project_root/data"
+  export XDG_STATE_HOME="$project_root/state"
+  export PATH="$HOME/.nix-profile/bin:$XDG_DATA_HOME/nix-profile/bin:$PATH"
+  export NIX_CONFIG="${NIX_CONFIG:-experimental-features = nix-command flakes}"
+  mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
+
+  "$devpkg/bin/devpkg" add cowsay
+  "$devpkg/bin/devpkg" list >"$tmpdir/devpkg-list.txt"
+  grep -q '^cowsay[[:space:]]' "$tmpdir/devpkg-list.txt"
+  grep -q 'legacyPackages\..*\.cowsay$' "$tmpdir/devpkg-list.txt"
+  command -v cowsay >/dev/null
+  cowsay runtime-tools >"$tmpdir/cowsay.txt"
+  grep -q 'runtime-tools' "$tmpdir/cowsay.txt"
+  "$devpkg/bin/devpkg" remove cowsay
+  test -z "$("$devpkg/bin/devpkg" list)"
 )
-"$devpkg/bin/devpkg" freeze --scope user >"$tmpdir/user-freeze.nix"
-grep -q '^{ pkgs }:' "$tmpdir/project-freeze.nix"
-grep -q '^{ pkgs }:' "$tmpdir/user-freeze.nix"
 
 echo "runtime-tools-check ok"

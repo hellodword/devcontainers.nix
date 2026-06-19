@@ -96,7 +96,7 @@ let
         pathsToLink = layerReport.build.pathsToLink;
         ignoreCollisions = true;
       };
-      layer = nix2container.buildLayer {
+      rawLayer = nix2container.buildLayer {
         copyToRoot = layerRoot;
         layers = acc.layers;
         maxLayers = layerReport.build.maxLayers;
@@ -104,6 +104,11 @@ let
           created_by = "devcontainers.nix2 semantic layer ${layerReport.group}";
           comment = builtins.concatStringsSep "," layerReport.members;
         };
+      };
+      layer = rawLayer // {
+        # We pass every prior semantic layer explicitly. Keeping nix2container's
+        # transitive nestedLayers here makes buildImage expand duplicates.
+        nestedLayers = [ ];
       };
     in
     {
@@ -155,9 +160,9 @@ let
     name = "ghcr.io/hellodword/devcontainers-${config.devcontainer.image.family}";
     tag = imageTag;
     arch = "amd64";
-    # nix2container's built-in database generation shells out with every
-    # image path in one argv. The nix image is large enough to exceed ARG_MAX.
-    initializeNixDatabase = false;
+    initializeNixDatabase = true;
+    nixUid = config.devcontainer.user.uid;
+    nixGid = config.devcontainer.user.gid;
     layers = semanticLayerState.layers;
     copyToRoot = [
       runtimeRoot

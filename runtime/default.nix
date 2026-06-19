@@ -29,7 +29,6 @@ in
   devpkg = writeShellApp "devpkg" [
     pkgs.bash
     pkgs.coreutils
-    pkgs.gnused
     pkgs.jq
     pkgs.nix
   ] ./devpkg/main.sh;

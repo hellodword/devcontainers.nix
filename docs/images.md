@@ -36,6 +36,6 @@ Every image includes:
 
 - source control, fetch/archive, search/navigation, inspect/debug, and workflow-format tools
 - a VS Code-compatible glibc runtime exposed through conventional FHS paths
-- optional project/user package helpers for devcontainer workflows
+- `devpkg` for ad-hoc user installs from `nixpkgs`, for example `devpkg add cowsay`
 
 Images do not set `DOCKER_HOST` by default and do not run a Docker daemon.

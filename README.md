@@ -63,6 +63,15 @@ Remote Docker daemon example:
 
 `tcp://172.17.0.1:2375` exposes a high-privilege Docker API. Use it only on trusted local or controlled hosts. Use TLS or a secure proxy across machines.
 
+Ad-hoc user package installs inside the container go through `devpkg`:
+
+```sh
+devpkg add cowsay
+cowsay hello
+devpkg list
+devpkg remove cowsay
+```
+
 More detail:
 
 - [Architecture](docs/architecture.md)

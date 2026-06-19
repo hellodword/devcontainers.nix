@@ -102,10 +102,11 @@
         ];
       }
       {
-        name = "devpkg-doctor";
+        name = "devpkg-list";
         command = [
-          "devpkg"
-          "doctor"
+          "bash"
+          "-lc"
+          "devpkg list >/dev/null"
         ];
       }
     ];
