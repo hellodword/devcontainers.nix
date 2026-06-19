@@ -313,6 +313,28 @@ in
         type = types.str;
         default = "host-socket";
       };
+      modes = {
+        hostSocket.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        hostSocket.mount = mkOption {
+          type = types.str;
+          default = "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock";
+        };
+        remoteTcpTls.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        remoteTcpTls.host = mkOption {
+          type = types.str;
+          default = "docker.example.internal:2376";
+        };
+        remoteTcpTls.certMount = mkOption {
+          type = types.str;
+          default = "type=bind,source=${localEnv:HOME}/.docker/devcontainer-certs,target=/run/docker-certs,readonly";
+        };
+      };
     };
 
     tests.smoke = mkOption {

@@ -1,26 +1,43 @@
 { lib, pkgs, config, ... }:
 let
+  cfg = config.devcontainer.dockerAccess;
   packages = with pkgs; [
     docker
     docker-buildx
     docker-compose
     docker-credential-helpers
   ];
-  mounts = [
-    "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock"
-  ];
+  hostSocketEnv = {
+    DOCKER_HOST = "unix:///var/run/docker.sock";
+    DOCKER_BUILDKIT = "1";
+    COMPOSE_DOCKER_CLI_BUILD = "1";
+    BUILDKIT_PROGRESS = "plain";
+  };
+  remoteTcpTlsEnv = {
+    DOCKER_HOST = "tcp://${cfg.modes.remoteTcpTls.host}";
+    DOCKER_TLS_VERIFY = "1";
+    DOCKER_CERT_PATH = "/run/docker-certs";
+    DOCKER_BUILDKIT = "1";
+    COMPOSE_DOCKER_CLI_BUILD = "1";
+    BUILDKIT_PROGRESS = "plain";
+  };
+  resolvedMounts =
+    if cfg.defaultMode == "remote-tcp-tls" then
+      [ cfg.modes.remoteTcpTls.certMount ]
+    else
+      [ cfg.modes.hostSocket.mount ];
+  resolvedEnv =
+    if cfg.defaultMode == "remote-tcp-tls" then
+      remoteTcpTlsEnv
+    else
+      hostSocketEnv;
 in
 {
-  config = lib.mkIf config.devcontainer.dockerAccess.enable {
+  config = lib.mkIf cfg.enable {
     devcontainer.dockerAccess = {
       packages = packages;
-      mounts = mounts;
-      containerEnv = {
-        DOCKER_HOST = "unix:///var/run/docker.sock";
-        DOCKER_BUILDKIT = "1";
-        COMPOSE_DOCKER_CLI_BUILD = "1";
-        BUILDKIT_PROGRESS = "plain";
-      };
+      mounts = resolvedMounts;
+      containerEnv = resolvedEnv;
     };
 
     devcontainer.packages = packages;
@@ -49,12 +66,32 @@ in
         command = [ "docker" "version" ];
       }
       {
+        name = "docker-info";
+        command = [ "docker" "info" ];
+      }
+      {
         name = "docker-buildx";
         command = [ "docker" "buildx" "version" ];
       }
       {
         name = "docker-compose";
         command = [ "docker" "compose" "version" ];
+      }
+      {
+        name = "docker-build-run";
+        command = [
+          "bash"
+          "-lc"
+          ''
+            cat >/tmp/Dockerfile <<'EOF'
+            FROM busybox
+            RUN echo ok >/ok
+            CMD ["cat", "/ok"]
+            EOF
+            docker build -t docker-access-smoke /tmp
+            docker run --rm docker-access-smoke
+          ''
+        ];
       }
     ];
   };

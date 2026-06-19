@@ -22,5 +22,16 @@ in
   mounts = cfg.mounts;
   containerEnv = cfg.containerEnv;
   defaultMode = cfg.defaultMode;
+  modes = {
+    hostSocket = {
+      enable = cfg.modes.hostSocket.enable;
+      mount = cfg.modes.hostSocket.mount;
+    };
+    remoteTcpTls = {
+      enable = cfg.modes.remoteTcpTls.enable;
+      host = cfg.modes.remoteTcpTls.host;
+      certMount = cfg.modes.remoteTcpTls.certMount;
+    };
+  };
   privilegeReport = privilegeReport;
 }

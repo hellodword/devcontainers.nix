@@ -6,6 +6,7 @@ usage() {
   cat <<'EOF'
 devcontainer-docker-access init
 devcontainer-docker-access docker [args...]
+devcontainer-docker-access explain
 EOF
 }
 
@@ -35,6 +36,13 @@ cmd="${1:-}"
 case "$cmd" in
   init)
     mkdir -p "${HOME}/.docker"
+    ;;
+  explain)
+    cat <<EOF
+mode=${DOCKER_HOST:-unix:///var/run/docker.sock}
+tls_verify=${DOCKER_TLS_VERIFY:-0}
+cert_path=${DOCKER_CERT_PATH:-}
+EOF
     ;;
   docker)
     shift
