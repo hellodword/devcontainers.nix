@@ -2,7 +2,7 @@
   description = "Devcontainer Nix/OCI image compiler";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -56,19 +56,275 @@
           inputs
           ;
       };
-      imageModules = {
-        nix = ./images/nix.nix;
-        python = ./images/python.nix;
-        nodejs = ./images/nodejs.nix;
-        go = ./images/go.nix;
-        rust = ./images/rust.nix;
-        python-web = ./images/python-web.nix;
-        go-web = ./images/go-web.nix;
-        rust-web = ./images/rust-web.nix;
-        flutter = ./images/flutter.nix;
+
+      major = version: builtins.elemAt (lib.splitVersion version) 0;
+      majorMinor =
+        version:
+        let
+          parts = lib.splitVersion version;
+        in
+        "${builtins.elemAt parts 0}.${builtins.elemAt parts 1}";
+      versionTarget = version: lib.replaceStrings [ "." ] [ "-" ] version;
+
+      sortedGoVersions =
+        let
+          attrs = builtins.filter (name: builtins.match "go_[0-9]+_[0-9]+" name != null) (
+            builtins.attrNames pkgs
+          );
+          mkEntry =
+            attr:
+            let
+              match = builtins.match "go_([0-9]+)_([0-9]+)" attr;
+            in
+            {
+              inherit attr;
+              version = "${builtins.elemAt match 0}.${builtins.elemAt match 1}";
+              package = builtins.getAttr attr pkgs;
+            };
+        in
+        lib.sort (a: b: lib.versionOlder b.version a.version) (map mkEntry attrs);
+      goLatestPackage = if pkgs ? go_latest then pkgs.go_latest else pkgs.go;
+      goLatestVersion = majorMinor goLatestPackage.version;
+      goPrevious = lib.findFirst (
+        entry: entry.version != goLatestVersion
+      ) (throw "nixpkgs must expose a previous Go major.minor package") sortedGoVersions;
+
+      sortedNodejsVersions =
+        let
+          attrs = builtins.filter (name: builtins.match "nodejs_[0-9]+" name != null) (
+            builtins.attrNames pkgs
+          );
+          isEvenMajor =
+            version:
+            builtins.elem (lib.substring (builtins.stringLength version - 1) 1 version) [
+              "0"
+              "2"
+              "4"
+              "6"
+              "8"
+            ];
+          mkEntry =
+            attr:
+            let
+              match = builtins.match "nodejs_([0-9]+)" attr;
+            in
+            {
+              inherit attr;
+              version = builtins.elemAt match 0;
+              package = builtins.getAttr attr pkgs;
+            };
+        in
+        lib.sort (a: b: lib.versionOlder b.version a.version) (
+          builtins.filter (entry: isEvenMajor entry.version) (map mkEntry attrs)
+        );
+      nodejsLatestPackage =
+        if pkgs ? nodejs_latest then pkgs.nodejs_latest else (builtins.head sortedNodejsVersions).package;
+      nodejsLatestVersion = major nodejsLatestPackage.version;
+      nodejsPrevious = lib.findFirst (
+        entry: entry.version != nodejsLatestVersion
+      ) (throw "nixpkgs must expose a previous Node.js major package") sortedNodejsVersions;
+
+      pythonLatestPackage = pkgs.python3;
+      pythonLatestPackageSet = pkgs.python3Packages;
+      pythonLatestVersion = majorMinor pythonLatestPackage.version;
+
+      rustNightlyToolchain = pkgs.rust-bin.nightly.latest.default.override {
+        extensions = [
+          "rust-src"
+          "rustfmt"
+          "clippy"
+          "rust-analyzer"
+        ];
       };
-      imageNames = builtins.attrNames imageModules;
-      images = lib.mapAttrs (_: module: compiler.mkImage { inherit module; }) imageModules;
+
+      mkImageTarget =
+        {
+          target,
+          family,
+          tags,
+          module,
+          workflowTarget ? target,
+          workflowEnable ? true,
+          extraModules ? [ ],
+        }:
+        {
+          inherit
+            target
+            family
+            tags
+            module
+            workflowTarget
+            workflowEnable
+            extraModules
+            ;
+          modules = [
+            module
+            (
+              { lib, ... }:
+              {
+                config.devcontainer.image = {
+                  name = lib.mkForce target;
+                  family = lib.mkForce family;
+                  inherit workflowTarget workflowEnable;
+                  tags = lib.mkForce tags;
+                };
+              }
+            )
+          ]
+          ++ extraModules;
+        };
+      goVersionModule = package: { ... }: {
+        config.devcontainer.languages.go.package = package;
+      };
+      nodejsVersionModule = package: { ... }: {
+        config.devcontainer.runtimes.nodejs.package = package;
+      };
+      pythonVersionModule = package: packageSet: { ... }: {
+        config.devcontainer.runtimes.python.package = package;
+        config.devcontainer.languages.python.packageSet = packageSet;
+      };
+      rustVersionModule = toolchain: { ... }: {
+        config.devcontainer.languages.rust.toolchain = toolchain;
+      };
+
+      commonLatestRuntimeModules = [
+        (pythonVersionModule pythonLatestPackage pythonLatestPackageSet)
+        (nodejsVersionModule nodejsLatestPackage)
+      ];
+      goLatestRuntimeModules = [
+        (goVersionModule goLatestPackage)
+      ]
+      ++ commonLatestRuntimeModules;
+      rustLatestRuntimeModules = [
+        (rustVersionModule rustNightlyToolchain)
+      ]
+      ++ commonLatestRuntimeModules;
+
+      imageTargetList = [
+        (mkImageTarget {
+          target = "nix-latest";
+          family = "nix";
+          tags = [ "latest" ];
+          module = ./images/nix.nix;
+        })
+        (mkImageTarget {
+          target = "go-latest";
+          family = "go";
+          tags = [
+            "latest"
+            goLatestVersion
+          ];
+          module = ./images/go.nix;
+          extraModules = goLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "go-${versionTarget goLatestVersion}";
+          family = "go";
+          tags = [ goLatestVersion ];
+          module = ./images/go.nix;
+          workflowTarget = "go-latest";
+          workflowEnable = false;
+          extraModules = goLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "go-${versionTarget goPrevious.version}";
+          family = "go";
+          tags = [ goPrevious.version ];
+          module = ./images/go.nix;
+          extraModules = [
+            (goVersionModule goPrevious.package)
+          ]
+          ++ commonLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "go-web";
+          family = "go";
+          tags = [ "web" ];
+          module = ./images/go-web.nix;
+          extraModules = goLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "nodejs-latest";
+          family = "nodejs";
+          tags = [
+            "latest"
+            nodejsLatestVersion
+          ];
+          module = ./images/nodejs.nix;
+          extraModules = commonLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "nodejs-${nodejsLatestVersion}";
+          family = "nodejs";
+          tags = [ nodejsLatestVersion ];
+          module = ./images/nodejs.nix;
+          workflowTarget = "nodejs-latest";
+          workflowEnable = false;
+          extraModules = commonLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "nodejs-${nodejsPrevious.version}";
+          family = "nodejs";
+          tags = [ nodejsPrevious.version ];
+          module = ./images/nodejs.nix;
+          extraModules = [
+            (pythonVersionModule pythonLatestPackage pythonLatestPackageSet)
+            (nodejsVersionModule nodejsPrevious.package)
+          ];
+        })
+        (mkImageTarget {
+          target = "python3";
+          family = "python";
+          tags = [
+            "latest"
+            pythonLatestVersion
+          ];
+          module = ./images/python.nix;
+          extraModules = commonLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "python-${versionTarget pythonLatestVersion}";
+          family = "python";
+          tags = [ pythonLatestVersion ];
+          module = ./images/python.nix;
+          workflowTarget = "python3";
+          workflowEnable = false;
+          extraModules = commonLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "python-web";
+          family = "python";
+          tags = [ "web" ];
+          module = ./images/python-web.nix;
+          extraModules = commonLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "rust-latest";
+          family = "rust";
+          tags = [ "latest" ];
+          module = ./images/rust.nix;
+          extraModules = rustLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "rust-web";
+          family = "rust";
+          tags = [ "web" ];
+          module = ./images/rust-web.nix;
+          extraModules = rustLatestRuntimeModules;
+        })
+        (mkImageTarget {
+          target = "flutter-latest";
+          family = "flutter";
+          tags = [ "latest" ];
+          module = ./images/flutter.nix;
+          extraModules = rustLatestRuntimeModules;
+        })
+      ];
+      imageTargets = lib.listToAttrs (
+        map (target: lib.nameValuePair target.target target) imageTargetList
+      );
+      imageNames = map (target: target.target) imageTargetList;
+      images = lib.mapAttrs (_: target: compiler.mkImage { inherit (target) modules; }) imageTargets;
       imageNameToCheckName = name: lib.replaceStrings [ "-" ] [ "_" ] name;
       imageLoadApps = lib.mapAttrs' (
         name: image:
@@ -148,7 +404,7 @@
             touch "$out"
           ''
         )
-      ) (lib.filterAttrs (name: _: builtins.elem name [ "nix" ]) images);
+      ) (lib.filterAttrs (name: _: builtins.elem name [ "nix-latest" ]) images);
       runtimeToolChecks = {
         runtime-tools =
           pkgs.runCommand "runtime-tools"
@@ -217,29 +473,93 @@
           )
         )
       ) fixtureFiles;
+
+      workflowTargets = map (target: target.target) (
+        builtins.filter (target: target.workflowEnable) imageTargetList
+      );
+      workflowTargetArray = lib.concatMapStringsSep "\n" (
+        name: "                ${lib.escapeShellArg name}"
+      ) workflowTargets;
+      generateWorkflows = pkgs.writeShellApplication {
+        name = "generate-workflows";
+        runtimeInputs = [ pkgs.coreutils ];
+        text = ''
+          workflow_dir=".github/workflows"
+          mkdir -p "$workflow_dir"
+          find "$workflow_dir" -maxdepth 1 -type f -name 'build-image-*.yml' -delete
+
+          targets=(
+          ${workflowTargetArray}
+          )
+
+          for target in "''${targets[@]}"; do
+            cat >"$workflow_dir/build-image-$target.yml" <<EOF
+          name: build-image-$target
+
+          on:
+            workflow_dispatch:
+            push:
+              branches: [ master ]
+              paths:
+                - flake.nix
+                - flake.lock
+                - images/**
+                - lib/**
+                - runtime/**
+                - tests/**
+                - .github/workflows/**
+
+          jobs:
+            build:
+              uses: ./.github/workflows/_build-image.yml
+              with:
+                image-target: $target
+          EOF
+          done
+        '';
+      };
+      nixfmtFormatter = pkgs.writeShellApplication {
+        name = "nixfmt";
+        runtimeInputs = [
+          pkgs.findutils
+          pkgs.nixfmt
+        ];
+        text = ''
+          if [ "$#" -eq 0 ]; then
+            find . -path ./result -prune -o -name '*.nix' -type f -print0 | xargs -0 nixfmt
+          else
+            nixfmt "$@"
+          fi
+        '';
+      };
     in
     {
-      formatter.${system} = pkgs.nixfmt-rfc-style;
+      formatter.${system} = nixfmtFormatter;
 
       images = images;
 
       packages.${system} = imagePackages // {
-        default = images.nix.reports;
+        default = images."nix-latest".reports;
         "devcontainer-image" = compiler.runtimePackages."devcontainer-image";
         "devcontainer-task-runner" = compiler.runtimePackages."devcontainer-task-runner";
         "vscode-extension-projector" = compiler.runtimePackages."vscode-extension-projector";
         devpkg = compiler.runtimePackages.devpkg;
+        generate-workflows = generateWorkflows;
       };
 
       apps.${system} = imageLoadApps // {
-        default = imageLoadApps."load-nix";
+        default = imageLoadApps."load-nix-latest";
+        generate-workflows = {
+          type = "app";
+          program = "${generateWorkflows}/bin/generate-workflows";
+        };
       };
 
       checks.${system} =
         reportChecks // reportCliChecks // imageBuildChecks // runtimeToolChecks // fixtureChecks;
 
       lib.${system} = {
-        inherit imageNames;
+        inherit imageNames workflowTargets;
         vscodeExtensionSources = builtins.attrNames nix-vscode-extensions.extensions.${system};
         nix2container = nix2container.packages.${system}.nix2container;
       };

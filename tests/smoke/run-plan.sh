@@ -14,7 +14,8 @@ fi
 
 if [ -z "$plan_file" ]; then
   image_name="$target"
-  image_ref="devcontainer-${image_name}:latest"
+  ci_plan="$(nix build ".#images.${image_name}.ci-plan-json" --print-out-paths --no-link)"
+  image_ref="$(jq -r '.imageRef' "$ci_plan")"
   plan_file="$(nix build ".#images.${image_name}.smoke" --print-out-paths --no-link)"
 else
   image_ref="$target"

@@ -8,7 +8,7 @@ usage:
   tests/smoke/collect-runtime-evidence.sh full [output-dir]
 
 examples:
-  tests/smoke/collect-runtime-evidence.sh oci nix
+  tests/smoke/collect-runtime-evidence.sh oci nix-latest
   tests/smoke/collect-runtime-evidence.sh full runtime-evidence
 
 notes:
@@ -81,12 +81,15 @@ build_smoke_path() {
 collect_oci_runtime() {
   local image_name="$1"
   local section="oci-${image_name}"
-  local image_ref="devcontainer-${image_name}:latest"
+  local image_ref
   local image_path
   local smoke_path
+  local ci_plan_path
 
   image_path="$(build_image_path "$image_name")"
   smoke_path="$(build_smoke_path "$image_name")"
+  ci_plan_path="$(nix build ".#images.${image_name}.ci-plan-json" --print-out-paths --no-link)"
+  image_ref="$(jq -r '.imageRef' "$ci_plan_path")"
 
   mkdir -p "$evidence_dir/$section"
   printf '%s\n' "$image_ref" >"$evidence_dir/$section/image-ref.txt"
@@ -109,20 +112,20 @@ main() {
   local output_dir_arg=""
   local image_name=""
   local images=(
-    nix
-    python
-    nodejs
-    go
-    rust
+    nix-latest
+    python3
+    nodejs-latest
+    go-latest
+    rust-latest
     python-web
     go-web
     rust-web
-    flutter
+    flutter-latest
   )
 
   case "$mode" in
     oci)
-      image_name="${2:-nix}"
+      image_name="${2:-nix-latest}"
       output_dir_arg="${3:-}"
       ;;
     full)
@@ -142,6 +145,7 @@ main() {
   require_cmd docker
   require_cmd cp
   require_cmd date
+  require_cmd jq
 
   if [ -n "$output_dir_arg" ]; then
     evidence_dir="$output_dir_arg"

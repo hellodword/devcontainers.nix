@@ -1,4 +1,9 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
   cfg = config.devcontainer.compat.fhsRuntime;
   packages = with pkgs; [
@@ -12,7 +17,8 @@ let
     wget
     git
     cacert
-    stdenv.cc.cc
+    glibc
+    stdenv.cc.cc.lib
     nix-ld
   ];
 in
@@ -33,15 +39,27 @@ in
     devcontainer.tests.smoke = [
       {
         name = "fhs-bash";
-        command = [ "bash" "-lc" "test -x /bin/bash && test -x /bin/sh && test -x /usr/bin/env" ];
+        command = [
+          "bash"
+          "-lc"
+          "test -x /bin/bash && test -x /bin/sh && test -x /usr/bin/env"
+        ];
       }
       {
         name = "fhs-os-release";
-        command = [ "bash" "-lc" "test -e /etc/os-release" ];
+        command = [
+          "bash"
+          "-lc"
+          "test -e /etc/os-release"
+        ];
       }
       {
         name = "fhs-core-tools";
-        command = [ "bash" "-lc" "tar --version && (curl --version || wget --version)" ];
+        command = [
+          "bash"
+          "-lc"
+          "tar --version && (curl --version || wget --version)"
+        ];
       }
     ];
   };

@@ -1,16 +1,7 @@
-name: build-image-nix
+name: build-image-nodejs-24
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - flake.nix
-      - flake.lock
-      - images/**
-      - lib/**
-      - runtime/**
-      - tests/**
-      - .github/workflows/**
   push:
     branches: [ master ]
     paths:
@@ -26,4 +17,4 @@ jobs:
   build:
     uses: ./.github/workflows/_build-image.yml
     with:
-      image-name: nix
+      image-target: nodejs-24

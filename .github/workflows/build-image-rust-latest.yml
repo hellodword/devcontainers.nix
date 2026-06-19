@@ -1,4 +1,4 @@
-name: build-image-go-web
+name: build-image-rust-latest
 
 on:
   workflow_dispatch:
@@ -17,4 +17,4 @@ jobs:
   build:
     uses: ./.github/workflows/_build-image.yml
     with:
-      image-target: go-web
+      image-target: rust-latest

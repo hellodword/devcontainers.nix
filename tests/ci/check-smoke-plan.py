@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import pathlib
+import re
 import sys
 
 
@@ -82,6 +83,22 @@ REQUIRED = {
 }
 
 
+def requirement_key(image_name: str) -> str:
+    if image_name == "nix-latest":
+        return "nix"
+    if re.fullmatch(r"go-(latest|[0-9]+-[0-9]+)", image_name):
+        return "go"
+    if re.fullmatch(r"nodejs-(latest|[0-9]+)", image_name):
+        return "nodejs"
+    if image_name == "python3" or re.fullmatch(r"python-[0-9]+-[0-9]+", image_name):
+        return "python"
+    if image_name == "rust-latest":
+        return "rust"
+    if image_name == "flutter-latest":
+        return "flutter"
+    return image_name
+
+
 def fail(message: str):
     print(f"smoke-plan-check failed: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -98,11 +115,13 @@ def main() -> int:
     with plan_path.open("r", encoding="utf-8") as handle:
         plan = json.load(handle)
 
-    if image_name not in REQUIRED:
+    key = requirement_key(image_name)
+
+    if key not in REQUIRED:
         fail(f"unsupported image in smoke plan: {image_name}")
 
     names = {test["name"] for test in plan["tests"]}
-    expected = REQUIRED[image_name]
+    expected = REQUIRED[key]
     missing = sorted(expected - names)
     if missing:
         fail(f"{image_name} missing tests: {', '.join(missing)}")

@@ -1,6 +1,6 @@
 { self }:
 {
-  image = self.images.rust;
+  image = self.images."rust-latest";
   expectedNodes = [
     "runtime/python"
     "runtime/nodejs"

@@ -1,8 +1,21 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
-  flutterCore = with pkgs; [ flutter dart jdk17 gradle ];
+  flutterCore = with pkgs; [
+    flutter
+    dart
+    jdk17
+    gradle
+  ];
   android = with pkgs; [ android-tools ];
-  browserGpu = with pkgs; [ chromium mesa-demos ];
+  browserGpu = with pkgs; [
+    chromium
+    mesa-demos
+  ];
 in
 {
   config = lib.mkIf config.devcontainer.languages.flutter.enable {
@@ -66,15 +79,25 @@ in
     devcontainer.tests.smoke = [
       {
         name = "flutter-version";
-        command = [ "flutter" "--version" ];
+        command = [
+          "flutter"
+          "--version"
+        ];
       }
       {
         name = "dart-version";
-        command = [ "dart" "--version" ];
+        command = [
+          "dart"
+          "--version"
+        ];
       }
       {
         name = "flutter-tooling";
-        command = [ "bash" "-lc" "java -version && gradle --version && rustc --version && node --version && python --version" ];
+        command = [
+          "bash"
+          "-lc"
+          "java -version && gradle --version && rustc --version && node --version && python --version"
+        ];
       }
     ];
   };

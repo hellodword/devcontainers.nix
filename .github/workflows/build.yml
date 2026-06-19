@@ -2,7 +2,6 @@ name: build
 
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches: [ master ]
 
@@ -13,14 +12,29 @@ jobs:
       group: build-${{ github.ref }}
       cancel-in-progress: true
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          docker system prune -af || true
+          df -h
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v30
+        run: |
+          sudo mkdir -p /etc/nix
+          printf '%s\n' 'experimental-features = nix-command flakes' | sudo tee -a /etc/nix/nix.conf
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon --yes
+          echo '/nix/var/nix/profiles/default/bin' >> "$GITHUB_PATH"
 
       - name: Flake check
         run: nix flake check --keep-going
+
+      - name: Check generated workflows
+        run: |
+          nix run .#generate-workflows
+          git diff --exit-code .github/workflows
 
       - name: Check runtime tools
         run: |
@@ -29,7 +43,7 @@ jobs:
 
       - name: Show CI plan
         run: |
-          for image in nix python nodejs go rust python-web go-web rust-web flutter; do
+          for image in $(nix eval --json .#lib.x86_64-linux.imageNames | jq -r '.[]'); do
             echo "==> $image"
             nix build .#images.$image.ci-plan-json --print-out-paths --no-link | xargs cat
           done

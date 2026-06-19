@@ -29,7 +29,6 @@ let
         copyToRoot = true;
         pathsToLink = [
           "/bin"
-          "/sbin"
           "/lib"
           "/lib64"
           "/share"

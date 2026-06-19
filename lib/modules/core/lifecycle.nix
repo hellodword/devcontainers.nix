@@ -5,7 +5,10 @@
       phase = "postCreate";
       once = true;
       user = "vscode";
-      command = [ "devcontainer-task-runner" "ensure-xdg" ];
+      command = [
+        "devcontainer-task-runner"
+        "ensure-xdg"
+      ];
       timeoutSeconds = 10;
     };
 

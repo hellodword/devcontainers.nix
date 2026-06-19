@@ -1,9 +1,16 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
-  packages = [ pkgs.nodejs_22 ];
+  cfg = config.devcontainer.runtimes.nodejs;
+  nodejs = if cfg.package == null then pkgs.nodejs else cfg.package;
+  packages = [ nodejs ];
 in
 {
-  config = lib.mkIf config.devcontainer.runtimes.nodejs.enable {
+  config = lib.mkIf cfg.enable {
     devcontainer.packages = packages;
     devcontainer.env.container = {
       NODE_ENV = "development";

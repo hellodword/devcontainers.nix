@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, config, ... }:
 let
   inherit (lib) mkOption types;
   graphNodeType = types.submodule {
@@ -94,6 +94,18 @@ in
   options.devcontainer = {
     image = {
       name = mkOption { type = types.str; };
+      family = mkOption {
+        type = types.str;
+        default = config.devcontainer.image.name;
+      };
+      workflowTarget = mkOption {
+        type = types.str;
+        default = config.devcontainer.image.name;
+      };
+      workflowEnable = mkOption {
+        type = types.bool;
+        default = true;
+      };
       tags = mkOption {
         type = types.listOf types.str;
         default = [ ];
@@ -445,32 +457,62 @@ in
         type = types.bool;
         default = false;
       };
-      python.enable = mkOption {
-        type = types.bool;
-        default = false;
+      python = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        package = mkOption {
+          type = types.nullOr types.package;
+          default = null;
+        };
       };
-      nodejs.enable = mkOption {
-        type = types.bool;
-        default = false;
+      nodejs = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        package = mkOption {
+          type = types.nullOr types.package;
+          default = null;
+        };
       };
     };
 
     languages = {
-      python.enable = mkOption {
-        type = types.bool;
-        default = false;
+      python = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        packageSet = mkOption {
+          type = types.nullOr types.attrs;
+          default = null;
+        };
       };
       nodejs.enable = mkOption {
         type = types.bool;
         default = false;
       };
-      go.enable = mkOption {
-        type = types.bool;
-        default = false;
+      go = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        package = mkOption {
+          type = types.nullOr types.package;
+          default = null;
+        };
       };
-      rust.enable = mkOption {
-        type = types.bool;
-        default = false;
+      rust = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        toolchain = mkOption {
+          type = types.nullOr types.package;
+          default = null;
+        };
       };
       flutter.enable = mkOption {
         type = types.bool;

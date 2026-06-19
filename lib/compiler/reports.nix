@@ -21,6 +21,10 @@ let
   metadata-schema-report-json = jsonFile "metadata-schema-report.json" compiledMetadata.schemaReport;
   image-plan-json = jsonFile "image-plan.json" {
     image = config.devcontainer.image.name;
+    family = config.devcontainer.image.family;
+    tag = imageTag;
+    imageRef = imageRef;
+    publishRefs = publishRefs;
     backend = "nix2container";
     packageCount = builtins.length config.devcontainer.packages;
     layerStrategy = compiledLayers.budget.strategy;
@@ -29,6 +33,15 @@ let
     entrypoint = [ "/usr/local/bin/devcontainer-entrypoint" ];
     smokeTestCount = builtins.length config.devcontainer.tests.smoke;
   };
+  imageTag =
+    if config.devcontainer.image.tags == [ ] then
+      "latest"
+    else
+      builtins.head config.devcontainer.image.tags;
+  imageRef = "ghcr.io/hellodword/devcontainers-${config.devcontainer.image.family}:${imageTag}";
+  publishRefs = map (
+    tag: "ghcr.io/hellodword/devcontainers-${config.devcontainer.image.family}:${tag}"
+  ) config.devcontainer.image.tags;
   tasks-json = jsonFile "tasks.json" { tasks = compiledLifecycle.tasks; };
   extensions-index-json = jsonFile "extensions-index.json" {
     extensions = compiledVscodeExtensions.extensions;
@@ -66,6 +79,7 @@ let
   fhs-runtime-report-json = jsonFile "fhs-runtime-report.json" {
     enabled = compiledFhsRuntime.enabled;
     symlinkCount = builtins.length compiledFhsRuntime.symlinks;
+    symlinks = compiledFhsRuntime.symlinks;
     dynamicLoader = lib.findFirst (
       link: lib.hasInfix "ld-linux" link.target
     ) null compiledFhsRuntime.symlinks;
@@ -114,7 +128,13 @@ let
   };
   ci-plan-json = jsonFile "ci-plan.json" {
     image = config.devcontainer.image.name;
-    workflow = "build-image-${config.devcontainer.image.name}.yml";
+    family = config.devcontainer.image.family;
+    tag = imageTag;
+    imageRef = imageRef;
+    publishRefs = publishRefs;
+    workflowTarget = config.devcontainer.image.workflowTarget;
+    workflowEnabled = config.devcontainer.image.workflowEnable;
+    workflow = "build-image-${config.devcontainer.image.workflowTarget}.yml";
     architectures = config.devcontainer.image.architectures;
     reportFiles = [
       "graph.json"

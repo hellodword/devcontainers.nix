@@ -121,7 +121,6 @@ let
     paths = config.devcontainer.packages ++ runtimeTools;
     pathsToLink = [
       "/bin"
-      "/sbin"
       "/lib"
       "/lib64"
       "/share"
@@ -153,7 +152,7 @@ let
       builtins.head config.devcontainer.image.tags;
 
   image = nix2container.buildImage {
-    name = "devcontainer-${config.devcontainer.image.name}";
+    name = "ghcr.io/hellodword/devcontainers-${config.devcontainer.image.family}";
     tag = imageTag;
     arch = "amd64";
     # nix2container's built-in database generation shells out with every

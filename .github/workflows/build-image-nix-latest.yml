@@ -1,16 +1,7 @@
-name: build-image-python
+name: build-image-nix-latest
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - flake.nix
-      - flake.lock
-      - images/**
-      - lib/**
-      - runtime/**
-      - tests/**
-      - .github/workflows/**
   push:
     branches: [ master ]
     paths:
@@ -26,4 +17,4 @@ jobs:
   build:
     uses: ./.github/workflows/_build-image.yml
     with:
-      image-name: python
+      image-target: nix-latest

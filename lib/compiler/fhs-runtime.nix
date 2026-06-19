@@ -1,4 +1,8 @@
-{ lib, pkgs, system }:
+{
+  lib,
+  pkgs,
+  system,
+}:
 { config }:
 let
   cfg = config.devcontainer.compat.fhsRuntime;
@@ -17,10 +21,18 @@ let
     else
       null;
   currentDynamicLoaderTarget =
-    if currentDynamicLoader == null then
-      null
+    if currentDynamicLoader == null then null else "${glibcLoaderRoot}/lib64/ld-linux-x86-64.so.2";
+  glibcLoaderRoot = pkgs.runCommand "devcontainer-glibc-loader" { } ''
+    mkdir -p "$out/lib64"
+    if [ -e ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 ]; then
+      ln -s ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 "$out/lib64/ld-linux-x86-64.so.2"
+    elif [ -e ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 ]; then
+      ln -s ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 "$out/lib64/ld-linux-x86-64.so.2"
     else
-      pkgs.stdenv.cc.bintools.dynamicLinker;
+      echo "glibc dynamic loader not found" >&2
+      exit 1
+    fi
+  '';
 in
 {
   enabled = cfg.enable;
@@ -79,6 +91,14 @@ in
     {
       target = currentDynamicLoader;
       source = currentDynamicLoaderTarget;
+    }
+    {
+      target = "/usr/lib/libc.so.6";
+      source = "${pkgs.glibc}/lib/libc.so.6";
+    }
+    {
+      target = "/usr/lib/libstdc++.so.6";
+      source = "${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6";
     }
   ];
 }

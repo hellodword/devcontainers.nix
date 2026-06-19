@@ -5,7 +5,7 @@ image_name="${1:-}"
 
 if [ -z "$image_name" ]; then
   echo "usage: tests/smoke/validate-flake-image.sh <image-name>" >&2
-  echo "example: tests/smoke/validate-flake-image.sh nix" >&2
+  echo "example: tests/smoke/validate-flake-image.sh nix-latest" >&2
   exit 1
 fi
 

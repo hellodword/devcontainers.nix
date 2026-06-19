@@ -6,7 +6,7 @@ This project compiles declarative image modules into nix2container OCI images fo
 
 The flake pins:
 
-- `nixpkgs` on `github:NixOS/nixpkgs/nixos-26.05`
+- `nixpkgs` on `github:NixOS/nixpkgs/nixos-unstable`
 - `rust-overlay`
 - `nix-vscode-extensions`
 - `nix-index-database`

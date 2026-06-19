@@ -1,6 +1,6 @@
 { self }:
 {
-  image = self.images.flutter;
+  image = self.images."flutter-latest";
   expectedNodes = [
     "language/rust"
     "language/nodejs"

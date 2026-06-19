@@ -1,6 +1,6 @@
 { self }:
 {
-  image = self.images.go;
+  image = self.images."go-latest";
   expectedNodes = [
     "runtime/python"
     "runtime/nodejs"

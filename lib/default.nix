@@ -74,9 +74,12 @@ let
     };
 
     mkImage =
-      { module }:
+      {
+        module ? null,
+        modules ? [ ],
+      }:
       let
-        evaluated = evalImage { modules = [ module ]; };
+        evaluated = evalImage { modules = modules ++ lib.optional (module != null) module; };
         graph = compileGraph { config = evaluated.config; };
         env = compileEnv { config = evaluated.config; };
         metadata = compileMetadata {

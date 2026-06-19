@@ -12,40 +12,39 @@ let
 
   pathEntryState =
     lib.foldl'
-      (state: bucket:
+      (
+        state: bucket:
         let
           bucketSegments = config.devcontainer.path.segments.${bucket} or [ ];
         in
-        lib.foldl'
-          (inner: segment:
-            let
-              segmentSourceSet = segmentOrigins.${bucket}.${segment} or [ ];
-              exists = builtins.hasAttr segment inner.entries;
-              previous =
-                if exists then
-                  builtins.getAttr segment inner.entries
-                else
-                  {
-                    inherit segment;
-                    buckets = [ ];
-                    sources = [ ];
-                  };
-              updated = {
-                inherit segment;
-                buckets = lib.unique (previous.buckets ++ [ bucket ]);
-                sources = lib.unique (previous.sources ++ segmentSourceSet);
-              };
-            in
-            {
-              order =
-                if exists then
-                  inner.order
-                else
-                  inner.order ++ [ segment ];
-              entries = inner.entries // { ${segment} = updated; };
-            })
-          state
-          bucketSegments)
+        lib.foldl' (
+          inner: segment:
+          let
+            segmentSourceSet = segmentOrigins.${bucket}.${segment} or [ ];
+            exists = builtins.hasAttr segment inner.entries;
+            previous =
+              if exists then
+                builtins.getAttr segment inner.entries
+              else
+                {
+                  inherit segment;
+                  buckets = [ ];
+                  sources = [ ];
+                };
+            updated = {
+              inherit segment;
+              buckets = lib.unique (previous.buckets ++ [ bucket ]);
+              sources = lib.unique (previous.sources ++ segmentSourceSet);
+            };
+          in
+          {
+            order = if exists then inner.order else inner.order ++ [ segment ];
+            entries = inner.entries // {
+              ${segment} = updated;
+            };
+          }
+        ) state bucketSegments
+      )
       {
         order = [ ];
         entries = { };
@@ -63,13 +62,13 @@ let
       inherit value sources;
       conflict = builtins.length sources > 1;
     };
-  containerEnv = config.devcontainer.env.container // { PATH = compiledPath; };
+  containerEnv = config.devcontainer.env.container // {
+    PATH = compiledPath;
+  };
   remoteEnv = config.devcontainer.env.remote;
   shellEnv = config.devcontainer.env.shell;
   containerEnvSources =
-    lib.mapAttrs
-      (name: value: mkEnvEntry "container" name value)
-      containerEnv
+    lib.mapAttrs (name: value: mkEnvEntry "container" name value) containerEnv
     // {
       PATH = {
         value = compiledPath;

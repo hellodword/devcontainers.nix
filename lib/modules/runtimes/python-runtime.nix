@@ -1,9 +1,16 @@
-{ lib, pkgs, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
-  packages = [ pkgs.python313 ];
+  cfg = config.devcontainer.runtimes.python;
+  python = if cfg.package == null then pkgs.python3 else cfg.package;
+  packages = [ python ];
 in
 {
-  config = lib.mkIf config.devcontainer.runtimes.python.enable {
+  config = lib.mkIf cfg.enable {
     devcontainer.packages = packages;
     devcontainer.env.container = {
       PYTHONUSERBASE = "$XDG_DATA_HOME/python";
@@ -29,7 +36,10 @@ in
       UV_TOOL_BIN_DIR = [ "runtimes.python" ];
       UV_LINK_MODE = [ "runtimes.python" ];
     };
-    devcontainer.path.segments.language = [ "$UV_TOOL_BIN_DIR" "$PYTHONUSERBASE/bin" ];
+    devcontainer.path.segments.language = [
+      "$UV_TOOL_BIN_DIR"
+      "$PYTHONUSERBASE/bin"
+    ];
     devcontainer.path.segmentOrigins.language = {
       "$UV_TOOL_BIN_DIR" = [ "runtimes.python" ];
       "$PYTHONUSERBASE/bin" = [ "runtimes.python" ];

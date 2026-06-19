@@ -1,6 +1,6 @@
 { self }:
 {
-  image = self.images.nix;
+  image = self.images."nix-latest";
   expectedNodes = [
     "runtime/nix"
     "language/nix"

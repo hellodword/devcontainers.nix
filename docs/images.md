@@ -1,10 +1,10 @@
 # Images
 
-All images include the base Nix/FHS runtime, Docker CLI tools, Codex CLI, nix-index database tools, source control tools, archive/fetch tools, navigation tools, debug tools, and format/workflow tools.
+All images include the base Nix/FHS runtime, source control tools, archive/fetch tools, navigation tools, debug tools, and format/workflow tools.
 
 ## `nix`
 
-Includes Nix, `nixd`, `nil`, `nixfmt-rfc-style`, `alejandra`, `statix`, `deadnix`, and `treefmt`.
+Includes Nix, `nixd`, `nil`, `nixfmt`, `alejandra`, `statix`, `deadnix`, and `treefmt`.
 
 ## `python`
 
@@ -34,8 +34,8 @@ Adds Flutter, Dart, JDK, Gradle, Android tools, Chromium, and GUI/GPU diagnostic
 
 Every image includes:
 
-- Docker client: `docker`, `docker buildx`, `docker compose`, credential helpers
-- Codex CLI from `llm-agents.nix`
-- nix-index database tools: `nix-index`, `nix-locate`, and `comma` when available
+- source control, fetch/archive, search/navigation, inspect/debug, and workflow-format tools
+- a VS Code-compatible glibc runtime exposed through conventional FHS paths
+- optional project/user package helpers for devcontainer workflows
 
 Images do not set `DOCKER_HOST` by default and do not run a Docker daemon.

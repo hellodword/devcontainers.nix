@@ -5,17 +5,19 @@
   ...
 }:
 let
-  packages = with pkgs; [
+  cfg = config.devcontainer.languages.go;
+  go = if cfg.package == null then pkgs.go else cfg.package;
+  packages = [
     go
-    gopls
-    delve
-    golangci-lint
-    gotools
-    govulncheck
+    pkgs.gopls
+    pkgs.delve
+    pkgs.golangci-lint
+    pkgs.gotools
+    pkgs.govulncheck
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.languages.go.enable {
+  config = lib.mkIf cfg.enable {
     devcontainer.packages = packages;
     devcontainer.vscode.extensions = [ "golang.go" ];
     devcontainer.vscode.settings = {

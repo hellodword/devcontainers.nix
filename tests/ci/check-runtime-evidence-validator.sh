@@ -33,27 +33,27 @@ write_reports() {
 
 build_fixture() {
   local base="$1"
-  local section="oci-nix"
+  local section="oci-nix-latest"
   mkdir -p "$base/$section"
   printf 'oci\n' >"$base/mode.txt"
   printf '20260619T000000Z\n' >"$base/generated-at.txt"
-  printf './tests/smoke/collect-runtime-evidence.sh oci nix\n' >"$base/invocation.txt"
+  printf './tests/smoke/collect-runtime-evidence.sh oci nix-latest\n' >"$base/invocation.txt"
   cat >"$base/summary.tsv" <<'EOF'
 mode	name	exit_code
-oci-nix	image-load	0
-oci-nix	docker-inspect	0
-oci-nix	docker-run-env	0
-oci-nix	docker-run-bash	0
-oci-nix	docker-run-user	0
-oci-nix	docker-run-task-runner	0
-oci-nix	docker-run-required-tools	0
+oci-nix-latest	image-load	0
+oci-nix-latest	docker-inspect	0
+oci-nix-latest	docker-run-env	0
+oci-nix-latest	docker-run-bash	0
+oci-nix-latest	docker-run-user	0
+oci-nix-latest	docker-run-task-runner	0
+oci-nix-latest	docker-run-required-tools	0
 EOF
 
-  printf 'devcontainer-nix:latest\n' >"$base/$section/image-ref.txt"
+  printf 'ghcr.io/hellodword/devcontainers-nix:latest\n' >"$base/$section/image-ref.txt"
   printf '/nix/store/fake-image-nix.json\n' >"$base/$section/image-path.txt"
   printf '/nix/store/fake-nix-smoke.json\n' >"$base/$section/smoke-plan-path.txt"
   write_reports "$base/$section/reports"
-  make_run_dir "$base" "$section" image-load "nix run .#load-nix" "Copy to Docker daemon image devcontainer-nix:latest\n"
+  make_run_dir "$base" "$section" image-load "nix run .#load-nix-latest" "Copy to Docker daemon image ghcr.io/hellodword/devcontainers-nix:latest\n"
   make_run_dir "$base" "$section" docker-inspect "docker inspect" "$(cat <<'EOF'
 [{"Config":{"User":"vscode","WorkingDir":"/workspaces","Entrypoint":["/usr/local/bin/devcontainer-entrypoint"],"Cmd":["sleep","infinity"],"Env":["PATH=/usr/local/bin:/bin","HOME=/home/vscode","EDITOR=vim"],"Labels":{"devcontainer.metadata":"[{\"containerEnv\":{\"PATH\":\"/usr/local/bin:/bin\",\"HOME\":\"/home/vscode\",\"EDITOR\":\"vim\"},\"remoteUser\":\"vscode\",\"containerUser\":\"vscode\"}]"}}}]
 EOF

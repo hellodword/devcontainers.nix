@@ -4,37 +4,34 @@
 
 ## Images
 
-- `nix`
-- `python`
-- `nodejs`
-- `go`
-- `rust`
-- `python-web`
-- `go-web`
-- `rust-web`
-- `flutter`
+- `nix:latest`
+- `go:latest`, `go:<major.minor>`, `go:web`
+- `nodejs:latest`, `nodejs:<major>`
+- `python:latest`, `python:<major.minor>`, `python:web`
+- `rust:latest`, `rust:web`
+- `flutter:latest`
 
-All images run as `vscode` by default and include Docker CLI tools, Codex CLI, and nix-index database tools.
+All images run as `vscode` by default and include a VS Code-compatible FHS runtime.
 
 ## Quick Start
 
 Build reports:
 
 ```sh
-nix build .#images.nix.reports
+nix build .#images.nix-latest.reports
 ```
 
 Load the base image into Docker:
 
 ```sh
-nix run .#load-nix
+nix run .#load-nix-latest
 ```
 
 Run a quick check:
 
 ```sh
-docker run --rm devcontainer-nix:latest id vscode
-docker run --rm devcontainer-nix:latest bash -lc 'command -v docker && command -v codex && command -v nix-locate'
+docker run --rm ghcr.io/hellodword/devcontainers-nix:latest id vscode
+docker run --rm ghcr.io/hellodword/devcontainers-nix:latest bash -lc 'test -e /lib64/ld-linux-x86-64.so.2 && test -e /usr/lib/libc.so.6'
 ```
 
 ## VS Code Dev Containers
@@ -44,7 +41,7 @@ Example `.devcontainer/devcontainer.json`:
 ```json
 {
   "name": "nix",
-  "image": "devcontainer-nix:latest",
+  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
   "remoteUser": "vscode",
   "containerUser": "vscode"
 }
@@ -55,7 +52,7 @@ Remote Docker daemon example:
 ```json
 {
   "name": "nix",
-  "image": "devcontainer-nix:latest",
+  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
   "remoteUser": "vscode",
   "containerUser": "vscode",
   "containerEnv": {

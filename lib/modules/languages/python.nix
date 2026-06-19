@@ -5,20 +5,22 @@
   ...
 }:
 let
-  packages = with pkgs; [
-    uv
-    pipx
-    python313Packages.ruff
-    python313Packages.mypy
-    python313Packages.pytest
-    python313Packages.ipython
-    python313Packages.black
-    python313Packages.pylint
-    python313Packages.bandit
+  cfg = config.devcontainer.languages.python;
+  pythonPackages = if cfg.packageSet == null then pkgs.python3Packages else cfg.packageSet;
+  packages = [
+    pkgs.uv
+    pkgs.pipx
+    pythonPackages.ruff
+    pythonPackages.mypy
+    pythonPackages.pytest
+    pythonPackages.ipython
+    pythonPackages.black
+    pythonPackages.pylint
+    pythonPackages.bandit
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.languages.python.enable {
+  config = lib.mkIf cfg.enable {
     devcontainer.runtimes.python.enable = true;
     devcontainer.packages = packages;
     devcontainer.vscode.extensions = [

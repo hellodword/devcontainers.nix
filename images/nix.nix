@@ -10,7 +10,7 @@
       nix
       nixd
       nil
-      nixfmt-rfc-style
+      nixfmt
       alejandra
       statix
       deadnix
@@ -33,7 +33,7 @@
       paths = with pkgs; [
         nixd
         nil
-        nixfmt-rfc-style
+        nixfmt
         alejandra
         statix
         deadnix

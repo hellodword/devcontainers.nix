@@ -5,7 +5,8 @@
   ...
 }:
 let
-  rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+  cfg = config.devcontainer.languages.rust;
+  defaultRustToolchain = pkgs.rust-bin.nightly.latest.default.override {
     extensions = [
       "rust-src"
       "rustfmt"
@@ -13,6 +14,7 @@ let
       "rust-analyzer"
     ];
   };
+  rustToolchain = if cfg.toolchain == null then defaultRustToolchain else cfg.toolchain;
   packages = [
     rustToolchain
     pkgs.cargo-nextest
@@ -21,7 +23,7 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.languages.rust.enable {
+  config = lib.mkIf cfg.enable {
     devcontainer.packages = packages;
     devcontainer.vscode.extensions = [
       "rust-lang.rust-analyzer"

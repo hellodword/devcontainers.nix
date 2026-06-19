@@ -130,6 +130,18 @@ def main() -> int:
 
     if not fhs_runtime_report["enabled"]:
         fail("fhs-runtime-report.json must confirm FHS runtime is enabled")
+    fhs_links = {link["target"]: link["source"] for link in fhs_runtime_report["symlinks"]}
+    for required_link in [
+        "/lib64/ld-linux-x86-64.so.2",
+        "/usr/lib/libc.so.6",
+        "/usr/lib/libstdc++.so.6",
+    ]:
+        if required_link not in fhs_links:
+            fail(f"fhs-runtime-report.json missing VS Code runtime link: {required_link}")
+    if "glibc" not in fhs_links["/usr/lib/libc.so.6"]:
+        fail("libc.so.6 must come from glibc")
+    if "gcc" not in fhs_links["/usr/lib/libstdc++.so.6"]:
+        fail("libstdc++.so.6 must come from the GCC runtime")
 
     if "PATH" not in env_report["containerEnvSources"]:
         fail("env-report.json must include PATH source details")
