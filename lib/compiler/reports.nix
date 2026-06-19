@@ -26,7 +26,7 @@ let
       image = config.devcontainer.image.name;
       packageCount = builtins.length config.devcontainer.packages;
       layerStrategy = compiledLayers.budget.strategy;
-      entrypoint = [ "/bin/devcontainer-entrypoint" ];
+      entrypoint = [ "/usr/local/bin/devcontainer-entrypoint" ];
       smokeTestCount = builtins.length config.devcontainer.tests.smoke;
     };
   tasks-json =

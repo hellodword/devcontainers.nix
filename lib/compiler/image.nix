@@ -67,6 +67,10 @@ let
             ln -sf ${link.source} .${link.target}
           '')
         compiledFhsRuntime.symlinks);
+  localBinCommands = ''
+    mkdir -p ./usr/local/bin
+    ln -sf /bin/devcontainer-entrypoint ./usr/local/bin/devcontainer-entrypoint
+  '';
 
   entrypoint = runtimePackages."devcontainer-entrypoint";
   runtimeTools = [
@@ -96,7 +100,7 @@ let
       lib.mapAttrsToList
         (name: value: "${name}=${value}")
         compiledEnv.containerEnv;
-    Entrypoint = [ "/bin/devcontainer-entrypoint" ];
+    Entrypoint = [ "/usr/local/bin/devcontainer-entrypoint" ];
     Cmd = [ "sleep" "infinity" ];
     Labels = labels;
   };
@@ -119,6 +123,7 @@ let
       ${mkDirCommands}
       ${mkManifestCommands}
       ${mkSymlinkCommands}
+      ${localBinCommands}
     '';
   };
 in

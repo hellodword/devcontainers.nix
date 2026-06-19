@@ -44,6 +44,7 @@ def main() -> int:
 
     required = [
         "bin/devcontainer-entrypoint",
+        "usr/local/bin/devcontainer-entrypoint",
         "usr/share/devcontainer/tasks.json",
         "usr/share/devcontainer/vscode/extensions-index.json",
         "etc/os-release",

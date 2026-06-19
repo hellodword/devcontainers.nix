@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import pathlib
+import subprocess
 import sys
 
 
@@ -41,7 +42,13 @@ def main() -> int:
     if not smoke_plan["tests"]:
         fail("smoke-test-plan.json must include at least one test")
 
-    if image_plan["entrypoint"] != ["/bin/devcontainer-entrypoint"]:
+    smoke_plan_file = reports_dir / "smoke-test-plan.json"
+    subprocess.run(
+        ["python3", "tests/ci/check-smoke-plan.py", str(smoke_plan_file), image_name],
+        check=True,
+    )
+
+    if image_plan["entrypoint"] != ["/usr/local/bin/devcontainer-entrypoint"]:
         fail("image-plan.json entrypoint mismatch")
 
     if not extensions_report["validation"]["noNetworkDuringProjection"]:
