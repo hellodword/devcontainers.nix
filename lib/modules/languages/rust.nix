@@ -1,0 +1,54 @@
+{ lib, pkgs, config, ... }:
+let
+  packages =
+    with pkgs;
+    [
+      rustc
+      cargo
+      rustfmt
+      clippy
+      rust-analyzer
+      cargo-nextest
+      cargo-edit
+      cargo-audit
+    ];
+in
+{
+  config = lib.mkIf config.devcontainer.languages.rust.enable {
+    devcontainer.packages = packages;
+    devcontainer.vscode.extensions = [
+      "rust-lang.rust-analyzer"
+      "tamasfe.even-better-toml"
+    ];
+    devcontainer.vscode.settings = {
+      "rust-analyzer.server.path" = "/usr/local/bin/rust-analyzer";
+      "rust-analyzer.check.command" = "clippy";
+    };
+    devcontainer.env.container = {
+      RUST_BACKTRACE = "1";
+      CARGO_HOME = "$XDG_DATA_HOME/cargo";
+      RUSTUP_HOME = "$XDG_DATA_HOME/rustup";
+      CARGO_TARGET_DIR = "$WORKSPACE/target";
+    };
+    devcontainer.path.segments.language = [ "$CARGO_HOME/bin" ];
+    devcontainer.graph.nodes."language/rust" = {
+      kind = "language";
+      group = "51-rust-language";
+      paths = packages;
+      stability = "medium";
+      sharing = "image-family";
+      priority = 70;
+      securityClass = "trusted";
+    };
+    devcontainer.tests.smoke = [
+      {
+        name = "rustc-version";
+        command = [ "rustc" "--version" ];
+      }
+      {
+        name = "cargo-version";
+        command = [ "cargo" "--version" ];
+      }
+    ];
+  };
+}
