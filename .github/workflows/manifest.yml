@@ -2,10 +2,23 @@ name: manifest
 
 on:
   workflow_dispatch:
+    inputs:
+      source-run-id:
+        description: workflow run id that produced digest-* artifacts
+        required: true
+        type: string
+      tag-suffix:
+        description: optional suffix appended to latest tag, for example rc1
+        required: false
+        default: ""
+        type: string
 
 jobs:
   manifest:
     runs-on: ubuntu-latest
+    concurrency:
+      group: manifest-${{ github.ref }}-${{ inputs.source-run-id }}
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
@@ -16,7 +29,63 @@ jobs:
       - name: Install GitHub CLI
         uses: cli/cli-action@v2
 
-      - name: Explain manifest policy
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Aggregate digests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: ${{ inputs.source-run-id }}
+          TAG_SUFFIX: ${{ inputs.tag-suffix }}
+          REPOSITORY: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
         run: |
-          echo "This workflow is reserved for digest aggregation after per-image workflows publish arch tags."
-          echo "Use uploaded digest-* artifacts from successful build-image-* runs to assemble multi-arch manifests."
+          set -euo pipefail
+          images=(
+            nix
+            nix-dind
+            python
+            nodejs
+            go
+            rust
+            python-web
+            go-web
+            rust-web
+            flutter
+          )
+
+          suffix=""
+          if [ -n "$TAG_SUFFIX" ]; then
+            suffix="-$TAG_SUFFIX"
+          fi
+
+          mkdir -p manifest-artifacts
+
+          for image in "${images[@]}"; do
+            artifact_name="digest-$image"
+            artifact_id="$(
+              gh api "repos/$REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts" \
+                --jq ".artifacts[] | select(.name == \"$artifact_name\") | .id" \
+                | head -n1
+            )"
+
+            if [ -z "$artifact_id" ]; then
+              echo "missing artifact: $artifact_name" >&2
+              exit 1
+            fi
+
+            zip_path="manifest-artifacts/$artifact_name.zip"
+            out_dir="manifest-artifacts/$artifact_name"
+            gh api "repos/$REPOSITORY/actions/artifacts/$artifact_id/zip" >"$zip_path"
+            unzip -q "$zip_path" -d "$out_dir"
+
+            digest="$(tr -d '\n' <"$out_dir/digest.txt")"
+            target_ref="ghcr.io/$OWNER/devcontainers-$image:latest$suffix"
+
+            echo "publishing $target_ref from $digest"
+            docker buildx imagetools create -t "$target_ref" "$digest"
+          done
