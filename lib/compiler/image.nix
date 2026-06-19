@@ -9,6 +9,8 @@
   compiledFhsRuntime,
 }:
 let
+  mergedContainerEnv = compiledEnv.containerEnv // compiledDockerAccess.containerEnv;
+
   renderJson = value: builtins.toFile "payload.json" (builtins.toJSON value);
 
   tasksFile = renderJson { tasks = compiledLifecycle.tasks; };
@@ -82,7 +84,7 @@ let
     Env =
       lib.mapAttrsToList
         (name: value: "${name}=${value}")
-        compiledEnv.containerEnv;
+        mergedContainerEnv;
     Entrypoint = [ "/usr/local/bin/devcontainer-entrypoint" ];
     Cmd = [ "sleep" "infinity" ];
     Labels = labels;

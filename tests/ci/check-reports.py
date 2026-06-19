@@ -78,6 +78,7 @@ def main() -> int:
     fhs_runtime_report = read_json(reports_dir / "fhs-runtime-report.json")
     ci_plan = read_json(reports_dir / "ci-plan.json")
     env_report = read_json(reports_dir / "env-report.json")
+    preview_container_env = metadata_preview.get("containerEnv") or {}
 
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
@@ -97,6 +98,9 @@ def main() -> int:
             fail("metadata docker access must declare high privilege")
         if not docker_access_metadata["remoteTcpRequiresTls"]:
             fail("metadata docker access must declare remote TCP TLS requirement")
+        for name, value in docker_access_report["containerEnv"].items():
+            if preview_container_env.get(name) != value:
+                fail(f"metadata merged preview must retain docker access env {name}")
     else:
         if metadata_schema["hasDockerAccessMetadata"]:
             fail(f"{image_name} metadata must not declare docker access metadata")
@@ -136,6 +140,10 @@ def main() -> int:
         fail("env-report.json PATH source details must include path entries")
     if not env_report["containerEnvSources"]["EDITOR"]["sources"]:
         fail("env-report.json must include source labels for container env entries")
+    if preview_container_env.get("PATH") != env_report["containerEnv"]["PATH"]:
+        fail("metadata merged preview must retain the compiled PATH entry")
+    if preview_container_env.get("EDITOR") != env_report["containerEnv"]["EDITOR"]:
+        fail("metadata merged preview must retain the compiled EDITOR entry")
 
     if not extensions_report["validation"]["noNetworkDuringProjection"]:
         fail("extensions projection must stay offline")

@@ -1,6 +1,8 @@
 { lib }:
 { config, compiledEnv, compiledDockerAccess }:
 let
+  mergedContainerEnv = compiledEnv.containerEnv // compiledDockerAccess.containerEnv;
+
   lifecycleCommands =
     let
       phases = [ "onCreate" "postCreate" "postStart" "postAttach" ];
@@ -32,7 +34,6 @@ let
   dockerMetadata =
     lib.optionalAttrs config.devcontainer.dockerAccess.enable {
       mounts = config.devcontainer.dockerAccess.mounts;
-      containerEnv = config.devcontainer.dockerAccess.containerEnv;
       dockerAccess = {
         enabled = compiledDockerAccess.enabled;
         defaultMode = compiledDockerAccess.defaultMode;
@@ -49,7 +50,7 @@ let
       remoteUser = config.devcontainer.user.remoteUser;
       containerUser = config.devcontainer.user.containerUser;
       updateRemoteUserUID = config.devcontainer.user.updateRemoteUserUID;
-      containerEnv = compiledEnv.containerEnv;
+      containerEnv = mergedContainerEnv;
       remoteEnv = compiledEnv.remoteEnv;
     }
     // lifecycleCommands
