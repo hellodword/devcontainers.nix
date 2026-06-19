@@ -36,6 +36,31 @@
             "reports-${lib.replaceStrings [ "-" ] [ "_" ] name}"
             image.reports)
           images;
+      fixtureFiles =
+        lib.filterAttrs
+          (name: type: type == "regular" && lib.hasSuffix ".nix" name)
+          (builtins.readDir ./tests/fixtures);
+      fixtureChecks =
+        lib.mapAttrs'
+          (name: _:
+            let
+              fixture = import (./tests/fixtures + "/${name}") { inherit self; };
+              missing =
+                builtins.filter
+                  (node: !(builtins.hasAttr node fixture.image.graph.nodes))
+                  fixture.expectedNodes;
+            in
+            lib.nameValuePair
+              "fixture-${lib.replaceStrings [ ".nix" "-" ] [ "" "_" ] name}"
+              (assert missing == [ ];
+                pkgs.writeText
+                  "fixture-${name}.json"
+                  (builtins.toJSON {
+                    image = fixture.image.config.devcontainer.image.name;
+                    expectedNodes = fixture.expectedNodes;
+                    missing = missing;
+                  })))
+          fixtureFiles;
     in
     {
       formatter.${system} = pkgs.nixfmt-rfc-style;
@@ -46,9 +71,11 @@
         default = images.nix.reports;
         "devcontainer-image" = compiler.runtimePackages."devcontainer-image";
         "devcontainer-task-runner" = compiler.runtimePackages."devcontainer-task-runner";
+        "vscode-extension-projector" = compiler.runtimePackages."vscode-extension-projector";
+        "devcontainer-docker-access" = compiler.runtimePackages."devcontainer-docker-access";
         devpkg = compiler.runtimePackages.devpkg;
       };
 
-      checks.${system} = reportChecks;
+      checks.${system} = reportChecks // fixtureChecks;
     };
 }

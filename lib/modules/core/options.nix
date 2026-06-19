@@ -165,6 +165,57 @@ in
       };
     };
 
+    compat = {
+      fhsRuntime = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        binSh = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        binBash = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        usrBinEnv = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        usrBinCoreTools = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        etcOsRelease = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        caCertificates = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        dynamicLoader = {
+          mode = mkOption {
+            type = types.str;
+            default = "nix-ld";
+          };
+          x86_64.path = mkOption {
+            type = types.str;
+            default = "/lib64/ld-linux-x86-64.so.2";
+          };
+          aarch64.path = mkOption {
+            type = types.str;
+            default = "/lib/ld-linux-aarch64.so.1";
+          };
+        };
+        nixLdLibraries = mkOption {
+          type = types.listOf types.package;
+          default = [ ];
+        };
+      };
+    };
+
     vscode = {
       extensions = mkOption {
         type = types.listOf types.str;

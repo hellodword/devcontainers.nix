@@ -5,6 +5,7 @@
   compiledMetadata,
   compiledLifecycle,
   compiledVscodeExtensions,
+  compiledFhsRuntime,
 }:
 let
   renderJson = value: builtins.toFile "payload.json" (builtins.toJSON value);
@@ -15,6 +16,41 @@ let
       extensions = compiledVscodeExtensions.extensions;
       projectionTargets = compiledVscodeExtensions.projectionTargets;
     };
+  osReleaseFile = builtins.toFile "os-release" compiledFhsRuntime.osReleaseText;
+
+  mkDirCommands =
+    builtins.concatStringsSep "\n"
+      (map
+        (extension: "mkdir -p .${extension.path}")
+        compiledVscodeExtensions.extensions);
+  mkManifestCommands =
+    builtins.concatStringsSep "\n"
+      (map
+        (extension:
+          let
+            manifestFile =
+              builtins.toFile
+                "${builtins.replaceStrings [ "." ] [ "-" ] extension.id}-package.json"
+                (builtins.toJSON {
+                  name = extension.id;
+                  publisher = builtins.head (lib.splitString "." extension.id);
+                  version = "0.0.0";
+                });
+          in
+          "cp ${manifestFile} .${extension.path}/package.json")
+        compiledVscodeExtensions.extensions);
+  mkSymlinkCommands =
+    builtins.concatStringsSep "\n"
+      (map
+        (link:
+          let
+            targetDir = builtins.dirOf link.target;
+          in
+          ''
+            mkdir -p .${targetDir}
+            ln -sf ${link.source} .${link.target}
+          '')
+        compiledFhsRuntime.symlinks);
 
   entrypoint = runtimePackages."devcontainer-entrypoint";
   runtimeTools = [
@@ -62,19 +98,11 @@ let
       mkdir -p usr/share/devcontainer/vscode usr/share/devcontainer
       cp ${tasksFile} usr/share/devcontainer/tasks.json
       cp ${extensionsFile} usr/share/devcontainer/vscode/extensions-index.json
-      mkdir -p bin usr/bin
-      ln -sf ${pkgs.bashInteractive}/bin/bash bin/bash
-      ln -sf ${pkgs.bashInteractive}/bin/bash usr/bin/bash
-      ln -sf ${pkgs.bashInteractive}/bin/sh bin/sh
-      ln -sf ${pkgs.bashInteractive}/bin/sh usr/bin/sh
-      ln -sf ${pkgs.coreutils}/bin/env usr/bin/env
-      ln -sf ${pkgs.gnutar}/bin/tar usr/bin/tar
-      ln -sf ${pkgs.gzip}/bin/gzip usr/bin/gzip
-      ln -sf ${pkgs.gnused}/bin/sed usr/bin/sed
-      ln -sf ${pkgs.gnugrep}/bin/grep usr/bin/grep
-      ln -sf ${pkgs.curl}/bin/curl usr/bin/curl
-      ln -sf ${pkgs.wget}/bin/wget usr/bin/wget
-      ln -sf ${pkgs.git}/bin/git usr/bin/git
+      mkdir -p etc usr/share/devcontainer/vsix
+      cp ${osReleaseFile} etc/os-release
+      ${mkDirCommands}
+      ${mkManifestCommands}
+      ${mkSymlinkCommands}
     '';
   };
 in

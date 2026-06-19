@@ -6,6 +6,10 @@ vscode-extension-projector activate --index <path>
 EOF
 }
 
+redact_log_line() {
+  printf '%s\n' "$1" | sed -E 's/([A-Za-z0-9_]*(TOKEN|PASSWORD|SECRET|KEY)[A-Za-z0-9_]*=)[^[:space:]]+/\1[REDACTED]/g'
+}
+
 copy_or_link() {
   local source_path="$1"
   local target_path="$2"
@@ -41,11 +45,12 @@ case "$cmd" in
       dest_name="$(basename "$source_path")"
 
       if [ ! -e "$source_path" ]; then
-        echo "missing extension source for $id: $source_path" >&2
+        redact_log_line "missing extension source for $id: $source_path" >&2
         continue
       fi
 
       for target in "${targets[@]}"; do
+        redact_log_line "project $id -> $target/$dest_name"
         copy_or_link "$source_path" "$target/$dest_name" "$projection"
       done
     done

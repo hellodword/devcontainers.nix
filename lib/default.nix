@@ -29,6 +29,14 @@ let
       inherit lib;
     };
 
+    compileFhsRuntime = import ./compiler/fhs-runtime.nix {
+      inherit lib pkgs system;
+    };
+
+    compileDockerAccess = import ./compiler/docker-access.nix {
+      inherit lib;
+    };
+
     compileLayers = import ./compiler/layers.nix {
       inherit lib;
     };
@@ -57,6 +65,12 @@ let
         vscodeExtensions = compileVscodeExtensions {
           config = evaluated.config;
         };
+        fhsRuntime = compileFhsRuntime {
+          config = evaluated.config;
+        };
+        dockerAccess = compileDockerAccess {
+          config = evaluated.config;
+        };
         layers = compileLayers {
           config = evaluated.config;
           compiledGraph = graph;
@@ -67,6 +81,7 @@ let
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledVscodeExtensions = vscodeExtensions;
+          compiledFhsRuntime = fhsRuntime;
         };
         reports = compileReports {
           config = evaluated.config;
@@ -75,12 +90,14 @@ let
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledVscodeExtensions = vscodeExtensions;
+          compiledDockerAccess = dockerAccess;
+          compiledFhsRuntime = fhsRuntime;
           compiledLayers = layers;
         };
       in
       {
         inherit (evaluated) config options;
-        inherit graph env metadata layers;
+        inherit graph env metadata layers fhsRuntime dockerAccess;
         inherit lifecycle vscodeExtensions;
         inherit (image) rootfs oci;
         inherit (reports)
@@ -90,11 +107,14 @@ let
           metadata-label-json
           metadata-merged-preview-json
           metadata-schema-report-json
+          image-plan-json
           layer-plan-json
           env-report-json
           closure-report-json
           extensions-report-json
           docker-access-report-json
+          fhs-runtime-report-json
+          security-report-json
           smoke-test-plan-json
           ci-plan-json
           tasks-json

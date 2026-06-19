@@ -33,6 +33,14 @@ ensure_xdg() {
     "${XDG_STATE_HOME:-$HOME/.local/state}"
 }
 
+redact_log_file() {
+  local logfile="$1"
+  sed -E -i \
+    -e 's/([A-Za-z0-9_]*(TOKEN|PASSWORD|SECRET|KEY)[A-Za-z0-9_]*=)[^[:space:]]+/\1[REDACTED]/g' \
+    -e 's/(Authorization: )[[:graph:]]+/\1[REDACTED]/g' \
+    "$logfile"
+}
+
 task_field() {
   local name="$1"
   local expr="$2"
@@ -78,10 +86,12 @@ run_task() {
   } >>"$logfile"
 
   if "${command_parts[@]}" >>"$logfile" 2>&1; then
+    redact_log_file "$logfile"
     echo "done" >"$statusfile"
     echo "0" >"$rcfile"
   else
     local rc=$?
+    redact_log_file "$logfile"
     echo "failed" >"$statusfile"
     echo "$rc" >"$rcfile"
     return "$rc"

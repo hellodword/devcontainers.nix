@@ -9,7 +9,10 @@ lib.evalModules {
     [
       ../modules/core/options.nix
       ../modules/core/base.nix
-      ../modules/core/env-path.nix
+      ../modules/core/env.nix
+      ../modules/core/path.nix
+      ../modules/core/graph.nix
+      ../modules/core/fhs-runtime.nix
       ../modules/core/metadata.nix
       ../modules/core/lifecycle.nix
       ../modules/core/vscode-extensions.nix

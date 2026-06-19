@@ -6,6 +6,8 @@
   compiledMetadata,
   compiledLifecycle,
   compiledVscodeExtensions,
+  compiledDockerAccess,
+  compiledFhsRuntime,
   compiledLayers,
 }:
 let
@@ -19,6 +21,14 @@ let
     jsonFile "metadata-merged-preview.json" compiledMetadata.mergedPreview;
   metadata-schema-report-json =
     jsonFile "metadata-schema-report.json" compiledMetadata.schemaReport;
+  image-plan-json =
+    jsonFile "image-plan.json" {
+      image = config.devcontainer.image.name;
+      packageCount = builtins.length config.devcontainer.packages;
+      layerStrategy = compiledLayers.budget.strategy;
+      entrypoint = [ "/bin/devcontainer-entrypoint" ];
+      smokeTestCount = builtins.length config.devcontainer.tests.smoke;
+    };
   tasks-json =
     jsonFile "tasks.json" { tasks = compiledLifecycle.tasks; };
   extensions-index-json =
@@ -38,20 +48,30 @@ let
     jsonFile "extensions-report.json" {
       image = config.devcontainer.image.name;
       extensionCount = builtins.length config.devcontainer.vscode.extensions;
-      extensions = config.devcontainer.vscode.extensions;
+      extensions = compiledVscodeExtensions.extensions;
       projection = config.devcontainer.vscode.preinstall.projection;
     };
   docker-access-report-json =
-    jsonFile "docker-access-report.json" {
-      enabled = config.devcontainer.dockerAccess.enable;
-      defaultMode = config.devcontainer.dockerAccess.defaultMode;
-      mounts = config.devcontainer.dockerAccess.mounts;
-      containerEnv = config.devcontainer.dockerAccess.containerEnv;
-      securityClass =
-        if config.devcontainer.dockerAccess.enable then
-          "docker-daemon-access"
-        else
-          "trusted";
+    jsonFile "docker-access-report.json" compiledDockerAccess;
+  fhs-runtime-report-json =
+    jsonFile "fhs-runtime-report.json" {
+      enabled = compiledFhsRuntime.enabled;
+      symlinkCount = builtins.length compiledFhsRuntime.symlinks;
+      dynamicLoader =
+        lib.findFirst
+          (link: lib.hasInfix "ld-linux" link.target)
+          null
+          compiledFhsRuntime.symlinks;
+    };
+  security-report-json =
+    jsonFile "security-report.json" {
+      secretsBakedIntoImage = false;
+      lifecycleLogRedaction = true;
+      extensionProjectionLogRedaction = true;
+      dockerAccessOnlyInNixDind =
+        config.devcontainer.image.name == "nix-dind" || !compiledDockerAccess.enabled;
+      remoteTcpRequiresTls = true;
+      shellInitHasNoSideEffects = true;
     };
   smoke-test-plan-json =
     jsonFile "smoke-test-plan.json" {
@@ -65,6 +85,7 @@ let
       architectures = config.devcontainer.image.architectures;
       reportFiles = [
         "graph.json"
+        "image-plan.json"
         "layer-plan.json"
         "metadata-label.json"
         "env-report.json"
@@ -101,6 +122,10 @@ let
         path = metadata-schema-report-json;
       }
       {
+        name = "image-plan.json";
+        path = image-plan-json;
+      }
+      {
         name = "tasks.json";
         path = tasks-json;
       }
@@ -129,6 +154,14 @@ let
         path = docker-access-report-json;
       }
       {
+        name = "fhs-runtime-report.json";
+        path = fhs-runtime-report-json;
+      }
+      {
+        name = "security-report.json";
+        path = security-report-json;
+      }
+      {
         name = "smoke-test-plan.json";
         path = smoke-test-plan-json;
       }
@@ -146,6 +179,7 @@ in
     metadata-label-json
     metadata-merged-preview-json
     metadata-schema-report-json
+    image-plan-json
     tasks-json
     extensions-index-json
     layer-plan-json
@@ -153,6 +187,8 @@ in
     closure-report-json
     extensions-report-json
     docker-access-report-json
+    fhs-runtime-report-json
+    security-report-json
     smoke-test-plan-json
     ci-plan-json
     reports
