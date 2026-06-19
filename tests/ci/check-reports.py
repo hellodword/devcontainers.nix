@@ -164,6 +164,21 @@ def main() -> int:
         fail("metadata merged preview must retain the compiled EDITOR entry")
     if "DOCKER_HOST" in env_report["containerEnv"]:
         fail("container env must not configure DOCKER_HOST by default")
+    expected_xdg = {
+        "XDG_CONFIG_HOME": "/home/vscode/.config",
+        "XDG_CACHE_HOME": "/home/vscode/.cache",
+        "XDG_DATA_HOME": "/home/vscode/.local/share",
+        "XDG_STATE_HOME": "/home/vscode/.local/state",
+    }
+    for env_name, expected_value in expected_xdg.items():
+        if env_report["containerEnv"].get(env_name) != expected_value:
+            fail(f"container env must expand {env_name} to {expected_value}")
+    for env_name, env_value in env_report["containerEnv"].items():
+        if isinstance(env_value, str) and ("$HOME" in env_value or "$XDG_" in env_value):
+            fail(f"container env must not retain unexpanded HOME/XDG references in {env_name}")
+    path_value = env_report["containerEnv"].get("PATH", "")
+    if "$HOME" in path_value or "$XDG_" in path_value:
+        fail("container PATH must not retain unexpanded HOME/XDG references")
     nix_ld_env = fhs_runtime_report.get("nixLdEnv") or {}
     if env_report["containerEnv"].get("NIX_LD") != real_glibc_loader:
         fail("container env must set NIX_LD to the real glibc loader")
@@ -186,6 +201,16 @@ def main() -> int:
         fail("extensions-report.json must confirm locked extension artifacts")
     if not extensions_report["validation"]["companionToolsProvidedByNix"]:
         fail("extensions-report.json must confirm companion tools come from Nix")
+    projection_targets = extensions_index.get("projectionTargets") or []
+    if any("$HOME" in target for target in projection_targets):
+        fail("VS Code extension projection targets must not retain unexpanded HOME references")
+    for required_target in [
+        "/home/vscode/.vscode-server/extensions",
+        "/home/vscode/.vscode-server-insiders/extensions",
+        "/home/vscode/.vscode-remote/extensions",
+    ]:
+        if required_target not in projection_targets:
+            fail(f"extensions-index.json missing projection target: {required_target}")
     for extension in extensions_index["extensions"]:
         if extension["version"] == "pinned":
             fail(f"extensions-index.json must record a real version for {extension['id']}")

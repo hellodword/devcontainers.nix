@@ -61,6 +61,17 @@ def main() -> int:
     env = image_config.get("Env")
     if not isinstance(env, list) or "HOME=/home/vscode" not in env:
         fail("image artifact must set HOME for the vscode user")
+    for required_env in [
+        "XDG_CONFIG_HOME=/home/vscode/.config",
+        "XDG_CACHE_HOME=/home/vscode/.cache",
+        "XDG_DATA_HOME=/home/vscode/.local/share",
+        "XDG_STATE_HOME=/home/vscode/.local/state",
+    ]:
+        if required_env not in env:
+            fail(f"image artifact must set expanded {required_env.split('=', 1)[0]}")
+    for env_entry in env:
+        if "$HOME" in env_entry or "$XDG_" in env_entry:
+            fail("image artifact env must not retain unexpanded HOME/XDG references")
 
     labels = image_config.get("Labels")
     if not isinstance(labels, dict) or "devcontainer.metadata" not in labels:

@@ -364,9 +364,9 @@ in
           targets = mkOption {
             type = types.listOf types.str;
             default = [
-              "$HOME/.vscode-server/extensions"
-              "$HOME/.vscode-server-insiders/extensions"
-              "$HOME/.vscode-remote/extensions"
+              "${config.devcontainer.user.home}/.vscode-server/extensions"
+              "${config.devcontainer.user.home}/.vscode-server-insiders/extensions"
+              "${config.devcontainer.user.home}/.vscode-remote/extensions"
             ];
           };
         };

@@ -30,6 +30,66 @@ let
     remote = mergeOriginScope "remote";
     shell = mergeOriginScope "shell";
   };
+  rawContainerEnv = config.devcontainer.env.container // (fhsEnv.container or { });
+  rawRemoteEnv = config.devcontainer.env.remote // (fhsEnv.remote or { });
+  rawShellEnv = config.devcontainer.env.shell // (fhsEnv.shell or { });
+  # Docker image Env values are not shell-expanded at runtime.
+  expandValue =
+    env: value:
+    let
+      names = lib.sort (a: b: builtins.stringLength a > builtins.stringLength b) (builtins.attrNames env);
+      replaceName =
+        current: name:
+        let
+          replacement = builtins.getAttr name env;
+          braced = "$" + "{" + name + "}";
+          plain = "$" + name;
+          withBraced = builtins.replaceStrings [ braced ] [ replacement ] current;
+          withDelimited =
+            builtins.replaceStrings
+              [
+                (plain + "/")
+                (plain + ":")
+                (plain + ".")
+                (plain + "-")
+                (plain + "_")
+              ]
+              [
+                (replacement + "/")
+                (replacement + ":")
+                (replacement + ".")
+                (replacement + "-")
+                (replacement + "_")
+              ]
+              withBraced;
+        in
+        if !(builtins.isString current) || !(builtins.isString replacement) then
+          current
+        else if withDelimited == plain then
+          replacement
+        else
+          withDelimited;
+    in
+    if builtins.isString value then lib.foldl' replaceName value names else value;
+  expandEnv =
+    env:
+    let
+      step = current: lib.mapAttrs (_: value: expandValue current value) current;
+      go =
+        remaining: current:
+        let
+          next = step current;
+        in
+        if remaining == 0 || next == current then next else go (remaining - 1) next;
+    in
+    go 8 env;
+  expandEnvWithContext =
+    context: env:
+    let
+      expanded = expandEnv (context // env);
+    in
+    lib.genAttrs (builtins.attrNames env) (name: builtins.getAttr name expanded);
+  expandedContainerEnv = expandEnv rawContainerEnv;
 
   pathEntryState =
     lib.foldl'
@@ -41,27 +101,28 @@ let
         lib.foldl' (
           inner: segment:
           let
+            expandedSegment = expandValue expandedContainerEnv segment;
             segmentSourceSet = segmentOrigins.${bucket}.${segment} or [ ];
-            exists = builtins.hasAttr segment inner.entries;
+            exists = builtins.hasAttr expandedSegment inner.entries;
             previous =
               if exists then
-                builtins.getAttr segment inner.entries
+                builtins.getAttr expandedSegment inner.entries
               else
                 {
-                  inherit segment;
+                  segment = expandedSegment;
                   buckets = [ ];
                   sources = [ ];
                 };
             updated = {
-              inherit segment;
+              segment = expandedSegment;
               buckets = lib.unique (previous.buckets ++ [ bucket ]);
               sources = lib.unique (previous.sources ++ segmentSourceSet);
             };
           in
           {
-            order = if exists then inner.order else inner.order ++ [ segment ];
+            order = if exists then inner.order else inner.order ++ [ expandedSegment ];
             entries = inner.entries // {
-              ${segment} = updated;
+              ${expandedSegment} = updated;
             };
           }
         ) state bucketSegments
@@ -83,14 +144,11 @@ let
       inherit value sources;
       conflict = builtins.length sources > 1;
     };
-  containerEnv =
-    config.devcontainer.env.container
-    // (fhsEnv.container or { })
-    // {
-      PATH = compiledPath;
-    };
-  remoteEnv = config.devcontainer.env.remote // (fhsEnv.remote or { });
-  shellEnv = config.devcontainer.env.shell // (fhsEnv.shell or { });
+  containerEnv = expandedContainerEnv // {
+    PATH = compiledPath;
+  };
+  remoteEnv = expandEnvWithContext containerEnv rawRemoteEnv;
+  shellEnv = expandEnvWithContext (containerEnv // remoteEnv) rawShellEnv;
   containerEnvSources =
     lib.mapAttrs (name: value: mkEnvEntry "container" name value) containerEnv
     // {
