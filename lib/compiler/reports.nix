@@ -92,12 +92,18 @@ let
       architectures = config.devcontainer.image.architectures;
       reportFiles = [
         "graph.json"
+        "metadata-merged-preview.json"
+        "metadata-schema-report.json"
         "image-plan.json"
         "layer-plan.json"
         "metadata-label.json"
         "env-report.json"
+        "closure-report.json"
+        "extensions-index.json"
         "extensions-report.json"
         "docker-access-report.json"
+        "fhs-runtime-report.json"
+        "security-report.json"
         "smoke-test-plan.json"
       ];
     };

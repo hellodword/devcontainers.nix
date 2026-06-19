@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-import io
 import json
-import tarfile
 import pathlib
+import tarfile
 import sys
 
 
@@ -20,10 +19,9 @@ def read_layer_names(archive: tarfile.TarFile, layer_name: str) -> set[str]:
     payload = archive.extractfile(member)
     if payload is None:
         fail(f"missing payload for layer {layer_name}")
-    data = payload.read()
     names: set[str] = set()
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as layer_tar:
-        for layer_member in layer_tar.getmembers():
+    with tarfile.open(fileobj=payload, mode="r|*") as layer_tar:
+        for layer_member in layer_tar:
             names.add(normalize(layer_member.name))
     return names
 
@@ -66,6 +64,14 @@ def main() -> int:
     )
     if not has_extension_dir:
         fail("no unpacked extension package.json found in image tar")
+
+    has_docker_access = "bin/devcontainer-docker-access" in all_names
+    if image_name == "nix-dind":
+        if not has_docker_access:
+            fail("docker access helper missing from nix-dind image")
+    else:
+        if has_docker_access:
+            fail(f"docker access helper must not ship in {image_name}")
 
     if image_name == "nix":
         if "lib64/ld-linux-x86-64.so.2" not in all_names:

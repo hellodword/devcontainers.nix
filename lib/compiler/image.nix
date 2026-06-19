@@ -5,6 +5,7 @@
   compiledMetadata,
   compiledLifecycle,
   compiledVscodeExtensions,
+  compiledDockerAccess,
   compiledFhsRuntime,
 }:
 let
@@ -73,14 +74,15 @@ let
   '';
 
   entrypoint = runtimePackages."devcontainer-entrypoint";
-  runtimeTools = [
-    runtimePackages."devcontainer-task-runner"
-    runtimePackages."vscode-extension-projector"
-    runtimePackages."devcontainer-docker-access"
-    runtimePackages.devpkg
-    runtimePackages."devcontainer-image"
-    entrypoint
-  ];
+  runtimeTools =
+    [
+      runtimePackages."devcontainer-task-runner"
+      runtimePackages."vscode-extension-projector"
+      runtimePackages.devpkg
+      runtimePackages."devcontainer-image"
+      entrypoint
+    ]
+    ++ lib.optional compiledDockerAccess.enabled runtimePackages."devcontainer-docker-access";
 
   rootfs = pkgs.buildEnv {
     name = "${config.devcontainer.image.name}-rootfs";

@@ -11,11 +11,21 @@ EOF
 }
 
 run_docker() {
-  if [ "${DOCKER_HOST:-}" != "${DOCKER_HOST#tcp://}" ]; then
+  host="${DOCKER_HOST:-}"
+  if [ "$host" != "${host#tcp://}" ]; then
+    if [ "${DOCKER_TLS_VERIFY:-}" != "1" ] || [ -z "${DOCKER_CERT_PATH:-}" ]; then
+      cat >&2 <<'EOF'
+remote tcp docker daemon requires TLS
+- set DOCKER_HOST=tcp://host:2376
+- set DOCKER_TLS_VERIFY=1
+- set DOCKER_CERT_PATH=/run/docker-certs
+EOF
+      exit 1
+    fi
     exec "$docker_real" "$@"
   fi
 
-  socket="/var/run/docker.sock"
+  socket="${DEVCONTAINER_DOCKER_SOCKET:-/var/run/docker.sock}"
   if [ -S "$socket" ] && [ -r "$socket" ]; then
     exec "$docker_real" "$@"
   fi
@@ -26,7 +36,7 @@ run_docker() {
 
   cat >&2 <<'EOF'
 docker daemon unavailable
-- host socket mode: mount /var/run/docker.sock
+- host socket mode: mount ${DEVCONTAINER_DOCKER_SOCKET:-/var/run/docker.sock}
 - remote tcp tls mode: set DOCKER_HOST=tcp://host:2376, DOCKER_TLS_VERIFY=1, DOCKER_CERT_PATH=/run/docker-certs
 EOF
   exit 1

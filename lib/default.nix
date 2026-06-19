@@ -81,6 +81,7 @@ let
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledVscodeExtensions = vscodeExtensions;
+          compiledDockerAccess = dockerAccess;
           compiledFhsRuntime = fhsRuntime;
         };
         reports = compileReports {

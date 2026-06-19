@@ -14,6 +14,14 @@ devcontainer-image doctor image <name>
 EOF
 }
 
+require_file() {
+  local path="$1"
+  [ -f "$path" ] || {
+    echo "missing report file: $path" >&2
+    exit 1
+  }
+}
+
 report_dir="."
 if [ "${*: -2:1}" = "--report" ]; then
   report_dir="${*: -1}"
@@ -27,21 +35,39 @@ case "$cmd" in
     target="${3:-}"
     case "$topic" in
       layer)
+        require_file "$report_dir/layer-plan.json"
+        jq -e --argjson idx "${target:-0}" '.layers[$idx]' "$report_dir/layer-plan.json" >/dev/null || {
+          echo "layer index not found: ${target:-0}" >&2
+          exit 1
+        }
         jq --argjson idx "${target:-0}" '.layers[$idx]' "$report_dir/layer-plan.json"
         ;;
       package)
+        require_file "$report_dir/closure-report.json"
+        jq -e --arg target "$target" '.packages[] | select(. == $target)' "$report_dir/closure-report.json" >/dev/null || {
+          echo "package not found: $target" >&2
+          exit 1
+        }
         jq --arg target "$target" '.packages[] | select(. == $target)' "$report_dir/closure-report.json"
         ;;
       extension)
+        require_file "$report_dir/extensions-index.json"
+        jq -e --arg target "$target" '.extensions[] | select(.id == $target)' "$report_dir/extensions-index.json" >/dev/null || {
+          echo "extension not found: $target" >&2
+          exit 1
+        }
         jq --arg target "$target" '.extensions[] | select(.id == $target)' "$report_dir/extensions-index.json"
         ;;
       docker-access)
+        require_file "$report_dir/docker-access-report.json"
         cat "$report_dir/docker-access-report.json"
         ;;
       image-plan)
+        require_file "$report_dir/image-plan.json"
         cat "$report_dir/image-plan.json"
         ;;
       security)
+        require_file "$report_dir/security-report.json"
         cat "$report_dir/security-report.json"
         ;;
       *)
@@ -67,7 +93,8 @@ case "$cmd" in
   check)
     metadata_file="${2:-}"
     [ -n "$metadata_file" ] || { usage >&2; exit 1; }
-    jq -e 'type == "array"' "$metadata_file" >/dev/null
+    require_file "$metadata_file"
+    jq -e 'type == "array" and length > 0' "$metadata_file" >/dev/null
     ;;
   doctor)
     scope="${2:-}"

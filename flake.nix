@@ -34,8 +34,38 @@
           (name: image:
             lib.nameValuePair
             "reports-${lib.replaceStrings [ "-" ] [ "_" ] name}"
-            image.reports)
+            (pkgs.runCommand "reports-${name}" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              export CHECK_SMOKE_PLAN=${./tests/ci/check-smoke-plan.py}
+              python3 ${./tests/ci/check-reports.py} ${image.reports} ${name}
+              touch "$out"
+            ''))
           images;
+      reportCliChecks =
+        lib.mapAttrs'
+          (name: image:
+            lib.nameValuePair
+            "report-cli-${lib.replaceStrings [ "-" ] [ "_" ] name}"
+            (pkgs.runCommand "report-cli-${name}" { nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.jq ]; } ''
+              bash ${./tests/ci/check-report-cli.sh} ${compiler.runtimePackages."devcontainer-image"} ${image.reports} ${name}
+              touch "$out"
+            ''))
+          images;
+      ociLayoutChecks =
+        lib.mapAttrs'
+          (name: image:
+            lib.nameValuePair
+            "oci-layout-${lib.replaceStrings [ "-" ] [ "_" ] name}"
+            (pkgs.runCommand "oci-layout-${name}" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              python3 ${./tests/ci/check-image-tar.py} ${image.oci} ${name}
+              touch "$out"
+            ''))
+          (lib.filterAttrs (name: _: builtins.elem name [ "nix" "nix-dind" ]) images);
+      dockerAccessChecks = {
+        docker-access-helper = pkgs.runCommand "docker-access-helper" { nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.gnugrep ]; } ''
+          bash ${./tests/ci/check-docker-access.sh} ${compiler.runtimePackages."devcontainer-docker-access"}
+          touch "$out"
+        '';
+      };
       fixtureFiles =
         lib.filterAttrs
           (name: type: type == "regular" && lib.hasSuffix ".nix" name)
@@ -76,6 +106,6 @@
         devpkg = compiler.runtimePackages.devpkg;
       };
 
-      checks.${system} = reportChecks // fixtureChecks;
+      checks.${system} = reportChecks // reportCliChecks // ociLayoutChecks // dockerAccessChecks // fixtureChecks;
     };
 }
