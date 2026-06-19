@@ -17,11 +17,19 @@ environment:
   DEVCONTAINER_HOST_DOCKER_SOCKET
     Host docker socket to mount into nix-dind. Default: /var/run/docker.sock
 
+  DEVCONTAINER_CONTAINER_DOCKER_MOUNT_TARGET
+    Container mount target for the host docker socket source. Default: /var/run/docker.sock
+
+  DEVCONTAINER_CONTAINER_DOCKER_SOCKET
+    Socket path that devcontainer-docker-access should use inside the container.
+    Default: same as DEVCONTAINER_CONTAINER_DOCKER_MOUNT_TARGET
+
   DEVCONTAINER_REMOTE_DOCKER_HOST
   DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR
-    Optional remote TCP TLS validation inputs for nix-dind. When both are set,
+    Optional remote TCP validation inputs for nix-dind. When the host is set,
     the script records helper output and a docker version call routed through
-    devcontainer-docker-access with DOCKER_TLS_VERIFY=1.
+    devcontainer-docker-access. When certs are also set, the helper is invoked
+    with DOCKER_TLS_VERIFY=1 and DOCKER_CERT_PATH=/run/docker-certs.
 EOF
 }
 
@@ -114,24 +122,29 @@ collect_docker_access() {
   local image_name="nix-dind"
   local image_ref="devcontainer-${image_name}:latest"
   local oci_path
-  local socket_path="${DEVCONTAINER_HOST_DOCKER_SOCKET:-/var/run/docker.sock}"
+  local socket_source="${DEVCONTAINER_HOST_DOCKER_SOCKET:-/var/run/docker.sock}"
+  local socket_mount_target="${DEVCONTAINER_CONTAINER_DOCKER_MOUNT_TARGET:-/var/run/docker.sock}"
+  local container_socket="${DEVCONTAINER_CONTAINER_DOCKER_SOCKET:-$socket_mount_target}"
+  local socket_mount="${socket_source}:${socket_mount_target}"
   local build_dir
 
   oci_path="$(build_oci_path "$image_name")"
   mkdir -p "$evidence_dir/$section"
   printf '%s\n' "$image_ref" >"$evidence_dir/$section/image-ref.txt"
   printf '%s\n' "$oci_path" >"$evidence_dir/$section/oci-path.txt"
-  printf '%s\n' "$socket_path" >"$evidence_dir/$section/host-docker-socket.txt"
+  printf '%s\n' "$socket_source" >"$evidence_dir/$section/host-docker-socket.txt"
+  printf '%s\n' "$socket_mount_target" >"$evidence_dir/$section/container-docker-mount-target.txt"
+  printf '%s\n' "$container_socket" >"$evidence_dir/$section/container-docker-socket.txt"
 
   copy_reports "$image_name" "$evidence_dir/$section/reports"
 
   run_capture "$section" docker-load "gzip -dc '$oci_path' | docker load"
-  run_capture "$section" docker-version "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' docker version"
-  run_capture "$section" docker-info "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' docker info"
-  run_capture "$section" docker-buildx-version "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' docker buildx version"
-  run_capture "$section" docker-compose-version "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' docker compose version"
-  run_capture "$section" docker-task-runner "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' devcontainer-task-runner list"
-  run_capture "$section" docker-process-list "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' /bin/bash -lc 'ps -ef'"
+  run_capture "$section" docker-version "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' docker version"
+  run_capture "$section" docker-info "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' docker info"
+  run_capture "$section" docker-buildx-version "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' docker buildx version"
+  run_capture "$section" docker-compose-version "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' docker compose version"
+  run_capture "$section" docker-task-runner "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' devcontainer-task-runner list"
+  run_capture "$section" docker-process-list "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' '$image_ref' /bin/bash -lc 'ps -ef'"
 
   build_dir="$(mktemp -d)"
   cat >"$build_dir/Dockerfile" <<'EOF'
@@ -143,25 +156,36 @@ EOF
   run_capture \
     "$section" \
     docker-build-run-smoke \
-    "docker run --rm -v '$socket_path:/var/run/docker.sock' -v '$build_dir:/tmp/build' '$image_ref' bash -lc 'docker build -t docker-access-smoke /tmp/build && docker run --rm docker-access-smoke'"
+    "docker run --rm -e DEVCONTAINER_DOCKER_SOCKET='$container_socket' -v '$socket_mount' -v '$build_dir:/tmp/build' '$image_ref' bash -lc 'docker build -t docker-access-smoke /tmp/build && docker run --rm docker-access-smoke'"
   rm -rf "$build_dir"
 
-  if [ -n "${DEVCONTAINER_REMOTE_DOCKER_HOST:-}" ] && [ -n "${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR:-}" ]; then
+  if [ -n "${DEVCONTAINER_REMOTE_DOCKER_HOST:-}" ]; then
     printf '%s\n' "${DEVCONTAINER_REMOTE_DOCKER_HOST}" >"$evidence_dir/$section/remote-docker-host.txt"
-    printf '%s\n' "${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}" >"$evidence_dir/$section/remote-docker-certs-dir.txt"
-    run_capture \
-      "$section" \
-      remote-tls-explain \
-      "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' -e DOCKER_TLS_VERIFY=1 -e DOCKER_CERT_PATH=/run/docker-certs -v '${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}:/run/docker-certs:ro' '$image_ref' devcontainer-docker-access explain"
-    run_capture \
-      "$section" \
-      remote-tls-docker-version \
-      "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' -e DOCKER_TLS_VERIFY=1 -e DOCKER_CERT_PATH=/run/docker-certs -v '${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}:/run/docker-certs:ro' '$image_ref' devcontainer-docker-access docker version"
+    if [ -n "${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR:-}" ]; then
+      printf '%s\n' "${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}" >"$evidence_dir/$section/remote-docker-certs-dir.txt"
+      run_capture \
+        "$section" \
+        remote-tcp-explain \
+        "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' -e DOCKER_TLS_VERIFY=1 -e DOCKER_CERT_PATH=/run/docker-certs -v '${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}:/run/docker-certs:ro' '$image_ref' devcontainer-docker-access explain"
+      run_capture \
+        "$section" \
+        remote-tcp-docker-version \
+        "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' -e DOCKER_TLS_VERIFY=1 -e DOCKER_CERT_PATH=/run/docker-certs -v '${DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR}:/run/docker-certs:ro' '$image_ref' devcontainer-docker-access docker version"
+    else
+      run_capture \
+        "$section" \
+        remote-tcp-explain \
+        "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' '$image_ref' devcontainer-docker-access explain"
+      run_capture \
+        "$section" \
+        remote-tcp-docker-version \
+        "docker run --rm -e DOCKER_HOST='${DEVCONTAINER_REMOTE_DOCKER_HOST}' '$image_ref' devcontainer-docker-access docker version"
+    fi
   else
-    cat >"$evidence_dir/$section/remote-tls-skipped.txt" <<'EOF'
-remote TCP TLS validation was skipped.
-Set both DEVCONTAINER_REMOTE_DOCKER_HOST and DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR
-to record remote TLS evidence for step 4.8.
+    cat >"$evidence_dir/$section/remote-tcp-skipped.txt" <<'EOF'
+remote TCP validation was skipped.
+Set DEVCONTAINER_REMOTE_DOCKER_HOST to record remote TCP evidence for step 4.8.
+Set DEVCONTAINER_REMOTE_DOCKER_CERTS_DIR as well to validate an optional TLS setup.
 EOF
   fi
 }

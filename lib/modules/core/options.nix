@@ -338,15 +338,19 @@ in
           type = types.str;
           default = "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock";
         };
-        remoteTcpTls.enable = mkOption {
+        remoteTcp.enable = mkOption {
           type = types.bool;
           default = true;
         };
-        remoteTcpTls.host = mkOption {
+        remoteTcp.host = mkOption {
           type = types.str;
-          default = "docker.example.internal:2376";
+          default = "docker.example.internal:2375";
         };
-        remoteTcpTls.certMount = mkOption {
+        remoteTcp.tls = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        remoteTcp.certMount = mkOption {
           type = types.str;
           default = "type=bind,source=${localEnv:HOME}/.docker/devcontainer-certs,target=/run/docker-certs,readonly";
         };

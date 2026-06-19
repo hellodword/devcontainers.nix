@@ -96,8 +96,12 @@ def main() -> int:
         docker_access_metadata = metadata_preview["dockerAccess"]
         if docker_access_metadata["privilege"]["level"] != "high":
             fail("metadata docker access must declare high privilege")
-        if not docker_access_metadata["remoteTcpRequiresTls"]:
-            fail("metadata docker access must declare remote TCP TLS requirement")
+        if not docker_access_metadata["remoteTcp"]["enabled"]:
+            fail("metadata docker access must declare remote TCP availability")
+        if docker_access_metadata["remoteTcp"]["host"] != docker_access_report["modes"]["remoteTcp"]["host"]:
+            fail("metadata docker access must report the configured remote TCP host")
+        if docker_access_metadata["remoteTcp"]["tls"] != docker_access_report["modes"]["remoteTcp"]["tls"]:
+            fail("metadata docker access must report the configured remote TCP TLS mode")
         for name, value in docker_access_report["containerEnv"].items():
             if preview_container_env.get(name) != value:
                 fail(f"metadata merged preview must retain docker access env {name}")
@@ -191,8 +195,8 @@ def main() -> int:
         fail("security-report.json must confirm uvx is not auto-run from shell init")
     if security_report["npxAutoRunFromShellInit"]:
         fail("security-report.json must confirm npx is not auto-run from shell init")
-    if not security_report["remoteTcpRequiresTls"]:
-        fail("security-report.json must confirm remote TCP TLS policy")
+    if security_report["remoteTcpUsesTls"] != docker_access_report["modes"]["remoteTcp"]["tls"]:
+        fail("security-report.json must match the configured remote TCP TLS mode")
     if not security_report["shellInitHasNoSideEffects"]:
         fail("security-report.json must confirm shell init remains side-effect free")
 

@@ -104,8 +104,8 @@ docker-access	docker-compose-version	0
 docker-access	docker-task-runner	0
 docker-access	docker-process-list	0
 docker-access	docker-build-run-smoke	0
-docker-access	remote-tls-explain	0
-docker-access	remote-tls-docker-version	0
+docker-access	remote-tcp-explain	0
+docker-access	remote-tcp-docker-version	0
 EOF
 
   for section in oci-nix oci-nix-dind; do
@@ -135,8 +135,7 @@ EOF
   printf 'devcontainer-nix-dind:latest\n' >"$base/docker-access/image-ref.txt"
   printf '/nix/store/fake-dind.tar.gz\n' >"$base/docker-access/oci-path.txt"
   printf '/var/run/docker.sock\n' >"$base/docker-access/host-docker-socket.txt"
-  printf 'tcp://docker.example.internal:2376\n' >"$base/docker-access/remote-docker-host.txt"
-  printf '/tmp/certs\n' >"$base/docker-access/remote-docker-certs-dir.txt"
+  printf 'tcp://docker.example.internal:2375\n' >"$base/docker-access/remote-docker-host.txt"
   write_reports "$base/docker-access/reports"
   make_run_dir "$base" docker-access docker-load "docker load" "Loaded image: devcontainer-nix-dind:latest\n"
   make_run_dir "$base" docker-access docker-version "docker version" "Client: Docker Engine\nServer: Docker Engine\n"
@@ -146,8 +145,8 @@ EOF
   make_run_dir "$base" docker-access docker-task-runner "docker run devcontainer-task-runner list" $'docker-context-init\tpostCreate\tonce=true\nvscode-extension-projection\tpostCreate\tonce=true\n'
   make_run_dir "$base" docker-access docker-process-list "docker run ps -ef" $'UID          PID    PPID  C STIME TTY          TIME CMD\nvscode         1       0  0 00:00 ?        00:00:00 /usr/local/bin/devcontainer-entrypoint /bin/bash -lc ps -ef\nvscode         7       1  0 00:00 ?        00:00:00 ps -ef\n'
   make_run_dir "$base" docker-access docker-build-run-smoke "docker build && docker run" $'ok\n'
-  make_run_dir "$base" docker-access remote-tls-explain "devcontainer-docker-access explain" $'mode=tcp://docker.example.internal:2376\ntls_verify=1\ncert_path=/run/docker-certs\n'
-  make_run_dir "$base" docker-access remote-tls-docker-version "devcontainer-docker-access docker version" "Client: Docker Engine\nServer: Docker Engine\n"
+  make_run_dir "$base" docker-access remote-tcp-explain "devcontainer-docker-access explain" $'mode=tcp://docker.example.internal:2375\ntls_verify=0\ncert_path=\n'
+  make_run_dir "$base" docker-access remote-tcp-docker-version "devcontainer-docker-access docker version" "Client: Docker Engine\nServer: Docker Engine\n"
 }
 
 bash -n "$repo_root/tests/smoke/collect-runtime-evidence.sh"
@@ -164,20 +163,32 @@ build_full_fixture "$strict_fixture"
 python3 "$repo_root/tests/ci/check-runtime-evidence.py" "$strict_fixture" >"$tmpdir/strict.out"
 grep -q 'runtime-evidence-check ok' "$tmpdir/strict.out"
 
+tls_fixture="$tmpdir/tls"
+build_full_fixture "$tls_fixture"
+printf 'tcp://docker.example.internal:2376\n' >"$tls_fixture/docker-access/remote-docker-host.txt"
+printf '/tmp/certs\n' >"$tls_fixture/docker-access/remote-docker-certs-dir.txt"
+cat >"$tls_fixture/docker-access/remote-tcp-explain/stdout.txt" <<'EOF'
+mode=tcp://docker.example.internal:2376
+tls_verify=1
+cert_path=/run/docker-certs
+EOF
+python3 "$repo_root/tests/ci/check-runtime-evidence.py" "$tls_fixture" >"$tmpdir/tls.out"
+grep -q 'runtime-evidence-check ok' "$tmpdir/tls.out"
+
 skip_fixture="$tmpdir/skip"
 build_full_fixture "$skip_fixture"
 rm -f "$skip_fixture/docker-access/remote-docker-host.txt" "$skip_fixture/docker-access/remote-docker-certs-dir.txt"
-rm -rf "$skip_fixture/docker-access/remote-tls-explain" "$skip_fixture/docker-access/remote-tls-docker-version"
-cat >"$skip_fixture/docker-access/remote-tls-skipped.txt" <<'EOF'
-remote TCP TLS validation was skipped.
+rm -rf "$skip_fixture/docker-access/remote-tcp-explain" "$skip_fixture/docker-access/remote-tcp-docker-version"
+cat >"$skip_fixture/docker-access/remote-tcp-skipped.txt" <<'EOF'
+remote TCP validation was skipped.
 EOF
-python3 "$repo_root/tests/ci/check-runtime-evidence.py" "$skip_fixture" --allow-remote-tls-skip >"$tmpdir/skip.out"
+python3 "$repo_root/tests/ci/check-runtime-evidence.py" "$skip_fixture" --allow-remote-tcp-skip >"$tmpdir/skip.out"
 grep -q 'runtime-evidence-check ok' "$tmpdir/skip.out"
 
 if python3 "$repo_root/tests/ci/check-runtime-evidence.py" "$skip_fixture" >"$tmpdir/skip-strict.out" 2>"$tmpdir/skip-strict.err"; then
-  echo "expected strict runtime evidence validation to fail when remote TLS evidence is skipped" >&2
+  echo "expected strict runtime evidence validation to fail when remote TCP evidence is skipped" >&2
   exit 1
 fi
-grep -q 'remote TCP TLS evidence was skipped' "$tmpdir/skip-strict.err"
+grep -q 'remote TCP evidence was skipped' "$tmpdir/skip-strict.err"
 
 echo "runtime-evidence-validator ok"

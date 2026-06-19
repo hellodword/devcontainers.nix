@@ -13,22 +13,25 @@ let
     COMPOSE_DOCKER_CLI_BUILD = "1";
     BUILDKIT_PROGRESS = "plain";
   };
-  remoteTcpTlsEnv = {
-    DOCKER_HOST = "tcp://${cfg.modes.remoteTcpTls.host}";
-    DOCKER_TLS_VERIFY = "1";
-    DOCKER_CERT_PATH = "/run/docker-certs";
-    DOCKER_BUILDKIT = "1";
-    COMPOSE_DOCKER_CLI_BUILD = "1";
-    BUILDKIT_PROGRESS = "plain";
-  };
+  remoteTcpEnv =
+    {
+      DOCKER_HOST = "tcp://${cfg.modes.remoteTcp.host}";
+      DOCKER_BUILDKIT = "1";
+      COMPOSE_DOCKER_CLI_BUILD = "1";
+      BUILDKIT_PROGRESS = "plain";
+    }
+    // lib.optionalAttrs cfg.modes.remoteTcp.tls {
+      DOCKER_TLS_VERIFY = "1";
+      DOCKER_CERT_PATH = "/run/docker-certs";
+    };
   resolvedMounts =
-    if cfg.defaultMode == "remote-tcp-tls" then
-      [ cfg.modes.remoteTcpTls.certMount ]
+    if cfg.defaultMode == "remote-tcp" then
+      lib.optional cfg.modes.remoteTcp.tls cfg.modes.remoteTcp.certMount
     else
       [ cfg.modes.hostSocket.mount ];
   resolvedEnv =
-    if cfg.defaultMode == "remote-tcp-tls" then
-      remoteTcpTlsEnv
+    if cfg.defaultMode == "remote-tcp" then
+      remoteTcpEnv
     else
       hostSocketEnv;
 in

@@ -164,6 +164,9 @@ def main() -> int:
     if image_name == "nix-dind":
         if not has_docker_access:
             fail("docker access helper missing from nix-dind image")
+        for name in ["usr/local/bin/docker", "usr/local/bin/docker-real", "bin/docker"]:
+            if name not in all_names:
+                fail(f"docker access wrapper path missing from nix-dind image: {name}")
     else:
         if has_docker_access:
             fail(f"docker access helper must not ship in {image_name}")

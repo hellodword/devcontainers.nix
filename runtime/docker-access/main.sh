@@ -1,6 +1,7 @@
 set -euo pipefail
 
 docker_real="${DEVCONTAINER_DOCKER_REAL:-docker-real}"
+prog_name="$(basename "$0")"
 
 usage() {
   cat <<'EOF'
@@ -13,11 +14,9 @@ EOF
 run_docker() {
   host="${DOCKER_HOST:-}"
   if [ "$host" != "${host#tcp://}" ]; then
-    if [ "${DOCKER_TLS_VERIFY:-}" != "1" ] || [ -z "${DOCKER_CERT_PATH:-}" ]; then
+    if [ "${DOCKER_TLS_VERIFY:-0}" = "1" ] && [ -z "${DOCKER_CERT_PATH:-}" ]; then
       cat >&2 <<'EOF'
-remote tcp docker daemon requires TLS
-- set DOCKER_HOST=tcp://host:2376
-- set DOCKER_TLS_VERIFY=1
+remote tcp docker daemon with TLS requires DOCKER_CERT_PATH
 - set DOCKER_CERT_PATH=/run/docker-certs
 EOF
       exit 1
@@ -26,7 +25,7 @@ EOF
   fi
 
   socket="${DEVCONTAINER_DOCKER_SOCKET:-/var/run/docker.sock}"
-  if [ -S "$socket" ] && [ -r "$socket" ]; then
+  if [ -S "$socket" ] && [ -r "$socket" ] && [ -w "$socket" ]; then
     exec "$docker_real" "$@"
   fi
 
@@ -37,12 +36,17 @@ EOF
   cat >&2 <<'EOF'
 docker daemon unavailable
 - host socket mode: mount ${DEVCONTAINER_DOCKER_SOCKET:-/var/run/docker.sock}
-- remote tcp tls mode: set DOCKER_HOST=tcp://host:2376, DOCKER_TLS_VERIFY=1, DOCKER_CERT_PATH=/run/docker-certs
+- remote tcp mode: set DOCKER_HOST=tcp://host:2375
+- optional TLS: set DOCKER_TLS_VERIFY=1 and DOCKER_CERT_PATH=/run/docker-certs
 EOF
   exit 1
 }
 
 cmd="${1:-}"
+if [ "$prog_name" = "docker" ]; then
+  run_docker "$@"
+fi
+
 case "$cmd" in
   init)
     mkdir -p "${HOME}/.docker"

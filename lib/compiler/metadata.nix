@@ -38,10 +38,13 @@ let
         enabled = compiledDockerAccess.enabled;
         defaultMode = compiledDockerAccess.defaultMode;
         privilege = compiledDockerAccess.privilegeReport;
-        remoteTcpRequiresTls = compiledDockerAccess.modes.remoteTcpTls.enable;
         hostSocketMount = compiledDockerAccess.modes.hostSocket.mount;
-        remoteTcpHost = compiledDockerAccess.modes.remoteTcpTls.host;
-        remoteTcpCertMount = compiledDockerAccess.modes.remoteTcpTls.certMount;
+        remoteTcp = {
+          enabled = compiledDockerAccess.modes.remoteTcp.enable;
+          host = compiledDockerAccess.modes.remoteTcp.host;
+          tls = compiledDockerAccess.modes.remoteTcp.tls;
+          certMount = compiledDockerAccess.modes.remoteTcp.certMount;
+        };
       };
     };
 

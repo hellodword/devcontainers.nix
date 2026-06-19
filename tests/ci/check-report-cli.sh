@@ -37,10 +37,10 @@ jq -e '.sources[0] == "compiler.env.path" and (.pathEntries | length >= 1)' "$tm
   | jq -e --arg image_name "$image_name" '.image == $image_name' >/dev/null
 
 "$tool/bin/devcontainer-image" explain security --report "$reports_dir" \
-  | jq -e '.remoteTcpRequiresTls and .lifecycleLogRedaction and .extensionArtifactsLocked and .dynamicPackageFreezeReviewable and (.uvxAutoRunFromShellInit | not) and (.npxAutoRunFromShellInit | not)' >/dev/null
+  | jq -e 'has("remoteTcpUsesTls") and .lifecycleLogRedaction and .extensionArtifactsLocked and .dynamicPackageFreezeReviewable and (.uvxAutoRunFromShellInit | not) and (.npxAutoRunFromShellInit | not)' >/dev/null
 
 if [ "$image_name" = "nix-dind" ]; then
-  jq -e '.dockerAccess.enabled and .dockerAccess.privilege.level == "high" and .dockerAccess.remoteTcpRequiresTls' \
+  jq -e '.dockerAccess.enabled and .dockerAccess.privilege.level == "high" and .dockerAccess.remoteTcp.enabled' \
     "$reports_dir/metadata-merged-preview.json" >/dev/null
 else
   jq -e 'has("dockerAccess") | not' "$reports_dir/metadata-merged-preview.json" >/dev/null

@@ -54,6 +54,10 @@ let
   localBinCommands = ''
     mkdir -p ./usr/local/bin
     ln -sf /bin/devcontainer-entrypoint ./usr/local/bin/devcontainer-entrypoint
+  ''
+  + lib.optionalString compiledDockerAccess.enabled ''
+    ln -sf /bin/devcontainer-docker-access ./usr/local/bin/docker
+    ln -sf /bin/docker ./usr/local/bin/docker-real
   '';
 
   entrypoint = runtimePackages."devcontainer-entrypoint";

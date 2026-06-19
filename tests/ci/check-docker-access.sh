@@ -16,6 +16,7 @@ cat >"$fake_docker" <<'EOF'
 printf 'docker-real %s\n' "$*"
 EOF
 chmod +x "$fake_docker"
+ln -sf "$tool/bin/devcontainer-docker-access" "$tmpdir/docker"
 
 if DEVCONTAINER_DOCKER_SOCKET="$tmpdir/missing.sock" \
   "$tool/bin/devcontainer-docker-access" docker version >"$tmpdir/socket.out" 2>"$tmpdir/socket.err"; then
@@ -24,12 +25,28 @@ if DEVCONTAINER_DOCKER_SOCKET="$tmpdir/missing.sock" \
 fi
 grep -q 'docker daemon unavailable' "$tmpdir/socket.err"
 
+DOCKER_HOST=tcp://docker.example.internal:2375 \
+DEVCONTAINER_DOCKER_REAL="$fake_docker" \
+  "$tool/bin/devcontainer-docker-access" docker version >"$tmpdir/tcp.out"
+grep -q '^docker-real version$' "$tmpdir/tcp.out"
+
+DOCKER_HOST=tcp://docker.example.internal:2375 \
+DEVCONTAINER_DOCKER_REAL="$fake_docker" \
+  "$tmpdir/docker" version >"$tmpdir/alias.out"
+grep -q '^docker-real version$' "$tmpdir/alias.out"
+
 if DOCKER_HOST=tcp://docker.example.internal:2376 \
-  "$tool/bin/devcontainer-docker-access" docker version >"$tmpdir/tcp.out" 2>"$tmpdir/tcp.err"; then
-  echo "expected remote tcp helper to require TLS" >&2
+DOCKER_TLS_VERIFY=1 \
+  "$tool/bin/devcontainer-docker-access" docker version >"$tmpdir/tls-missing-path.out" 2>"$tmpdir/tls-missing-path.err"; then
+  echo "expected remote tcp helper with TLS to require DOCKER_CERT_PATH" >&2
   exit 1
 fi
-grep -q 'remote tcp docker daemon requires TLS' "$tmpdir/tcp.err"
+grep -q 'requires DOCKER_CERT_PATH' "$tmpdir/tls-missing-path.err"
+
+DOCKER_HOST=tcp://docker.example.internal:2375 \
+  "$tool/bin/devcontainer-docker-access" explain >"$tmpdir/explain-tcp.out"
+grep -q 'mode=tcp://docker.example.internal:2375' "$tmpdir/explain-tcp.out"
+grep -q 'tls_verify=0' "$tmpdir/explain-tcp.out"
 
 DOCKER_HOST=tcp://docker.example.internal:2376 \
 DOCKER_TLS_VERIFY=1 \

@@ -8,7 +8,7 @@ let
         level = "high";
         reason = "docker-daemon-access";
         hostSocket = cfg.defaultMode == "host-socket";
-        remoteTls = cfg.defaultMode == "remote-tcp-tls";
+        remoteTcp = cfg.defaultMode == "remote-tcp";
       }
     else
       {
@@ -27,10 +27,11 @@ in
       enable = cfg.modes.hostSocket.enable;
       mount = cfg.modes.hostSocket.mount;
     };
-    remoteTcpTls = {
-      enable = cfg.modes.remoteTcpTls.enable;
-      host = cfg.modes.remoteTcpTls.host;
-      certMount = cfg.modes.remoteTcpTls.certMount;
+    remoteTcp = {
+      enable = cfg.modes.remoteTcp.enable;
+      host = cfg.modes.remoteTcp.host;
+      tls = cfg.modes.remoteTcp.tls;
+      certMount = cfg.modes.remoteTcp.certMount;
     };
   };
   privilegeReport = privilegeReport;

@@ -176,7 +176,7 @@ def validate_docker_access_section(
     evidence_dir: pathlib.Path,
     summary: dict[tuple[str, str], int],
     *,
-    allow_remote_tls_skip: bool,
+    allow_remote_tcp_skip: bool,
 ) -> None:
     section = "docker-access"
     section_dir = evidence_dir / section
@@ -225,37 +225,40 @@ def validate_docker_access_section(
         if "--privileged" in command_text:
             fail(f"docker-access/{run_name} must not require --privileged")
 
-    remote_skip = section_dir / "remote-tls-skipped.txt"
+    remote_skip = section_dir / "remote-tcp-skipped.txt"
     remote_host = section_dir / "remote-docker-host.txt"
     remote_certs = section_dir / "remote-docker-certs-dir.txt"
-    has_remote_evidence = remote_host.is_file() and remote_certs.is_file()
+    has_remote_evidence = remote_host.is_file()
 
     if has_remote_evidence:
         remote_host_value = read_text(remote_host).strip()
         if not remote_host_value.startswith("tcp://"):
             fail("docker-access remote-docker-host.txt must start with tcp://")
-        explain_stdout, _ = validate_run_artifact(evidence_dir, summary, section, "remote-tls-explain")
+        explain_stdout, _ = validate_run_artifact(evidence_dir, summary, section, "remote-tcp-explain")
         if f"mode={remote_host_value}" not in explain_stdout:
-            fail("docker-access/remote-tls-explain must report the configured DOCKER_HOST")
-        if "tls_verify=1" not in explain_stdout:
-            fail("docker-access/remote-tls-explain must confirm DOCKER_TLS_VERIFY=1")
-        if "cert_path=/run/docker-certs" not in explain_stdout:
-            fail("docker-access/remote-tls-explain must confirm /run/docker-certs")
-        validate_run_artifact(evidence_dir, summary, section, "remote-tls-docker-version")
+            fail("docker-access/remote-tcp-explain must report the configured DOCKER_HOST")
+        if remote_certs.is_file():
+            if "tls_verify=1" not in explain_stdout:
+                fail("docker-access/remote-tcp-explain must confirm DOCKER_TLS_VERIFY=1 when certs are provided")
+            if "cert_path=/run/docker-certs" not in explain_stdout:
+                fail("docker-access/remote-tcp-explain must confirm /run/docker-certs when certs are provided")
+        elif "tls_verify=0" not in explain_stdout:
+            fail("docker-access/remote-tcp-explain must confirm TLS is disabled when certs are not provided")
+        validate_run_artifact(evidence_dir, summary, section, "remote-tcp-docker-version")
     else:
-        if remote_skip.is_file() and allow_remote_tls_skip:
+        if remote_skip.is_file() and allow_remote_tcp_skip:
             return
         if remote_skip.is_file():
             fail(
-                "docker-access remote TCP TLS evidence was skipped; rerun without skip or pass --allow-remote-tls-skip"
+                "docker-access remote TCP evidence was skipped; rerun without skip or pass --allow-remote-tcp-skip"
             )
-        fail("docker-access must include remote TCP TLS evidence or an explicit skip marker")
+        fail("docker-access must include remote TCP evidence or an explicit skip marker")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("evidence_dir")
-    parser.add_argument("--allow-remote-tls-skip", action="store_true")
+    parser.add_argument("--allow-remote-tcp-skip", action="store_true")
     args = parser.parse_args()
 
     evidence_dir = pathlib.Path(args.evidence_dir)
@@ -272,11 +275,11 @@ def main() -> int:
             fail("oci mode evidence must contain exactly one oci-* section")
         validate_oci_section(evidence_dir, summary, oci_sections[0])
     elif mode == "docker-access":
-        validate_docker_access_section(evidence_dir, summary, allow_remote_tls_skip=args.allow_remote_tls_skip)
+        validate_docker_access_section(evidence_dir, summary, allow_remote_tcp_skip=args.allow_remote_tcp_skip)
     elif mode == "full":
         for section in ["oci-nix", "oci-nix-dind"]:
             validate_oci_section(evidence_dir, summary, section)
-        validate_docker_access_section(evidence_dir, summary, allow_remote_tls_skip=args.allow_remote_tls_skip)
+        validate_docker_access_section(evidence_dir, summary, allow_remote_tcp_skip=args.allow_remote_tcp_skip)
     else:
         fail(f"unsupported mode in mode.txt: {mode}")
 

@@ -86,7 +86,7 @@ let
       extensionProjectionLogRedaction = true;
       dockerAccessOnlyInNixDind =
         config.devcontainer.image.name == "nix-dind" || !compiledDockerAccess.enabled;
-      remoteTcpRequiresTls = true;
+      remoteTcpUsesTls = compiledDockerAccess.modes.remoteTcp.tls;
       hostSocketMarkedHighPrivilege =
         !compiledDockerAccess.enabled || compiledDockerAccess.privilegeReport.level == "high";
       extensionArtifactsLocked =
