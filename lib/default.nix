@@ -26,7 +26,7 @@ let
     };
 
     compileVscodeExtensions = import ./compiler/vscode-extensions.nix {
-      inherit lib;
+      inherit lib pkgs;
     };
 
     compileFhsRuntime = import ./compiler/fhs-runtime.nix {

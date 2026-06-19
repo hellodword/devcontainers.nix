@@ -23,6 +23,7 @@ extension_id="$(jq -r '.extensions[0].id' "$reports_dir/extensions-index.json")"
 
 "$tool/bin/devcontainer-image" explain extension "$extension_id" --report "$reports_dir" >"$tmpdir/extension.json"
 jq -e --arg extension_id "$extension_id" '.id == $extension_id' "$tmpdir/extension.json" >/dev/null
+jq -e '.version != "pinned" and .source == "nixpkgs.vscode-extensions" and (.sourceLock.ref | length > 0)' "$tmpdir/extension.json" >/dev/null
 jq -e '.sourceLock.sha256 and .sourceLock.manifestSha256 and .sourceLock.vsixSha256' "$tmpdir/extension.json" >/dev/null
 jq -e '.validation.strategy' "$tmpdir/extension.json" >/dev/null
 

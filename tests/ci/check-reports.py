@@ -70,6 +70,7 @@ def main() -> int:
     metadata_schema = read_json(reports_dir / "metadata-schema-report.json")
     layer_plan = read_json(reports_dir / "layer-plan.json")
     extensions_report = read_json(reports_dir / "extensions-report.json")
+    extensions_index = read_json(reports_dir / "extensions-index.json")
     docker_access_report = read_json(reports_dir / "docker-access-report.json")
     smoke_plan = read_json(reports_dir / "smoke-test-plan.json")
     image_plan = read_json(reports_dir / "image-plan.json")
@@ -142,6 +143,13 @@ def main() -> int:
         fail("extensions-report.json must confirm locked extension artifacts")
     if not extensions_report["validation"]["companionToolsProvidedByNix"]:
         fail("extensions-report.json must confirm companion tools come from Nix")
+    for extension in extensions_index["extensions"]:
+        if extension["version"] == "pinned":
+            fail(f"extensions-index.json must record a real version for {extension['id']}")
+        if extension["source"] != "nixpkgs.vscode-extensions":
+            fail(f"extensions-index.json must record nixpkgs source for {extension['id']}")
+        if not extension["sourceLock"]["ref"]:
+            fail(f"extensions-index.json must record source ref for {extension['id']}")
 
     ci_report_files = set(ci_plan["reportFiles"])
     missing_ci_reports = sorted(REQUIRED_CI_REPORT_FILES - ci_report_files)

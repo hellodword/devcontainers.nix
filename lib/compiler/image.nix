@@ -24,39 +24,19 @@ let
       (map
         (extension:
           ''
-            mkdir -p .${extension.path}
+            mkdir -p .$(dirname ${extension.path})
             mkdir -p .$(dirname ${extension.vsixPath})
           '')
-        compiledVscodeExtensions.extensions);
-  mkManifestCommands =
+        compiledVscodeExtensions.imageExtensions);
+  mkExtensionCommands =
     builtins.concatStringsSep "\n"
       (map
         (extension:
-          let
-            manifestFile =
-              builtins.toFile
-                "${builtins.replaceStrings [ "." ] [ "-" ] extension.id}-package.json"
-                (builtins.toJSON {
-                  name = extension.name;
-                  publisher = extension.publisher;
-                  version = "0.0.0";
-                  engines.vscode = "^1.90.0";
-                  devcontainer = {
-                    companionTools = extension.companionTools;
-                    sourceLock = extension.sourceLock;
-                    validation = extension.validation;
-                  };
-                });
-            vsixFile =
-              builtins.toFile
-                "${builtins.replaceStrings [ "." ] [ "-" ] extension.id}.vsix"
-                "placeholder vsix for ${extension.id}\n";
-          in
           ''
-            cp ${manifestFile} .${extension.path}/package.json
-            cp ${vsixFile} .${extension.vsixPath}
+            cp -a ${extension.sourcePath} .${extension.path}
+            cp ${extension.archivePath} .${extension.vsixPath}
           '')
-        compiledVscodeExtensions.extensions);
+        compiledVscodeExtensions.imageExtensions);
   mkSymlinkCommands =
     builtins.concatStringsSep "\n"
       (map
@@ -121,10 +101,10 @@ let
       mkdir -p usr/share/devcontainer/vscode usr/share/devcontainer
       cp ${tasksFile} usr/share/devcontainer/tasks.json
       cp ${extensionsFile} usr/share/devcontainer/vscode/extensions-index.json
-      mkdir -p etc usr/share/devcontainer/vsix
+      mkdir -p etc usr/share/devcontainer/vscode/vsix
       cp ${osReleaseFile} etc/os-release
       ${mkDirCommands}
-      ${mkManifestCommands}
+      ${mkExtensionCommands}
       ${mkSymlinkCommands}
       ${localBinCommands}
     '';

@@ -1,7 +1,35 @@
-{ lib }:
+{ lib, pkgs }:
 { config }:
 let
   hashString = value: builtins.hashString "sha256" value;
+  sourceRefFor =
+    extensionPackage:
+    let
+      srcDrv = extensionPackage.drvAttrs.src or null;
+      urls = if srcDrv != null && srcDrv ? urls then srcDrv.urls else [ ];
+    in
+    if urls != [ ] then
+      builtins.head urls
+    else
+      "nix-store:${toString (extensionPackage.src or extensionPackage)}";
+  sourceHashFor =
+    extensionPackage:
+    let
+      srcDrv = extensionPackage.drvAttrs.src or null;
+    in
+    if srcDrv != null && srcDrv ? outputHash then
+      srcDrv.outputHash
+    else
+      hashString (toString (extensionPackage.src or extensionPackage));
+  sourceArchiveNameFor =
+    extensionPackage:
+    let
+      srcDrv = extensionPackage.drvAttrs.src or null;
+    in
+    if srcDrv != null && srcDrv ? name then
+      srcDrv.name
+    else
+      builtins.baseNameOf (toString (extensionPackage.src or extensionPackage));
   companionToolsFor =
     id:
     if lib.hasPrefix "jnoortheen.nix-ide" id then
@@ -24,8 +52,24 @@ let
     id:
     let
       parts = lib.splitString "." id;
-      publisher = builtins.head parts;
-      name = lib.concatStringsSep "." (builtins.tail parts);
+      requestedPublisher = builtins.head parts;
+      requestedName = lib.concatStringsSep "." (builtins.tail parts);
+      extensionPackage = lib.attrByPath parts null pkgs.vscode-extensions;
+      publisher =
+        if extensionPackage != null && extensionPackage.passthru ? vscodeExtPublisher then
+          extensionPackage.passthru.vscodeExtPublisher
+        else
+          requestedPublisher;
+      name =
+        if extensionPackage != null && extensionPackage.passthru ? vscodeExtName then
+          extensionPackage.passthru.vscodeExtName
+        else
+          requestedName;
+      uniqueId =
+        if extensionPackage != null && extensionPackage.passthru ? vscodeExtUniqueId then
+          extensionPackage.passthru.vscodeExtUniqueId
+        else
+          "${publisher}.${name}";
       native =
         lib.any
           (prefix: lib.hasPrefix prefix id)
@@ -50,45 +94,54 @@ let
           "86-vscode-extensions-flutter"
         else
           "80-vscode-extensions-base";
-      pathSegment = builtins.replaceStrings [ "." ] [ "-" ] id;
-      vsixName = "${pathSegment}.vsix";
-      manifestJson =
-        builtins.toJSON {
-          inherit name publisher;
-          version = "0.0.0";
-          engines.vscode = "^1.90.0";
-        };
-      vsixPlaceholder = "placeholder vsix for ${id}\n";
+      pathSegment = uniqueId;
+      vsixName = "${builtins.replaceStrings [ "." ] [ "-" ] uniqueId}.vsix";
+      extensionVersion =
+        if extensionPackage != null && extensionPackage ? version then
+          extensionPackage.version
+        else
+          "unknown";
+      sourceRef = sourceRefFor extensionPackage;
+      sourceHash = sourceHashFor extensionPackage;
       sourceLock =
-        let
-          lockRef = "nix-vscode-extensions:${id}:pinned";
-        in
         {
-          ref = lockRef;
-          sha256 = hashString lockRef;
-          manifestSha256 = hashString manifestJson;
-          vsixSha256 = hashString vsixPlaceholder;
+          ref = sourceRef;
+          sha256 = sourceHash;
+          manifestSha256 = hashString "${uniqueId}:${extensionVersion}:${sourceHash}:manifest";
+          vsixSha256 = sourceHash;
+          archiveName = sourceArchiveNameFor extensionPackage;
+        };
+      public =
+        {
+          inherit id native bucket publisher name uniqueId;
+          version = extensionVersion;
+          source = "nixpkgs.vscode-extensions";
+          path = "${config.devcontainer.vscode.preinstall.store.extensionsPath}/${pathSegment}";
+          vsixPath = "${config.devcontainer.vscode.preinstall.store.vsixPath}/${vsixName}";
+          projection = if native then "copy-if-needed" else "symlink";
+          companionTools = companionToolsFor id;
+          sourceLock = sourceLock;
+          validation = {
+            nativeBinaries = native;
+            fhsRuntime = config.devcontainer.vscode.preinstall.validation.fhsRuntime;
+            noNetworkDuringProjection = config.devcontainer.vscode.preinstall.validation.noNetworkDuringProjection;
+            strategy = if native then "copy-if-needed-with-fhs" else "symlink";
+          };
         };
     in
+    assert extensionPackage != null;
     {
-      inherit id native bucket publisher name;
-      version = "pinned";
-      source = "nix-vscode-extensions";
-      pathSegment = pathSegment;
-      path = "${config.devcontainer.vscode.preinstall.store.extensionsPath}/${pathSegment}";
-      vsixPath = "${config.devcontainer.vscode.preinstall.store.vsixPath}/${vsixName}";
-      projection = if native then "copy-if-needed" else "symlink";
-      companionTools = companionToolsFor id;
-      sourceLock = sourceLock;
-      validation = {
-        nativeBinaries = native;
-        fhsRuntime = config.devcontainer.vscode.preinstall.validation.fhsRuntime;
-        noNetworkDuringProjection = config.devcontainer.vscode.preinstall.validation.noNetworkDuringProjection;
-        strategy = if native then "copy-if-needed-with-fhs" else "symlink";
+      inherit public;
+      image = {
+        inherit (public) id path vsixPath;
+        sourcePath = "${extensionPackage}/share/vscode/extensions/${uniqueId}";
+        archivePath = extensionPackage.src or extensionPackage;
       };
     };
+  compiledExtensions = map mkExtension config.devcontainer.vscode.extensions;
 in
 {
-  extensions = map mkExtension config.devcontainer.vscode.extensions;
+  extensions = map (extension: extension.public) compiledExtensions;
+  imageExtensions = map (extension: extension.image) compiledExtensions;
   projectionTargets = config.devcontainer.vscode.preinstall.projection.targets;
 }
