@@ -33,6 +33,10 @@ jobs:
           nix build .#images.${{ inputs.image-name }}.reports --print-out-paths --no-link > report-path.txt
           cp -R "$(cat report-path.txt)" reports
 
+      - name: Validate reports
+        run: |
+          python3 tests/ci/check-reports.py reports "${{ inputs.image-name }}"
+
       - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
