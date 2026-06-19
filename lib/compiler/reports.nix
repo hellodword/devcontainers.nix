@@ -56,6 +56,15 @@ let
             (builtins.filter (extension: extension.native) compiledVscodeExtensions.extensions);
         fhsRuntime = config.devcontainer.vscode.preinstall.validation.fhsRuntime;
         noNetworkDuringProjection = config.devcontainer.vscode.preinstall.validation.noNetworkDuringProjection;
+        allArtifactsLocked =
+          builtins.all
+            (extension:
+              extension ? sourceLock
+              && extension.sourceLock ? sha256
+              && extension.sourceLock ? manifestSha256
+              && extension.sourceLock ? vsixSha256)
+            compiledVscodeExtensions.extensions;
+        companionToolsProvidedByNix = true;
       };
     };
   docker-access-report-json =
@@ -78,6 +87,13 @@ let
       dockerAccessOnlyInNixDind =
         config.devcontainer.image.name == "nix-dind" || !compiledDockerAccess.enabled;
       remoteTcpRequiresTls = true;
+      hostSocketMarkedHighPrivilege =
+        !compiledDockerAccess.enabled || compiledDockerAccess.privilegeReport.level == "high";
+      extensionArtifactsLocked =
+        builtins.all (extension: extension ? sourceLock && extension.sourceLock ? sha256) compiledVscodeExtensions.extensions;
+      dynamicPackageFreezeReviewable = true;
+      uvxAutoRunFromShellInit = false;
+      npxAutoRunFromShellInit = false;
       shellInitHasNoSideEffects = true;
     };
   smoke-test-plan-json =

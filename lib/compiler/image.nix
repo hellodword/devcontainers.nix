@@ -37,12 +37,13 @@ let
               builtins.toFile
                 "${builtins.replaceStrings [ "." ] [ "-" ] extension.id}-package.json"
                 (builtins.toJSON {
-                  name = extension.id;
-                  publisher = builtins.head (lib.splitString "." extension.id);
+                  name = extension.name;
+                  publisher = extension.publisher;
                   version = "0.0.0";
                   engines.vscode = "^1.90.0";
                   devcontainer = {
                     companionTools = extension.companionTools;
+                    sourceLock = extension.sourceLock;
                     validation = extension.validation;
                   };
                 });

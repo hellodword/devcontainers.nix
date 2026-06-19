@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-projector="$(nix build .#"vscode-extension-projector" --print-out-paths --no-link)"
-runner="$(nix build .#"devcontainer-task-runner" --print-out-paths --no-link)"
+flake_ref="${DEVCONTAINER_FLAKE:-.}"
+projector="${DEVCONTAINER_PROJECTOR:-$(nix build "$flake_ref#vscode-extension-projector" --print-out-paths --no-link)}"
+runner="${DEVCONTAINER_RUNNER:-$(nix build "$flake_ref#devcontainer-task-runner" --print-out-paths --no-link)}"
+devpkg="${DEVCONTAINER_DEVPKG:-$(nix build "$flake_ref#devpkg" --print-out-paths --no-link)}"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
@@ -82,5 +84,16 @@ test -f "$status_file"
 grep -q '\[REDACTED\]' "$log_file"
 ! grep -q 'super-secret' "$log_file"
 grep -q '^done$' "$status_file"
+
+project_root="$tmpdir/project"
+mkdir -p "$project_root"
+(
+  cd "$project_root"
+  "$devpkg/bin/devpkg" project init
+  "$devpkg/bin/devpkg" freeze --scope project >"$tmpdir/project-freeze.nix"
+)
+"$devpkg/bin/devpkg" freeze --scope user >"$tmpdir/user-freeze.nix"
+grep -q '^{ pkgs }:' "$tmpdir/project-freeze.nix"
+grep -q '^{ pkgs }:' "$tmpdir/user-freeze.nix"
 
 echo "runtime-tools-check ok"

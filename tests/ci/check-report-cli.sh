@@ -23,6 +23,8 @@ extension_id="$(jq -r '.extensions[0].id' "$reports_dir/extensions-index.json")"
 
 "$tool/bin/devcontainer-image" explain extension "$extension_id" --report "$reports_dir" >"$tmpdir/extension.json"
 jq -e --arg extension_id "$extension_id" '.id == $extension_id' "$tmpdir/extension.json" >/dev/null
+jq -e '.sourceLock.sha256 and .sourceLock.manifestSha256 and .sourceLock.vsixSha256' "$tmpdir/extension.json" >/dev/null
+jq -e '.validation.strategy' "$tmpdir/extension.json" >/dev/null
 
 "$tool/bin/devcontainer-image" explain env PATH --report "$reports_dir" >"$tmpdir/env.json"
 jq -e '.sources[0] == "compiler.env.path" and (.pathEntries | length >= 1)' "$tmpdir/env.json" >/dev/null
@@ -34,7 +36,7 @@ jq -e '.sources[0] == "compiler.env.path" and (.pathEntries | length >= 1)' "$tm
   | jq -e --arg image_name "$image_name" '.image == $image_name' >/dev/null
 
 "$tool/bin/devcontainer-image" explain security --report "$reports_dir" \
-  | jq -e '.remoteTcpRequiresTls and .lifecycleLogRedaction' >/dev/null
+  | jq -e '.remoteTcpRequiresTls and .lifecycleLogRedaction and .extensionArtifactsLocked and .dynamicPackageFreezeReviewable and (.uvxAutoRunFromShellInit | not) and (.npxAutoRunFromShellInit | not)' >/dev/null
 
 "$tool/bin/devcontainer-image" check "$reports_dir/metadata-label.json"
 "$tool/bin/devcontainer-image" diff "$reports_dir/layer-plan.json" "$reports_dir/layer-plan.json" >"$tmpdir/diff.txt"

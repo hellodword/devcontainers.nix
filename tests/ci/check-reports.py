@@ -2,6 +2,7 @@
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -24,6 +25,9 @@ REQUIRED_REPORT_FILES = {
 }
 
 REQUIRED_CI_REPORT_FILES = REQUIRED_REPORT_FILES - {"ci-plan.json"}
+SENSITIVE_VALUE_RE = re.compile(
+    r"(?i)(?:token|password|secret|api[_-]?key|access[_-]?key|private[_-]?key)\s*(?:=|:)\s*[\"']?[^\"'\\s]+"
+)
 
 
 def read_json(path: pathlib.Path):
@@ -34,6 +38,17 @@ def read_json(path: pathlib.Path):
 def fail(message: str):
     print(f"report-check failed: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def walk_strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from walk_strings(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from walk_strings(child)
 
 
 def main() -> int:
@@ -72,6 +87,12 @@ def main() -> int:
     if not metadata_schema["hasVscodeCustomizations"]:
         fail("metadata schema must include VS Code customizations")
 
+    for report_name in REQUIRED_REPORT_FILES:
+        report_data = read_json(reports_dir / report_name)
+        for text in walk_strings(report_data):
+            if SENSITIVE_VALUE_RE.search(text):
+                fail(f"{report_name} appears to contain sensitive material")
+
     layer_count = len(layer_plan["layers"])
     layer_max = int(layer_plan["budget"]["max"])
     if layer_count > layer_max:
@@ -104,6 +125,10 @@ def main() -> int:
 
     if not extensions_report["validation"]["noNetworkDuringProjection"]:
         fail("extensions projection must stay offline")
+    if not extensions_report["validation"]["allArtifactsLocked"]:
+        fail("extensions-report.json must confirm locked extension artifacts")
+    if not extensions_report["validation"]["companionToolsProvidedByNix"]:
+        fail("extensions-report.json must confirm companion tools come from Nix")
 
     ci_report_files = set(ci_plan["reportFiles"])
     missing_ci_reports = sorted(REQUIRED_CI_REPORT_FILES - ci_report_files)
@@ -127,6 +152,16 @@ def main() -> int:
         fail("security-report.json must confirm lifecycle log redaction")
     if not security_report["extensionProjectionLogRedaction"]:
         fail("security-report.json must confirm extension projection log redaction")
+    if not security_report["extensionArtifactsLocked"]:
+        fail("security-report.json must confirm extension artifacts are locked")
+    if not security_report["dynamicPackageFreezeReviewable"]:
+        fail("security-report.json must confirm devpkg freeze is reviewable")
+    if not security_report["hostSocketMarkedHighPrivilege"]:
+        fail("security-report.json must confirm host socket mounts are marked high privilege")
+    if security_report["uvxAutoRunFromShellInit"]:
+        fail("security-report.json must confirm uvx is not auto-run from shell init")
+    if security_report["npxAutoRunFromShellInit"]:
+        fail("security-report.json must confirm npx is not auto-run from shell init")
     if not security_report["remoteTcpRequiresTls"]:
         fail("security-report.json must confirm remote TCP TLS policy")
     if not security_report["shellInitHasNoSideEffects"]:

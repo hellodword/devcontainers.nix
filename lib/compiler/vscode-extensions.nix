@@ -1,6 +1,7 @@
 { lib }:
 { config }:
 let
+  hashString = value: builtins.hashString "sha256" value;
   companionToolsFor =
     id:
     if lib.hasPrefix "jnoortheen.nix-ide" id then
@@ -22,6 +23,9 @@ let
   mkExtension =
     id:
     let
+      parts = lib.splitString "." id;
+      publisher = builtins.head parts;
+      name = lib.concatStringsSep "." (builtins.tail parts);
       native =
         lib.any
           (prefix: lib.hasPrefix prefix id)
@@ -48,9 +52,26 @@ let
           "80-vscode-extensions-base";
       pathSegment = builtins.replaceStrings [ "." ] [ "-" ] id;
       vsixName = "${pathSegment}.vsix";
+      manifestJson =
+        builtins.toJSON {
+          inherit name publisher;
+          version = "0.0.0";
+          engines.vscode = "^1.90.0";
+        };
+      vsixPlaceholder = "placeholder vsix for ${id}\n";
+      sourceLock =
+        let
+          lockRef = "nix-vscode-extensions:${id}:pinned";
+        in
+        {
+          ref = lockRef;
+          sha256 = hashString lockRef;
+          manifestSha256 = hashString manifestJson;
+          vsixSha256 = hashString vsixPlaceholder;
+        };
     in
     {
-      inherit id native bucket;
+      inherit id native bucket publisher name;
       version = "pinned";
       source = "nix-vscode-extensions";
       pathSegment = pathSegment;
@@ -58,10 +79,12 @@ let
       vsixPath = "${config.devcontainer.vscode.preinstall.store.vsixPath}/${vsixName}";
       projection = if native then "copy-if-needed" else "symlink";
       companionTools = companionToolsFor id;
+      sourceLock = sourceLock;
       validation = {
         nativeBinaries = native;
         fhsRuntime = config.devcontainer.vscode.preinstall.validation.fhsRuntime;
         noNetworkDuringProjection = config.devcontainer.vscode.preinstall.validation.noNetworkDuringProjection;
+        strategy = if native then "copy-if-needed-with-fhs" else "symlink";
       };
     };
 in

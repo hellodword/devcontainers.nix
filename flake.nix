@@ -66,6 +66,16 @@
           touch "$out"
         '';
       };
+      runtimeToolChecks = {
+        runtime-tools = pkgs.runCommand "runtime-tools" { nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.gnugrep ]; } ''
+          export DEVCONTAINER_FLAKE=${./.}
+          export DEVCONTAINER_PROJECTOR=${compiler.runtimePackages."vscode-extension-projector"}
+          export DEVCONTAINER_RUNNER=${compiler.runtimePackages."devcontainer-task-runner"}
+          export DEVCONTAINER_DEVPKG=${compiler.runtimePackages.devpkg}
+          bash ${./tests/ci/check-runtime-tools.sh}
+          touch "$out"
+        '';
+      };
       fixtureFiles =
         lib.filterAttrs
           (name: type: type == "regular" && lib.hasSuffix ".nix" name)
@@ -106,6 +116,6 @@
         devpkg = compiler.runtimePackages.devpkg;
       };
 
-      checks.${system} = reportChecks // reportCliChecks // ociLayoutChecks // dockerAccessChecks // fixtureChecks;
+      checks.${system} = reportChecks // reportCliChecks // ociLayoutChecks // dockerAccessChecks // runtimeToolChecks // fixtureChecks;
     };
 }
