@@ -66,6 +66,7 @@ def main() -> int:
         fail(f"reports directory missing files: {', '.join(missing_reports)}")
 
     metadata_label = read_json(reports_dir / "metadata-label.json")
+    metadata_preview = read_json(reports_dir / "metadata-merged-preview.json")
     metadata_schema = read_json(reports_dir / "metadata-schema-report.json")
     layer_plan = read_json(reports_dir / "layer-plan.json")
     extensions_report = read_json(reports_dir / "extensions-report.json")
@@ -86,6 +87,18 @@ def main() -> int:
         fail("metadata schema must include lifecycle commands")
     if not metadata_schema["hasVscodeCustomizations"]:
         fail("metadata schema must include VS Code customizations")
+
+    if image_name == "nix-dind":
+        if not metadata_schema["hasDockerAccessMetadata"]:
+            fail("metadata schema must include docker access metadata for nix-dind")
+        docker_access_metadata = metadata_preview["dockerAccess"]
+        if docker_access_metadata["privilege"]["level"] != "high":
+            fail("metadata docker access must declare high privilege")
+        if not docker_access_metadata["remoteTcpRequiresTls"]:
+            fail("metadata docker access must declare remote TCP TLS requirement")
+    else:
+        if metadata_schema["hasDockerAccessMetadata"]:
+            fail(f"{image_name} metadata must not declare docker access metadata")
 
     for report_name in REQUIRED_REPORT_FILES:
         report_data = read_json(reports_dir / report_name)

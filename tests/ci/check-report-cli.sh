@@ -38,6 +38,13 @@ jq -e '.sources[0] == "compiler.env.path" and (.pathEntries | length >= 1)' "$tm
 "$tool/bin/devcontainer-image" explain security --report "$reports_dir" \
   | jq -e '.remoteTcpRequiresTls and .lifecycleLogRedaction and .extensionArtifactsLocked and .dynamicPackageFreezeReviewable and (.uvxAutoRunFromShellInit | not) and (.npxAutoRunFromShellInit | not)' >/dev/null
 
+if [ "$image_name" = "nix-dind" ]; then
+  jq -e '.dockerAccess.enabled and .dockerAccess.privilege.level == "high" and .dockerAccess.remoteTcpRequiresTls' \
+    "$reports_dir/metadata-merged-preview.json" >/dev/null
+else
+  jq -e 'has("dockerAccess") | not' "$reports_dir/metadata-merged-preview.json" >/dev/null
+fi
+
 "$tool/bin/devcontainer-image" check "$reports_dir/metadata-label.json"
 "$tool/bin/devcontainer-image" diff "$reports_dir/layer-plan.json" "$reports_dir/layer-plan.json" >"$tmpdir/diff.txt"
 jq -e '.added == [] and .removed == [] and .changed == []' "$tmpdir/diff.txt" >/dev/null

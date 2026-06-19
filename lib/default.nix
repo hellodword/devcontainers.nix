@@ -58,6 +58,7 @@ let
         metadata = compileMetadata {
           config = evaluated.config;
           compiledEnv = env;
+          compiledDockerAccess = dockerAccess;
         };
         lifecycle = compileLifecycle {
           config = evaluated.config;

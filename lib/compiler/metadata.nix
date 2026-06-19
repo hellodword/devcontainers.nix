@@ -1,5 +1,5 @@
 { lib }:
-{ config, compiledEnv }:
+{ config, compiledEnv, compiledDockerAccess }:
 let
   lifecycleCommands =
     let
@@ -33,6 +33,15 @@ let
     lib.optionalAttrs config.devcontainer.dockerAccess.enable {
       mounts = config.devcontainer.dockerAccess.mounts;
       containerEnv = config.devcontainer.dockerAccess.containerEnv;
+      dockerAccess = {
+        enabled = compiledDockerAccess.enabled;
+        defaultMode = compiledDockerAccess.defaultMode;
+        privilege = compiledDockerAccess.privilegeReport;
+        remoteTcpRequiresTls = compiledDockerAccess.modes.remoteTcpTls.enable;
+        hostSocketMount = compiledDockerAccess.modes.hostSocket.mount;
+        remoteTcpHost = compiledDockerAccess.modes.remoteTcpTls.host;
+        remoteTcpCertMount = compiledDockerAccess.modes.remoteTcpTls.certMount;
+      };
     };
 
   computedSnippet =
@@ -57,6 +66,7 @@ let
       [ "onCreate" "postCreate" "postStart" "postAttach" ];
     hasVscodeCustomizations = mergedPreview ? customizations;
     dockerAccessEnabled = config.devcontainer.dockerAccess.enable;
+    hasDockerAccessMetadata = mergedPreview ? dockerAccess;
   };
 in
 {

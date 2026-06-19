@@ -11,8 +11,8 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 source_ext_link="$tmpdir/source-ext-link"
 source_ext_copy="$tmpdir/source-ext-copy"
-symlink_target="$tmpdir/target-symlink/extensions"
-copy_target="$tmpdir/target-copy/extensions"
+symlink_target="$tmpdir/TOKEN=super-secret/target-symlink/extensions"
+copy_target="$tmpdir/SECRET=another-secret/target-copy/extensions"
 mkdir -p "$source_ext_link" "$source_ext_copy" "$symlink_target" "$copy_target"
 
 cat >"$source_ext_link/package.json" <<'EOF'
@@ -52,10 +52,14 @@ cat >"$tmpdir/index.json" <<EOF
 }
 EOF
 
-"$projector/bin/vscode-extension-projector" activate --index "$tmpdir/index.json"
+projector_log="$tmpdir/projector.log"
+"$projector/bin/vscode-extension-projector" activate --index "$tmpdir/index.json" >"$projector_log"
 
 test -L "$symlink_target/$(basename "$source_ext_link")"
 test -d "$copy_target/$(basename "$source_ext_copy")"
+grep -q '\[REDACTED\]' "$projector_log"
+! grep -q 'super-secret' "$projector_log"
+! grep -q 'another-secret' "$projector_log"
 
 mkdir -p "$tmpdir/tasks-state"
 cat >"$tmpdir/tasks.json" <<'EOF'
