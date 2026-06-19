@@ -49,6 +49,14 @@ in
         name = "cargo-version";
         command = [ "cargo" "--version" ];
       }
+      {
+        name = "rust-tooling";
+        command = [ "bash" "-lc" "rustfmt --version && cargo clippy --version && rust-analyzer --version" ];
+      }
+      {
+        name = "rust-runtime-deps";
+        command = [ "bash" "-lc" "python --version && node --version && cc --version" ];
+      }
     ];
   };
 }

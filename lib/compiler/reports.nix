@@ -50,6 +50,13 @@ let
       extensionCount = builtins.length config.devcontainer.vscode.extensions;
       extensions = compiledVscodeExtensions.extensions;
       projection = config.devcontainer.vscode.preinstall.projection;
+      validation = {
+        nativeExtensions =
+          map (extension: extension.id)
+            (builtins.filter (extension: extension.native) compiledVscodeExtensions.extensions);
+        fhsRuntime = config.devcontainer.vscode.preinstall.validation.fhsRuntime;
+        noNetworkDuringProjection = config.devcontainer.vscode.preinstall.validation.noNetworkDuringProjection;
+      };
     };
   docker-access-report-json =
     jsonFile "docker-access-report.json" compiledDockerAccess;

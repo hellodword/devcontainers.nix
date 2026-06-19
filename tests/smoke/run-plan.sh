@@ -4,6 +4,7 @@ set -euo pipefail
 image_ref="${1:-}"
 plan_file="${2:-}"
 extra_args="${DOCKER_RUN_EXTRA_ARGS:-}"
+smoke_log_dir="${SMOKE_LOG_DIR:-smoke-logs}"
 
 if [ -z "$image_ref" ] || [ -z "$plan_file" ]; then
   echo "usage: tests/smoke/run-plan.sh <image-ref> <smoke-plan.json>" >&2
@@ -24,16 +25,25 @@ split_extra_args() {
 }
 
 split_extra_args
+mkdir -p "$smoke_log_dir"
 
 jq -c '.tests[]' "$plan_file" | while IFS= read -r test; do
   name="$(printf '%s' "$test" | jq -r '.name')"
   mapfile -t command_parts < <(printf '%s' "$test" | jq -r '.command[]')
+  log_file="$smoke_log_dir/${name}.log"
 
   if [ "${#command_parts[@]}" -eq 0 ]; then
     echo "skip $name"
+    printf 'skip %s\n' "$name" >"$log_file"
     continue
   fi
 
   echo "==> $name"
-  docker run --rm "${docker_extra[@]}" --entrypoint "${command_parts[0]}" "$image_ref" "${command_parts[@]:1}"
+  {
+    printf 'image=%s\n' "$image_ref"
+    printf 'command='
+    printf '%q ' "${command_parts[@]}"
+    printf '\n'
+    docker run --rm "${docker_extra[@]}" --entrypoint "${command_parts[0]}" "$image_ref" "${command_parts[@]:1}"
+  } 2>&1 | tee "$log_file"
 done

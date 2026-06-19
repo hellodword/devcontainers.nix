@@ -49,6 +49,18 @@ in
         command = [ "uv" "--version" ];
       }
       {
+        name = "uvx-version";
+        command = [ "uvx" "--version" ];
+      }
+      {
+        name = "python-runtime-imports";
+        command = [ "bash" "-lc" "python -c 'import ssl, sqlite3, ctypes'" ];
+      }
+      {
+        name = "python-node-runtime";
+        command = [ "bash" "-lc" "node --version && npm --version && npx --version" ];
+      }
+      {
         name = "nixd-version";
         command = [ "nixd" "--version" ];
       }

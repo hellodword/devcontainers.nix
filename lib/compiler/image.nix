@@ -21,7 +21,11 @@ let
   mkDirCommands =
     builtins.concatStringsSep "\n"
       (map
-        (extension: "mkdir -p .${extension.path}")
+        (extension:
+          ''
+            mkdir -p .${extension.path}
+            mkdir -p .$(dirname ${extension.vsixPath})
+          '')
         compiledVscodeExtensions.extensions);
   mkManifestCommands =
     builtins.concatStringsSep "\n"
@@ -35,9 +39,21 @@ let
                   name = extension.id;
                   publisher = builtins.head (lib.splitString "." extension.id);
                   version = "0.0.0";
+                  engines.vscode = "^1.90.0";
+                  devcontainer = {
+                    companionTools = extension.companionTools;
+                    validation = extension.validation;
+                  };
                 });
+            vsixFile =
+              builtins.toFile
+                "${builtins.replaceStrings [ "." ] [ "-" ] extension.id}.vsix"
+                "placeholder vsix for ${extension.id}\n";
           in
-          "cp ${manifestFile} .${extension.path}/package.json")
+          ''
+            cp ${manifestFile} .${extension.path}/package.json
+            cp ${vsixFile} .${extension.vsixPath}
+          '')
         compiledVscodeExtensions.extensions);
   mkSymlinkCommands =
     builtins.concatStringsSep "\n"

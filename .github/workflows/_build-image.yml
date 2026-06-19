@@ -50,10 +50,18 @@ jobs:
       - name: Run smoke plan
         env:
           DOCKER_RUN_EXTRA_ARGS: ${{ inputs.docker-socket-smoke && '-v /var/run/docker.sock:/var/run/docker.sock' || '' }}
+          SMOKE_LOG_DIR: smoke-logs
         run: |
           plan_path="$(nix build .#images.${{ inputs.image-name }}.smoke --print-out-paths --no-link)"
           chmod +x tests/smoke/run-plan.sh
           ./tests/smoke/run-plan.sh "devcontainer-${{ inputs.image-name }}:latest" "$plan_path"
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logs-${{ inputs.image-name }}
+          path: smoke-logs
 
       - name: Login to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'

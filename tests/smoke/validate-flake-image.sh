@@ -29,5 +29,7 @@ if [ -n "$extra_args" ]; then
   export DOCKER_RUN_EXTRA_ARGS="$extra_args"
 fi
 
+export SMOKE_LOG_DIR="${SMOKE_LOG_DIR:-smoke-logs-${image_name}}"
+
 chmod +x tests/smoke/run-plan.sh
 ./tests/smoke/run-plan.sh "devcontainer-${image_name}:latest" "$plan_path"

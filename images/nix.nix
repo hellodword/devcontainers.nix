@@ -73,12 +73,24 @@
         command = [ "nixd" "--version" ];
       }
       {
+        name = "nix-language";
+        command = [ "bash" "-lc" "nixfmt --version && alejandra --version && statix --version && deadnix --version" ];
+      }
+      {
         name = "extension-index";
         command = [
           "bash"
           "-lc"
           "test -f /usr/share/devcontainer/vscode/extensions-index.json"
         ];
+      }
+      {
+        name = "task-runner-list";
+        command = [ "devcontainer-task-runner" "list" ];
+      }
+      {
+        name = "devpkg-doctor";
+        command = [ "devpkg" "doctor" ];
       }
     ];
   };

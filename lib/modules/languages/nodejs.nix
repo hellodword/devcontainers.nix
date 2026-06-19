@@ -48,6 +48,18 @@ in
         name = "pnpm-version";
         command = [ "pnpm" "--version" ];
       }
+      {
+        name = "node-package-managers";
+        command = [ "bash" "-lc" "npm --version && npx --version && corepack --version && yarn --version" ];
+      }
+      {
+        name = "node-python-runtime";
+        command = [ "python" "--version" ];
+      }
+      {
+        name = "node-c-env";
+        command = [ "cc" "--version" ];
+      }
     ];
   };
 }

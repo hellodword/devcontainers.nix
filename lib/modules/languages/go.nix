@@ -48,6 +48,14 @@ in
         name = "gopls-version";
         command = [ "gopls" "version" ];
       }
+      {
+        name = "go-tooling";
+        command = [ "bash" "-lc" "dlv version && golangci-lint version && govulncheck -version || govulncheck --version" ];
+      }
+      {
+        name = "go-runtime-deps";
+        command = [ "bash" "-lc" "python --version && node --version && cc --version" ];
+      }
     ];
   };
 }

@@ -6,6 +6,8 @@ devcontainer-image explain layer <n> [--report <dir>]
 devcontainer-image explain package <name> [--report <dir>]
 devcontainer-image explain extension <id> [--report <dir>]
 devcontainer-image explain docker-access [--report <dir>]
+devcontainer-image explain image-plan [--report <dir>]
+devcontainer-image explain security [--report <dir>]
 devcontainer-image diff <old-layer-plan.json> <new-layer-plan.json>
 devcontainer-image check <metadata-label.json>
 devcontainer-image doctor image <name>
@@ -36,6 +38,12 @@ case "$cmd" in
       docker-access)
         cat "$report_dir/docker-access-report.json"
         ;;
+      image-plan)
+        cat "$report_dir/image-plan.json"
+        ;;
+      security)
+        cat "$report_dir/security-report.json"
+        ;;
       *)
         usage >&2
         exit 1
@@ -49,7 +57,12 @@ case "$cmd" in
       usage >&2
       exit 1
     fi
-    diff -u <(jq -S . "$old_file") <(jq -S . "$new_file") || true
+    old_tmp="$(mktemp)"
+    new_tmp="$(mktemp)"
+    jq -S '.layers | map({group, members, priority, estimatedCompressedSizeMiB})' "$old_file" >"$old_tmp"
+    jq -S '.layers | map({group, members, priority, estimatedCompressedSizeMiB})' "$new_file" >"$new_tmp"
+    diff -u "$old_tmp" "$new_tmp" || true
+    rm -f "$old_tmp" "$new_tmp"
     ;;
   check)
     metadata_file="${2:-}"

@@ -62,6 +62,10 @@ in
         name = "dart-version";
         command = [ "dart" "--version" ];
       }
+      {
+        name = "flutter-tooling";
+        command = [ "bash" "-lc" "java -version && gradle --version && rustc --version && node --version && python --version" ];
+      }
     ];
   };
 }
