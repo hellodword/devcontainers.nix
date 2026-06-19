@@ -81,6 +81,7 @@ let
     dynamicLoaderMode = compiledFhsRuntime.dynamicLoaderMode;
     realGlibcLoader = compiledFhsRuntime.realGlibcLoader;
     nixLdEnv = compiledFhsRuntime.nixLdEnv;
+    caCertificates = compiledFhsRuntime.caCertificates;
     symlinkCount = builtins.length compiledFhsRuntime.symlinks;
     symlinks = compiledFhsRuntime.symlinks;
     dynamicLoader = lib.findFirst (

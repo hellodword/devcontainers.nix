@@ -6,21 +6,23 @@
 }:
 let
   cfg = config.devcontainer.compat.fhsRuntime;
-  packages = with pkgs; [
-    bashInteractive
-    coreutils
-    gnutar
-    gzip
-    gnused
-    gnugrep
-    curl
-    wget
-    git
-    cacert
-    glibc
-    stdenv.cc.cc.lib
-    nix-ld
-  ];
+  packages =
+    with pkgs;
+    [
+      bashInteractive
+      coreutils
+      gnutar
+      gzip
+      gnused
+      gnugrep
+      curl
+      wget
+      git
+      glibc
+      stdenv.cc.cc.lib
+      nix-ld
+    ]
+    ++ lib.optionals cfg.caCertificates [ pkgs.dockerTools.caCertificates ];
 in
 {
   config = lib.mkIf cfg.enable {
@@ -61,6 +63,22 @@ in
           "tar --version && (curl --version || wget --version)"
         ];
       }
+    ]
+    ++ lib.optionals cfg.caCertificates [
+      {
+        name = "fhs-ca-certificates";
+        command = [
+          "bash"
+          "-lc"
+          ''
+            test -r "''${SSL_CERT_FILE:-}"
+            test "''${NIX_SSL_CERT_FILE:-}" = "$SSL_CERT_FILE"
+            curl --fail --silent --show-error --max-time 20 https://google.com >/dev/null
+          ''
+        ];
+      }
+    ]
+    ++ [
       {
         name = "fhs-nix-ld";
         command = [

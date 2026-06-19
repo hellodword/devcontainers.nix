@@ -66,6 +66,10 @@ def main() -> int:
         "XDG_CACHE_HOME=/home/vscode/.cache",
         "XDG_DATA_HOME=/home/vscode/.local/share",
         "XDG_STATE_HOME=/home/vscode/.local/state",
+        "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+        "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+        "CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
+        "GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt",
     ]:
         if required_env not in env:
             fail(f"image artifact must set expanded {required_env.split('=', 1)[0]}")

@@ -145,6 +145,13 @@ def main() -> int:
     ]:
         if required_link not in fhs_links:
             fail(f"fhs-runtime-report.json missing VS Code runtime link: {required_link}")
+    ca_certificates = fhs_runtime_report.get("caCertificates") or {}
+    if ca_certificates.get("bundle") != "/etc/ssl/certs/ca-certificates.crt":
+        fail("fhs-runtime-report.json must report the CA bundle path")
+    if "ca-certificates" not in ca_certificates.get("root", ""):
+        fail("CA certificates must come from dockerTools.caCertificates")
+    if not ca_certificates.get("source", "").endswith("/etc/ssl/certs/ca-certificates.crt"):
+        fail("CA certificate source must point at the dockerTools bundle")
     if "glibc" not in fhs_links["/usr/lib/libc.so.6"]:
         fail("libc.so.6 must come from glibc")
     if "gcc" not in fhs_links["/usr/lib/libstdc++.so.6"]:
@@ -194,6 +201,11 @@ def main() -> int:
             fail(f"env-report.json must include {env_name} source details")
         if "compiler.fhs-runtime.nix-ld" not in env_report["containerEnvSources"][env_name]["sources"]:
             fail(f"{env_name} must be sourced from the FHS runtime compiler")
+    for env_name in ["SSL_CERT_FILE", "NIX_SSL_CERT_FILE", "CURL_CA_BUNDLE", "GIT_SSL_CAINFO"]:
+        if env_report["containerEnv"].get(env_name) != "/etc/ssl/certs/ca-certificates.crt":
+            fail(f"container env must set {env_name} to the CA bundle")
+        if "compiler.fhs-runtime.ca-certificates" not in env_report["containerEnvSources"][env_name]["sources"]:
+            fail(f"{env_name} must be sourced from FHS CA certificates")
 
     if not extensions_report["validation"]["noNetworkDuringProjection"]:
         fail("extensions projection must stay offline")

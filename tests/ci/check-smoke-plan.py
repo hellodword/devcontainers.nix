@@ -14,6 +14,7 @@ COMMON = {
     "docker-remote-version",
     "codex-version",
     "nix-index-tools",
+    "fhs-ca-certificates",
 }
 
 REQUIRED = {

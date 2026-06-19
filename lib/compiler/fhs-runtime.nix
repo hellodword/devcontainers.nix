@@ -52,6 +52,16 @@ let
     NIX_LD = realGlibcLoader;
     NIX_LD_LIBRARY_PATH = nixLdLibraryPath;
   };
+  certBundleTarget = "/etc/ssl/certs/ca-certificates.crt";
+  caCertificatesEnabled = cfg.enable && cfg.caCertificates;
+  caCertificatesRoot = pkgs.dockerTools.caCertificates;
+  certBundleSource = "${caCertificatesRoot}${certBundleTarget}";
+  caCertificatesEnv = lib.optionalAttrs caCertificatesEnabled {
+    SSL_CERT_FILE = certBundleTarget;
+    NIX_SSL_CERT_FILE = certBundleTarget;
+    CURL_CA_BUNDLE = certBundleTarget;
+    GIT_SSL_CAINFO = certBundleTarget;
+  };
   glibcLoaderRoot = pkgs.runCommand "devcontainer-glibc-loader" { } ''
     mkdir -p "$out/${dynamicLoaderDirectory}"
     if [ -e ${pkgs.glibc}/${dynamicLoaderDirectory}/${dynamicLoaderFile} ]; then
@@ -69,11 +79,18 @@ in
   dynamicLoaderMode = cfg.dynamicLoader.mode;
   realGlibcLoader = realGlibcLoader;
   nixLdEnv = nixLdEnv;
+  caCertificates = lib.optionalAttrs caCertificatesEnabled {
+    bundle = certBundleTarget;
+    root = "${caCertificatesRoot}";
+    source = certBundleSource;
+  };
   env = {
-    container = nixLdEnv;
+    container = nixLdEnv // caCertificatesEnv;
   };
   envOrigins = {
-    container = lib.mapAttrs (_: _: [ "compiler.fhs-runtime.nix-ld" ]) nixLdEnv;
+    container =
+      lib.mapAttrs (_: _: [ "compiler.fhs-runtime.nix-ld" ]) nixLdEnv
+      // lib.mapAttrs (_: _: [ "compiler.fhs-runtime.ca-certificates" ]) caCertificatesEnv;
     remote = { };
     shell = { };
   };
