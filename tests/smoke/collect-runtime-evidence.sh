@@ -131,6 +131,7 @@ collect_docker_access() {
   run_capture "$section" docker-buildx-version "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' docker buildx version"
   run_capture "$section" docker-compose-version "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' docker compose version"
   run_capture "$section" docker-task-runner "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' devcontainer-task-runner list"
+  run_capture "$section" docker-process-list "docker run --rm -v '$socket_path:/var/run/docker.sock' '$image_ref' /bin/bash -lc 'ps -ef'"
 
   build_dir="$(mktemp -d)"
   cat >"$build_dir/Dockerfile" <<'EOF'

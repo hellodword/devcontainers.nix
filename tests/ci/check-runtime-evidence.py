@@ -135,6 +135,24 @@ def validate_oci_section(evidence_dir: pathlib.Path, summary: dict[tuple[str, st
         fail(f"{section}/docker-inspect must report the expected entrypoint")
     if image_config.get("Cmd") != ["sleep", "infinity"]:
         fail(f"{section}/docker-inspect must report the expected default command")
+    labels = image_config.get("Labels") or {}
+    metadata_label_raw = labels.get("devcontainer.metadata")
+    if not metadata_label_raw:
+        fail(f"{section}/docker-inspect must include devcontainer.metadata label")
+    metadata_label = json.loads(metadata_label_raw)
+    report_metadata_label = read_json(section_dir / "reports" / "metadata-label.json")
+    if metadata_label != report_metadata_label:
+        fail(f"{section}/docker-inspect devcontainer.metadata label must match reports/metadata-label.json")
+
+    inspect_env = image_config.get("Env") or []
+    if not isinstance(inspect_env, list):
+        fail(f"{section}/docker-inspect Config.Env must be a list")
+    report_merged = read_json(section_dir / "reports" / "metadata-merged-preview.json")
+    report_container_env = report_merged.get("containerEnv") or {}
+    for key, value in report_container_env.items():
+        expected_entry = f"{key}={value}"
+        if expected_entry not in inspect_env:
+            fail(f"{section}/docker-inspect Config.Env missing {expected_entry}")
 
     env_stdout, _ = validate_run_artifact(evidence_dir, summary, section, "docker-run-env")
     if "PATH=" not in env_stdout:
@@ -147,6 +165,11 @@ def validate_oci_section(evidence_dir: pathlib.Path, summary: dict[tuple[str, st
     task_stdout, _ = validate_run_artifact(evidence_dir, summary, section, "docker-run-task-runner")
     if not task_stdout.strip():
         fail(f"{section}/docker-run-task-runner must produce non-empty stdout")
+    expected_tasks = read_json(section_dir / "reports" / "tasks.json").get("tasks") or []
+    for task in expected_tasks:
+        expected_line = f"{task['name']}\t{task['phase']}\tonce={str(task['once']).lower()}"
+        if expected_line not in task_stdout:
+            fail(f"{section}/docker-run-task-runner missing task line: {expected_line}")
 
 
 def validate_docker_access_section(
@@ -169,6 +192,7 @@ def validate_docker_access_section(
         "docker-buildx-version",
         "docker-compose-version",
         "docker-task-runner",
+        "docker-process-list",
         "docker-build-run-smoke",
     ]:
         validate_run_artifact(evidence_dir, summary, section, run_name)
@@ -180,10 +204,26 @@ def validate_docker_access_section(
     task_stdout, _ = validate_run_artifact(evidence_dir, summary, section, "docker-task-runner")
     if not task_stdout.strip():
         fail("docker-access/docker-task-runner must produce non-empty stdout")
+    process_stdout, _ = validate_run_artifact(evidence_dir, summary, section, "docker-process-list")
+    if "dockerd" in process_stdout:
+        fail("docker-access/docker-process-list must not show a running dockerd process")
 
     smoke_stdout, _ = validate_run_artifact(evidence_dir, summary, section, "docker-build-run-smoke")
     if "ok" not in smoke_stdout:
         fail("docker-access/docker-build-run-smoke must include ok in stdout")
+
+    for run_name in [
+        "docker-version",
+        "docker-info",
+        "docker-buildx-version",
+        "docker-compose-version",
+        "docker-task-runner",
+        "docker-process-list",
+        "docker-build-run-smoke",
+    ]:
+        command_text = read_text(evidence_dir / section / run_name / "command.txt")
+        if "--privileged" in command_text:
+            fail(f"docker-access/{run_name} must not require --privileged")
 
     remote_skip = section_dir / "remote-tls-skipped.txt"
     remote_host = section_dir / "remote-docker-host.txt"

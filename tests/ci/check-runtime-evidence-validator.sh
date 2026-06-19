@@ -102,6 +102,7 @@ docker-access	docker-info	0
 docker-access	docker-buildx-version	0
 docker-access	docker-compose-version	0
 docker-access	docker-task-runner	0
+docker-access	docker-process-list	0
 docker-access	docker-build-run-smoke	0
 docker-access	remote-tls-explain	0
 docker-access	remote-tls-docker-version	0
@@ -113,10 +114,22 @@ EOF
     printf '/nix/store/fake-%s-smoke.json\n' "$section" >"$base/$section/smoke-plan-path.txt"
     write_reports "$base/$section/reports"
     make_run_dir "$base" "$section" docker-load "docker load" "Loaded image: devcontainer-${section#oci-}:latest\n"
-    make_run_dir "$base" "$section" docker-inspect "docker inspect" '[{"Config":{"Entrypoint":["/usr/local/bin/devcontainer-entrypoint"],"Cmd":["sleep","infinity"]}}]'
+    make_run_dir "$base" "$section" docker-inspect "docker inspect" "$(cat <<EOF
+[{"Config":{"Entrypoint":["/usr/local/bin/devcontainer-entrypoint"],"Cmd":["sleep","infinity"],"Env":["PATH=/usr/local/bin:/bin","EDITOR=vim"],"Labels":{"devcontainer.metadata":"[{\"containerEnv\":{\"PATH\":\"/usr/local/bin:/bin\",\"EDITOR\":\"vim\"},\"remoteUser\":\"vscode\",\"containerUser\":\"vscode\"}]"}}}]
+EOF
+)"
     make_run_dir "$base" "$section" docker-run-env "docker run env" $'PATH=/usr/local/bin:/bin\nEDITOR=vim\n'
     make_run_dir "$base" "$section" docker-run-bash "docker run bash" $'ok\n'
-    make_run_dir "$base" "$section" docker-run-task-runner "docker run devcontainer-task-runner list" $'vscode-extension-projection\tpostCreate\n'
+    make_run_dir "$base" "$section" docker-run-task-runner "docker run devcontainer-task-runner list" $'vscode-extension-projection\tpostCreate\tonce=true\n'
+    cat >"$base/$section/reports/tasks.json" <<'EOF'
+{"tasks":[{"name":"vscode-extension-projection","phase":"postCreate","once":true}]}
+EOF
+    cat >"$base/$section/reports/metadata-label.json" <<'EOF'
+[{"containerEnv":{"PATH":"/usr/local/bin:/bin","EDITOR":"vim"},"remoteUser":"vscode","containerUser":"vscode"}]
+EOF
+    cat >"$base/$section/reports/metadata-merged-preview.json" <<'EOF'
+{"containerEnv":{"PATH":"/usr/local/bin:/bin","EDITOR":"vim"},"remoteUser":"vscode","containerUser":"vscode"}
+EOF
   done
 
   printf 'devcontainer-nix-dind:latest\n' >"$base/docker-access/image-ref.txt"
@@ -130,7 +143,8 @@ EOF
   make_run_dir "$base" docker-access docker-info "docker info" "Server Version: 28.0.0\n"
   make_run_dir "$base" docker-access docker-buildx-version "docker buildx version" "github.com/docker/buildx v0.21.1\n"
   make_run_dir "$base" docker-access docker-compose-version "docker compose version" "Docker Compose version v2.35.1\n"
-  make_run_dir "$base" docker-access docker-task-runner "docker run devcontainer-task-runner list" $'vscode-extension-projection\tpostCreate\n'
+  make_run_dir "$base" docker-access docker-task-runner "docker run devcontainer-task-runner list" $'docker-context-init\tpostCreate\tonce=true\nvscode-extension-projection\tpostCreate\tonce=true\n'
+  make_run_dir "$base" docker-access docker-process-list "docker run ps -ef" $'UID          PID    PPID  C STIME TTY          TIME CMD\nvscode         1       0  0 00:00 ?        00:00:00 /usr/local/bin/devcontainer-entrypoint /bin/bash -lc ps -ef\nvscode         7       1  0 00:00 ?        00:00:00 ps -ef\n'
   make_run_dir "$base" docker-access docker-build-run-smoke "docker build && docker run" $'ok\n'
   make_run_dir "$base" docker-access remote-tls-explain "devcontainer-docker-access explain" $'mode=tcp://docker.example.internal:2376\ntls_verify=1\ncert_path=/run/docker-certs\n'
   make_run_dir "$base" docker-access remote-tls-docker-version "devcontainer-docker-access docker version" "Client: Docker Engine\nServer: Docker Engine\n"
