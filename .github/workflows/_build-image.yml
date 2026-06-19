@@ -47,6 +47,10 @@ jobs:
         run: |
           nix build .#images.${{ inputs.image-name }}.oci --print-out-paths --no-link > oci-path.txt
 
+      - name: Validate OCI tarball layout
+        run: |
+          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" "${{ inputs.image-name }}"
+
       - name: Load OCI tarball
         run: |
           gzip -dc "$(cat oci-path.txt)" | docker load
