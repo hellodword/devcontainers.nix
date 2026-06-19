@@ -20,7 +20,7 @@ Adds Go, `gopls`, Delve, `golangci-lint`, `gotools`, and `govulncheck`. Python, 
 
 ## `rust`
 
-Adds the stable Rust binary toolchain from `rust-overlay`, including `rustc`, `cargo`, `rustfmt`, `clippy`, `rust-analyzer`, and `rust-src`, plus `cargo-nextest`, `cargo-edit`, and `cargo-audit`.
+Adds the latest nightly Rust binary toolchain from `rust-overlay`, including `rustc`, `cargo`, `rustfmt`, `clippy`, `rust-analyzer`, and `rust-src`, plus `cargo-nextest`, `cargo-edit`, and `cargo-audit`.
 
 ## Web Variants
 

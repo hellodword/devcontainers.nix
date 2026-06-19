@@ -54,7 +54,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          mapfile -t targets < <(nix eval --json .#lib.x86_64-linux.workflowTargets | jq -r '.[]')
+          mapfile -t targets < <(nix eval --json .#lib.x86_64-linux.imageNames | jq -r '.[]')
           mkdir -p manifest-artifacts
 
           for target in "${targets[@]}"; do

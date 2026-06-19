@@ -98,14 +98,6 @@ in
         type = types.str;
         default = config.devcontainer.image.name;
       };
-      workflowTarget = mkOption {
-        type = types.str;
-        default = config.devcontainer.image.name;
-      };
-      workflowEnable = mkOption {
-        type = types.bool;
-        default = true;
-      };
       tags = mkOption {
         type = types.listOf types.str;
         default = [ ];

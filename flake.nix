@@ -143,8 +143,6 @@
           family,
           tags,
           module,
-          workflowTarget ? target,
-          workflowEnable ? true,
           extraModules ? [ ],
         }:
         {
@@ -153,8 +151,6 @@
             family
             tags
             module
-            workflowTarget
-            workflowEnable
             extraModules
             ;
           modules = [
@@ -165,7 +161,6 @@
                 config.devcontainer.image = {
                   name = lib.mkForce target;
                   family = lib.mkForce family;
-                  inherit workflowTarget workflowEnable;
                   tags = lib.mkForce tags;
                 };
               }
@@ -218,15 +213,6 @@
           extraModules = goLatestRuntimeModules;
         })
         (mkImageTarget {
-          target = "go-${versionTarget goLatestVersion}";
-          family = "go";
-          tags = [ goLatestVersion ];
-          module = ./images/go.nix;
-          workflowTarget = "go-latest";
-          workflowEnable = false;
-          extraModules = goLatestRuntimeModules;
-        })
-        (mkImageTarget {
           target = "go-${versionTarget goPrevious.version}";
           family = "go";
           tags = [ goPrevious.version ];
@@ -254,15 +240,6 @@
           extraModules = commonLatestRuntimeModules;
         })
         (mkImageTarget {
-          target = "nodejs-${nodejsLatestVersion}";
-          family = "nodejs";
-          tags = [ nodejsLatestVersion ];
-          module = ./images/nodejs.nix;
-          workflowTarget = "nodejs-latest";
-          workflowEnable = false;
-          extraModules = commonLatestRuntimeModules;
-        })
-        (mkImageTarget {
           target = "nodejs-${nodejsPrevious.version}";
           family = "nodejs";
           tags = [ nodejsPrevious.version ];
@@ -280,15 +257,6 @@
             pythonLatestVersion
           ];
           module = ./images/python.nix;
-          extraModules = commonLatestRuntimeModules;
-        })
-        (mkImageTarget {
-          target = "python-${versionTarget pythonLatestVersion}";
-          family = "python";
-          tags = [ pythonLatestVersion ];
-          module = ./images/python.nix;
-          workflowTarget = "python3";
-          workflowEnable = false;
           extraModules = commonLatestRuntimeModules;
         })
         (mkImageTarget {
@@ -474,12 +442,9 @@
         )
       ) fixtureFiles;
 
-      workflowTargets = map (target: target.target) (
-        builtins.filter (target: target.workflowEnable) imageTargetList
-      );
-      workflowTargetArray = lib.concatMapStringsSep "\n" (
+      imageNameArray = lib.concatMapStringsSep "\n" (
         name: "                ${lib.escapeShellArg name}"
-      ) workflowTargets;
+      ) imageNames;
       generateWorkflows = pkgs.writeShellApplication {
         name = "generate-workflows";
         runtimeInputs = [ pkgs.coreutils ];
@@ -489,7 +454,7 @@
           find "$workflow_dir" -maxdepth 1 -type f -name 'build-image-*.yml' -delete
 
           targets=(
-          ${workflowTargetArray}
+          ${imageNameArray}
           )
 
           for target in "''${targets[@]}"; do
@@ -559,7 +524,7 @@
         reportChecks // reportCliChecks // imageBuildChecks // runtimeToolChecks // fixtureChecks;
 
       lib.${system} = {
-        inherit imageNames workflowTargets;
+        inherit imageNames;
         vscodeExtensionSources = builtins.attrNames nix-vscode-extensions.extensions.${system};
         nix2container = nix2container.packages.${system}.nix2container;
       };

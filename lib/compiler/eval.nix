@@ -23,7 +23,6 @@ lib.evalModules {
     ../modules/core/filesystem.nix
     ../modules/core/env.nix
     ../modules/core/path.nix
-    ../modules/core/graph.nix
     ../modules/core/fhs-runtime.nix
     ../modules/core/metadata.nix
     ../modules/core/lifecycle.nix

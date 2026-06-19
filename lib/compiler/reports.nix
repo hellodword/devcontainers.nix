@@ -135,9 +135,6 @@ let
     tag = imageTag;
     imageRef = imageRef;
     publishRefs = publishRefs;
-    workflowTarget = config.devcontainer.image.workflowTarget;
-    workflowEnabled = config.devcontainer.image.workflowEnable;
-    workflow = "build-image-${config.devcontainer.image.workflowTarget}.yml";
     architectures = config.devcontainer.image.architectures;
     reportFiles = [
       "graph.json"
