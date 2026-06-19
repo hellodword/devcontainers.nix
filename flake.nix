@@ -79,6 +79,10 @@
           bash ${./tests/ci/check-runtime-validation-scripts.sh} ${./.}
           touch "$out"
         '';
+        runtime-evidence-validator = pkgs.runCommand "runtime-evidence-validator" { nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.python3 ]; } ''
+          bash ${./tests/ci/check-runtime-evidence-validator.sh} ${./.}
+          touch "$out"
+        '';
       };
       fixtureFiles =
         lib.filterAttrs
