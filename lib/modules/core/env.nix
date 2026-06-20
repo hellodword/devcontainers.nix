@@ -17,6 +17,9 @@ in
       NIXPKGS_ALLOW_UNFREE = "1";
       NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = "1";
       NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE = "1";
+      DO_NOT_TRACK = "true";
+      NIX_PAGER = "cat";
+      NIX_PATH = "nixpkgs=/usr/share/devcontainer/nixpkgs";
       DEVPKG_NIXPKGS_REF = "path:${inputs.nixpkgs.outPath}";
       WORKSPACE = "/workspaces/$DEVCONTAINER_WORKSPACE";
     };
@@ -33,6 +36,9 @@ in
       NIXPKGS_ALLOW_UNFREE = [ "core.env" ];
       NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = [ "core.env" ];
       NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE = [ "core.env" ];
+      DO_NOT_TRACK = [ "core.env" ];
+      NIX_PAGER = [ "core.env" ];
+      NIX_PATH = [ "core.env" ];
       DEVPKG_NIXPKGS_REF = [ "core.env" ];
       WORKSPACE = [ "core.env" ];
     };
@@ -43,7 +49,7 @@ in
         command = [
           "bash"
           "-lc"
-          "test \"$NIXPKGS_CONFIG\" = /etc/nixpkgs/config.nix && test -r \"$NIXPKGS_CONFIG\" && test \"$NIXPKGS_ALLOW_UNFREE\" = 1 && test \"$NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM\" = 1 && test \"$NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE\" = 1 && case \"$DEVPKG_NIXPKGS_REF\" in path:/nix/store/*-source) true ;; *) false ;; esac"
+          "test \"$NIXPKGS_CONFIG\" = /etc/nixpkgs/config.nix && test -r \"$NIXPKGS_CONFIG\" && test \"$NIXPKGS_ALLOW_UNFREE\" = 1 && test \"$NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM\" = 1 && test \"$NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE\" = 1 && test \"$DO_NOT_TRACK\" = true && test \"$NIX_PAGER\" = cat && test \"$NIX_PATH\" = nixpkgs=/usr/share/devcontainer/nixpkgs && case \"$DEVPKG_NIXPKGS_REF\" in path:/nix/store/*-source) true ;; *) false ;; esac"
         ];
       }
     ];

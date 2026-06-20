@@ -14,6 +14,10 @@ let
     pkgs.golangci-lint
     pkgs.gotools
     pkgs.govulncheck
+    pkgs.gotests
+    pkgs.gomodifytags
+    pkgs.impl
+    pkgs.protoc-gen-go
   ];
 in
 {
@@ -48,7 +52,9 @@ in
       "$GOBIN" = [ "languages.go" ];
     };
     environment.shellAliases.gobuild-small = ''go build -trimpath -ldflags "-s -w -buildid="'';
+    environment.shellAliases.go-build = ''go build -trimpath -ldflags "-s -w -buildid="'';
     environment.shellAliasOrigins.gobuild-small = [ "languages.go" ];
+    environment.shellAliasOrigins.go-build = [ "languages.go" ];
     devcontainer.graph.nodes."language/go" = {
       kind = "language";
       group = "50-go-language";
@@ -78,7 +84,7 @@ in
         command = [
           "bash"
           "-lc"
-          "dlv version && golangci-lint version && govulncheck -version || govulncheck --version"
+          "dlv version && golangci-lint version && (govulncheck -version || govulncheck --version) && command -v gotests gomodifytags impl protoc-gen-go >/dev/null"
         ];
       }
       {

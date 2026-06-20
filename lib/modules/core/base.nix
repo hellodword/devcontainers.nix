@@ -13,6 +13,7 @@
       "05-search-navigation-tools"
       "06-inspect-debug-tools"
       "07-workflow-format-tools"
+      "07-editor-support-tools"
       "08-data-network-tools"
       "09-docker-client-tools"
       "10-nix-runtime"

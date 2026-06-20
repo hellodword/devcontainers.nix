@@ -15,6 +15,11 @@ in
         uid = user.uid;
         gid = user.gid;
       };
+      "${user.home}/.codex" = {
+        mode = "0755";
+        uid = user.uid;
+        gid = user.gid;
+      };
       "/tmp" = {
         mode = "1777";
         uid = 0;

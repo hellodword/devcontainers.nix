@@ -245,9 +245,14 @@ let
       layerPathsToLink = (builtins.head apiEvalImage.layers.layers).build.pathsToLink;
       extensionIds = apiEvalImage.config.devcontainer.vscode.extensions;
       expectedExtensionIds = [
+        "esbenp.prettier-vscode"
         "jnoortheen.nix-ide"
         "tamasfe.even-better-toml"
         "redhat.vscode-yaml"
+        "shd101wyy.markdown-preview-enhanced"
+        "redhat.vscode-xml"
+        "samuelcolvin.jinjahtml"
+        "ianandhum.protobuf-support"
         "timonwong.shellcheck"
       ];
     in

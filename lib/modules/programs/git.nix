@@ -35,6 +35,17 @@ let
       export GIT_PS1_SHOWUNTRACKEDFILES=1
     fi
   '';
+  vscodeGitEditorHook = ''
+    if [ -z "$(${cfg.package}/bin/git config --get core.editor)" ] && [ -z "''${GIT_EDITOR:-}" ]; then
+      if [ "''${TERM_PROGRAM:-}" = "vscode" ]; then
+        if command -v code-insiders >/dev/null 2>&1 && ! command -v code >/dev/null 2>&1; then
+          export GIT_EDITOR="code-insiders --wait"
+        else
+          export GIT_EDITOR="code --wait"
+        fi
+      fi
+    fi
+  '';
 in
 {
   config = lib.mkIf cfg.enable (
@@ -42,6 +53,7 @@ in
       {
         environment.systemPackages = [ cfg.package ];
         environment.etc."gitconfig".text = gitConfigText;
+        environment.interactiveShellInit = vscodeGitEditorHook;
       }
 
       (lib.mkIf (attributesText != "") {

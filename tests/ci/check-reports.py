@@ -265,6 +265,16 @@ def main() -> int:
             fail(f"container env must set {env_name} to {expected_value}")
         if "core.env" not in env_report["containerEnvSources"].get(env_name, {}).get("sources", []):
             fail(f"{env_name} must be sourced from core.env")
+    expected_compat_env = {
+        "DO_NOT_TRACK": "true",
+        "NIX_PAGER": "cat",
+        "NIX_PATH": "nixpkgs=/usr/share/devcontainer/nixpkgs",
+    }
+    for env_name, expected_value in expected_compat_env.items():
+        if env_report["containerEnv"].get(env_name) != expected_value:
+            fail(f"container env must set {env_name} to {expected_value}")
+        if "core.env" not in env_report["containerEnvSources"].get(env_name, {}).get("sources", []):
+            fail(f"{env_name} must be sourced from core.env")
     devpkg_nixpkgs_ref = env_report["containerEnv"].get("DEVPKG_NIXPKGS_REF", "")
     if not re.fullmatch(r"path:/nix/store/[a-z0-9]{32}-source", devpkg_nixpkgs_ref):
         fail("container env must set DEVPKG_NIXPKGS_REF to the locked nixpkgs store source")
@@ -451,6 +461,19 @@ def main() -> int:
             fail(f"extensions-index.json must record nix-vscode-extensions source for {extension_id}")
         if not extension["sourceLock"]["ref"]:
             fail(f"extensions-index.json must record source ref for {extension_id}")
+    required_extension_ids = {
+        "esbenp.prettier-vscode",
+        "redhat.vscode-yaml",
+        "shd101wyy.markdown-preview-enhanced",
+        "redhat.vscode-xml",
+        "tamasfe.even-better-toml",
+        "samuelcolvin.jinjahtml",
+        "ianandhum.protobuf-support",
+        "timonwong.shellcheck",
+    }
+    missing_extension_ids = required_extension_ids - seen_extension_ids
+    if missing_extension_ids:
+        fail(f"extensions-index.json missing global editor extensions: {sorted(missing_extension_ids)}")
 
     user_report = filesystem_report["user"]
     if user_report["name"] != "vscode" or user_report["uid"] != 1000:
@@ -494,6 +517,7 @@ def main() -> int:
         "/var/tmp",
         "/run/user/1000",
         "/workspaces",
+        "/home/vscode/.codex",
         "/home/vscode/.local/state/bash",
     ]:
         if required_dir not in directory_map:

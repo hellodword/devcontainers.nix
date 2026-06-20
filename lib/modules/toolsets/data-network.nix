@@ -6,7 +6,6 @@
 }:
 let
   packages = with pkgs; [
-    sqlite
     postgresql
     redis
     httpie

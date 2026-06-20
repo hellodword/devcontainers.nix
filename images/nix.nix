@@ -3,6 +3,7 @@
   config = {
     environment.systemPackages = with pkgs; [
       nix
+      man
       nixd
       nil
       nixfmt
@@ -33,6 +34,7 @@
       paths = with pkgs; [
         nixd
         nil
+        man
         nixfmt
         alejandra
         statix

@@ -19,6 +19,9 @@ let
     file
     which
     less
+    vim
+    util-linux
+    sqlite
   ];
 in
 {

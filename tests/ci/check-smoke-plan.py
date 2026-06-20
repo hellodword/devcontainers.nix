@@ -23,6 +23,7 @@ COMMON = {
     "locale-env",
     "bash-interactive",
     "bash-completion",
+    "editor-support-tools",
     "devpkg-list",
     "devpkg-completion",
 }

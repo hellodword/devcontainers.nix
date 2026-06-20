@@ -890,6 +890,10 @@ in
           type = types.bool;
           default = true;
         };
+        editorSupport.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
         dataNetwork.enable = mkOption {
           type = types.bool;
           default = false;

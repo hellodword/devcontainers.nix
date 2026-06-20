@@ -45,6 +45,7 @@ lib.evalModules {
     ../modules/toolsets/search-navigation.nix
     ../modules/toolsets/inspect-debug.nix
     ../modules/toolsets/workflow-format.nix
+    ../modules/toolsets/editor-support.nix
     ../modules/toolsets/data-network.nix
     ../modules/toolsets/docker-client.nix
     ../modules/toolsets/agents.nix

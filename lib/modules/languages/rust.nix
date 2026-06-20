@@ -20,6 +20,7 @@ let
     pkgs.cargo-nextest
     pkgs.cargo-edit
     pkgs.cargo-audit
+    pkgs.rustup
   ];
 in
 {
@@ -79,7 +80,7 @@ in
         command = [
           "bash"
           "-lc"
-          "rustfmt --version && cargo clippy --version && rust-analyzer --version"
+          "rustfmt --version && cargo clippy --version && rust-analyzer --version && rustup --version"
         ];
       }
       {
