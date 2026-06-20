@@ -47,6 +47,8 @@ in
     devcontainer.path.segmentOrigins.language = {
       "$GOBIN" = [ "languages.go" ];
     };
+    devcontainer.shell.aliases.gobuild-small = ''go build -trimpath -ldflags "-s -w -buildid="'';
+    devcontainer.shell.aliasOrigins.gobuild-small = [ "languages.go" ];
     devcontainer.graph.nodes."language/go" = {
       kind = "language";
       group = "50-go-language";

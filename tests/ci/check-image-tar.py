@@ -151,6 +151,10 @@ def main() -> int:
         "XDG_CACHE_HOME=/home/vscode/.cache",
         "XDG_DATA_HOME=/home/vscode/.local/share",
         "XDG_STATE_HOME=/home/vscode/.local/state",
+        "LANG=en_US.UTF-8",
+        "LANGUAGE=en_US:en",
+        "XDG_CONFIG_DIRS=/etc/xdg",
+        "XDG_DATA_DIRS=/usr/local/share:/usr/share:/share",
         "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
         "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
         "CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
@@ -158,6 +162,14 @@ def main() -> int:
     ]:
         if required_env not in env:
             fail(f"image artifact must set expanded {required_env.split('=', 1)[0]}")
+    locale_archive_entries = [entry for entry in env if entry.startswith("LOCALE_ARCHIVE=")]
+    if len(locale_archive_entries) != 1:
+        fail("image artifact must set exactly one LOCALE_ARCHIVE entry")
+    locale_archive = locale_archive_entries[0].split("=", 1)[1]
+    if "glibc-locales" not in locale_archive or not locale_archive.endswith("/lib/locale/locale-archive"):
+        fail("image artifact must point LOCALE_ARCHIVE at glibcLocales")
+    if any(entry.startswith("LC_ALL=") for entry in env):
+        fail("image artifact must not set LC_ALL by default")
     for env_entry in env:
         if "$HOME" in env_entry or "$XDG_" in env_entry:
             fail("image artifact env must not retain unexpanded HOME/XDG references")

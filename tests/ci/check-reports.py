@@ -22,6 +22,7 @@ REQUIRED_REPORT_FILES = {
     "metadata-merged-preview.json",
     "metadata-schema-report.json",
     "security-report.json",
+    "shell-report.json",
     "smoke-test-plan.json",
 }
 
@@ -81,6 +82,7 @@ def main() -> int:
     ci_plan = read_json(reports_dir / "ci-plan.json")
     env_report = read_json(reports_dir / "env-report.json")
     libraries_report = read_json(reports_dir / "libraries-report.json")
+    shell_report = read_json(reports_dir / "shell-report.json")
     preview_container_env = metadata_preview.get("containerEnv") or {}
 
     if not isinstance(metadata_label, list):
@@ -185,6 +187,24 @@ def main() -> int:
         fail("container env must not configure DOCKER_HOST by default")
     if "LD_LIBRARY_PATH" in env_report["containerEnv"]:
         fail("container env must not export LD_LIBRARY_PATH by default")
+    expected_locale_env = {
+        "LANG": "en_US.UTF-8",
+        "LANGUAGE": "en_US:en",
+        "XDG_CONFIG_DIRS": "/etc/xdg",
+        "XDG_DATA_DIRS": "/usr/local/share:/usr/share:/share",
+    }
+    for env_name, expected_value in expected_locale_env.items():
+        if env_report["containerEnv"].get(env_name) != expected_value:
+            fail(f"container env must set {env_name} to {expected_value}")
+        if "core.locale" not in env_report["containerEnvSources"].get(env_name, {}).get("sources", []):
+            fail(f"{env_name} must be sourced from core.locale")
+    locale_archive = env_report["containerEnv"].get("LOCALE_ARCHIVE")
+    if not locale_archive or "glibc-locales" not in locale_archive or not locale_archive.endswith("/lib/locale/locale-archive"):
+        fail("container env must set LOCALE_ARCHIVE to the glibcLocales locale archive")
+    if "core.locale" not in env_report["containerEnvSources"].get("LOCALE_ARCHIVE", {}).get("sources", []):
+        fail("LOCALE_ARCHIVE must be sourced from core.locale")
+    if "LC_ALL" in env_report["containerEnv"]:
+        fail("container env must not set LC_ALL by default")
     expected_xdg = {
         "XDG_CONFIG_HOME": "/home/vscode/.config",
         "XDG_CACHE_HOME": "/home/vscode/.cache",
@@ -256,8 +276,17 @@ def main() -> int:
                 fail(f"{image_name} must expose {env_name}")
             if "compiler.libraries.preset.cgo" not in env_report["containerEnvSources"][env_name]["sources"]:
                 fail(f"{env_name} must be sourced from the cgo library preset")
+        gobuild_alias = shell_report.get("aliases", {}).get("gobuild-small")
+        if not gobuild_alias:
+            fail(f"{image_name} must include the gobuild-small shell alias")
+        if gobuild_alias.get("command") != 'go build -trimpath -ldflags "-s -w -buildid="':
+            fail("gobuild-small alias command mismatch")
+        if "languages.go" not in gobuild_alias.get("origins", []):
+            fail("gobuild-small alias must be sourced from languages.go")
     elif "cgo" in library_presets:
         fail(f"{image_name} must not enable the cgo library preset by default")
+    elif "gobuild-small" in shell_report.get("aliases", {}):
+        fail(f"{image_name} must not include the Go-specific gobuild-small alias")
     if is_rust_image:
         if "rust-bindgen" not in library_presets:
             fail(f"{image_name} must enable the rust-bindgen library preset")
@@ -312,6 +341,9 @@ def main() -> int:
         fail("filesystem-report.json must declare vscode gid 1000")
     if user_report["home"] != "/home/vscode" or user_report["shell"] != "/bin/bash":
         fail("filesystem-report.json must declare the vscode home and shell")
+    for required_file in ["/etc/profile", "/etc/bashrc", "/etc/bash.bashrc"]:
+        if required_file not in filesystem_report.get("shellFiles", []):
+            fail(f"filesystem-report.json missing generated shell file: {required_file}")
     directory_map = {entry["path"]: entry for entry in filesystem_report["directories"]}
     for required_dir in [
         "/home/vscode",
@@ -319,6 +351,7 @@ def main() -> int:
         "/var/tmp",
         "/run/user/1000",
         "/workspaces",
+        "/home/vscode/.local/state/bash",
     ]:
         if required_dir not in directory_map:
             fail(f"filesystem-report.json missing directory: {required_dir}")
@@ -358,6 +391,35 @@ def main() -> int:
         fail("security-report.json must confirm npx is not auto-run from shell init")
     if not security_report["shellInitHasNoSideEffects"]:
         fail("security-report.json must confirm shell init remains side-effect free")
+
+    if not shell_report.get("enabled"):
+        fail("shell-report.json must confirm shell support is enabled")
+    if shell_report.get("locale", {}).get("lang") != "en_US.UTF-8":
+        fail("shell-report.json must report the default locale")
+    if shell_report.get("locale", {}).get("lcAll") is not None:
+        fail("shell-report.json must report lcAll as unset by default")
+    if not shell_report.get("locale", {}).get("archive", {}).get("enabled"):
+        fail("shell-report.json must confirm locale archive support is enabled")
+    if "glibc-locales" not in shell_report.get("locale", {}).get("archive", {}).get("path", ""):
+        fail("shell-report.json must report the glibc locale archive path")
+    for alias_name in ["l", "la", "ll", "ls", "grep", "sha3-256sum"]:
+        alias = shell_report.get("aliases", {}).get(alias_name)
+        if not alias:
+            fail(f"shell-report.json missing default alias: {alias_name}")
+        if "core.shell" not in alias.get("origins", []):
+            fail(f"default alias {alias_name} must be sourced from core.shell")
+    bash_features = shell_report.get("bash", {})
+    for feature in ["prompt", "history", "completion", "commandNotFound"]:
+        if not bash_features.get(feature):
+            fail(f"shell-report.json must enable bash {feature}")
+    for required_file in ["/etc/profile", "/etc/bashrc", "/etc/bash.bashrc"]:
+        if required_file not in shell_report.get("generatedFiles", []):
+            fail(f"shell-report.json missing generated file: {required_file}")
+    shell_paths = shell_report.get("imagePaths", [])
+    if not any("glibc-locales" in path for path in shell_paths):
+        fail("shell-report.json must include glibcLocales in image paths")
+    if not any("bash-completion" in path for path in shell_paths):
+        fail("shell-report.json must include bash-completion in image paths")
 
     print(f"report-check ok: {image_name}")
     return 0

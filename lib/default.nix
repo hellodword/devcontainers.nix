@@ -43,6 +43,10 @@ let
       inherit lib;
     };
 
+    compileShell = import ./compiler/shell.nix {
+      inherit pkgs lib;
+    };
+
     compileVscodeExtensions = import ./compiler/vscode-extensions.nix {
       inherit
         lib
@@ -104,12 +108,16 @@ let
         lifecycle = compileLifecycle {
           config = evaluated.config;
         };
+        shell = compileShell {
+          config = evaluated.config;
+        };
         vscodeExtensions = compileVscodeExtensions {
           config = evaluated.config;
         };
         filesystem = compileFilesystem {
           config = evaluated.config;
           compiledFhsRuntime = fhsRuntime;
+          compiledShell = shell;
         };
         layers = compileLayers {
           config = evaluated.config;
@@ -121,6 +129,7 @@ let
           compiledLibraries = libraries;
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
+          compiledShell = shell;
           compiledVscodeExtensions = vscodeExtensions;
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
@@ -134,6 +143,7 @@ let
           compiledLibraries = libraries;
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
+          compiledShell = shell;
           compiledVscodeExtensions = vscodeExtensions;
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
@@ -150,6 +160,7 @@ let
           layers
           fhsRuntime
           filesystem
+          shell
           ;
         inherit lifecycle vscodeExtensions;
         inherit (image)
@@ -171,6 +182,7 @@ let
           closure-report-json
           extensions-report-json
           fhs-runtime-report-json
+          shell-report-json
           filesystem-report-json
           security-report-json
           smoke-test-plan-json

@@ -18,6 +18,7 @@
       "11-nix-language"
       "12-nix-index-tools"
       "13-agent-tools"
+      "14-shell-runtime"
       "20-c-env"
       "30-python-runtime"
       "31-python-language"

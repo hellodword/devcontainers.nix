@@ -16,6 +16,9 @@ COMMON = {
     "nix-index-tools",
     "nix-single-user-root",
     "fhs-ca-certificates",
+    "locale-env",
+    "bash-interactive",
+    "bash-completion",
 }
 
 REQUIRED = {

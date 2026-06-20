@@ -1,4 +1,9 @@
-{ lib, config, ... }:
+{
+  lib,
+  config,
+  pkgs,
+  ...
+}:
 let
   inherit (lib) mkOption types;
   graphNodeType = types.submodule {
@@ -151,6 +156,72 @@ in
       dynamicBuildProfile = mkOption {
         type = types.str;
         default = "$XDG_DATA_HOME/devpkg/build-libraries/profile";
+      };
+    };
+
+    locale = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      lang = mkOption {
+        type = types.str;
+        default = "en_US.UTF-8";
+      };
+      language = mkOption {
+        type = types.str;
+        default = "en_US:en";
+      };
+      lc = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+      };
+      lcAll = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+      };
+      archive = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        package = mkOption {
+          type = types.package;
+          default = pkgs.glibcLocales;
+        };
+      };
+    };
+
+    shell = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      aliases = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+      };
+      aliasOrigins = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
+      bash = {
+        prompt.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        history.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        completion.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        commandNotFound.enable = mkOption {
+          type = types.bool;
+          default = config.devcontainer.toolsets.nixIndex.enable;
+        };
       };
     };
 

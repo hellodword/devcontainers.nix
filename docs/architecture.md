@@ -62,6 +62,16 @@ Runtime library layers use bucket `70-runtime-libraries`; build-only outputs suc
 
 `LD_LIBRARY_PATH` is not exported by default because it changes dynamic-loader search precedence for all programs in the container. Images can opt in with `devcontainer.libraries.exportLdLibraryPath = true`, and individual devcontainers can still set `remoteEnv.LD_LIBRARY_PATH` for FFI, JNA, Python `ctypes`, non-Nix toolchains, or legacy build systems.
 
+## Locale And Shell
+
+Locale and shell runtime data are compiled separately from ordinary command packages. The `14-shell-runtime` layer holds `pkgs.glibcLocales` for `LOCALE_ARCHIVE` and `pkgs.bash-completion` for interactive Bash completion.
+
+The default locale contract is `LANG=en_US.UTF-8`, `LANGUAGE=en_US:en`, `XDG_CONFIG_DIRS=/etc/xdg`, and `XDG_DATA_DIRS=/usr/local/share:/usr/share:/share`. `LC_ALL` is intentionally unset by default because it overrides every locale category; image modules should use `devcontainer.locale.lc` for targeted `LC_*` overrides. Library presets that need `XDG_DATA_DIRS`, such as GTK or Qt, prepend their dynamic build profile share directories and then append the base XDG data directories with duplicates removed.
+
+Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`. Login shells load `/etc/profile`; interactive Bash shells load aliases, a lightweight prompt, history settings, bash completion, and `command_not_found_handle`. The command-not-found handler only queries the local nix-index database and returns 127. It does not run `comma`, install software, call the network, or execute project commands.
+
+Image modules extend aliases through `devcontainer.shell.aliases`. Alias names are restricted to letters, numbers, `_`, `-`, `.`, and `+`, and values are shell-escaped when `/etc/bashrc` is rendered. Go images add the `gobuild-small` alias from the Go language module.
+
 ## Nix Database
 
 Images enable nix2container's `initializeNixDatabase` support. The generated Nix database registers the store paths already present in the image, makes `/nix`, `/nix/store`, and `/nix/var/nix` writable by the container user, and avoids a separate registration workaround at startup.

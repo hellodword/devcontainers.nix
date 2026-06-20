@@ -99,7 +99,9 @@ let
     ];
   cmakePrefixEntries = buildPrefixes;
   aclocalEntries = map (path: "${path}/share/aclocal") buildPrefixes;
-  xdgDataEntries = map (path: "${path}/share") buildPrefixes;
+  baseXdgDataEntries =
+    if expandedBaseEnv ? XDG_DATA_DIRS then lib.splitString ":" expandedBaseEnv.XDG_DATA_DIRS else [ ];
+  xdgDataEntries = (map (path: "${path}/share") buildPrefixes) ++ baseXdgDataEntries;
   gioModuleEntries = map (path: "${path}/lib/gio/modules") buildPrefixes;
   giTypelibEntries = map (path: "${path}/lib/girepository-1.0") buildPrefixes;
   gstPluginEntries = map (path: "${path}/lib/gstreamer-1.0") buildPrefixes;

@@ -6,6 +6,7 @@
   compiledLibraries,
   compiledMetadata,
   compiledLifecycle,
+  compiledShell,
   compiledVscodeExtensions,
   compiledFhsRuntime,
   compiledFilesystem,
@@ -94,6 +95,7 @@ let
       link: lib.hasInfix "ld-linux" link.target
     ) null compiledFhsRuntime.symlinks;
   };
+  shell-report-json = jsonFile "shell-report.json" compiledShell.report;
   filesystem-report-json = jsonFile "filesystem-report.json" {
     user = {
       inherit (config.devcontainer.user)
@@ -111,9 +113,10 @@ let
     passwd = compiledFilesystem.passwd;
     group = compiledFilesystem.group;
     osRelease = compiledFilesystem.osRelease;
+    shellFiles = compiledFilesystem.shellFiles;
     commandNotFoundHook = {
-      enabled = config.devcontainer.toolsets.nixIndex.enable;
-      path = "/etc/profile.d/command-not-found.sh";
+      enabled = config.devcontainer.shell.enable && config.devcontainer.shell.bash.commandNotFound.enable;
+      path = "/etc/bashrc";
       database = "nix-index-database";
     };
   };
@@ -155,6 +158,7 @@ let
       "extensions-index.json"
       "extensions-report.json"
       "fhs-runtime-report.json"
+      "shell-report.json"
       "filesystem-report.json"
       "security-report.json"
       "smoke-test-plan.json"
@@ -223,6 +227,10 @@ let
       path = fhs-runtime-report-json;
     }
     {
+      name = "shell-report.json";
+      path = shell-report-json;
+    }
+    {
       name = "filesystem-report.json";
       path = filesystem-report-json;
     }
@@ -257,6 +265,7 @@ in
     closure-report-json
     extensions-report-json
     fhs-runtime-report-json
+    shell-report-json
     filesystem-report-json
     security-report-json
     smoke-test-plan-json

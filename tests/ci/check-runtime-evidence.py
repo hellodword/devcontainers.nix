@@ -23,6 +23,7 @@ REQUIRED_REPORT_FILES = {
     "metadata-merged-preview.json",
     "metadata-schema-report.json",
     "security-report.json",
+    "shell-report.json",
     "smoke-test-plan.json",
     "tasks.json",
 }

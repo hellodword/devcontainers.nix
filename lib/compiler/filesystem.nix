@@ -1,5 +1,15 @@
 { pkgs, lib }:
-{ config, compiledFhsRuntime }:
+{
+  config,
+  compiledFhsRuntime,
+  compiledShell ? {
+    profileText = "";
+    bashrcText = "";
+    bashBashrcText = "";
+    commandNotFoundHook = "";
+    generatedFiles = [ ];
+  },
+}:
 let
   user = config.devcontainer.user;
   osRelease = config.devcontainer.filesystem.osRelease;
@@ -27,20 +37,6 @@ let
     ''PRETTY_NAME="${osRelease.prettyName}"''
     ""
   ];
-  commandNotFoundHook = lib.concatStringsSep "\n" [
-    "command_not_found_handle() {"
-    ''local command="$1"''
-    "  shift || true"
-    "  if command -v nix-locate >/dev/null 2>&1; then"
-    ''printf '%s: command not found\n' "$command" >&2''
-    ''nix-locate --minimal --whole-name --at-root "/bin/$command" 2>/dev/null | head -n 20 >&2 || true''
-    "  else"
-    ''printf '%s: command not found\n' "$command" >&2''
-    "  fi"
-    "  return 127"
-    "}"
-    ""
-  ];
   root = pkgs.runCommand "${config.devcontainer.image.name}-filesystem" { } ''
     mkdir -p "$out/etc/profile.d"
     mkdir -p "$out/root"
@@ -49,9 +45,11 @@ let
     printf '%s' ${lib.escapeShellArg passwdText} >"$out/etc/passwd"
     printf '%s' ${lib.escapeShellArg groupText} >"$out/etc/group"
     printf '%s' ${lib.escapeShellArg osReleaseText} >"$out/etc/os-release"
-    printf '%s' ${lib.escapeShellArg commandNotFoundHook} >"$out/etc/profile.d/command-not-found.sh"
+    printf '%s' ${lib.escapeShellArg compiledShell.profileText} >"$out/etc/profile"
+    printf '%s' ${lib.escapeShellArg compiledShell.bashrcText} >"$out/etc/bashrc"
+    printf '%s' ${lib.escapeShellArg compiledShell.bashBashrcText} >"$out/etc/bash.bashrc"
 
-    chmod 0644 "$out/etc/passwd" "$out/etc/group" "$out/etc/os-release" "$out/etc/profile.d/command-not-found.sh"
+    chmod 0644 "$out/etc/passwd" "$out/etc/group" "$out/etc/os-release" "$out/etc/profile" "$out/etc/bashrc" "$out/etc/bash.bashrc"
   '';
   userPermName = spec: if spec.uid == 0 then "root" else user.name;
   groupPermName = spec: if spec.gid == 0 then "root" else user.group;
@@ -66,16 +64,7 @@ let
   filePerms = [
     {
       path = root;
-      regex = "^${root}/etc/(passwd|group|os-release)$";
-      mode = "0644";
-      uid = 0;
-      gid = 0;
-      uname = "root";
-      gname = "root";
-    }
-    {
-      path = root;
-      regex = "^${root}/etc/profile.d/command-not-found.sh$";
+      regex = "^${root}/etc/(passwd|group|os-release|profile|bashrc|bash\\.bashrc)$";
       mode = "0644";
       uid = 0;
       gid = 0;
@@ -89,7 +78,8 @@ in
   passwd = passwdText;
   group = groupText;
   osRelease = osReleaseText;
-  commandNotFoundHook = commandNotFoundHook;
+  commandNotFoundHook = compiledShell.commandNotFoundHook;
+  shellFiles = compiledShell.generatedFiles;
   perms = directoryPerms ++ filePerms;
   directories = lib.mapAttrsToList (path: spec: {
     inherit path;

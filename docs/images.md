@@ -16,7 +16,7 @@ Adds Node.js runtime and tooling: `pnpm`, `yarn`, TypeScript, ESLint, Prettier, 
 
 ## `go`
 
-Adds Go, `gopls`, Delve, `golangci-lint`, `gotools`, and `govulncheck`. Python, Node.js, and C build runtimes are included.
+Adds Go, `gopls`, Delve, `golangci-lint`, `gotools`, and `govulncheck`. Python, Node.js, and C build runtimes are included. Go images also define `gobuild-small` as an alias for `go build -trimpath -ldflags "-s -w -buildid="`.
 
 ## `rust`
 
@@ -39,6 +39,8 @@ Every image includes:
 - a fixed `vscode` user; project devcontainer JSON must not override `remoteUser`, `containerUser`, or `updateRemoteUserUID`
 - `devpkg` for ad-hoc user installs from `nixpkgs`, for example `devpkg add cowsay`
 - separate dynamic native-library profiles, for example `devpkg add-lib zlib` for runtime-only libraries and `devpkg add-dev-lib openssl zlib` for headers plus link/runtime outputs
+- `en_US.UTF-8` locale defaults backed by `pkgs.glibcLocales`
+- system `/etc/profile`, `/etc/bashrc`, `/etc/bash.bashrc`, default aliases, bash completion, and local nix-index based `command_not_found_handle`
 
 Dynamic build libraries are discoverable through `PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`, `NIXPKGS_CMAKE_PREFIX_PATH`, `CPATH`, `LIBRARY_PATH`, `NIX_CFLAGS_COMPILE`, and `NIX_LDFLAGS`. `LD_LIBRARY_PATH` is intentionally absent unless an image or project opts in.
 
@@ -88,3 +90,5 @@ Project-level `LD_LIBRARY_PATH` opt-in:
 ```
 
 Images do not set `DOCKER_HOST` by default and do not run a Docker daemon.
+
+The full glibc locale archive is included for predictable UTF-8 behavior in non-NixOS containers. This costs more image space than a custom trimmed archive, but avoids locale failures in common CLI and language tooling. Images set `LANG` and `LANGUAGE`; they do not set `LC_ALL` by default so projects can override specific locale categories with `LC_CTYPE`, `LC_TIME`, or other `LC_*` variables.
