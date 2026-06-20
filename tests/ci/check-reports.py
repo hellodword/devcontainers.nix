@@ -471,7 +471,7 @@ def main() -> int:
     ]:
         if required_setting not in nixpkgs_config_text:
             fail(f"nixpkgs config must include {required_setting}")
-    for required_file in ["/etc/profile", "/etc/bashrc", "/etc/bash.bashrc"]:
+    for required_file in ["/etc/profile", "/etc/bashrc", "/etc/bash.bashrc", "/home/vscode/.bashrc"]:
         if required_file not in filesystem_report.get("shellFiles", []):
             fail(f"filesystem-report.json missing generated shell file: {required_file}")
     filesystem_etc_paths = {entry.get("path") for entry in filesystem_report.get("etcFiles", [])}

@@ -45,8 +45,8 @@ in
         name = "devpkg-completion";
         command = [
           "bash"
-          "-lc"
-          "test -r /share/bash-completion/completions/devpkg && . /share/bash-completion/completions/devpkg && complete -p devpkg >/dev/null && devpkg complete packages div | grep -Fx dive >/dev/null"
+          "-ic"
+          "complete -p devpkg >/dev/null && COMP_WORDS=(devpkg add div) && COMP_CWORD=2 && _devpkg && printf '%s\\n' \"\${COMPREPLY[@]}\" | grep -Fx dive >/dev/null"
         ];
       }
     ];

@@ -78,6 +78,9 @@ let
     if ! declare -F _init_completion >/dev/null 2>&1 && [ -r /share/bash-completion/bash_completion ]; then
       . /share/bash-completion/bash_completion
     fi
+    if ! complete -p devpkg >/dev/null 2>&1 && [ -r /share/bash-completion/completions/devpkg ]; then
+      . /share/bash-completion/completions/devpkg
+    fi
   '';
 
   commandNotFoundText = lib.optionalString (cfg.enable && cfg.commandNotFound.enable) ''

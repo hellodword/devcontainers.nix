@@ -66,6 +66,12 @@ let
       allowUnsupportedSystem = true;
     }
   '';
+  userBashrcPath = "${user.home}/.bashrc";
+  userBashrcText = ''
+    if [ -r /etc/bashrc ]; then
+      . /etc/bashrc
+    fi
+  '';
   groupText = lib.concatStringsSep "\n" [
     "root:x:0:"
     "${user.group}:x:${toString user.gid}:${user.name}"
@@ -90,12 +96,13 @@ let
     printf '%s' ${lib.escapeShellArg compiledShell.bashrcText} >"$out/etc/bashrc"
     printf '%s' ${lib.escapeShellArg compiledShell.bashBashrcText} >"$out/etc/bash.bashrc"
     printf '%s' ${lib.escapeShellArg nixpkgsConfigText} >"$out${nixpkgsConfigPath}"
+    printf '%s' ${lib.escapeShellArg userBashrcText} >"$out${userBashrcPath}"
     ${etcCommands}
     ${lib.optionalString (compiledFonts.root != null) ''
       cp -a ${compiledFonts.root}/. "$out/"
     ''}
 
-    chmod 0644 "$out/etc/passwd" "$out/etc/group" "$out/etc/os-release" "$out/etc/profile" "$out/etc/bashrc" "$out/etc/bash.bashrc" "$out${nixpkgsConfigPath}"
+    chmod 0644 "$out/etc/passwd" "$out/etc/group" "$out/etc/os-release" "$out/etc/profile" "$out/etc/bashrc" "$out/etc/bash.bashrc" "$out${nixpkgsConfigPath}" "$out${userBashrcPath}"
   '';
   userPermName = spec: if spec.uid == 0 then "root" else user.name;
   groupPermName = spec: if spec.gid == 0 then "root" else user.group;
@@ -117,6 +124,15 @@ let
       uname = "root";
       gname = "root";
     }
+    {
+      path = root;
+      regex = "^${root}${userBashrcPath}$";
+      mode = "0644";
+      uid = user.uid;
+      gid = user.gid;
+      uname = user.name;
+      gname = user.group;
+    }
   ]
   ++ map (entry: {
     path = root;
@@ -136,7 +152,7 @@ in
     text = nixpkgsConfigText;
   };
   commandNotFoundHook = compiledShell.commandNotFoundHook;
-  shellFiles = compiledShell.generatedFiles;
+  shellFiles = compiledShell.generatedFiles ++ [ userBashrcPath ];
   etcFiles = map (entry: {
     inherit (entry)
       name
