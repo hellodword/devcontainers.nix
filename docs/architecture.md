@@ -31,8 +31,6 @@ builds, checks, and runtime helper packages see the same overridden drv.
 
 The compiler only uses nix2container for OCI image generation.
 
-Browser SUID sandbox support is part of the final customization flow. Its design has separate helper copies, command shims, and Chromium wrapper patching because `/run` is runtime state and the Nixpkgs Chromium wrapper can overwrite `CHROME_DEVEL_SANDBOX`. See [Browser Sandbox](browser-sandbox.md) before changing that code.
-
 ## Layer Strategy
 
 OCI runtimes have practical layer-count limits, and GitHub Container Registry rejects oversized layer blobs. Devcontainer images accumulate many language runtimes, tools, extensions, and generated files, so this project keeps layer construction deterministic and bounded:

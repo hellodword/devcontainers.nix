@@ -60,9 +60,7 @@ devpkg remove cowsay
 Android SDK license, accept Oracle JDK license gates when present in nixpkgs, and
 allow unsupported-system packages. This makes installs such as `devpkg add
 google-chrome` and `devpkg add microsoft-edge` evaluate with the same policy as
-the image build. Browser installs also sync managed command shims so Chromium,
-Google Chrome, and Microsoft Edge can use their image-provided SUID sandbox
-helpers without globally exporting `CHROME_DEVEL_SANDBOX`.
+the image build.
 
 Native libraries use separate runtime and build profiles. Runtime libraries feed `NIX_LD_LIBRARY_PATH`; build libraries also expose headers, `pkg-config`, CMake, and compiler wrapper flags:
 
@@ -91,7 +89,6 @@ Do not set `remoteUser`, `containerUser`, or `updateRemoteUserUID` in project `.
 More detail:
 
 - [Architecture](docs/architecture.md)
-- [Browser Sandbox](docs/browser-sandbox.md)
 - [Images](docs/images.md)
 - [Remote Docker](docs/docker-remote.md)
 - [Development](docs/development.md)

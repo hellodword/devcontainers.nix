@@ -23,7 +23,7 @@ write_reports() {
   local target="$1"
   mkdir -p "$target"
   for report in \
-    ci-plan browser-sandbox-report closure-report env-report extensions-index extensions-report filesystem-report \
+    ci-plan closure-report env-report extensions-index extensions-report filesystem-report \
     fhs-runtime-report graph graph-normalized graph-duplicates-report image-plan layer-plan libraries-report \
     metadata-label metadata-merged-preview metadata-schema-report security-report shell-report smoke-test-plan tasks
   do

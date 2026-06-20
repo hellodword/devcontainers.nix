@@ -40,7 +40,6 @@ Every image includes:
 - `devpkg` for ad-hoc user installs from `nixpkgs`, for example `devpkg add cowsay`
 - nixpkgs defaults for `devpkg` and interactive flake commands run with `--impure`: allow unfree packages, accept the Android SDK license, accept Oracle JDK license gates when present, and allow unsupported-system packages
 - separate dynamic native-library profiles, for example `devpkg add-lib zlib` for runtime-only libraries and `devpkg add-dev-lib openssl zlib` for headers plus link/runtime outputs
-- browser SUID sandbox helpers for Chromium, Google Chrome, and Microsoft Edge; command shims are created only for installed browsers, and Flutter preinstalls Chromium shims
 - `en_US.UTF-8` locale defaults backed by `pkgs.glibcLocales`
 - system `/etc/profile`, `/etc/bashrc`, `/etc/bash.bashrc`, default aliases, bash completion, and local nix-index based `command_not_found_handle`
 
@@ -94,5 +93,3 @@ Project-level `LD_LIBRARY_PATH` opt-in:
 Images do not set `DOCKER_HOST` by default and do not run a Docker daemon.
 
 The full glibc locale archive is included for predictable UTF-8 behavior in non-NixOS containers. This costs more image space than a custom trimmed archive, but avoids locale failures in common CLI and language tooling. Images set `LANG` and `LANGUAGE`; they do not set `LC_ALL` by default so projects can override specific locale categories with `LC_CTYPE`, `LC_TIME`, or other `LC_*` variables.
-
-For the browser sandbox maintenance contract, see [Browser Sandbox](browser-sandbox.md).

@@ -8,7 +8,6 @@ import sys
 
 REQUIRED_REPORT_FILES = {
     "ci-plan.json",
-    "browser-sandbox-report.json",
     "closure-report.json",
     "env-report.json",
     "extensions-index.json",
@@ -84,7 +83,6 @@ def main() -> int:
     env_report = read_json(reports_dir / "env-report.json")
     libraries_report = read_json(reports_dir / "libraries-report.json")
     shell_report = read_json(reports_dir / "shell-report.json")
-    browser_sandbox_report = read_json(reports_dir / "browser-sandbox-report.json")
     preview_container_env = metadata_preview.get("containerEnv") or {}
 
     if not isinstance(metadata_label, list):
@@ -189,8 +187,6 @@ def main() -> int:
         fail("container env must not configure DOCKER_HOST by default")
     if "LD_LIBRARY_PATH" in env_report["containerEnv"]:
         fail("container env must not export LD_LIBRARY_PATH by default")
-    if "CHROME_DEVEL_SANDBOX" in env_report["containerEnv"]:
-        fail("container env must not export CHROME_DEVEL_SANDBOX globally")
     expected_locale_env = {
         "LANG": "en_US.UTF-8",
         "LANGUAGE": "en_US:en",
@@ -394,59 +390,6 @@ def main() -> int:
     ]:
         if nix_dir in directory_map:
             fail(f"filesystem-report.json must leave {nix_dir} to initializeNixDatabase")
-
-    if not browser_sandbox_report.get("enabled"):
-        fail("browser-sandbox-report.json must confirm browser sandbox support is enabled")
-    if browser_sandbox_report.get("helperRoot") != "/run/wrappers/bin":
-        fail("browser sandbox helper root mismatch")
-    if browser_sandbox_report.get("runtimeHelperRoot") != "/opt/devcontainer/browser-sandbox":
-        fail("browser sandbox runtime helper root mismatch")
-    expected_helpers = {
-        "chromium": "/run/wrappers/bin/__chromium-suid-sandbox",
-        "google-chrome": "/run/wrappers/bin/google-chrome-suid-sandbox",
-        "microsoft-edge": "/run/wrappers/bin/microsoft-edge-suid-sandbox",
-    }
-    expected_runtime_helpers = {
-        "chromium": "/opt/devcontainer/browser-sandbox/__chromium-suid-sandbox",
-        "google-chrome": "/opt/devcontainer/browser-sandbox/google-chrome-suid-sandbox",
-        "microsoft-edge": "/opt/devcontainer/browser-sandbox/microsoft-edge-suid-sandbox",
-    }
-    helpers = {helper.get("browser"): helper for helper in browser_sandbox_report.get("helpers", [])}
-    if set(helpers) != set(expected_helpers):
-        fail("browser-sandbox-report.json must report Chromium, Chrome, and Edge helpers")
-    for browser, expected_path in expected_helpers.items():
-        helper = helpers[browser]
-        if helper.get("targetPath") != expected_path:
-            fail(f"{browser} helper path mismatch")
-        if helper.get("runtimePath") != expected_runtime_helpers[browser]:
-            fail(f"{browser} runtime helper path mismatch")
-        if helper.get("mode") != "4755" or helper.get("owner") != "root:root":
-            fail(f"{browser} helper must be root-owned mode 4755")
-        if browser not in helper.get("source", ""):
-            fail(f"{browser} helper source must come from its pinned nixpkgs package")
-
-    preinstalled_browsers = browser_sandbox_report.get("preinstalledBrowsers") or []
-    shims = browser_sandbox_report.get("shims") or []
-    shim_commands = {shim.get("command"): shim for shim in shims}
-    if image_name == "flutter-latest":
-        if preinstalled_browsers != ["chromium"]:
-            fail("flutter-latest must preinstall only Chromium browser shims")
-        if set(shim_commands) != {"chromium", "chromium-browser"}:
-            fail("flutter-latest must include chromium and chromium-browser shims")
-        for shim in shim_commands.values():
-            if shim.get("browser") != "chromium":
-                fail("flutter-latest browser shim must target Chromium")
-            if not shim.get("path", "").startswith("/home/vscode/.local/share/devcontainer/bin/"):
-                fail("browser shim must live in the devcontainer user bin directory")
-            if shim.get("helperPath") != expected_runtime_helpers["chromium"]:
-                fail("Chromium shim helper path mismatch")
-            if not shim.get("managed"):
-                fail("browser shim report must mark generated shims as managed")
-    else:
-        if preinstalled_browsers:
-            fail(f"{image_name} must not report preinstalled browsers")
-        if shims:
-            fail(f"{image_name} must not include browser command shims")
 
     ci_report_files = set(ci_plan["reportFiles"])
     missing_ci_reports = sorted(REQUIRED_CI_REPORT_FILES - ci_report_files)

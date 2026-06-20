@@ -9,7 +9,6 @@ devpkg add <package>...
 devpkg remove <package>...
 devpkg list [--json]
 devpkg search <query>
-devpkg browser-shims sync
 devpkg add-lib [--outputs <outputs>] <package>...
 devpkg add-lib --raw <installable>...
 devpkg remove-lib <package>...
@@ -24,7 +23,6 @@ examples:
   devpkg add cowsay
   devpkg remove cowsay
   devpkg list
-  devpkg browser-shims sync
   devpkg add-lib zlib
   devpkg add-dev-lib openssl
   devpkg add-dev-lib --outputs out,dev,static zlib
@@ -129,11 +127,6 @@ installable_for_outputs() {
 }
 
 profile_json() {
-  if [ -n "${DEVPKG_PROFILE_JSON_FILE:-}" ]; then
-    cat "$DEVPKG_PROFILE_JSON_FILE"
-    return 0
-  fi
-
   nix profile list --json --no-pretty
 }
 
@@ -301,286 +294,6 @@ cmd_list_packages() {
   fi
 }
 
-browser_shim_marker="devcontainers.nix browser sandbox shim"
-
-browser_shim_dir() {
-  printf '%s/devcontainer/bin\n' "$(default_xdg_data_home)"
-}
-
-# Keep these helper paths and generated shim behavior in sync with docs/browser-sandbox.md.
-browser_helper_for() {
-  case "$1" in
-    chromium)
-      printf '/opt/devcontainer/browser-sandbox/__chromium-suid-sandbox\n'
-      ;;
-    google-chrome)
-      printf '/opt/devcontainer/browser-sandbox/google-chrome-suid-sandbox\n'
-      ;;
-    microsoft-edge)
-      printf '/opt/devcontainer/browser-sandbox/microsoft-edge-suid-sandbox\n'
-      ;;
-    *)
-      die "unsupported browser: $1"
-      ;;
-  esac
-}
-
-browser_commands_for() {
-  case "$1" in
-    chromium)
-      printf 'chromium\nchromium-browser\n'
-      ;;
-    google-chrome)
-      printf 'google-chrome\ngoogle-chrome-stable\n'
-      ;;
-    microsoft-edge)
-      printf 'microsoft-edge\nmicrosoft-edge-stable\n'
-      ;;
-    *)
-      die "unsupported browser: $1"
-      ;;
-  esac
-}
-
-filter_path_without_dir() {
-  local remove="$1"
-  local path_value="${2-${PATH:-}}"
-  local old_ifs="$IFS"
-  local entry
-  local filtered=""
-
-  IFS=:
-  for entry in $path_value; do
-    if [ -z "$entry" ] || [ "$entry" = "$remove" ]; then
-      continue
-    fi
-    if [ -z "$filtered" ]; then
-      filtered="$entry"
-    else
-      filtered="$filtered:$entry"
-    fi
-  done
-  IFS="$old_ifs"
-
-  printf '%s\n' "$filtered"
-}
-
-browser_real_command() {
-  local command_name="$1"
-  local filtered_path
-
-  filtered_path="$(filter_path_without_dir "$(browser_shim_dir)" "${DEVPKG_BROWSER_COMMAND_PATH:-${PATH:-}}")"
-  PATH="$filtered_path" command -v "$command_name" 2>/dev/null
-}
-
-browser_profile_installed() {
-  local browser="$1"
-  local profile="$2"
-
-  printf '%s\n' "$profile" | jq -e --arg browser "$browser" '
-    (.elements // {})
-    | to_entries
-    | any(
-        .key == $browser
-        or ((.value.attrPath // "") == $browser)
-        or ((.value.attrPath // "") | endswith("." + $browser))
-      )
-  ' >/dev/null
-}
-
-browser_command_installed() {
-  local browser="$1"
-  local command_name
-
-  while IFS= read -r command_name; do
-    if [ -n "$command_name" ] && browser_real_command "$command_name" >/dev/null; then
-      return 0
-    fi
-  done < <(browser_commands_for "$browser")
-
-  return 1
-}
-
-browser_installed() {
-  local browser="$1"
-  local profile="$2"
-
-  browser_profile_installed "$browser" "$profile" || browser_command_installed "$browser"
-}
-
-is_managed_browser_shim() {
-  local path="$1"
-
-  [ -f "$path" ] && grep -Fqx "# $browser_shim_marker" "$path"
-}
-
-write_browser_shim() {
-  local browser="$1"
-  local command_name="$2"
-  local shim_dir="$3"
-  local helper
-  local target
-  local tmp
-
-  helper="$(browser_helper_for "$browser")"
-  target="$shim_dir/$command_name"
-
-  if [ -e "$target" ] && ! is_managed_browser_shim "$target"; then
-    printf 'devpkg: preserving unmanaged browser shim: %s\n' "$target" >&2
-    return 0
-  fi
-
-  mkdir -p "$shim_dir"
-  tmp="$target.tmp.$$"
-  cat >"$tmp" <<EOF
-#!/usr/bin/env bash
-# $browser_shim_marker
-set -euo pipefail
-
-browser_command='$command_name'
-sandbox_helper='$helper'
-
-filter_path_without_dir() {
-  local remove="\$1"
-  local old_ifs="\$IFS"
-  local entry
-  local filtered=""
-
-  IFS=:
-  for entry in \${PATH:-}; do
-    if [ -z "\$entry" ] || [ "\$entry" = "\$remove" ]; then
-      continue
-    fi
-    if [ -z "\$filtered" ]; then
-      filtered="\$entry"
-    else
-      filtered="\$filtered:\$entry"
-    fi
-  done
-  IFS="\$old_ifs"
-  printf '%s\n' "\$filtered"
-}
-
-patch_chrome_devel_sandbox_exports() {
-  local wrapper="\$1"
-  local first_line
-  local line
-  local patch_dir
-  local patched_wrapper
-  local replaced=false
-
-  if ! IFS= read -r first_line < "\$wrapper"; then
-    return 1
-  fi
-  case "\$first_line" in
-    "#!"*) ;;
-    *) return 1 ;;
-  esac
-
-  if [ -n "\${XDG_RUNTIME_DIR:-}" ] && [ -d "\$XDG_RUNTIME_DIR" ] && [ -w "\$XDG_RUNTIME_DIR" ]; then
-    patch_dir="\$XDG_RUNTIME_DIR/devcontainer-browser-shims"
-  else
-    patch_dir="\${TMPDIR:-/tmp}/devcontainer-browser-shims-\$UID"
-  fi
-
-  mkdir -p "\$patch_dir"
-  patched_wrapper="\$patch_dir/\$browser_command"
-  : > "\$patched_wrapper"
-
-  while IFS= read -r line || [ -n "\$line" ]; do
-    case "\$line" in
-      *"export CHROME_DEVEL_SANDBOX="*)
-        printf 'export CHROME_DEVEL_SANDBOX=%q\n' "\$sandbox_helper" >> "\$patched_wrapper"
-        replaced=true
-        ;;
-      *)
-        printf '%s\n' "\$line" >> "\$patched_wrapper"
-        ;;
-    esac
-  done < "\$wrapper"
-
-  if [ "\$replaced" = true ]; then
-    chmod 0700 "\$patched_wrapper"
-    printf '%s\n' "\$patched_wrapper"
-    return 0
-  fi
-
-  return 1
-}
-
-shim_dir="\$(CDPATH= cd -- "\$(dirname -- "\${BASH_SOURCE[0]}")" && pwd -P)"
-filtered_path="\$(filter_path_without_dir "\$shim_dir")"
-if ! real_browser="\$(PATH="\$filtered_path" command -v "\$browser_command" 2>/dev/null)"; then
-  printf 'devcontainers.nix: browser command not installed: %s\n' "\$browser_command" >&2
-  exit 127
-fi
-
-if [ ! -x "\$sandbox_helper" ]; then
-  printf 'devcontainers.nix: browser sandbox helper is not executable: %s\n' "\$sandbox_helper" >&2
-  exit 126
-fi
-
-case "\$browser_command" in
-  chromium | chromium-browser)
-    if patched_browser="\$(patch_chrome_devel_sandbox_exports "\$real_browser")"; then
-      export CHROME_DEVEL_SANDBOX="\$sandbox_helper"
-      exec bash -e "\$patched_browser" "\$@"
-    fi
-    ;;
-esac
-
-export CHROME_DEVEL_SANDBOX="\$sandbox_helper"
-exec "\$real_browser" "\$@"
-EOF
-  chmod 0755 "$tmp"
-  mv "$tmp" "$target"
-}
-
-remove_browser_shim() {
-  local command_name="$1"
-  local shim_dir="$2"
-  local target="$shim_dir/$command_name"
-
-  if is_managed_browser_shim "$target"; then
-    rm -f "$target"
-  fi
-}
-
-sync_browser_shims_for() {
-  local browser="$1"
-  local installed="$2"
-  local shim_dir="$3"
-  local command_name
-
-  while IFS= read -r command_name; do
-    [ -n "$command_name" ] || continue
-    if [ "$installed" = true ]; then
-      write_browser_shim "$browser" "$command_name" "$shim_dir"
-    else
-      remove_browser_shim "$command_name" "$shim_dir"
-    fi
-  done < <(browser_commands_for "$browser")
-}
-
-cmd_browser_shims_sync() {
-  local profile
-  local shim_dir
-  local browser
-
-  [ "$#" -eq 0 ] || { usage >&2; exit 1; }
-
-  profile="$(profile_json)"
-  shim_dir="$(browser_shim_dir)"
-
-  for browser in chromium google-chrome microsoft-edge; do
-    if browser_installed "$browser" "$profile"; then
-      sync_browser_shims_for "$browser" true "$shim_dir"
-    else
-      sync_browser_shims_for "$browser" false "$shim_dir"
-    fi
-  done
-}
-
 cmd_add_libraries() {
   local mode="$1"
   local profile="$2"
@@ -686,12 +399,10 @@ case "$cmd" in
   add | install)
     shift
     cmd_add_packages "$@"
-    cmd_browser_shims_sync
     ;;
   remove | rm | uninstall)
     shift
     cmd_remove_packages "$@"
-    cmd_browser_shims_sync
     ;;
   list | ls)
     shift
@@ -701,19 +412,6 @@ case "$cmd" in
     query="${2:-}"
     [ -n "$query" ] || { usage >&2; exit 1; }
     nix_search "$nixpkgs_ref" "$query"
-    ;;
-  browser-shims)
-    shift
-    case "${1:-}" in
-      sync)
-        shift
-        cmd_browser_shims_sync "$@"
-        ;;
-      *)
-        usage >&2
-        exit 1
-        ;;
-    esac
     ;;
   add-lib)
     shift
