@@ -1,5 +1,10 @@
 { lib }:
-{ config }:
+{
+  config,
+  compiledEnvironment ? {
+    variables = { };
+  },
+}:
 let
   libraryUtils = import ../library-utils.nix { inherit lib; };
   cfg = config.devcontainer.libraries;
@@ -62,7 +67,7 @@ let
     in
     go 8 env;
 
-  expandedBaseEnv = expandEnv config.devcontainer.env.container;
+  expandedBaseEnv = expandEnv compiledEnvironment.variables;
   runtimeProfile = expandValue expandedBaseEnv cfg.dynamicRuntimeProfile;
   buildProfile = expandValue expandedBaseEnv cfg.dynamicBuildProfile;
 

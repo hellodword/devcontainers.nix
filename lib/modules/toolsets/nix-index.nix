@@ -1,40 +1,7 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
-}:
-let
-  nixIndex = pkgs.nix-index-with-db;
-  comma = if builtins.hasAttr "comma-with-db" pkgs then pkgs.comma-with-db else null;
-  packages = [
-    nixIndex
-  ]
-  ++ lib.optional (config.devcontainer.toolsets.nixIndex.comma.enable && comma != null) comma;
-in
+{ lib, config, ... }:
 {
   config = lib.mkIf config.devcontainer.toolsets.nixIndex.enable {
-    devcontainer.packages = packages;
-
-    devcontainer.graph.nodes."toolset/nix-index" = {
-      kind = "toolset";
-      group = "12-nix-index-tools";
-      paths = packages;
-      stability = "stable";
-      sharing = "global";
-      priority = 89;
-      securityClass = "trusted";
-    };
-
-    devcontainer.tests.smoke = [
-      {
-        name = "nix-index-tools";
-        command = [
-          "bash"
-          "-lc"
-          "command -v nix-index && command -v nix-locate"
-        ];
-      }
-    ];
+    programs.nix-index.enable = lib.mkDefault true;
+    programs.nix-index.comma.enable = lib.mkDefault config.devcontainer.toolsets.nixIndex.comma.enable;
   };
 }

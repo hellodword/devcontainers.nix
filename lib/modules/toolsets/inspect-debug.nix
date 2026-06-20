@@ -22,7 +22,7 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.inspectDebug.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.graph.nodes."toolset/inspect-debug" = {
       kind = "toolset";
       group = "06-inspect-debug-tools";

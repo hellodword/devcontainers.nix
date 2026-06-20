@@ -14,14 +14,14 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.dockerClient.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
 
-    devcontainer.env.container = {
+    environment.variables = {
       DOCKER_BUILDKIT = "1";
       COMPOSE_DOCKER_CLI_BUILD = "1";
       BUILDKIT_PROGRESS = "plain";
     };
-    devcontainer.env.origins.container = {
+    environment.variableOrigins = {
       DOCKER_BUILDKIT = [ "toolsets.docker-client" ];
       COMPOSE_DOCKER_CLI_BUILD = [ "toolsets.docker-client" ];
       BUILDKIT_PROGRESS = [ "toolsets.docker-client" ];

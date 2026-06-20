@@ -18,7 +18,7 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.searchNavigation.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.graph.nodes."toolset/search-navigation" = {
       kind = "toolset";
       group = "05-search-navigation-tools";

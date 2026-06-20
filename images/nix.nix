@@ -1,12 +1,7 @@
 { lib, pkgs, ... }:
 {
-  config.devcontainer = {
-    image = {
-      name = lib.mkOverride 1000 "nix";
-      tags = lib.mkDefault [ "latest" ];
-    };
-
-    packages = with pkgs; [
+  config = {
+    environment.systemPackages = with pkgs; [
       nix
       nixd
       nil
@@ -17,7 +12,12 @@
       treefmt
     ];
 
-    graph.nodes."runtime/nix" = {
+    devcontainer.image = {
+      name = lib.mkOverride 1000 "nix";
+      tags = lib.mkDefault [ "latest" ];
+    };
+
+    devcontainer.graph.nodes."runtime/nix" = {
       kind = "runtime";
       group = "10-nix-runtime";
       paths = [ pkgs.nix ];
@@ -27,7 +27,7 @@
       securityClass = "trusted";
     };
 
-    graph.nodes."language/nix" = {
+    devcontainer.graph.nodes."language/nix" = {
       kind = "language";
       group = "11-nix-language";
       paths = with pkgs; [
@@ -45,12 +45,12 @@
       securityClass = "trusted";
     };
 
-    vscode.extensions = [
+    devcontainer.vscode.extensions = [
       "jnoortheen.nix-ide"
       "tamasfe.even-better-toml"
     ];
 
-    vscode.settings = {
+    devcontainer.vscode.settings = {
       "nix.enableLanguageServer" = true;
       "nix.serverPath" = "nixd";
       "nix.serverSettings" = {
@@ -63,7 +63,7 @@
       "nix.formatterPath" = "nixfmt";
     };
 
-    tests.smoke = [
+    devcontainer.tests.smoke = [
       {
         name = "nix-version";
         command = [

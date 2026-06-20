@@ -14,7 +14,7 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.dataNetwork.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.graph.nodes."toolset/data-network" = {
       kind = "toolset";
       group = "08-data-network-tools";

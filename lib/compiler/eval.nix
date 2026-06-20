@@ -23,6 +23,9 @@ lib.evalModules {
     ../modules/core/filesystem.nix
     ../modules/core/env.nix
     ../modules/core/shell.nix
+    ../modules/core/nix.nix
+    ../modules/core/time.nix
+    ../modules/core/security-pki.nix
     ../modules/core/fonts.nix
     ../modules/core/libraries.nix
     ../modules/core/path.nix
@@ -30,6 +33,11 @@ lib.evalModules {
     ../modules/core/metadata.nix
     ../modules/core/lifecycle.nix
     ../modules/core/vscode-extensions.nix
+
+    ../modules/programs/git.nix
+    ../modules/programs/ssh.nix
+    ../modules/programs/direnv.nix
+    ../modules/programs/nix-index.nix
 
     ../modules/toolsets/foundation.nix
     ../modules/toolsets/source-control.nix

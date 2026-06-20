@@ -3,8 +3,8 @@ let
   user = config.devcontainer.user;
 in
 {
-  config.devcontainer = {
-    env.container = {
+  config = {
+    environment.variables = {
       XDG_CONFIG_HOME = "$HOME/.config";
       XDG_CACHE_HOME = "$HOME/.cache";
       XDG_DATA_HOME = "$HOME/.local/share";
@@ -13,14 +13,13 @@ in
       PAGER = "less";
       EDITOR = "vim";
       VISUAL = "vim";
-      NIX_CONFIG = "experimental-features = nix-command flakes";
       NIXPKGS_CONFIG = "/etc/nixpkgs/config.nix";
       NIXPKGS_ALLOW_UNFREE = "1";
       NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = "1";
       NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE = "1";
       WORKSPACE = "/workspaces/$DEVCONTAINER_WORKSPACE";
     };
-    env.origins.container = {
+    environment.variableOrigins = {
       XDG_CONFIG_HOME = [ "core.env" ];
       XDG_CACHE_HOME = [ "core.env" ];
       XDG_DATA_HOME = [ "core.env" ];
@@ -29,7 +28,6 @@ in
       PAGER = [ "core.env" ];
       EDITOR = [ "core.env" ];
       VISUAL = [ "core.env" ];
-      NIX_CONFIG = [ "core.env" ];
       NIXPKGS_CONFIG = [ "core.env" ];
       NIXPKGS_ALLOW_UNFREE = [ "core.env" ];
       NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = [ "core.env" ];
@@ -37,7 +35,7 @@ in
       WORKSPACE = [ "core.env" ];
     };
 
-    tests.smoke = [
+    devcontainer.tests.smoke = [
       {
         name = "nixpkgs-config";
         command = [

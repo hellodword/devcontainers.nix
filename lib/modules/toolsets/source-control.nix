@@ -16,7 +16,10 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.sourceControl.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
+    programs.git.enable = lib.mkDefault true;
+    programs.git.lfs.enable = lib.mkDefault true;
+    programs.ssh.enable = lib.mkDefault true;
     devcontainer.graph.nodes."toolset/source-control" = {
       kind = "toolset";
       group = "03-source-control-tools";

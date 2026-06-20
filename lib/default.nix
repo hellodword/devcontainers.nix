@@ -31,6 +31,10 @@ let
       inherit lib;
     };
 
+    compileEnvironment = import ./compiler/environment.nix {
+      inherit lib;
+    };
+
     compileLibraries = import ./compiler/libraries.nix {
       inherit lib;
     };
@@ -87,8 +91,12 @@ let
       }:
       let
         evaluated = evalImage { modules = modules ++ lib.optional (module != null) module; };
+        environment = compileEnvironment {
+          config = evaluated.config;
+        };
         libraries = compileLibraries {
           config = evaluated.config;
+          compiledEnvironment = environment;
         };
         graph = compileGraph { config = evaluated.config; };
         fhsRuntime = compileFhsRuntime {
@@ -97,6 +105,7 @@ let
         };
         env = compileEnv {
           config = evaluated.config;
+          compiledEnvironment = environment;
           compiledFhsRuntime = fhsRuntime;
           compiledLibraries = libraries;
         };
@@ -109,6 +118,8 @@ let
         };
         shell = compileShell {
           config = evaluated.config;
+          compiledEnvironment = environment;
+          compiledEnv = env;
         };
         fonts = compileFonts {
           config = evaluated.config;
@@ -118,16 +129,19 @@ let
         };
         filesystem = compileFilesystem {
           config = evaluated.config;
+          compiledEnvironment = environment;
           compiledFhsRuntime = fhsRuntime;
           compiledShell = shell;
           compiledFonts = fonts;
         };
         layers = compileLayers {
           config = evaluated.config;
+          compiledEnvironment = environment;
           compiledGraph = graph;
         };
         image = compileImage {
           config = evaluated.config;
+          compiledEnvironment = environment;
           compiledEnv = env;
           compiledLibraries = libraries;
           compiledMetadata = metadata;
@@ -142,6 +156,7 @@ let
         };
         reports = compileReports {
           config = evaluated.config;
+          compiledEnvironment = environment;
           compiledGraph = graph;
           compiledEnv = env;
           compiledLibraries = libraries;
@@ -159,6 +174,7 @@ let
         inherit (evaluated) config options;
         inherit
           graph
+          environment
           env
           libraries
           metadata

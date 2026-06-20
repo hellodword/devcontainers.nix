@@ -6,6 +6,18 @@
 }:
 {
   config,
+  compiledEnvironment ? {
+    systemPackages = [ ];
+    pathsToLink = [
+      "/bin"
+      "/include"
+      "/lib"
+      "/lib64"
+      "/share"
+      "/etc"
+    ];
+    extraOutputsToInstall = [ ];
+  },
   compiledEnv,
   compiledLibraries ? {
     imagePaths = [ ];
@@ -101,6 +113,7 @@ let
         name = "${config.devcontainer.image.name}-${layerReport.group}-root";
         inherit paths;
         pathsToLink = layerReport.build.pathsToLink;
+        extraOutputsToInstall = compiledEnvironment.extraOutputsToInstall;
         ignoreCollisions = true;
       };
       rawLayer = nix2container.buildLayer {
@@ -131,19 +144,13 @@ let
   rootfs = pkgs.buildEnv {
     name = "${config.devcontainer.image.name}-rootfs";
     paths =
-      config.devcontainer.packages
+      compiledEnvironment.systemPackages
       ++ compiledLibraries.imagePaths
       ++ compiledShell.imagePaths
       ++ [ compiledFonts.root ]
       ++ runtimeTools;
-    pathsToLink = [
-      "/bin"
-      "/include"
-      "/lib"
-      "/lib64"
-      "/share"
-      "/etc"
-    ];
+    pathsToLink = compiledEnvironment.pathsToLink;
+    extraOutputsToInstall = compiledEnvironment.extraOutputsToInstall;
     ignoreCollisions = true;
   };
 

@@ -6,6 +6,8 @@ This is a security design. A Docker daemon is a high-privilege control plane: ac
 
 The devcontainer should be treated as a client of that isolated daemon, not as the place where the daemon runs. This keeps normal editor and build tools separate from the service that can create privileged containers. It also makes the trust boundary explicit: project code can use Docker only when the project chooses to point the client at a daemon endpoint.
 
+Not starting a daemon in the image is intentional, not an implementation gap. This repository should continue to model Docker as client tools plus an explicit external daemon endpoint.
+
 Set `DOCKER_HOST` in Dev Containers metadata when a project needs to use a host or remote daemon:
 
 ```json

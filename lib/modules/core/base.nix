@@ -1,9 +1,9 @@
 { pkgs, ... }:
 {
-  config.devcontainer = {
-    packages = [ pkgs.bashInteractive ];
+  config = {
+    environment.systemPackages = [ pkgs.bashInteractive ];
 
-    layers.buckets = [
+    devcontainer.layers.buckets = [
       "00-base-runtime"
       "01-fhs-vscode-runtime"
       "02-fonts-runtime"
@@ -44,7 +44,7 @@
       "99-fallback"
     ];
 
-    graph.nodes."runtime/base" = {
+    devcontainer.graph.nodes."runtime/base" = {
       kind = "runtime";
       group = "00-base-runtime";
       paths = [ pkgs.bashInteractive ];
@@ -54,7 +54,7 @@
       securityClass = "trusted";
     };
 
-    metadata.snippets = [
+    devcontainer.metadata.snippets = [
       {
         init = true;
         hostRequirements = {

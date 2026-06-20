@@ -1,5 +1,19 @@
 { lib, pkgs }:
-{ config, compiledGraph }:
+{
+  config,
+  compiledGraph,
+  compiledEnvironment ? {
+    pathsToLink = [
+      "/bin"
+      "/include"
+      "/lib"
+      "/lib64"
+      "/share"
+      "/etc"
+    ];
+    extraOutputsToInstall = [ ];
+  },
+}:
 let
   pathString = path: builtins.unsafeDiscardStringContext (toString path);
   bucketOrder = config.devcontainer.layers.buckets;
@@ -27,14 +41,8 @@ let
       packages = map packageName paths;
       build = {
         copyToRoot = true;
-        pathsToLink = [
-          "/bin"
-          "/include"
-          "/lib"
-          "/lib64"
-          "/share"
-          "/etc"
-        ];
+        pathsToLink = compiledEnvironment.pathsToLink;
+        extraOutputsToInstall = compiledEnvironment.extraOutputsToInstall;
         maxLayers = 1;
       };
     };

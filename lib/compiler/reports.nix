@@ -1,6 +1,11 @@
 { pkgs, lib }:
 {
   config,
+  compiledEnvironment ? {
+    systemPackages = [ ];
+    packageNames = [ ];
+    report = { };
+  },
   compiledGraph,
   compiledEnv,
   compiledLibraries,
@@ -29,7 +34,7 @@ let
     imageRef = imageRef;
     publishRefs = publishRefs;
     backend = "nix2container";
-    packageCount = builtins.length config.devcontainer.packages;
+    packageCount = builtins.length compiledEnvironment.systemPackages;
     runtimeLibraryCount = builtins.length compiledLibraries.runtime.storePaths;
     buildLibraryCount = builtins.length compiledLibraries.build.storePaths;
     layerStrategy = compiledLayers.budget.strategy;
@@ -53,12 +58,17 @@ let
     projectionTargets = compiledVscodeExtensions.projectionTargets;
   };
   layer-plan-json = jsonFile "layer-plan.json" compiledLayers;
-  env-report-json = jsonFile "env-report.json" compiledEnv;
+  env-report-json = jsonFile "env-report.json" (
+    compiledEnv
+    // {
+      environment = compiledEnvironment.report;
+    }
+  );
   libraries-report-json = jsonFile "libraries-report.json" compiledLibraries.report;
   closure-report-json = jsonFile "closure-report.json" {
     image = config.devcontainer.image.name;
-    packageCount = builtins.length config.devcontainer.packages;
-    packages = map (drv: drv.pname or drv.name or "<unknown>") config.devcontainer.packages;
+    packageCount = builtins.length compiledEnvironment.systemPackages;
+    packages = compiledEnvironment.packageNames;
     runtimeLibraries = compiledLibraries.runtime.storePaths;
     buildLibraries = compiledLibraries.build.storePaths;
   };
@@ -116,9 +126,10 @@ let
     group = compiledFilesystem.group;
     osRelease = compiledFilesystem.osRelease;
     nixpkgsConfig = compiledFilesystem.nixpkgsConfig;
+    etcFiles = compiledFilesystem.etcFiles;
     shellFiles = compiledFilesystem.shellFiles;
     commandNotFoundHook = {
-      enabled = config.devcontainer.shell.enable && config.devcontainer.shell.bash.commandNotFound.enable;
+      enabled = config.programs.bash.enable && config.programs.bash.commandNotFound.enable;
       path = "/etc/bashrc";
       database = "nix-index-database";
     };

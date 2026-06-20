@@ -9,7 +9,7 @@ The main target platform is `x86_64-linux`.
 There are four concepts to understand first:
 
 1. An image target is a named build such as `go-latest`, `python-web`, or `flutter-latest`.
-2. A module writes settings under `devcontainer.*`, for example packages, environment variables, VS Code extensions, lifecycle tasks, native libraries, and smoke tests.
+2. A module writes typed settings. Project-specific image contract remains under `devcontainer.*`, while maintainer-facing NixOS-like subsets such as `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, `programs.*`, and `nix.*` describe static image content.
 3. A graph node groups related package paths or generated files into a semantic unit such as `language/go`, `toolset/docker-client`, or `runtime/fonts`.
 4. The compiler reads the final module configuration and produces an OCI image plus reports that explain what was built.
 
@@ -81,6 +81,7 @@ ghcr.io/hellodword/devcontainers-<family>:<tag>
 Module evaluation starts in `lib/compiler/eval.nix`. It loads these module groups before adding the image-specific modules:
 
 - core modules in `lib/modules/core/`
+- static program modules in `lib/modules/programs/`
 - toolsets in `lib/modules/toolsets/`
 - language runtimes in `lib/modules/runtimes/`
 - language stacks in `lib/modules/languages/`
@@ -90,6 +91,19 @@ Core modules define the shared image contract: user, filesystem, environment, sh
 Toolset modules add common command groups. For example source control tools, fetch/archive tools, search/navigation tools, inspect/debug tools, workflow/format tools, Docker client tools, agent tools, data/network tools, and nix-index tools.
 
 Language modules add language-specific tools, environment variables, VS Code extensions, shell aliases, graph nodes, and smoke tests. For example the Go language module adds Go, `gopls`, Delve, `golangci-lint`, `govulncheck`, the Go VS Code extension, Go cache variables, and the `gobuild-small` alias.
+
+## NixOS-like API Subset
+
+Some maintainer-facing options intentionally reuse familiar NixOS names:
+
+- `environment.systemPackages`, `environment.pathsToLink`, `environment.extraOutputsToInstall`, `environment.etc`, `environment.variables`, `environment.shellAliases`, `environment.shellInit`, and `environment.interactiveShellInit`
+- `i18n.defaultLocale`, `i18n.extraLocaleSettings`, and `i18n.glibcLocales`
+- `time.timeZone`
+- `security.pki.*` for CA certificates only
+- `programs.bash`, `programs.git`, `programs.ssh`, `programs.direnv`, `programs.nix-index`, and `programs.nix-ld`
+- `nix.settings`
+
+This reuse is scoped to static OCI image generation. The project does not import NixOS modules or imply NixOS runtime semantics. Do not add APIs that require a service manager, daemon lifecycle, PAM, polkit, setuid wrappers, sudo, multi-user account management, or a Docker daemon inside the devcontainer.
 
 Image modules combine these building blocks. For example `images/go.nix` imports the Nix image, enables C, Python, and Node.js runtimes, then enables the Go language module. `images/go-web.nix` imports the Go image and adds data/network tools.
 
@@ -139,6 +153,7 @@ Reports and CI checks enforce this design:
 `lib/default.nix` is the compiler orchestrator. `mkImage` evaluates modules once and then runs focused compilers:
 
 - `compileGraph` normalizes graph nodes
+- `compileEnvironment` normalizes maintainer-facing packages, variables, shell fragments, `/etc` entries, and buildEnv link settings
 - `compileLibraries` builds dynamic runtime and build library profiles
 - `compileFhsRuntime` creates compatibility paths and dynamic loader settings
 - `compileEnv` merges container, remote, and shell environments
@@ -173,11 +188,11 @@ This fixed-user design reduces the number of supported runtime states. It also k
 
 ## Environment Model
 
-The project tracks three environment scopes:
+The project tracks two configured environment scopes plus generated compiler values:
 
-- container environment for the OCI image config
-- remote environment for VS Code Dev Containers metadata
-- shell environment for generated shell startup files
+- `environment.variables` becomes the container environment for the OCI image config and is also exported from generated shell startup files
+- `devcontainer.remoteEnv` becomes VS Code Dev Containers metadata only
+- FHS runtime and native-library compilers add generated container environment values
 
 `lib/compiler/env.nix` merges configured values with generated values from the FHS runtime and native-library compiler. It also builds `PATH` from ordered path segments, records the origin of each value, expands simple `$VAR` references, and reports conflicts.
 
@@ -192,10 +207,10 @@ VS Code server components and many extension helpers expect conventional Linux p
 - `/usr/bin/env`
 - common archive and network tools through conventional paths
 - architecture dynamic loader path such as `/lib64/ld-linux-x86-64.so.2`
-- `NIX_LD` and `NIX_LD_LIBRARY_PATH`
+- `NIX_LD` and `NIX_LD_LIBRARY_PATH` from `programs.nix-ld`
 - `/usr/lib/libc.so.6`
 - `/usr/lib/libstdc++.so.6`
-- CA certificate environment variables
+- CA certificate files and environment variables from `security.pki`
 
 The FHS runtime is compatibility glue. It does not turn the image into a general FHS distribution, and modules should not treat it as a reason to bypass Nix store paths when a Nix-native path is available.
 
@@ -203,7 +218,7 @@ The FHS runtime is compatibility glue. It does not turn the image into a general
 
 Command packages and native libraries are separate.
 
-`devcontainer.packages` adds command-line tools and ordinary software to the image and `PATH`.
+`environment.systemPackages` adds command-line tools and ordinary software to the image and `PATH`.
 
 `devcontainer.libraries.runtime` adds runtime shared-library outputs. These feed `NIX_LD_LIBRARY_PATH` and the dynamic runtime-library profile used by `devpkg add-lib`.
 
@@ -223,7 +238,7 @@ Images use nix2container's `initializeNixDatabase` support. The generated Nix da
 
 This is required for `devpkg`, which installs ad-hoc packages with `nix profile add`. Without the database, Nix could see store paths on disk that are not registered in `/nix/var/nix/db`, causing profile installs to fail or reference missing paths.
 
-The generated filesystem includes `/etc/nixpkgs/config.nix` with the same nixpkgs policy used by the image build. Container environment variables also set nixpkgs policy defaults. `devpkg` runs flake evaluation and installation commands with `--impure` so packages such as Google Chrome and Microsoft Edge can read those defaults.
+The generated filesystem includes `/etc/nix/nix.conf` from `nix.settings` and `/etc/nixpkgs/config.nix` with the same nixpkgs policy used by the image build. Container environment variables also set nixpkgs policy defaults. `devpkg` runs flake evaluation and installation commands with `--impure` so packages such as Google Chrome and Microsoft Edge can read those defaults.
 
 ## Locale, Shell, And Fonts
 
@@ -234,7 +249,7 @@ The default locale contract is:
 - `LOCALE_ARCHIVE` from `pkgs.glibcLocales`
 - no default `LC_ALL`
 
-`LC_ALL` is intentionally unset because it overrides every locale category. Image modules can set specific `LC_*` variables through `devcontainer.locale.lc`.
+`LC_ALL` is intentionally unset because it overrides every locale category. Image modules can set specific `LC_*` variables through `i18n.extraLocaleSettings`.
 
 Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`. Interactive Bash gets aliases, a lightweight prompt, history settings, bash completion, and a command-not-found handler. The handler only queries the local nix-index database and returns 127. It does not install software, call the network, or execute project commands.
 
@@ -279,6 +294,7 @@ The images avoid expanding privileges by default:
 - they run as the fixed `vscode` user
 - they include Docker client tools but do not run a Docker daemon
 - they do not mount a host Docker socket
+- they do not expose `services.*`, sudo, PAM, polkit, setuid wrapper, or multi-user APIs
 - command-not-found suggestions are local database lookups only
 - Chromium sandbox workarounds are not forced globally
 - native library search paths are explicit and do not export `LD_LIBRARY_PATH` by default

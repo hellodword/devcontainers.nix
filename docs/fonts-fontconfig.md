@@ -73,9 +73,8 @@ devcontainer.fonts = {
 ```
 
 `defaultFonts` and `aliases` intentionally follow the NixOS module's API
-semantics. This keeps the familiar shape without importing the NixOS module,
-which writes to NixOS specific option trees such as `environment.systemPackages`,
-`environment.etc`, and AppArmor configuration.
+semantics. This keeps the familiar shape without importing the NixOS module or
+desktop-specific font management behavior.
 
 Alias entries use:
 
@@ -97,7 +96,7 @@ Valid `binding` values are `same`, `weak`, and `strong`.
 
 When enabled, the module:
 
-- adds the configured font packages to `devcontainer.packages`
+- adds the configured font packages to `environment.systemPackages`
 - appends the configured fontconfig package when `fontconfig.enable = true`
 - creates graph node `runtime/fonts`
 - assigns the node to bucket `02-fonts-runtime`

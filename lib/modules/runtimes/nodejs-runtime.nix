@@ -11,8 +11,8 @@ let
 in
 {
   config = lib.mkIf cfg.enable {
-    devcontainer.packages = packages;
-    devcontainer.env.container = {
+    environment.systemPackages = packages;
+    environment.variables = {
       NODE_ENV = "development";
       NPM_CONFIG_CACHE = "$XDG_CACHE_HOME/npm";
       COREPACK_HOME = "$XDG_CACHE_HOME/corepack";
@@ -20,7 +20,7 @@ in
       YARN_CACHE_FOLDER = "$XDG_CACHE_HOME/yarn";
       NODE_REPL_HISTORY = "$XDG_STATE_HOME/node_repl_history";
     };
-    devcontainer.env.origins.container = {
+    environment.variableOrigins = {
       NODE_ENV = [ "runtimes.nodejs" ];
       NPM_CONFIG_CACHE = [ "runtimes.nodejs" ];
       COREPACK_HOME = [ "runtimes.nodejs" ];

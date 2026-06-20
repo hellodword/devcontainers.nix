@@ -6,6 +6,8 @@
 }:
 let
   cfg = config.devcontainer.compat.fhsRuntime;
+  nixLd = config.programs.nix-ld;
+  pki = config.security.pki;
   packages =
     with pkgs;
     [
@@ -20,13 +22,13 @@ let
       git
       glibc
       stdenv.cc.cc.lib
-      nix-ld
     ]
-    ++ lib.optionals cfg.caCertificates [ pkgs.dockerTools.caCertificates ];
+    ++ lib.optionals nixLd.enable [ nixLd.package ]
+    ++ lib.optionals pki.installCACerts [ pki.package ];
 in
 {
   config = lib.mkIf cfg.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
 
     devcontainer.graph.nodes."runtime/fhs-vscode" = {
       kind = "runtime";
@@ -64,7 +66,7 @@ in
         ];
       }
     ]
-    ++ lib.optionals cfg.caCertificates [
+    ++ lib.optionals pki.installCACerts [
       {
         name = "fhs-ca-certificates";
         command = [
@@ -78,7 +80,7 @@ in
         ];
       }
     ]
-    ++ [
+    ++ lib.optionals nixLd.enable [
       {
         name = "fhs-nix-ld";
         command = [

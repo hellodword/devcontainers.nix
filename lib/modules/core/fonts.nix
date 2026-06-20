@@ -26,7 +26,7 @@ in
   config = lib.mkIf cfg.enable (
     lib.mkMerge [
       {
-        devcontainer.packages = fontPackages;
+        environment.systemPackages = fontPackages;
       }
 
       (lib.mkIf (fontPackages != [ ]) {

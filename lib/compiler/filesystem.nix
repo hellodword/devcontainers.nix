@@ -1,6 +1,9 @@
 { pkgs, lib }:
 {
   config,
+  compiledEnvironment ? {
+    etc = [ ];
+  },
   compiledFhsRuntime,
   compiledShell ? {
     profileText = "";
@@ -22,6 +25,32 @@ let
       mkdir -p "$out${path}"
       chmod ${spec.mode} "$out${path}"
     '') directories
+  );
+  etcCommands = lib.concatStringsSep "\n" (
+    map (
+      entry:
+      let
+        parent = builtins.dirOf entry.path;
+      in
+      if entry.source != null then
+        ''
+          rm -rf "$out${entry.path}"
+          mkdir -p "$out${parent}"
+          if [ -d ${lib.escapeShellArg entry.sourcePath} ]; then
+            mkdir -p "$out${entry.path}"
+            cp -a ${lib.escapeShellArg entry.sourcePath}/. "$out${entry.path}/"
+          else
+            cp -L ${lib.escapeShellArg entry.sourcePath} "$out${entry.path}"
+          fi
+          chmod ${entry.mode} "$out${entry.path}"
+        ''
+      else
+        ''
+          mkdir -p "$out${parent}"
+          printf '%s' ${lib.escapeShellArg entry.text} >"$out${entry.path}"
+          chmod ${entry.mode} "$out${entry.path}"
+        ''
+    ) compiledEnvironment.etc
   );
   passwdText = lib.concatStringsSep "\n" [
     "root:x:0:0:root:/root:/bin/bash"
@@ -61,6 +90,7 @@ let
     printf '%s' ${lib.escapeShellArg compiledShell.bashrcText} >"$out/etc/bashrc"
     printf '%s' ${lib.escapeShellArg compiledShell.bashBashrcText} >"$out/etc/bash.bashrc"
     printf '%s' ${lib.escapeShellArg nixpkgsConfigText} >"$out${nixpkgsConfigPath}"
+    ${etcCommands}
     ${lib.optionalString (compiledFonts.root != null) ''
       cp -a ${compiledFonts.root}/. "$out/"
     ''}
@@ -87,7 +117,14 @@ let
       uname = "root";
       gname = "root";
     }
-  ];
+  ]
+  ++ map (entry: {
+    path = root;
+    regex = "^${root}${entry.path}$";
+    inherit (entry) mode uid gid;
+    uname = userPermName entry;
+    gname = groupPermName entry;
+  }) compiledEnvironment.etc;
 in
 {
   inherit root;
@@ -100,6 +137,18 @@ in
   };
   commandNotFoundHook = compiledShell.commandNotFoundHook;
   shellFiles = compiledShell.generatedFiles;
+  etcFiles = map (entry: {
+    inherit (entry)
+      name
+      target
+      path
+      mode
+      uid
+      gid
+      sourcePath
+      ;
+    hasText = entry.text != null;
+  }) compiledEnvironment.etc;
   perms = directoryPerms ++ filePerms;
   directories = lib.mapAttrsToList (path: spec: {
     inherit path;

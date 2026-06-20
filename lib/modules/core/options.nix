@@ -86,6 +86,79 @@ let
       };
     };
   };
+  envValueType =
+    with types;
+    oneOf [
+      str
+      int
+      bool
+      path
+      package
+      (listOf str)
+    ];
+  nixSettingValueType =
+    with types;
+    oneOf [
+      str
+      int
+      bool
+      (listOf str)
+    ];
+  nonEmptyStringType = types.addCheck types.str (value: value != "");
+  nonEmptyStringListType = types.addCheck (types.listOf types.str) (value: value != [ ]);
+  etcEntryType = types.submodule (
+    { name, ... }:
+    {
+      options = {
+        target = mkOption {
+          type = types.str;
+          default = name;
+        };
+        text = mkOption {
+          type = types.nullOr types.lines;
+          default = null;
+        };
+        source = mkOption {
+          type = types.nullOr (
+            types.oneOf [
+              types.str
+              types.path
+              types.package
+            ]
+          );
+          default = null;
+        };
+        mode = mkOption {
+          type = types.str;
+          default = "0644";
+        };
+        uid = mkOption {
+          type = types.int;
+          default = 0;
+        };
+        gid = mkOption {
+          type = types.int;
+          default = 0;
+        };
+      };
+    }
+  );
+  knownHostType = types.submodule (
+    { name, ... }:
+    {
+      options = {
+        hostNames = mkOption {
+          type = nonEmptyStringListType;
+          default = [ name ];
+        };
+        publicKey = mkOption { type = nonEmptyStringType; };
+        certAuthority = mkOption {
+          type = types.bool;
+          default = false;
+        };
+      };
+    }
+  );
   lifecycleTaskType = types.submodule {
     options = {
       phase = mkOption {
@@ -120,181 +193,128 @@ let
   };
 in
 {
-  options.devcontainer = {
-    image = {
-      name = mkOption { type = types.str; };
-      family = mkOption {
-        type = types.str;
-        default = config.devcontainer.image.name;
-      };
-      tags = mkOption {
-        type = types.listOf types.str;
+  options = {
+    environment = {
+      systemPackages = mkOption {
+        type = types.listOf types.package;
         default = [ ];
       };
-      architectures = mkOption {
+      pathsToLink = mkOption {
         type = types.listOf types.str;
-        default = [ "linux/amd64" ];
-      };
-    };
-
-    packages = mkOption {
-      type = types.listOf types.package;
-      default = [ ];
-    };
-
-    fonts = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      packages = mkOption {
-        type = types.listOf types.package;
-        default = with pkgs; [
-          noto-fonts
-          noto-fonts-cjk-sans
-          noto-fonts-cjk-serif
-          noto-fonts-color-emoji
+        default = [
+          "/bin"
+          "/include"
+          "/lib"
+          "/lib64"
+          "/share"
+          "/etc"
         ];
       };
-      fontconfig = {
-        enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        package = mkOption {
-          type = types.package;
-          default = pkgs.fontconfig;
-        };
-        includeUserConf = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        localConf = mkOption {
-          type = types.lines;
-          default = "";
-        };
-        defaultFonts = {
-          sansSerif = mkOption {
-            type = types.listOf types.str;
-            default = [
-              "Noto Sans CJK SC"
-              "Noto Sans"
-            ];
-          };
-          serif = mkOption {
-            type = types.listOf types.str;
-            default = [
-              "Noto Serif CJK SC"
-              "Noto Serif"
-            ];
-          };
-          monospace = mkOption {
-            type = types.listOf types.str;
-            default = [
-              "Noto Sans Mono CJK SC"
-              "Noto Sans Mono"
-            ];
-          };
-          emoji = mkOption {
-            type = types.listOf types.str;
-            default = [ "Noto Color Emoji" ];
-          };
-        };
-        aliases = mkOption {
-          type = types.attrsOf fontAliasType;
-          default = { };
-        };
+      extraOutputsToInstall = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+      };
+      etc = mkOption {
+        type = types.attrsOf etcEntryType;
+        default = { };
+      };
+      variables = mkOption {
+        type = types.attrsOf envValueType;
+        default = { };
+      };
+      variableOrigins = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
+      shellAliases = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+      };
+      shellAliasOrigins = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
+      shellInit = mkOption {
+        type = types.lines;
+        default = "";
+      };
+      interactiveShellInit = mkOption {
+        type = types.lines;
+        default = "";
       };
     };
 
-    libraries = {
-      runtime = mkOption {
-        type = types.listOf types.package;
-        default = [ ];
-      };
-      build = mkOption {
-        type = types.listOf types.package;
-        default = [ ];
-      };
-      exportLdLibraryPath = mkOption {
-        type = types.bool;
-        default = false;
-      };
-      ccWrapperFlags = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      presets = mkOption {
-        type = types.listOf (
-          types.enum [
-            "autotools"
-            "gtk"
-            "gobject-introspection"
-            "gstreamer"
-            "qt"
-            "cgo"
-            "rust-bindgen"
-          ]
-        );
-        default = [ ];
-      };
-      dynamicRuntimeProfile = mkOption {
-        type = types.str;
-        default = "$XDG_DATA_HOME/devpkg/runtime-libraries/profile";
-      };
-      dynamicBuildProfile = mkOption {
-        type = types.str;
-        default = "$XDG_DATA_HOME/devpkg/build-libraries/profile";
-      };
-    };
-
-    locale = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      lang = mkOption {
+    i18n = {
+      defaultLocale = mkOption {
         type = types.str;
         default = "en_US.UTF-8";
+      };
+      extraLocaleSettings = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+      };
+      glibcLocales = mkOption {
+        type = types.package;
+        default = pkgs.glibcLocales;
+      };
+      supportedLocales = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
       };
       language = mkOption {
         type = types.str;
         default = "en_US:en";
       };
-      lc = mkOption {
-        type = types.attrsOf types.str;
-        default = { };
-      };
-      lcAll = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-      };
-      archive = {
-        enable = mkOption {
+    };
+
+    time.timeZone = mkOption {
+      type = types.nullOr types.str;
+      default = "Etc/UTC";
+    };
+
+    security = {
+      pki = {
+        installCACerts = mkOption {
           type = types.bool;
           default = true;
         };
         package = mkOption {
           type = types.package;
-          default = pkgs.glibcLocales;
+          default = pkgs.dockerTools.caCertificates;
         };
+        certificates = mkOption {
+          type = types.listOf types.lines;
+          default = [ ];
+        };
+        certificateFiles = mkOption {
+          type = types.listOf types.path;
+          default = [ ];
+        };
+        blacklist = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+        };
+      };
+      sudo.enable = mkOption {
+        type = types.enum [ false ];
+        default = false;
+      };
+      pam.enable = mkOption {
+        type = types.enum [ false ];
+        default = false;
+      };
+      polkit.enable = mkOption {
+        type = types.enum [ false ];
+        default = false;
       };
     };
 
-    shell = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      aliases = mkOption {
-        type = types.attrsOf types.str;
-        default = { };
-      };
-      aliasOrigins = mkOption {
-        type = types.attrsOf (types.listOf types.str);
-        default = { };
-      };
+    programs = {
       bash = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
         prompt.enable = mkOption {
           type = types.bool;
           default = true;
@@ -309,193 +329,142 @@ in
         };
         commandNotFound.enable = mkOption {
           type = types.bool;
-          default = config.devcontainer.toolsets.nixIndex.enable;
+          default = config.programs.nix-index.enable;
         };
       };
-    };
 
-    graph.nodes = mkOption {
-      type = types.attrsOf graphNodeType;
-      default = { };
-    };
-
-    layers = {
-      strategy = mkOption {
-        type = types.str;
-        default = "balanced";
-      };
-      max = mkOption {
-        type = types.int;
-        default = 100;
-      };
-      reserve = mkOption {
-        type = types.int;
-        default = 20;
-      };
-      maxLayerSize = mkOption {
-        type = types.str;
-        default = "8GiB";
-      };
-      buckets = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
-      };
-    };
-
-    metadata.snippets = mkOption {
-      type = types.listOf types.attrs;
-      default = [ ];
-    };
-
-    user = {
-      name = mkOption {
-        type = types.enum [ "vscode" ];
-        default = "vscode";
-      };
-      uid = mkOption {
-        type = types.enum [ 1000 ];
-        default = 1000;
-      };
-      group = mkOption {
-        type = types.enum [ "vscode" ];
-        default = "vscode";
-      };
-      gid = mkOption {
-        type = types.enum [ 1000 ];
-        default = 1000;
-      };
-      home = mkOption {
-        type = types.enum [ "/home/vscode" ];
-        default = "/home/vscode";
-      };
-      shell = mkOption {
-        type = types.enum [ "/bin/bash" ];
-        default = "/bin/bash";
-      };
-      remoteUser = mkOption {
-        type = types.enum [ "vscode" ];
-        default = "vscode";
-      };
-      containerUser = mkOption {
-        type = types.enum [ "vscode" ];
-        default = "vscode";
-      };
-      updateRemoteUserUID = mkOption {
-        type = types.enum [ false ];
-        default = false;
-      };
-    };
-
-    filesystem = {
-      osRelease = {
-        name = mkOption {
-          type = types.str;
-          default = "devcontainer-nix";
+      git = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
         };
-        id = mkOption {
-          type = types.str;
-          default = "devcontainer-nix";
+        package = mkOption {
+          type = types.package;
+          default = pkgs.git;
         };
-        versionId = mkOption {
-          type = types.str;
-          default = "26.05";
+        lfs.enable = mkOption {
+          type = types.bool;
+          default = false;
         };
-        prettyName = mkOption {
-          type = types.str;
-          default = "Devcontainer Nix 26.05";
+        config = mkOption {
+          type = types.attrs;
+          default = { };
+        };
+        extraConfig = mkOption {
+          type = types.lines;
+          default = "";
+        };
+        attributes = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+        };
+        extraAttributes = mkOption {
+          type = types.lines;
+          default = "";
+        };
+        prompt.enable = mkOption {
+          type = types.bool;
+          default = true;
         };
       };
-      directories = mkOption {
-        type = types.attrsOf (
-          types.submodule {
-            options = {
-              mode = mkOption { type = types.str; };
-              uid = mkOption { type = types.int; };
-              gid = mkOption { type = types.int; };
-            };
-          }
-        );
-        default = { };
-      };
-    };
 
-    env = {
-      container = mkOption {
-        type = types.attrsOf types.str;
-        default = { };
+      ssh = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        package = mkOption {
+          type = types.package;
+          default = pkgs.openssh;
+        };
+        knownHosts = mkOption {
+          type = types.attrsOf knownHostType;
+          default = { };
+        };
+        knownHostsFiles = mkOption {
+          type = types.listOf types.path;
+          default = [ ];
+        };
+        extraConfig = mkOption {
+          type = types.lines;
+          default = "";
+        };
+        algorithms = {
+          kexAlgorithms = mkOption {
+            type = types.listOf types.str;
+            default = [ ];
+          };
+          hostKeyAlgorithms = mkOption {
+            type = types.listOf types.str;
+            default = [ ];
+          };
+          ciphers = mkOption {
+            type = types.listOf types.str;
+            default = [ ];
+          };
+          macs = mkOption {
+            type = types.listOf types.str;
+            default = [ ];
+          };
+        };
+        forwardX11 = mkOption {
+          type = types.bool;
+          default = false;
+        };
       };
-      origins.container = mkOption {
-        type = types.attrsOf (types.listOf types.str);
-        default = { };
-      };
-      remote = mkOption {
-        type = types.attrsOf types.str;
-        default = { };
-      };
-      origins.remote = mkOption {
-        type = types.attrsOf (types.listOf types.str);
-        default = { };
-      };
-      shell = mkOption {
-        type = types.attrsOf types.str;
-        default = { };
-      };
-      origins.shell = mkOption {
-        type = types.attrsOf (types.listOf types.str);
-        default = { };
-      };
-    };
 
-    path = {
-      segments = mkOption {
-        type = types.attrsOf (types.listOf types.str);
-        default = { };
+      direnv = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        package = mkOption {
+          type = types.package;
+          default = pkgs.direnv;
+        };
+        nix-direnv.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        nix-direnv.package = mkOption {
+          type = types.package;
+          default = pkgs.nix-direnv;
+        };
       };
-      segmentOrigins = mkOption {
-        type = types.attrsOf (types.attrsOf (types.listOf types.str));
-        default = { };
-      };
-      order = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
-      };
-    };
 
-    compat = {
-      fhsRuntime = {
+      nix-index = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        package = mkOption {
+          type = types.package;
+          default = pkgs.nix-index-with-db;
+        };
+        comma.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        comma.package = mkOption {
+          type = types.nullOr types.package;
+          default = if builtins.hasAttr "comma-with-db" pkgs then pkgs.comma-with-db else null;
+        };
+      };
+
+      nix-ld = {
         enable = mkOption {
           type = types.bool;
           default = true;
         };
-        binSh = mkOption {
-          type = types.bool;
-          default = true;
+        package = mkOption {
+          type = types.package;
+          default = pkgs.nix-ld;
         };
-        binBash = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        usrBinEnv = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        usrBinCoreTools = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        etcOsRelease = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        caCertificates = mkOption {
-          type = types.bool;
-          default = true;
+        libraries = mkOption {
+          type = types.listOf types.package;
+          default = [ ];
         };
         dynamicLoader = {
-          mode = mkOption {
-            type = types.str;
-            default = "nix-ld";
-          };
           x86_64.path = mkOption {
             type = types.str;
             default = "/lib64/ld-linux-x86-64.so.2";
@@ -505,211 +474,509 @@ in
             default = "/lib/ld-linux-aarch64.so.1";
           };
         };
-        nixLdLibraries = mkOption {
-          type = types.listOf types.package;
-          default = [ ];
-        };
       };
     };
 
-    vscode = {
-      extensions = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
+    nix = {
+      package = mkOption {
+        type = types.package;
+        default = pkgs.nix;
       };
       settings = mkOption {
-        type = types.attrs;
-        default = { };
+        type = types.attrsOf nixSettingValueType;
+        default = {
+          experimental-features = [
+            "nix-command"
+            "flakes"
+          ];
+        };
       };
-      preinstall = {
+      extraOptions = mkOption {
+        type = types.lines;
+        default = "";
+      };
+    };
+
+    devcontainer = {
+      image = {
+        name = mkOption { type = types.str; };
+        family = mkOption {
+          type = types.str;
+          default = config.devcontainer.image.name;
+        };
+        tags = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+        };
+        architectures = mkOption {
+          type = types.listOf types.str;
+          default = [ "linux/amd64" ];
+        };
+      };
+
+      fonts = {
         enable = mkOption {
           type = types.bool;
           default = true;
         };
-        source = mkOption {
-          type = types.str;
-          default = "nix-vscode-extensions";
+        packages = mkOption {
+          type = types.listOf types.package;
+          default = with pkgs; [
+            noto-fonts
+            noto-fonts-cjk-sans
+            noto-fonts-cjk-serif
+            noto-fonts-color-emoji
+          ];
         };
-        store = {
-          extensionsPath = mkOption {
-            type = types.str;
-            default = "/usr/share/devcontainer/vscode/extensions";
-          };
-          vsixPath = mkOption {
-            type = types.str;
-            default = "/usr/share/devcontainer/vscode/vsix";
-          };
-          indexPath = mkOption {
-            type = types.str;
-            default = "/usr/share/devcontainer/vscode/extensions-index.json";
-          };
-        };
-        projection = {
+        fontconfig = {
           enable = mkOption {
             type = types.bool;
             default = true;
           };
-          phase = mkOption {
-            type = types.enum [
-              "onCreate"
-              "postCreate"
-              "postStart"
-              "postAttach"
-            ];
-            default = "postCreate";
+          package = mkOption {
+            type = types.package;
+            default = pkgs.fontconfig;
           };
-          mode = mkOption {
+          includeUserConf = mkOption {
+            type = types.bool;
+            default = true;
+          };
+          localConf = mkOption {
+            type = types.lines;
+            default = "";
+          };
+          defaultFonts = {
+            sansSerif = mkOption {
+              type = types.listOf types.str;
+              default = [
+                "Noto Sans CJK SC"
+                "Noto Sans"
+              ];
+            };
+            serif = mkOption {
+              type = types.listOf types.str;
+              default = [
+                "Noto Serif CJK SC"
+                "Noto Serif"
+              ];
+            };
+            monospace = mkOption {
+              type = types.listOf types.str;
+              default = [
+                "Noto Sans Mono CJK SC"
+                "Noto Sans Mono"
+              ];
+            };
+            emoji = mkOption {
+              type = types.listOf types.str;
+              default = [ "Noto Color Emoji" ];
+            };
+          };
+          aliases = mkOption {
+            type = types.attrsOf fontAliasType;
+            default = { };
+          };
+        };
+      };
+
+      libraries = {
+        runtime = mkOption {
+          type = types.listOf types.package;
+          default = [ ];
+        };
+        build = mkOption {
+          type = types.listOf types.package;
+          default = [ ];
+        };
+        exportLdLibraryPath = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        ccWrapperFlags = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        presets = mkOption {
+          type = types.listOf (
+            types.enum [
+              "autotools"
+              "gtk"
+              "gobject-introspection"
+              "gstreamer"
+              "qt"
+              "cgo"
+              "rust-bindgen"
+            ]
+          );
+          default = [ ];
+        };
+        dynamicRuntimeProfile = mkOption {
+          type = types.str;
+          default = "$XDG_DATA_HOME/devpkg/runtime-libraries/profile";
+        };
+        dynamicBuildProfile = mkOption {
+          type = types.str;
+          default = "$XDG_DATA_HOME/devpkg/build-libraries/profile";
+        };
+      };
+
+      graph.nodes = mkOption {
+        type = types.attrsOf graphNodeType;
+        default = { };
+      };
+
+      layers = {
+        strategy = mkOption {
+          type = types.str;
+          default = "balanced";
+        };
+        max = mkOption {
+          type = types.int;
+          default = 100;
+        };
+        reserve = mkOption {
+          type = types.int;
+          default = 20;
+        };
+        maxLayerSize = mkOption {
+          type = types.str;
+          default = "8GiB";
+        };
+        buckets = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+        };
+      };
+
+      metadata.snippets = mkOption {
+        type = types.listOf types.attrs;
+        default = [ ];
+      };
+
+      remoteEnv = mkOption {
+        type = types.attrsOf envValueType;
+        default = { };
+      };
+      remoteEnvOrigins = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
+
+      user = {
+        name = mkOption {
+          type = types.enum [ "vscode" ];
+          default = "vscode";
+        };
+        uid = mkOption {
+          type = types.enum [ 1000 ];
+          default = 1000;
+        };
+        group = mkOption {
+          type = types.enum [ "vscode" ];
+          default = "vscode";
+        };
+        gid = mkOption {
+          type = types.enum [ 1000 ];
+          default = 1000;
+        };
+        home = mkOption {
+          type = types.enum [ "/home/vscode" ];
+          default = "/home/vscode";
+        };
+        shell = mkOption {
+          type = types.enum [ "/bin/bash" ];
+          default = "/bin/bash";
+        };
+        remoteUser = mkOption {
+          type = types.enum [ "vscode" ];
+          default = "vscode";
+        };
+        containerUser = mkOption {
+          type = types.enum [ "vscode" ];
+          default = "vscode";
+        };
+        updateRemoteUserUID = mkOption {
+          type = types.enum [ false ];
+          default = false;
+        };
+      };
+
+      filesystem = {
+        osRelease = {
+          name = mkOption {
             type = types.str;
-            default = "symlink-or-copy";
+            default = "devcontainer-nix";
           };
-          targets = mkOption {
-            type = types.listOf types.str;
-            default = [
-              "${config.devcontainer.user.home}/.vscode-server/extensions"
-              "${config.devcontainer.user.home}/.vscode-server-insiders/extensions"
-              "${config.devcontainer.user.home}/.vscode-remote/extensions"
-            ];
+          id = mkOption {
+            type = types.str;
+            default = "devcontainer-nix";
+          };
+          versionId = mkOption {
+            type = types.str;
+            default = "26.05";
+          };
+          prettyName = mkOption {
+            type = types.str;
+            default = "Devcontainer Nix 26.05";
           };
         };
-        validation = {
-          nativeBinaries = mkOption {
+        directories = mkOption {
+          type = types.attrsOf (
+            types.submodule {
+              options = {
+                mode = mkOption { type = types.str; };
+                uid = mkOption { type = types.int; };
+                gid = mkOption { type = types.int; };
+              };
+            }
+          );
+          default = { };
+        };
+      };
+
+      path = {
+        segments = mkOption {
+          type = types.attrsOf (types.listOf types.str);
+          default = { };
+        };
+        segmentOrigins = mkOption {
+          type = types.attrsOf (types.attrsOf (types.listOf types.str));
+          default = { };
+        };
+        order = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+        };
+      };
+
+      compat = {
+        fhsRuntime = {
+          enable = mkOption {
             type = types.bool;
             default = true;
           };
-          fhsRuntime = mkOption {
+          binSh = mkOption {
             type = types.bool;
             default = true;
           };
-          noNetworkDuringProjection = mkOption {
+          binBash = mkOption {
+            type = types.bool;
+            default = true;
+          };
+          usrBinEnv = mkOption {
+            type = types.bool;
+            default = true;
+          };
+          usrBinCoreTools = mkOption {
+            type = types.bool;
+            default = true;
+          };
+          etcOsRelease = mkOption {
             type = types.bool;
             default = true;
           };
         };
       };
-    };
 
-    lifecycle.tasks = mkOption {
-      type = types.attrsOf lifecycleTaskType;
-      default = { };
-    };
+      vscode = {
+        extensions = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+        };
+        settings = mkOption {
+          type = types.attrs;
+          default = { };
+        };
+        preinstall = {
+          enable = mkOption {
+            type = types.bool;
+            default = true;
+          };
+          source = mkOption {
+            type = types.str;
+            default = "nix-vscode-extensions";
+          };
+          store = {
+            extensionsPath = mkOption {
+              type = types.str;
+              default = "/usr/share/devcontainer/vscode/extensions";
+            };
+            vsixPath = mkOption {
+              type = types.str;
+              default = "/usr/share/devcontainer/vscode/vsix";
+            };
+            indexPath = mkOption {
+              type = types.str;
+              default = "/usr/share/devcontainer/vscode/extensions-index.json";
+            };
+          };
+          projection = {
+            enable = mkOption {
+              type = types.bool;
+              default = true;
+            };
+            phase = mkOption {
+              type = types.enum [
+                "onCreate"
+                "postCreate"
+                "postStart"
+                "postAttach"
+              ];
+              default = "postCreate";
+            };
+            mode = mkOption {
+              type = types.str;
+              default = "symlink-or-copy";
+            };
+            targets = mkOption {
+              type = types.listOf types.str;
+              default = [
+                "${config.devcontainer.user.home}/.vscode-server/extensions"
+                "${config.devcontainer.user.home}/.vscode-server-insiders/extensions"
+                "${config.devcontainer.user.home}/.vscode-remote/extensions"
+              ];
+            };
+          };
+          validation = {
+            nativeBinaries = mkOption {
+              type = types.bool;
+              default = true;
+            };
+            fhsRuntime = mkOption {
+              type = types.bool;
+              default = true;
+            };
+            noNetworkDuringProjection = mkOption {
+              type = types.bool;
+              default = true;
+            };
+          };
+        };
+      };
 
-    tests.smoke = mkOption {
-      type = types.listOf smokeTestType;
-      default = [ ];
-    };
+      lifecycle.tasks = mkOption {
+        type = types.attrsOf lifecycleTaskType;
+        default = { };
+      };
 
-    toolsets = {
-      foundation.enable = mkOption {
-        type = types.bool;
-        default = true;
+      tests.smoke = mkOption {
+        type = types.listOf smokeTestType;
+        default = [ ];
       };
-      sourceControl.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      fetchArchive.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      searchNavigation.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      inspectDebug.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      workflowFormat.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      dataNetwork.enable = mkOption {
-        type = types.bool;
-        default = false;
-      };
-      dockerClient.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      agents.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      nixIndex.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      nixIndex.comma.enable = mkOption {
-        type = types.bool;
-        default = true;
-      };
-    };
 
-    runtimes = {
-      cEnv.enable = mkOption {
-        type = types.bool;
-        default = false;
-      };
-      python = {
-        enable = mkOption {
+      toolsets = {
+        foundation.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        sourceControl.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        fetchArchive.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        searchNavigation.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        inspectDebug.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        workflowFormat.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        dataNetwork.enable = mkOption {
           type = types.bool;
           default = false;
         };
-        package = mkOption {
-          type = types.nullOr types.package;
-          default = null;
-        };
-      };
-      nodejs = {
-        enable = mkOption {
+        dockerClient.enable = mkOption {
           type = types.bool;
-          default = false;
+          default = true;
         };
-        package = mkOption {
-          type = types.nullOr types.package;
-          default = null;
+        agents.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        nixIndex.enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        nixIndex.comma.enable = mkOption {
+          type = types.bool;
+          default = true;
         };
       };
-    };
 
-    languages = {
-      python = {
-        enable = mkOption {
+      runtimes = {
+        cEnv.enable = mkOption {
           type = types.bool;
           default = false;
         };
-        packageSet = mkOption {
-          type = types.nullOr types.attrs;
-          default = null;
+        python = {
+          enable = mkOption {
+            type = types.bool;
+            default = false;
+          };
+          package = mkOption {
+            type = types.nullOr types.package;
+            default = null;
+          };
+        };
+        nodejs = {
+          enable = mkOption {
+            type = types.bool;
+            default = false;
+          };
+          package = mkOption {
+            type = types.nullOr types.package;
+            default = null;
+          };
         };
       };
-      nodejs.enable = mkOption {
-        type = types.bool;
-        default = false;
-      };
-      go = {
-        enable = mkOption {
+
+      languages = {
+        python = {
+          enable = mkOption {
+            type = types.bool;
+            default = false;
+          };
+          packageSet = mkOption {
+            type = types.nullOr types.attrs;
+            default = null;
+          };
+        };
+        nodejs.enable = mkOption {
           type = types.bool;
           default = false;
         };
-        package = mkOption {
-          type = types.nullOr types.package;
-          default = null;
+        go = {
+          enable = mkOption {
+            type = types.bool;
+            default = false;
+          };
+          package = mkOption {
+            type = types.nullOr types.package;
+            default = null;
+          };
         };
-      };
-      rust = {
-        enable = mkOption {
+        rust = {
+          enable = mkOption {
+            type = types.bool;
+            default = false;
+          };
+          toolchain = mkOption {
+            type = types.nullOr types.package;
+            default = null;
+          };
+        };
+        flutter.enable = mkOption {
           type = types.bool;
           default = false;
         };
-        toolchain = mkOption {
-          type = types.nullOr types.package;
-          default = null;
-        };
-      };
-      flutter.enable = mkOption {
-        type = types.bool;
-        default = false;
       };
     };
   };

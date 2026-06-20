@@ -1,32 +1,32 @@
 { pkgs, lib }:
-{ config }:
+{
+  config,
+  compiledEnvironment ? {
+    shellAliases = { };
+    shellAliasOrigins = { };
+    shellInit = "";
+    interactiveShellInit = "";
+  },
+  compiledEnv ? {
+    containerEnv = { };
+  },
+}:
 let
-  cfg = config.devcontainer.shell;
-  locale = config.devcontainer.locale;
+  cfg = config.programs.bash;
+  locale = config.i18n;
   pathString = path: builtins.unsafeDiscardStringContext (toString path);
   invalidAliasNames = builtins.filter (name: builtins.match "[A-Za-z0-9_.+-]+" name == null) (
-    builtins.attrNames cfg.aliases
+    builtins.attrNames compiledEnvironment.shellAliases
   );
-  invalidLcNames = builtins.filter (
-    name: name == "LC_ALL" || builtins.match "LC_[A-Z_]+" name == null
-  ) (builtins.attrNames locale.lc);
-  validatedLocale =
-    if invalidLcNames != [ ] then
-      throw (
-        "devcontainer.locale.lc keys must be LC_* variables other than LC_ALL; invalid keys: "
-        + lib.concatStringsSep ", " invalidLcNames
-      )
-    else
-      locale;
   aliases =
     if invalidAliasNames != [ ] then
       throw (
-        "devcontainer.shell.aliases contains invalid alias names: "
+        "environment.shellAliases contains invalid alias names: "
         + lib.concatStringsSep ", " invalidAliasNames
         + ". Alias names may only contain letters, numbers, '_', '-', '.', and '+'."
       )
     else
-      cfg.aliases;
+      compiledEnvironment.shellAliases;
   sortedAliasNames = lib.sort lib.lessThan (builtins.attrNames aliases);
   renderAlias =
     name:
@@ -37,8 +37,26 @@ let
   aliasLines = map renderAlias sortedAliasNames;
   aliasesText =
     if cfg.enable && aliasLines != [ ] then lib.concatStringsSep "\n" (aliasLines ++ [ "" ]) else "";
+  sortedEnvNames = lib.sort lib.lessThan (builtins.attrNames compiledEnv.containerEnv);
+  renderExport =
+    name:
+    let
+      value = builtins.getAttr name compiledEnv.containerEnv;
+    in
+    "export ${name}=${lib.escapeShellArg value}";
+  environmentExportText =
+    if sortedEnvNames != [ ] then
+      lib.concatStringsSep "\n" ((map renderExport sortedEnvNames) ++ [ "" ])
+    else
+      "";
+  shellInitText = lib.optionalString (compiledEnvironment.shellInit != "") ''
+    ${compiledEnvironment.shellInit}
+  '';
+  interactiveShellInitText = lib.optionalString (compiledEnvironment.interactiveShellInit != "") ''
+    ${compiledEnvironment.interactiveShellInit}
+  '';
 
-  promptText = lib.optionalString (cfg.enable && cfg.bash.prompt.enable) ''
+  promptText = lib.optionalString (cfg.enable && cfg.prompt.enable) ''
     PROMPT_DIRTRIM=3
     if [ -t 1 ]; then
       PS1='\[\033[1;32m\]\u@\h\[\033[0m\]:\[\033[1;34m\]\w\[\033[0m\]\$ '
@@ -47,7 +65,7 @@ let
     fi
   '';
 
-  historyText = lib.optionalString (cfg.enable && cfg.bash.history.enable) ''
+  historyText = lib.optionalString (cfg.enable && cfg.history.enable) ''
     HISTFILE="''${XDG_STATE_HOME:-$HOME/.local/state}/bash/history"
     HISTSIZE=50000
     HISTFILESIZE=100000
@@ -56,13 +74,13 @@ let
     shopt -s checkwinsize
   '';
 
-  completionText = lib.optionalString (cfg.enable && cfg.bash.completion.enable) ''
+  completionText = lib.optionalString (cfg.enable && cfg.completion.enable) ''
     if ! declare -F _init_completion >/dev/null 2>&1 && [ -r /share/bash-completion/bash_completion ]; then
       . /share/bash-completion/bash_completion
     fi
   '';
 
-  commandNotFoundText = lib.optionalString (cfg.enable && cfg.bash.commandNotFound.enable) ''
+  commandNotFoundText = lib.optionalString (cfg.enable && cfg.commandNotFound.enable) ''
     command_not_found_handle() {
       local command="$1"
       shift || true
@@ -78,6 +96,9 @@ let
 
   profileText = ''
     # System profile for devcontainers.nix images.
+    ${environmentExportText}
+    ${shellInitText}
+
     if [ -d /etc/profile.d ]; then
       for script in /etc/profile.d/*.sh; do
         [ -e "$script" ] || continue
@@ -107,20 +128,21 @@ let
     esac
 
   ''
+  + environmentExportText
   + aliasesText
   + promptText
   + historyText
   + completionText
-  + commandNotFoundText;
+  + commandNotFoundText
+  + interactiveShellInitText;
 
-  imagePaths =
-    lib.optionals (validatedLocale.enable && validatedLocale.archive.enable) [
-      validatedLocale.archive.package
-    ]
-    ++ lib.optionals (cfg.enable && cfg.bash.completion.enable) [ pkgs.bash-completion ];
+  imagePaths = [
+    locale.glibcLocales
+  ]
+  ++ lib.optionals (cfg.enable && cfg.completion.enable) [ pkgs.bash-completion ];
   aliasReport = lib.genAttrs sortedAliasNames (name: {
     command = builtins.getAttr name aliases;
-    origins = cfg.aliasOrigins.${name} or [ ];
+    origins = compiledEnvironment.shellAliasOrigins.${name} or [ ];
   });
   generatedFiles = [
     "/etc/profile"
@@ -140,29 +162,28 @@ in
   report = {
     enabled = cfg.enable;
     locale = {
-      enabled = validatedLocale.enable;
-      lang = validatedLocale.lang;
-      language = validatedLocale.language;
-      lc = validatedLocale.lc;
-      lcAll = validatedLocale.lcAll;
+      enabled = true;
+      lang = locale.defaultLocale;
+      language = locale.language;
+      lc = locale.extraLocaleSettings;
+      lcAll = null;
       archive = {
-        enabled = validatedLocale.archive.enable;
-        package =
-          validatedLocale.archive.package.pname or validatedLocale.archive.package.name or "<unknown>";
-        path = lib.optionalString validatedLocale.archive.enable "${validatedLocale.archive.package}/lib/locale/locale-archive";
+        enabled = true;
+        package = locale.glibcLocales.pname or locale.glibcLocales.name or "<unknown>";
+        path = "${locale.glibcLocales}/lib/locale/locale-archive";
       };
     };
     aliases = aliasReport;
     bash = {
-      prompt = cfg.bash.prompt.enable;
-      history = cfg.bash.history.enable;
-      completion = cfg.bash.completion.enable;
-      commandNotFound = cfg.bash.commandNotFound.enable;
+      prompt = cfg.prompt.enable;
+      history = cfg.history.enable;
+      completion = cfg.completion.enable;
+      commandNotFound = cfg.commandNotFound.enable;
     };
     generatedFiles = generatedFiles;
     imagePaths = map pathString imagePaths;
     commandNotFound = {
-      enabled = cfg.enable && cfg.bash.commandNotFound.enable;
+      enabled = cfg.enable && cfg.commandNotFound.enable;
       database = "nix-index-database";
       autoInstall = false;
     };

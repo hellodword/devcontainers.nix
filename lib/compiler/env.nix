@@ -1,6 +1,12 @@
 { lib }:
 {
   config,
+  compiledEnvironment ? {
+    variables = { };
+    variableOrigins = { };
+    remoteEnv = { };
+    remoteEnvOrigins = { };
+  },
   compiledFhsRuntime ? {
     env = { };
     envOrigins = { };
@@ -18,7 +24,11 @@ let
     remote = { };
     shell = { };
   };
-  configuredEnvOrigins = config.devcontainer.env.origins or emptyOrigins;
+  configuredEnvOrigins = {
+    container = compiledEnvironment.variableOrigins or { };
+    remote = compiledEnvironment.remoteEnvOrigins or { };
+    shell = { };
+  };
   fhsEnv = compiledFhsRuntime.env or { };
   fhsEnvOrigins = compiledFhsRuntime.envOrigins or emptyOrigins;
   librariesEnv = compiledLibraries.env or { };
@@ -47,10 +57,12 @@ let
     shell = mergeOriginScope "shell";
   };
   rawContainerEnv =
-    config.devcontainer.env.container // (fhsEnv.container or { }) // (librariesEnv.container or { });
+    (compiledEnvironment.variables or { })
+    // (fhsEnv.container or { })
+    // (librariesEnv.container or { });
   rawRemoteEnv =
-    config.devcontainer.env.remote // (fhsEnv.remote or { }) // (librariesEnv.remote or { });
-  rawShellEnv = config.devcontainer.env.shell // (fhsEnv.shell or { }) // (librariesEnv.shell or { });
+    (compiledEnvironment.remoteEnv or { }) // (fhsEnv.remote or { }) // (librariesEnv.remote or { });
+  rawShellEnv = (fhsEnv.shell or { }) // (librariesEnv.shell or { });
   # Docker image Env values are not shell-expanded at runtime.
   expandValue =
     env: value:

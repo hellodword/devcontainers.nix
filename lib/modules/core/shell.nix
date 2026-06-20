@@ -5,8 +5,8 @@
   ...
 }:
 let
-  cfg = config.devcontainer.shell;
-  locale = config.devcontainer.locale;
+  cfg = config.programs.bash;
+  locale = config.i18n;
   user = config.devcontainer.user;
   defaultAliases = {
     l = "ls -CF";
@@ -20,36 +20,41 @@ let
     "sha3-512sum" = "openssl dgst -sha3-512";
   };
   defaultAliasOrigins = lib.mapAttrs (_: _: [ "core.shell" ]) defaultAliases;
-  localeArchivePath = "${locale.archive.package}/lib/locale/locale-archive";
-  localeEnv = lib.optionalAttrs locale.enable (
-    {
-      LANG = locale.lang;
-      LANGUAGE = locale.language;
-      XDG_CONFIG_DIRS = "/etc/xdg";
-      XDG_DATA_DIRS = "/usr/local/share:/usr/share:/share";
-    }
-    // locale.lc
-    // lib.optionalAttrs (locale.lcAll != null) {
-      LC_ALL = locale.lcAll;
-    }
-    // lib.optionalAttrs locale.archive.enable {
-      LOCALE_ARCHIVE = localeArchivePath;
-    }
-  );
-  shellRuntimePaths =
-    lib.optionals (locale.enable && locale.archive.enable) [ locale.archive.package ]
-    ++ lib.optionals (cfg.enable && cfg.bash.completion.enable) [ pkgs.bash-completion ];
+  invalidLocaleSettingNames = builtins.filter (
+    name: name == "LC_ALL" || builtins.match "LC_[A-Z_]+" name == null
+  ) (builtins.attrNames locale.extraLocaleSettings);
+  validatedLocaleSettings =
+    if invalidLocaleSettingNames != [ ] then
+      throw (
+        "i18n.extraLocaleSettings keys must be LC_* variables other than LC_ALL; invalid keys: "
+        + lib.concatStringsSep ", " invalidLocaleSettingNames
+      )
+    else
+      locale.extraLocaleSettings;
+  localeArchivePath = "${locale.glibcLocales}/lib/locale/locale-archive";
+  localeEnv = {
+    LANG = locale.defaultLocale;
+    LANGUAGE = locale.language;
+    XDG_CONFIG_DIRS = "/etc/xdg";
+    XDG_DATA_DIRS = "/usr/local/share:/usr/share:/share";
+    LOCALE_ARCHIVE = localeArchivePath;
+  }
+  // validatedLocaleSettings;
+  shellRuntimePaths = [
+    locale.glibcLocales
+  ]
+  ++ lib.optionals (cfg.enable && cfg.completion.enable) [ pkgs.bash-completion ];
 in
 {
-  config.devcontainer = lib.mkMerge [
+  config = lib.mkMerge [
     {
-      shell.aliases = lib.mapAttrs (_: value: lib.mkDefault value) defaultAliases;
-      shell.aliasOrigins = lib.mapAttrs (_: value: lib.mkDefault value) defaultAliasOrigins;
+      environment.shellAliases = lib.mapAttrs (_: value: lib.mkDefault value) defaultAliases;
+      environment.shellAliasOrigins = lib.mapAttrs (_: value: lib.mkDefault value) defaultAliasOrigins;
 
-      env.container = localeEnv;
-      env.origins.container = lib.mapAttrs (_: _: [ "core.locale" ]) localeEnv;
+      environment.variables = localeEnv;
+      environment.variableOrigins = lib.mapAttrs (_: _: [ "core.locale" ]) localeEnv;
 
-      filesystem.directories = {
+      devcontainer.filesystem.directories = {
         "${user.home}/.config" = {
           mode = "0755";
           uid = user.uid;
@@ -84,7 +89,7 @@ in
     }
 
     (lib.mkIf (shellRuntimePaths != [ ]) {
-      graph.nodes."runtime/shell" = {
+      devcontainer.graph.nodes."runtime/shell" = {
         kind = "runtime";
         group = "14-shell-runtime";
         paths = shellRuntimePaths;
@@ -95,24 +100,24 @@ in
       };
     })
 
-    (lib.mkIf locale.enable {
-      tests.smoke = [
+    {
+      devcontainer.tests.smoke = [
         {
           name = "locale-env";
           command = [
             "bash"
             "-lc"
             (
-              ''test "$LANG" = ${lib.escapeShellArg locale.lang} && test "$LANGUAGE" = ${lib.escapeShellArg locale.language}''
-              + lib.optionalString locale.archive.enable " && test -r \"$LOCALE_ARCHIVE\""
+              ''test "$LANG" = ${lib.escapeShellArg locale.defaultLocale} && test "$LANGUAGE" = ${lib.escapeShellArg locale.language}''
+              + " && test -r \"$LOCALE_ARCHIVE\""
             )
           ];
         }
       ];
-    })
+    }
 
     (lib.mkIf cfg.enable {
-      tests.smoke = [
+      devcontainer.tests.smoke = [
         {
           name = "bash-interactive";
           command = [
@@ -120,15 +125,15 @@ in
             "-ic"
             (
               "alias ll >/dev/null && alias sha3-256sum >/dev/null"
-              + lib.optionalString cfg.bash.commandNotFound.enable " && type command_not_found_handle >/dev/null"
+              + lib.optionalString cfg.commandNotFound.enable " && type command_not_found_handle >/dev/null"
             )
           ];
         }
       ];
     })
 
-    (lib.mkIf (cfg.enable && cfg.bash.completion.enable) {
-      tests.smoke = [
+    (lib.mkIf (cfg.enable && cfg.completion.enable) {
+      devcontainer.tests.smoke = [
         {
           name = "bash-completion";
           command = [

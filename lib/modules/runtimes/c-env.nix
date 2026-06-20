@@ -21,7 +21,7 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.runtimes.cEnv.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.graph.nodes."runtime/c-env" = {
       kind = "runtime";
       group = "20-c-env";

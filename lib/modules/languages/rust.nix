@@ -24,7 +24,7 @@ let
 in
 {
   config = lib.mkIf cfg.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.libraries.presets = lib.mkBefore [ "rust-bindgen" ];
     devcontainer.vscode.extensions = [
       "rust-lang.rust-analyzer"
@@ -34,13 +34,13 @@ in
       "rust-analyzer.server.path" = "/usr/local/bin/rust-analyzer";
       "rust-analyzer.check.command" = "clippy";
     };
-    devcontainer.env.container = {
+    environment.variables = {
       RUST_BACKTRACE = "1";
       CARGO_HOME = "$XDG_DATA_HOME/cargo";
       RUSTUP_HOME = "$XDG_DATA_HOME/rustup";
       CARGO_TARGET_DIR = "$WORKSPACE/target";
     };
-    devcontainer.env.origins.container = {
+    environment.variableOrigins = {
       RUST_BACKTRACE = [ "languages.rust" ];
       CARGO_HOME = [ "languages.rust" ];
       RUSTUP_HOME = [ "languages.rust" ];

@@ -163,6 +163,7 @@ def main() -> int:
         "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
         "CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
         "GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt",
+        "TZDIR=/etc/zoneinfo",
     ]:
         if required_env not in env:
             fail(f"image artifact must set expanded {required_env.split('=', 1)[0]}")

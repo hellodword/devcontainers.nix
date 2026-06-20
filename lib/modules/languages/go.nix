@@ -18,7 +18,7 @@ let
 in
 {
   config = lib.mkIf cfg.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.libraries.presets = lib.mkBefore [ "cgo" ];
     devcontainer.vscode.extensions = [ "golang.go" ];
     devcontainer.vscode.settings = {
@@ -27,7 +27,7 @@ in
       "go.gopath" = "/home/vscode/.local/share/go";
       "go.goroot" = "/usr/local/go";
     };
-    devcontainer.env.container = {
+    environment.variables = {
       GOTELEMETRY = "off";
       GOTOOLCHAIN = "local";
       GOPATH = "$XDG_DATA_HOME/go";
@@ -35,7 +35,7 @@ in
       GOMODCACHE = "$XDG_CACHE_HOME/go/pkg/mod";
       GOCACHE = "$XDG_CACHE_HOME/go-build";
     };
-    devcontainer.env.origins.container = {
+    environment.variableOrigins = {
       GOTELEMETRY = [ "languages.go" ];
       GOTOOLCHAIN = [ "languages.go" ];
       GOPATH = [ "languages.go" ];
@@ -47,8 +47,8 @@ in
     devcontainer.path.segmentOrigins.language = {
       "$GOBIN" = [ "languages.go" ];
     };
-    devcontainer.shell.aliases.gobuild-small = ''go build -trimpath -ldflags "-s -w -buildid="'';
-    devcontainer.shell.aliasOrigins.gobuild-small = [ "languages.go" ];
+    environment.shellAliases.gobuild-small = ''go build -trimpath -ldflags "-s -w -buildid="'';
+    environment.shellAliasOrigins.gobuild-small = [ "languages.go" ];
     devcontainer.graph.nodes."language/go" = {
       kind = "language";
       group = "50-go-language";

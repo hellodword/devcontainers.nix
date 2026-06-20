@@ -22,7 +22,7 @@ in
 {
   config = lib.mkIf cfg.enable {
     devcontainer.runtimes.python.enable = true;
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.vscode.extensions = [
       "ms-python.python"
       "charliermarsh.ruff"

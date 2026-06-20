@@ -27,6 +27,7 @@ Important paths:
 | `flake.nix` | Pins inputs, defines image targets, apps, packages, checks, and workflow generation. |
 | `images/` | Small image-family modules that combine shared modules. |
 | `lib/modules/core/` | Shared image contract: options, user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, VS Code extensions, FHS runtime. |
+| `lib/modules/programs/` | Static program integrations such as Git, SSH, direnv, and nix-index. |
 | `lib/modules/toolsets/` | Reusable command groups such as source control, Docker client, data/network, and debug tools. |
 | `lib/modules/runtimes/` | Shared language runtimes used by multiple image families. |
 | `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter. |
@@ -115,13 +116,30 @@ A toolset is a reusable group of packages that can be enabled by many images.
 1. Add an option under `devcontainer.toolsets` in `lib/modules/core/options.nix`.
 2. Add a module under `lib/modules/toolsets/`.
 3. Load the module from `lib/compiler/eval.nix`.
-4. Add packages to `devcontainer.packages`.
+4. Add packages to `environment.systemPackages`.
 5. Add a graph node with a stable bucket name.
 6. Add smoke tests for important commands.
 7. Enable the toolset from image modules that need it.
 8. Run report checks and inspect graph/layer reports.
 
 Keep toolsets focused. A package belongs in a toolset when it is useful across multiple image families. If it only makes sense for one language, put it in that language module instead.
+
+## Adding A Static Program Module
+
+Use `lib/modules/programs/` for static program integrations that need generated `/etc` files or shell hooks.
+
+Allowed NixOS-like surfaces are the static subset documented in [Architecture](architecture.md): `programs.git`, `programs.ssh`, `programs.direnv`, `programs.nix-index`, `programs.nix-ld`, `programs.bash`, `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, and `nix.settings`.
+
+Do not add NixOS APIs that imply runtime service management, privilege elevation, PAM, polkit, sudo, setuid wrappers, multi-user state, or a Docker daemon. Unknown `services.*`, `users.users`, `users.groups`, and `virtualisation.docker.enable` usage should stay unsupported.
+
+When adding a program module:
+
+1. Add typed options in `lib/modules/core/options.nix`.
+2. Add the renderer under `lib/modules/programs/`.
+3. Generate files through `environment.etc`.
+4. Add packages through `environment.systemPackages`.
+5. Add shell integration through `environment.shellInit` or `environment.interactiveShellInit` only when it has no network, installer, or long-running side effects.
+6. Add report assertions in `tests/ci/check-reports.py` or pure eval assertions in `flake.nix`.
 
 ## Adding A Language Or Runtime
 
@@ -130,7 +148,7 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 1. Add options in `lib/modules/core/options.nix`.
 2. Add a runtime module under `lib/modules/runtimes/` or a language module under `lib/modules/languages/`.
 3. Load it from `lib/compiler/eval.nix`.
-4. Add packages, environment variables, path segments, VS Code extensions, settings, aliases, and smoke tests.
+4. Add packages with `environment.systemPackages`, environment variables with `environment.variables`, path segments, VS Code extensions, settings, aliases, and smoke tests.
 5. Add graph nodes for runtime and language pieces.
 6. Add a fixture expectation for images that enable the module.
 7. Add image target wiring in `flake.nix` if the language has version-specific tags.
@@ -186,6 +204,18 @@ When changing it, check:
 - `docs/architecture.md`
 
 Keep runtime libraries and build libraries separate. Runtime libraries feed dynamic loading. Build libraries also expose headers, `pkg-config`, CMake prefixes, and compiler flags.
+
+## Translating Devbox Or Devshell Snippets
+
+Devbox and devshell configuration can inform an image module, but there is no converter and no compatibility promise.
+
+Manual mapping guidelines:
+
+- Devbox `packages` and devshell `packages` usually map to `environment.systemPackages`.
+- Devbox `env` and devshell `env` usually map to `environment.variables` after reviewing whether values should be baked into the image.
+- Devbox `shell.scripts` and `init_hook`, and devshell `commands`, usually map to documented project commands, smoke tests, or lifecycle tasks only after reviewing side effects.
+
+Do not bake secrets, proxy credentials, or machine-specific paths into image modules. Prefer project `devcontainer.json` runtime environment for per-user or per-project values.
 
 ## Fonts
 

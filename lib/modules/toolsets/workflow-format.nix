@@ -7,8 +7,6 @@
 let
   packages = with pkgs; [
     just
-    direnv
-    nix-direnv
     shellcheck
     shfmt
     editorconfig-core-c
@@ -16,7 +14,8 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.workflowFormat.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
+    programs.direnv.enable = lib.mkDefault true;
     devcontainer.graph.nodes."toolset/workflow-format" = {
       kind = "toolset";
       group = "07-workflow-format-tools";

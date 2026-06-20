@@ -19,7 +19,7 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.languages.flutter.enable {
-    devcontainer.packages = flutterCore ++ android ++ browserGpu;
+    environment.systemPackages = flutterCore ++ android ++ browserGpu;
     devcontainer.vscode.extensions = [
       "dart-code.dart-code"
       "dart-code.flutter"
@@ -31,14 +31,14 @@ in
       "dart.debugSdkLibraries" = true;
       "dart.debugExternalPackageLibraries" = true;
     };
-    devcontainer.env.container = {
+    environment.variables = {
       FLUTTER_SUPPRESS_ANALYTICS = "true";
       PUB_CACHE = "$XDG_CACHE_HOME/pub";
       GRADLE_USER_HOME = "$XDG_CACHE_HOME/gradle";
       ANDROID_SDK_ROOT = "$XDG_DATA_HOME/android-sdk-overlay";
       ANDROID_USER_HOME = "$XDG_DATA_HOME/android";
     };
-    devcontainer.env.origins.container = {
+    environment.variableOrigins = {
       FLUTTER_SUPPRESS_ANALYTICS = [ "languages.flutter" ];
       PUB_CACHE = [ "languages.flutter" ];
       GRADLE_USER_HOME = [ "languages.flutter" ];

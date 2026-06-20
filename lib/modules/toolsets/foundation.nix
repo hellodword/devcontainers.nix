@@ -23,7 +23,7 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.foundation.enable {
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.graph.nodes."toolset/foundation" = {
       kind = "toolset";
       group = "02-foundation-tools";

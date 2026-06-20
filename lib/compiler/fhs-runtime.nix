@@ -14,6 +14,8 @@
 }:
 let
   cfg = config.devcontainer.compat.fhsRuntime;
+  nixLdCfg = config.programs.nix-ld;
+  pkiCfg = config.security.pki;
   osRelease = config.devcontainer.filesystem.osRelease;
   osReleaseText = ''
     NAME="${osRelease.name}"
@@ -23,9 +25,9 @@ let
   '';
   currentDynamicLoader =
     if system == "x86_64-linux" then
-      cfg.dynamicLoader.x86_64.path
+      nixLdCfg.dynamicLoader.x86_64.path
     else if system == "aarch64-linux" then
-      cfg.dynamicLoader.aarch64.path
+      nixLdCfg.dynamicLoader.aarch64.path
     else
       null;
   dynamicLoaderFile =
@@ -44,11 +46,11 @@ let
   dynamicLoaderSource =
     if currentDynamicLoader == null then
       null
-    else if cfg.dynamicLoader.mode == "nix-ld" then
-      "${pkgs.nix-ld}/bin/nix-ld"
+    else if nixLdCfg.enable then
+      "${nixLdCfg.package}/bin/nix-ld"
     else
       realGlibcLoader;
-  nixLdEnabled = cfg.enable && currentDynamicLoader != null && cfg.dynamicLoader.mode == "nix-ld";
+  nixLdEnabled = cfg.enable && nixLdCfg.enable && currentDynamicLoader != null;
   nixLdLibraryPath = lib.concatStringsSep ":" (
     lib.filter (entry: entry != "") [
       (lib.makeLibraryPath (
@@ -56,7 +58,7 @@ let
           pkgs.glibc
           pkgs.stdenv.cc.cc.lib
         ]
-        ++ cfg.nixLdLibraries
+        ++ nixLdCfg.libraries
         ++ (compiledLibraries.runtime.outputPaths or [ ])
       ))
       (lib.concatStringsSep ":" (compiledLibraries.runtime.dynamicLibraryPathEntries or [ ]))
@@ -67,8 +69,8 @@ let
     NIX_LD_LIBRARY_PATH = nixLdLibraryPath;
   };
   certBundleTarget = "/etc/ssl/certs/ca-certificates.crt";
-  caCertificatesEnabled = cfg.enable && cfg.caCertificates;
-  caCertificatesRoot = pkgs.dockerTools.caCertificates;
+  caCertificatesEnabled = cfg.enable && pkiCfg.installCACerts;
+  caCertificatesRoot = pkiCfg.package;
   certBundleSource = "${caCertificatesRoot}${certBundleTarget}";
   caCertificatesEnv = lib.optionalAttrs caCertificatesEnabled {
     SSL_CERT_FILE = certBundleTarget;
@@ -90,7 +92,7 @@ let
 in
 {
   enabled = cfg.enable;
-  dynamicLoaderMode = cfg.dynamicLoader.mode;
+  dynamicLoaderMode = if nixLdCfg.enable then "nix-ld" else "glibc";
   realGlibcLoader = realGlibcLoader;
   nixLdEnv = nixLdEnv;
   caCertificates = lib.optionalAttrs caCertificatesEnabled {

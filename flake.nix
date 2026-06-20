@@ -466,6 +466,155 @@
         )
       ) fixtureFiles;
 
+      apiEvalImage = compiler.mkImage {
+        modules = [
+          ./images/nix.nix
+          (
+            { pkgs, lib, ... }:
+            {
+              config = {
+                devcontainer.image = {
+                  name = lib.mkForce "api-eval";
+                  family = lib.mkForce "api";
+                  tags = lib.mkForce [ "eval" ];
+                };
+                environment.systemPackages = [ pkgs.hello ];
+                environment.pathsToLink = [
+                  "/bin"
+                  "/share"
+                  "/man"
+                ];
+                environment.extraOutputsToInstall = [
+                  "man"
+                  "dev"
+                ];
+                environment.variables = {
+                  API_BOOL = true;
+                  API_INT = 7;
+                  API_LIST = [
+                    "alpha"
+                    "beta"
+                  ];
+                };
+                environment.variableOrigins = {
+                  API_BOOL = [ "tests.api" ];
+                  API_INT = [ "tests.api" ];
+                  API_LIST = [ "tests.api" ];
+                };
+                environment.etc."api/example.conf".text = "enabled\n";
+                environment.shellInit = "export API_SHELL_INIT=1";
+                environment.interactiveShellInit = "export API_INTERACTIVE_SHELL_INIT=1";
+                time.timeZone = "Etc/UTC";
+                security.pki.certificates = [
+                  ''
+                    -----BEGIN CERTIFICATE-----
+                    MIIBszCCAVmgAwIBAgIUQz8yfqvf1WlLxT4cFAbU+qfY8HkwCgYIKoZIzj0EAwIw
+                    EjEQMA4GA1UEAwwHYXBpLXRlc3QwHhcNMjYwMTAxMDAwMDAwWhcNMjcwMTAxMDAw
+                    MDAwWjASMRAwDgYDVQQDDAdhcGktdGVzdDBZMBMGByqGSM49AgEGCCqGSM49AwEH
+                    A0IABCcmQ4j+9v4o0RW1k8NodMVrY5J5CV+2T7goH4YGKkR3T0E6KsH1rPT2fT3F
+                    q2o2mYhCdgKxS1w7Jm2F3lCjUzBRMB0GA1UdDgQWBBSgRjv0y7r8e3JJE3G+J4N+
+                    m9V1xjAfBgNVHSMEGDAWgBSgRjv0y7r8e3JJE3G+J4N+m9V1xjAPBgNVHRMBAf8E
+                    BTADAQH/MAoGCCqGSM49BAMCA0kAMEYCIQCyLTHQePo2Uq3rtwzW6mS4mQ2d6YV+
+                    cAq4oZlIu3mSWAIhAIXm0k8t5h39Ww0lYJXcc7uzb9BCf60ihoNZGwDYs2z4
+                    -----END CERTIFICATE-----
+                  ''
+                ];
+                programs.git = {
+                  enable = true;
+                  lfs.enable = true;
+                  attributes = [ "*.bin filter=lfs diff=lfs merge=lfs -text" ];
+                  config.init.defaultBranch = "main";
+                };
+                programs.ssh = {
+                  enable = true;
+                  knownHosts.localhost.publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICodexCodexCodexCodexCodexCodexCodexCodexCodex";
+                  extraConfig = "  StrictHostKeyChecking accept-new";
+                };
+                programs.direnv.enable = true;
+                programs.nix-index.enable = true;
+                programs.nix-ld.libraries = [ pkgs.zlib ];
+                nix.settings.substituters = [ "https://cache.nixos.org/" ];
+              };
+            }
+          )
+        ];
+      };
+      invalidKnownHostsRejected =
+        !(builtins.tryEval (
+          builtins.deepSeq
+            (compiler.mkImage {
+              modules = [
+                (
+                  { lib, ... }:
+                  {
+                    config = {
+                      devcontainer.image.name = "invalid-known-hosts";
+                      programs.ssh.enable = true;
+                      programs.ssh.knownHosts.bad.publicKey = "";
+                    };
+                  }
+                )
+              ];
+            }).environment.report
+            null
+        )).success;
+      unsupportedSudoRejected =
+        !(builtins.tryEval (
+          builtins.deepSeq
+            (compiler.mkImage {
+              modules = [
+                (
+                  { ... }:
+                  {
+                    config = {
+                      devcontainer.image.name = "unsupported-sudo";
+                      security.sudo.enable = true;
+                    };
+                  }
+                )
+              ];
+            }).config.security.sudo.enable
+            null
+        )).success;
+      apiEvalCheck =
+        let
+          env = apiEvalImage.env.containerEnv;
+          environmentReport = apiEvalImage.environment.report;
+          etcPaths = map (entry: entry.path) apiEvalImage.environment.etc;
+          shellText = apiEvalImage.shell.profileText + apiEvalImage.shell.bashrcText;
+          layerPathsToLink = (builtins.head apiEvalImage.layers.layers).build.pathsToLink;
+        in
+        assert env.API_BOOL == "1";
+        assert env.API_INT == "7";
+        assert env.API_LIST == "alpha:beta";
+        assert env.TZDIR == "/etc/zoneinfo";
+        assert builtins.elem "/etc/api/example.conf" etcPaths;
+        assert builtins.elem "/etc/localtime" etcPaths;
+        assert builtins.elem "/etc/zoneinfo" etcPaths;
+        assert builtins.elem "/etc/ssl/certs/ca-certificates.crt" etcPaths;
+        assert builtins.elem "/etc/gitconfig" etcPaths;
+        assert builtins.elem "/etc/gitattributes" etcPaths;
+        assert builtins.elem "/etc/ssh/ssh_config" etcPaths;
+        assert builtins.elem "/etc/ssh/ssh_known_hosts" etcPaths;
+        assert builtins.elem "/etc/direnv/direnvrc" etcPaths;
+        assert builtins.elem "/etc/nix/nix.conf" etcPaths;
+        assert builtins.elem "man" environmentReport.extraOutputsToInstall;
+        assert builtins.elem "/man" layerPathsToLink;
+        assert lib.hasInfix "API_SHELL_INIT" shellText;
+        assert lib.hasInfix "API_INTERACTIVE_SHELL_INIT" shellText;
+        assert apiEvalImage.fhsRuntime.dynamicLoaderMode == "nix-ld";
+        assert builtins.match ".*zlib.*" env.NIX_LD_LIBRARY_PATH != null;
+        assert invalidKnownHostsRejected;
+        assert unsupportedSudoRejected;
+        pkgs.writeText "api-eval-check.json" (
+          builtins.toJSON {
+            environment = environmentReport;
+            etcPaths = etcPaths;
+            invalidKnownHostsRejected = invalidKnownHostsRejected;
+            unsupportedSudoRejected = unsupportedSudoRejected;
+          }
+        );
+
       imageNameArray = lib.concatMapStringsSep "\n" (
         name: "                ${lib.escapeShellArg name}"
       ) imageNames;
@@ -536,7 +685,14 @@
       };
 
       checks.${system} =
-        reportChecks // reportCliChecks // imageBuildChecks // runtimeToolChecks // fixtureChecks;
+        reportChecks
+        // reportCliChecks
+        // imageBuildChecks
+        // runtimeToolChecks
+        // fixtureChecks
+        // {
+          api-eval = apiEvalCheck;
+        };
 
       lib.${system} = {
         inherit imageNames;

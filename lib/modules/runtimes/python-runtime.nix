@@ -11,8 +11,8 @@ let
 in
 {
   config = lib.mkIf cfg.enable {
-    devcontainer.packages = packages;
-    devcontainer.env.container = {
+    environment.systemPackages = packages;
+    environment.variables = {
       PYTHONUSERBASE = "$XDG_DATA_HOME/python";
       PYTHONPYCACHEPREFIX = "$XDG_CACHE_HOME/python";
       PYTHON_EGG_CACHE = "$XDG_CACHE_HOME/python-eggs";
@@ -24,7 +24,7 @@ in
       UV_TOOL_BIN_DIR = "$XDG_DATA_HOME/uv/bin";
       UV_LINK_MODE = "copy";
     };
-    devcontainer.env.origins.container = {
+    environment.variableOrigins = {
       PYTHONUSERBASE = [ "runtimes.python" ];
       PYTHONPYCACHEPREFIX = [ "runtimes.python" ];
       PYTHON_EGG_CACHE = [ "runtimes.python" ];

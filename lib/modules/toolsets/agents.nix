@@ -9,7 +9,7 @@ let
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.agents.enable {
-    devcontainer.packages = [ codex ];
+    environment.systemPackages = [ codex ];
 
     devcontainer.graph.nodes."toolset/agents" = {
       kind = "toolset";

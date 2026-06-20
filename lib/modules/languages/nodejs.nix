@@ -17,7 +17,7 @@ in
 {
   config = lib.mkIf config.devcontainer.languages.nodejs.enable {
     devcontainer.runtimes.nodejs.enable = true;
-    devcontainer.packages = packages;
+    environment.systemPackages = packages;
     devcontainer.vscode.extensions = [
       "dbaeumer.vscode-eslint"
       "esbenp.prettier-vscode"

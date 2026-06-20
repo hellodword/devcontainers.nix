@@ -86,6 +86,7 @@ def main() -> int:
     libraries_report = read_json(reports_dir / "libraries-report.json")
     shell_report = read_json(reports_dir / "shell-report.json")
     preview_container_env = metadata_preview.get("containerEnv") or {}
+    environment_report = env_report.get("environment") or {}
 
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
@@ -122,6 +123,12 @@ def main() -> int:
             fail(f"layer {layer['group']} must be buildable as a copyToRoot layer")
         if layer["pathCount"] < 1:
             fail(f"layer {layer['group']} must include at least one store path")
+        paths_to_link = layer["build"].get("pathsToLink") or []
+        for required_link in ["/bin", "/lib", "/share", "/etc"]:
+            if required_link not in paths_to_link:
+                fail(f"layer {layer['group']} missing pathsToLink entry: {required_link}")
+        if not isinstance(layer["build"].get("extraOutputsToInstall"), list):
+            fail(f"layer {layer['group']} must report extraOutputsToInstall as a list")
     font_layers = [layer for layer in layer_plan["layers"] if layer["group"] == "02-fonts-runtime"]
     if len(font_layers) != 1:
         fail("layer-plan.json must include one 02-fonts-runtime layer")
@@ -182,6 +189,28 @@ def main() -> int:
 
     if "PATH" not in env_report["containerEnvSources"]:
         fail("env-report.json must include PATH source details")
+    if not environment_report:
+        fail("env-report.json must include the compiled environment namespace report")
+    for required_link in ["/bin", "/include", "/lib", "/lib64", "/share", "/etc"]:
+        if required_link not in environment_report.get("pathsToLink", []):
+            fail(f"environment report missing pathsToLink entry: {required_link}")
+    if not isinstance(environment_report.get("extraOutputsToInstall"), list):
+        fail("environment report must include extraOutputsToInstall")
+    if "EDITOR" not in environment_report.get("variables", {}):
+        fail("environment report must include configured variables")
+    reported_etc_paths = {entry.get("path") for entry in environment_report.get("etc", [])}
+    for required_etc in [
+        "/etc/nix/nix.conf",
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/localtime",
+        "/etc/zoneinfo",
+        "/etc/gitconfig",
+        "/etc/ssh/ssh_config",
+        "/etc/ssh/ssh_known_hosts",
+        "/etc/direnv/direnvrc",
+    ]:
+        if required_etc not in reported_etc_paths:
+            fail(f"environment report missing generated etc file: {required_etc}")
     if not env_report["containerEnvSources"]["PATH"]["pathEntries"]:
         fail("env-report.json PATH source details must include path entries")
     if not env_report["containerEnvSources"]["EDITOR"]["sources"]:
@@ -214,6 +243,8 @@ def main() -> int:
         fail("LOCALE_ARCHIVE must be sourced from core.locale")
     if "LC_ALL" in env_report["containerEnv"]:
         fail("container env must not set LC_ALL by default")
+    if env_report["containerEnv"].get("TZDIR") != "/etc/zoneinfo":
+        fail("container env must set TZDIR for the generated zoneinfo tree")
     expected_xdg = {
         "XDG_CONFIG_HOME": "/home/vscode/.config",
         "XDG_CACHE_HOME": "/home/vscode/.cache",
@@ -428,6 +459,19 @@ def main() -> int:
     for required_file in ["/etc/profile", "/etc/bashrc", "/etc/bash.bashrc"]:
         if required_file not in filesystem_report.get("shellFiles", []):
             fail(f"filesystem-report.json missing generated shell file: {required_file}")
+    filesystem_etc_paths = {entry.get("path") for entry in filesystem_report.get("etcFiles", [])}
+    for required_etc in [
+        "/etc/nix/nix.conf",
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/localtime",
+        "/etc/zoneinfo",
+        "/etc/gitconfig",
+        "/etc/ssh/ssh_config",
+        "/etc/ssh/ssh_known_hosts",
+        "/etc/direnv/direnvrc",
+    ]:
+        if required_etc not in filesystem_etc_paths:
+            fail(f"filesystem-report.json missing generated etc file: {required_etc}")
     directory_map = {entry["path"]: entry for entry in filesystem_report["directories"]}
     for required_dir in [
         "/home/vscode",
