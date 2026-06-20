@@ -1,19 +1,26 @@
-name: _build-image
+name: build-image-<< image_target >>
 
 on:
-  workflow_call:
-    inputs:
-      image-target:
-        required: true
-        type: string
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - flake.nix
+      - flake.lock
+      - images/**
+      - lib/**
+      - runtime/**
+      - tests/**
+      - .github/workflows/**
+
+concurrency:
+  group: build-image-<< image_target >>
+  cancel-in-progress: true
 
 jobs:
   build:
-    name: build-${{ inputs.image-target }}
+    name: build-<< image_target >>
     runs-on: ubuntu-latest
-    concurrency:
-      group: build-image-${{ inputs.image-target }}-${{ github.ref }}
-      cancel-in-progress: true
     permissions:
       contents: read
       packages: write
@@ -36,37 +43,37 @@ jobs:
 
       - name: Build reports
         run: |
-          nix build .#images.${{ inputs.image-target }}.reports --print-out-paths --no-link > report-path.txt
+          nix build .#images.<< image_target >>.reports --print-out-paths --no-link > report-path.txt
           cp -R "$(cat report-path.txt)" reports
 
       - name: Validate reports
         run: |
-          python3 tests/ci/check-reports.py reports "${{ inputs.image-target }}"
+          python3 tests/ci/check-reports.py reports "<< image_target >>"
 
       - name: Upload reports
         uses: actions/upload-artifact@v7
         with:
-          name: reports-${{ inputs.image-target }}
+          name: reports-<< image_target >>
           path: reports
 
       - name: Build OCI image artifact
         run: |
-          nix build .#images.${{ inputs.image-target }}.oci --print-out-paths --no-link > oci-path.txt
+          nix build .#images.<< image_target >>.oci --print-out-paths --no-link > oci-path.txt
 
       - name: Validate OCI image artifact
         run: |
-          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" reports "${{ inputs.image-target }}"
+          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" reports "<< image_target >>"
 
       - name: Load OCI image
         run: |
-          nix run .#load-${{ inputs.image-target }}
+          nix run .#load-<< image_target >>
 
       - name: Run smoke plan
         env:
           SMOKE_LOG_DIR: smoke-logs
         run: |
           image_ref="$(jq -r '.imageRef' reports/ci-plan.json)"
-          plan_path="$(nix build .#images.${{ inputs.image-target }}.smoke --print-out-paths --no-link)"
+          plan_path="$(nix build .#images.<< image_target >>.smoke --print-out-paths --no-link)"
           chmod +x tests/smoke/run-plan.sh
           ./tests/smoke/run-plan.sh "$image_ref" "$plan_path"
 
@@ -74,7 +81,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: smoke-logs-${{ inputs.image-target }}
+          name: smoke-logs-<< image_target >>
           path: smoke-logs
 
       - name: Login to GHCR
@@ -102,5 +109,5 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v7
         with:
-          name: digest-${{ inputs.image-target }}
+          name: digest-<< image_target >>
           path: digest.txt

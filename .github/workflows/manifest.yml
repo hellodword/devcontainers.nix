@@ -16,9 +16,6 @@ on:
 jobs:
   manifest:
     runs-on: ubuntu-latest
-    concurrency:
-      group: manifest-${{ github.ref }}-${{ inputs.source-run-id }}
-      cancel-in-progress: false
     permissions:
       contents: read
       packages: write

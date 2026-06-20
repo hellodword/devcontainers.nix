@@ -2,15 +2,20 @@ name: build
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ master ]
+    inputs:
+      image-target:
+        description: image target to build
+        required: true
+        default: nix-latest
+        type: string
 
 jobs:
-  verify:
+  build:
+    name: build-${{ inputs.image-target }}
     runs-on: ubuntu-latest
-    concurrency:
-      group: build-${{ github.ref }}
-      cancel-in-progress: true
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Free disk space
         run: |
@@ -28,22 +33,45 @@ jobs:
           curl -L https://nixos.org/nix/install | sh -s -- --daemon --yes
           echo '/nix/var/nix/profiles/default/bin' >> "$GITHUB_PATH"
 
-      - name: Flake check
-        run: nix flake check --keep-going
-
-      - name: Check generated workflows
+      - name: Build reports
         run: |
-          nix run .#generate-workflows
-          git diff --exit-code .github/workflows
+          nix build .#images.${{ inputs.image-target }}.reports --print-out-paths --no-link > report-path.txt
+          cp -R "$(cat report-path.txt)" reports
 
-      - name: Check runtime tools
+      - name: Validate reports
         run: |
-          chmod +x tests/ci/check-runtime-tools.sh
-          tests/ci/check-runtime-tools.sh
+          python3 tests/ci/check-reports.py reports "${{ inputs.image-target }}"
 
-      - name: Show CI plan
+      - name: Upload reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports-${{ inputs.image-target }}
+          path: reports
+
+      - name: Build OCI image artifact
         run: |
-          for image in $(nix eval --json .#lib.x86_64-linux.imageNames | jq -r '.[]'); do
-            echo "==> $image"
-            nix build .#images.$image.ci-plan-json --print-out-paths --no-link | xargs cat
-          done
+          nix build .#images.${{ inputs.image-target }}.oci --print-out-paths --no-link > oci-path.txt
+
+      - name: Validate OCI image artifact
+        run: |
+          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" reports "${{ inputs.image-target }}"
+
+      - name: Load OCI image
+        run: |
+          nix run .#load-${{ inputs.image-target }}
+
+      - name: Run smoke plan
+        env:
+          SMOKE_LOG_DIR: smoke-logs
+        run: |
+          image_ref="$(jq -r '.imageRef' reports/ci-plan.json)"
+          plan_path="$(nix build .#images.${{ inputs.image-target }}.smoke --print-out-paths --no-link)"
+          chmod +x tests/smoke/run-plan.sh
+          ./tests/smoke/run-plan.sh "$image_ref" "$plan_path"
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-logs-${{ inputs.image-target }}
+          path: smoke-logs

@@ -449,39 +449,30 @@
       ) imageNames;
       generateWorkflows = pkgs.writeShellApplication {
         name = "generate-workflows";
-        runtimeInputs = [ pkgs.coreutils ];
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.minijinja
+        ];
         text = ''
           workflow_dir=".github/workflows"
+          template="$workflow_dir/_build-image.yml.j2"
           mkdir -p "$workflow_dir"
           find "$workflow_dir" -maxdepth 1 -type f -name 'build-image-*.yml' -delete
+          test -f "$template"
 
           targets=(
           ${imageNameArray}
           )
 
           for target in "''${targets[@]}"; do
-            cat >"$workflow_dir/build-image-$target.yml" <<EOF
-          name: build-image-$target
-
-          on:
-            workflow_dispatch:
-            push:
-              branches: [ master ]
-              paths:
-                - flake.nix
-                - flake.lock
-                - images/**
-                - lib/**
-                - runtime/**
-                - tests/**
-                - .github/workflows/**
-
-          jobs:
-            build:
-              uses: ./.github/workflows/_build-image.yml
-              with:
-                image-target: $target
-          EOF
+            minijinja-cli \
+              --strict \
+              --autoescape none \
+              --syntax variable-start='<<' \
+              --syntax variable-end='>>' \
+              --define image_target="$target" \
+              --output "$workflow_dir/build-image-$target.yml" \
+              "$template"
           done
         '';
       };

@@ -13,8 +13,101 @@ on:
       - tests/**
       - .github/workflows/**
 
+concurrency:
+  group: build-image-nix-latest
+  cancel-in-progress: true
+
 jobs:
   build:
-    uses: ./.github/workflows/_build-image.yml
-    with:
-      image-target: nix-latest
+    name: build-nix-latest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          docker system prune -af || true
+          df -h
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        run: |
+          sudo mkdir -p /etc/nix
+          printf '%s\n' 'experimental-features = nix-command flakes' | sudo tee -a /etc/nix/nix.conf
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon --yes
+          echo '/nix/var/nix/profiles/default/bin' >> "$GITHUB_PATH"
+
+      - name: Build reports
+        run: |
+          nix build .#images.nix-latest.reports --print-out-paths --no-link > report-path.txt
+          cp -R "$(cat report-path.txt)" reports
+
+      - name: Validate reports
+        run: |
+          python3 tests/ci/check-reports.py reports "nix-latest"
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports-nix-latest
+          path: reports
+
+      - name: Build OCI image artifact
+        run: |
+          nix build .#images.nix-latest.oci --print-out-paths --no-link > oci-path.txt
+
+      - name: Validate OCI image artifact
+        run: |
+          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" reports "nix-latest"
+
+      - name: Load OCI image
+        run: |
+          nix run .#load-nix-latest
+
+      - name: Run smoke plan
+        env:
+          SMOKE_LOG_DIR: smoke-logs
+        run: |
+          image_ref="$(jq -r '.imageRef' reports/ci-plan.json)"
+          plan_path="$(nix build .#images.nix-latest.smoke --print-out-paths --no-link)"
+          chmod +x tests/smoke/run-plan.sh
+          ./tests/smoke/run-plan.sh "$image_ref" "$plan_path"
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-logs-nix-latest
+          path: smoke-logs
+
+      - name: Login to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          image_ref="$(jq -r '.imageRef' reports/ci-plan.json)"
+          mapfile -t publish_refs < <(jq -r '.publishRefs[]' reports/ci-plan.json)
+          for publish_ref in "${publish_refs[@]}"; do
+            if [ "$publish_ref" != "$image_ref" ]; then
+              docker tag "$image_ref" "$publish_ref"
+            fi
+            docker push "$publish_ref"
+          done
+          docker inspect "$image_ref" --format='{{index .RepoDigests 0}}' > digest.txt
+
+      - name: Upload digest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
+        with:
+          name: digest-nix-latest
+          path: digest.txt
