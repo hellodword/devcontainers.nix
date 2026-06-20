@@ -37,5 +37,51 @@ Every image includes:
 - source control, fetch/archive, search/navigation, inspect/debug, and workflow-format tools
 - a VS Code-compatible glibc runtime exposed through conventional FHS paths
 - `devpkg` for ad-hoc user installs from `nixpkgs`, for example `devpkg add cowsay`
+- separate dynamic native-library profiles, for example `devpkg add-lib zlib` for runtime-only libraries and `devpkg add-dev-lib openssl zlib` for headers plus link/runtime outputs
+
+Dynamic build libraries are discoverable through `PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`, `NIXPKGS_CMAKE_PREFIX_PATH`, `CPATH`, `LIBRARY_PATH`, `NIX_CFLAGS_COMPILE`, and `NIX_LDFLAGS`. `LD_LIBRARY_PATH` is intentionally absent unless an image or project opts in.
+
+Example `.devcontainer/devcontainer.json` for dynamic build libraries:
+
+```json
+{
+  "name": "go",
+  "image": "ghcr.io/hellodword/devcontainers-go:latest",
+  "postCreateCommand": "devpkg add-dev-lib openssl zlib"
+}
+```
+
+Runtime-only FFI library:
+
+```json
+{
+  "name": "ffi-runtime",
+  "image": "ghcr.io/hellodword/devcontainers-go:latest",
+  "postCreateCommand": "devpkg add-lib libGL"
+}
+```
+
+Explicit outputs:
+
+```json
+{
+  "name": "static-zlib",
+  "image": "ghcr.io/hellodword/devcontainers-go:latest",
+  "postCreateCommand": "devpkg add-dev-lib --outputs out,dev,static zlib"
+}
+```
+
+Project-level `LD_LIBRARY_PATH` opt-in:
+
+```json
+{
+  "name": "ffi",
+  "image": "ghcr.io/hellodword/devcontainers-go:latest",
+  "postCreateCommand": "devpkg add-dev-lib openssl zlib",
+  "remoteEnv": {
+    "LD_LIBRARY_PATH": "/home/vscode/.local/share/devpkg/runtime-libraries/profile/lib:/home/vscode/.local/share/devpkg/build-libraries/profile/lib:${containerEnv:LD_LIBRARY_PATH}"
+  }
+}
+```
 
 Images do not set `DOCKER_HOST` by default and do not run a Docker daemon.

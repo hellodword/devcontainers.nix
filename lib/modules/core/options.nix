@@ -113,6 +113,47 @@ in
       default = [ ];
     };
 
+    libraries = {
+      runtime = mkOption {
+        type = types.listOf types.package;
+        default = [ ];
+      };
+      build = mkOption {
+        type = types.listOf types.package;
+        default = [ ];
+      };
+      exportLdLibraryPath = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      ccWrapperFlags = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      presets = mkOption {
+        type = types.listOf (
+          types.enum [
+            "autotools"
+            "gtk"
+            "gobject-introspection"
+            "gstreamer"
+            "qt"
+            "cgo"
+            "rust-bindgen"
+          ]
+        );
+        default = [ ];
+      };
+      dynamicRuntimeProfile = mkOption {
+        type = types.str;
+        default = "$XDG_DATA_HOME/devpkg/runtime-libraries/profile";
+      };
+      dynamicBuildProfile = mkOption {
+        type = types.str;
+        default = "$XDG_DATA_HOME/devpkg/build-libraries/profile";
+      };
+    };
+
     graph.nodes = mkOption {
       type = types.attrsOf graphNodeType;
       default = { };

@@ -3,6 +3,7 @@
   config,
   compiledGraph,
   compiledEnv,
+  compiledLibraries,
   compiledMetadata,
   compiledLifecycle,
   compiledVscodeExtensions,
@@ -27,6 +28,8 @@ let
     publishRefs = publishRefs;
     backend = "nix2container";
     packageCount = builtins.length config.devcontainer.packages;
+    runtimeLibraryCount = builtins.length compiledLibraries.runtime.storePaths;
+    buildLibraryCount = builtins.length compiledLibraries.build.storePaths;
     layerStrategy = compiledLayers.budget.strategy;
     user = config.devcontainer.user.containerUser;
     workingDir = "/workspaces";
@@ -49,10 +52,13 @@ let
   };
   layer-plan-json = jsonFile "layer-plan.json" compiledLayers;
   env-report-json = jsonFile "env-report.json" compiledEnv;
+  libraries-report-json = jsonFile "libraries-report.json" compiledLibraries.report;
   closure-report-json = jsonFile "closure-report.json" {
     image = config.devcontainer.image.name;
     packageCount = builtins.length config.devcontainer.packages;
     packages = map (drv: drv.pname or drv.name or "<unknown>") config.devcontainer.packages;
+    runtimeLibraries = compiledLibraries.runtime.storePaths;
+    buildLibraries = compiledLibraries.build.storePaths;
   };
   extensions-report-json = jsonFile "extensions-report.json" {
     image = config.devcontainer.image.name;
@@ -144,6 +150,7 @@ let
       "layer-plan.json"
       "metadata-label.json"
       "env-report.json"
+      "libraries-report.json"
       "closure-report.json"
       "extensions-index.json"
       "extensions-report.json"
@@ -200,6 +207,10 @@ let
       path = env-report-json;
     }
     {
+      name = "libraries-report.json";
+      path = libraries-report-json;
+    }
+    {
       name = "closure-report.json";
       path = closure-report-json;
     }
@@ -242,6 +253,7 @@ in
     extensions-index-json
     layer-plan-json
     env-report-json
+    libraries-report-json
     closure-report-json
     extensions-report-json
     fhs-runtime-report-json

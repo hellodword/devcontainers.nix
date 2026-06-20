@@ -28,6 +28,8 @@
       "60-flutter-language"
       "61-android-sdk"
       "62-browser-gui-gpu"
+      "70-runtime-libraries"
+      "71-build-libraries"
       "80-vscode-extensions-base"
       "81-vscode-extensions-nix"
       "82-vscode-extensions-python"

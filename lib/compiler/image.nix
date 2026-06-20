@@ -7,6 +7,9 @@
 {
   config,
   compiledEnv,
+  compiledLibraries ? {
+    imagePaths = [ ];
+  },
   compiledMetadata,
   compiledLifecycle,
   compiledVscodeExtensions,
@@ -123,9 +126,10 @@ let
 
   rootfs = pkgs.buildEnv {
     name = "${config.devcontainer.image.name}-rootfs";
-    paths = config.devcontainer.packages ++ runtimeTools;
+    paths = config.devcontainer.packages ++ compiledLibraries.imagePaths ++ runtimeTools;
     pathsToLink = [
       "/bin"
+      "/include"
       "/lib"
       "/lib64"
       "/share"

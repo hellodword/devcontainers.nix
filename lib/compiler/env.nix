@@ -5,6 +5,10 @@
     env = { };
     envOrigins = { };
   },
+  compiledLibraries ? {
+    env = { };
+    envOrigins = { };
+  },
 }:
 let
   order = config.devcontainer.path.order;
@@ -17,22 +21,36 @@ let
   configuredEnvOrigins = config.devcontainer.env.origins or emptyOrigins;
   fhsEnv = compiledFhsRuntime.env or { };
   fhsEnvOrigins = compiledFhsRuntime.envOrigins or emptyOrigins;
+  librariesEnv = compiledLibraries.env or { };
+  librariesEnvOrigins = compiledLibraries.envOrigins or emptyOrigins;
   mergeOriginScope =
     scope:
     let
       configured = configuredEnvOrigins.${scope} or { };
-      generated = fhsEnvOrigins.${scope} or { };
-      names = lib.unique (builtins.attrNames configured ++ builtins.attrNames generated);
+      fhsGenerated = fhsEnvOrigins.${scope} or { };
+      libraryGenerated = librariesEnvOrigins.${scope} or { };
+      names = lib.unique (
+        builtins.attrNames configured
+        ++ builtins.attrNames fhsGenerated
+        ++ builtins.attrNames libraryGenerated
+      );
     in
-    lib.genAttrs names (name: lib.unique ((configured.${name} or [ ]) ++ (generated.${name} or [ ])));
+    lib.genAttrs names (
+      name:
+      lib.unique (
+        (configured.${name} or [ ]) ++ (fhsGenerated.${name} or [ ]) ++ (libraryGenerated.${name} or [ ])
+      )
+    );
   envOrigins = {
     container = mergeOriginScope "container";
     remote = mergeOriginScope "remote";
     shell = mergeOriginScope "shell";
   };
-  rawContainerEnv = config.devcontainer.env.container // (fhsEnv.container or { });
-  rawRemoteEnv = config.devcontainer.env.remote // (fhsEnv.remote or { });
-  rawShellEnv = config.devcontainer.env.shell // (fhsEnv.shell or { });
+  rawContainerEnv =
+    config.devcontainer.env.container // (fhsEnv.container or { }) // (librariesEnv.container or { });
+  rawRemoteEnv =
+    config.devcontainer.env.remote // (fhsEnv.remote or { }) // (librariesEnv.remote or { });
+  rawShellEnv = config.devcontainer.env.shell // (fhsEnv.shell or { }) // (librariesEnv.shell or { });
   # Docker image Env values are not shell-expanded at runtime.
   expandValue =
     env: value:

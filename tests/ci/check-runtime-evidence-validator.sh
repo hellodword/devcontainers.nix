@@ -24,7 +24,7 @@ write_reports() {
   mkdir -p "$target"
   for report in \
     ci-plan closure-report env-report extensions-index extensions-report filesystem-report \
-    fhs-runtime-report graph graph-normalized graph-duplicates-report image-plan layer-plan \
+    fhs-runtime-report graph graph-normalized graph-duplicates-report image-plan layer-plan libraries-report \
     metadata-label metadata-merged-preview metadata-schema-report security-report smoke-test-plan tasks
   do
     printf '{}\n' >"$target/$report.json"

@@ -48,6 +48,18 @@ VS Code server components and common extension helpers expect several convention
 
 The FHS layer is compatibility glue for VS Code and extension tooling. It does not turn the image into a general FHS distribution.
 
+## Native Libraries
+
+Image modules keep command packages separate from native libraries:
+
+- `devcontainer.packages` adds command-line tools and ordinary software to the image and `PATH`.
+- `devcontainer.libraries.runtime` adds runtime `.so` outputs. These are included in `NIX_LD_LIBRARY_PATH` together with the dynamic runtime-library profile.
+- `devcontainer.libraries.build` adds libraries needed for compiling and linking. The build set automatically contributes runtime outputs for test execution, and exposes headers, `pkg-config`, CMake prefixes, `CPATH`, `LIBRARY_PATH`, `NIX_CFLAGS_COMPILE`, and `NIX_LDFLAGS`.
+
+Runtime library layers use bucket `70-runtime-libraries`; build-only outputs such as headers use `71-build-libraries`. Build layers link `/include` in addition to `/bin`, `/lib`, `/lib64`, `/share`, and `/etc`.
+
+`LD_LIBRARY_PATH` is not exported by default because it changes dynamic-loader search precedence for all programs in the container. Images can opt in with `devcontainer.libraries.exportLdLibraryPath = true`, and individual devcontainers can still set `remoteEnv.LD_LIBRARY_PATH` for FFI, JNA, Python `ctypes`, non-Nix toolchains, or legacy build systems.
+
 ## Nix Database
 
 Images enable nix2container's `initializeNixDatabase` support. The generated Nix database registers the store paths already present in the image, makes `/nix`, `/nix/store`, and `/nix/var/nix` writable by the container user, and avoids a separate registration workaround at startup.

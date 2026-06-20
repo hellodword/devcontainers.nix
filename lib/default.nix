@@ -31,6 +31,10 @@ let
       inherit lib;
     };
 
+    compileLibraries = import ./compiler/libraries.nix {
+      inherit lib;
+    };
+
     compileMetadata = import ./compiler/metadata.nix {
       inherit lib;
     };
@@ -80,13 +84,18 @@ let
       }:
       let
         evaluated = evalImage { modules = modules ++ lib.optional (module != null) module; };
+        libraries = compileLibraries {
+          config = evaluated.config;
+        };
         graph = compileGraph { config = evaluated.config; };
         fhsRuntime = compileFhsRuntime {
           config = evaluated.config;
+          compiledLibraries = libraries;
         };
         env = compileEnv {
           config = evaluated.config;
           compiledFhsRuntime = fhsRuntime;
+          compiledLibraries = libraries;
         };
         metadata = compileMetadata {
           config = evaluated.config;
@@ -109,6 +118,7 @@ let
         image = compileImage {
           config = evaluated.config;
           compiledEnv = env;
+          compiledLibraries = libraries;
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledVscodeExtensions = vscodeExtensions;
@@ -121,6 +131,7 @@ let
           config = evaluated.config;
           compiledGraph = graph;
           compiledEnv = env;
+          compiledLibraries = libraries;
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledVscodeExtensions = vscodeExtensions;
@@ -134,6 +145,7 @@ let
         inherit
           graph
           env
+          libraries
           metadata
           layers
           fhsRuntime
@@ -155,6 +167,7 @@ let
           image-plan-json
           layer-plan-json
           env-report-json
+          libraries-report-json
           closure-report-json
           extensions-report-json
           fhs-runtime-report-json

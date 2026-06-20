@@ -53,6 +53,16 @@ devpkg list
 devpkg remove cowsay
 ```
 
+Native libraries use separate runtime and build profiles. Runtime libraries feed `NIX_LD_LIBRARY_PATH`; build libraries also expose headers, `pkg-config`, CMake, and compiler wrapper flags:
+
+```sh
+devpkg add-lib zlib
+devpkg add-dev-lib openssl zlib
+devpkg list-dev-lib
+```
+
+Images do not export `LD_LIBRARY_PATH` by default. Set `devcontainer.libraries.exportLdLibraryPath = true` in an image module, or add an explicit `remoteEnv.LD_LIBRARY_PATH` in a project `.devcontainer/devcontainer.json` when a non-Nix toolchain or FFI loader requires it.
+
 More detail:
 
 - [Architecture](docs/architecture.md)

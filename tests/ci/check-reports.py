@@ -17,6 +17,7 @@ REQUIRED_REPORT_FILES = {
     "graph.json",
     "image-plan.json",
     "layer-plan.json",
+    "libraries-report.json",
     "metadata-label.json",
     "metadata-merged-preview.json",
     "metadata-schema-report.json",
@@ -79,6 +80,7 @@ def main() -> int:
     fhs_runtime_report = read_json(reports_dir / "fhs-runtime-report.json")
     ci_plan = read_json(reports_dir / "ci-plan.json")
     env_report = read_json(reports_dir / "env-report.json")
+    libraries_report = read_json(reports_dir / "libraries-report.json")
     preview_container_env = metadata_preview.get("containerEnv") or {}
 
     if not isinstance(metadata_label, list):
@@ -175,6 +177,8 @@ def main() -> int:
         fail("metadata merged preview must retain the compiled EDITOR entry")
     if "DOCKER_HOST" in env_report["containerEnv"]:
         fail("container env must not configure DOCKER_HOST by default")
+    if "LD_LIBRARY_PATH" in env_report["containerEnv"]:
+        fail("container env must not export LD_LIBRARY_PATH by default")
     expected_xdg = {
         "XDG_CONFIG_HOME": "/home/vscode/.config",
         "XDG_CACHE_HOME": "/home/vscode/.cache",
@@ -200,6 +204,39 @@ def main() -> int:
     nix_ld_library_path = env_report["containerEnv"].get("NIX_LD_LIBRARY_PATH", "")
     if "glibc" not in nix_ld_library_path or "gcc" not in nix_ld_library_path:
         fail("NIX_LD_LIBRARY_PATH must include glibc and GCC runtime libraries")
+    expected_runtime_profile = "/home/vscode/.local/share/devpkg/runtime-libraries/profile"
+    expected_build_profile = "/home/vscode/.local/share/devpkg/build-libraries/profile"
+    if libraries_report["runtime"].get("dynamicProfile") != expected_runtime_profile:
+        fail("libraries-report.json must expand the runtime library profile")
+    if libraries_report["build"].get("dynamicProfile") != expected_build_profile:
+        fail("libraries-report.json must expand the build library profile")
+    for profile_env, expected_profile in {
+        "DEVPKG_RUNTIME_LIBRARY_PROFILE": expected_runtime_profile,
+        "DEVPKG_BUILD_LIBRARY_PROFILE": expected_build_profile,
+    }.items():
+        if env_report["containerEnv"].get(profile_env) != expected_profile:
+            fail(f"container env must expose {profile_env}")
+    for required_entry in [
+        f"{expected_runtime_profile}/lib",
+        f"{expected_build_profile}/lib",
+    ]:
+        if required_entry not in nix_ld_library_path:
+            fail("NIX_LD_LIBRARY_PATH must include dynamic library profile lib paths")
+    for env_name in [
+        "PKG_CONFIG_PATH",
+        "CMAKE_PREFIX_PATH",
+        "NIXPKGS_CMAKE_PREFIX_PATH",
+        "CPATH",
+        "LIBRARY_PATH",
+        "NIX_CFLAGS_COMPILE",
+        "NIX_LDFLAGS",
+    ]:
+        if env_name not in env_report["containerEnv"]:
+            fail(f"container env must include library discovery variable {env_name}")
+        if env_name not in env_report["containerEnvSources"]:
+            fail(f"env-report.json must include source details for {env_name}")
+        if "compiler.libraries.core" not in env_report["containerEnvSources"][env_name]["sources"]:
+            fail(f"{env_name} must be sourced from the library compiler")
     for env_name in ["NIX_LD", "NIX_LD_LIBRARY_PATH"]:
         if env_name not in env_report["containerEnvSources"]:
             fail(f"env-report.json must include {env_name} source details")

@@ -22,6 +22,7 @@ lib.evalModules {
     ../modules/core/user.nix
     ../modules/core/filesystem.nix
     ../modules/core/env.nix
+    ../modules/core/libraries.nix
     ../modules/core/path.nix
     ../modules/core/fhs-runtime.nix
     ../modules/core/metadata.nix

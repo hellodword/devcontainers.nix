@@ -29,6 +29,7 @@ let
         copyToRoot = true;
         pathsToLink = [
           "/bin"
+          "/include"
           "/lib"
           "/lib64"
           "/share"

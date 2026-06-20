@@ -3,7 +3,15 @@
   pkgs,
   system,
 }:
-{ config }:
+{
+  config,
+  compiledLibraries ? {
+    runtime = {
+      outputPaths = [ ];
+      dynamicLibraryPathEntries = [ ];
+    };
+  },
+}:
 let
   cfg = config.devcontainer.compat.fhsRuntime;
   osRelease = config.devcontainer.filesystem.osRelease;
@@ -41,12 +49,18 @@ let
     else
       realGlibcLoader;
   nixLdEnabled = cfg.enable && currentDynamicLoader != null && cfg.dynamicLoader.mode == "nix-ld";
-  nixLdLibraryPath = lib.makeLibraryPath (
-    [
-      pkgs.glibc
-      pkgs.stdenv.cc.cc.lib
+  nixLdLibraryPath = lib.concatStringsSep ":" (
+    lib.filter (entry: entry != "") [
+      (lib.makeLibraryPath (
+        [
+          pkgs.glibc
+          pkgs.stdenv.cc.cc.lib
+        ]
+        ++ cfg.nixLdLibraries
+        ++ (compiledLibraries.runtime.outputPaths or [ ])
+      ))
+      (lib.concatStringsSep ":" (compiledLibraries.runtime.dynamicLibraryPathEntries or [ ]))
     ]
-    ++ cfg.nixLdLibraries
   );
   nixLdEnv = lib.optionalAttrs nixLdEnabled {
     NIX_LD = realGlibcLoader;
@@ -89,7 +103,18 @@ in
   };
   envOrigins = {
     container =
-      lib.mapAttrs (_: _: [ "compiler.fhs-runtime.nix-ld" ]) nixLdEnv
+      lib.mapAttrs (
+        name: _:
+        if
+          name == "NIX_LD_LIBRARY_PATH" && (compiledLibraries.runtime.dynamicLibraryPathEntries or [ ]) != [ ]
+        then
+          [
+            "compiler.fhs-runtime.nix-ld"
+            "compiler.libraries.runtime"
+          ]
+        else
+          [ "compiler.fhs-runtime.nix-ld" ]
+      ) nixLdEnv
       // lib.mapAttrs (_: _: [ "compiler.fhs-runtime.ca-certificates" ]) caCertificatesEnv;
     remote = { };
     shell = { };

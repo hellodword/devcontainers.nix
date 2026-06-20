@@ -18,6 +18,7 @@ REQUIRED_REPORT_FILES = {
     "graph-duplicates-report.json",
     "image-plan.json",
     "layer-plan.json",
+    "libraries-report.json",
     "metadata-label.json",
     "metadata-merged-preview.json",
     "metadata-schema-report.json",

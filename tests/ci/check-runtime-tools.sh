@@ -95,6 +95,8 @@ project_root="$tmpdir/project"
   export XDG_CONFIG_HOME="$project_root/config"
   export XDG_DATA_HOME="$project_root/data"
   export XDG_STATE_HOME="$project_root/state"
+  export DEVPKG_RUNTIME_LIBRARY_PROFILE="$project_root/runtime-libraries/profile"
+  export DEVPKG_BUILD_LIBRARY_PROFILE="$project_root/build-libraries/profile"
   export PATH="$HOME/.nix-profile/bin:$XDG_DATA_HOME/nix-profile/bin:$PATH"
   export NIX_CONFIG="${NIX_CONFIG:-experimental-features = nix-command flakes}"
   mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
@@ -108,6 +110,33 @@ project_root="$tmpdir/project"
   grep -q 'runtime-tools' "$tmpdir/cowsay.txt"
   "$devpkg/bin/devpkg" remove cowsay
   test -z "$("$devpkg/bin/devpkg" list)"
+
+  "$devpkg/bin/devpkg" add-lib zlib
+  "$devpkg/bin/devpkg" list-lib >"$tmpdir/devpkg-list-lib.txt"
+  grep -q '^zlib[[:space:]]' "$tmpdir/devpkg-list-lib.txt"
+  grep -q 'legacyPackages\..*\.zlib' "$tmpdir/devpkg-list-lib.txt"
+  test -e "$DEVPKG_RUNTIME_LIBRARY_PROFILE/lib/libz.so"
+  test ! -e "$DEVPKG_RUNTIME_LIBRARY_PROFILE/include/zlib.h"
+  "$devpkg/bin/devpkg" remove-lib zlib
+  test -z "$("$devpkg/bin/devpkg" list-lib)"
+
+  "$devpkg/bin/devpkg" add-dev-lib zlib
+  "$devpkg/bin/devpkg" list-dev-lib >"$tmpdir/devpkg-list-dev-lib.txt"
+  grep -q '^zlib[[:space:]]' "$tmpdir/devpkg-list-dev-lib.txt"
+  grep -q 'legacyPackages\..*\.zlib' "$tmpdir/devpkg-list-dev-lib.txt"
+  grep -q 'dev,out' "$tmpdir/devpkg-list-dev-lib.txt"
+  test -e "$DEVPKG_BUILD_LIBRARY_PROFILE/lib/libz.so"
+  test -e "$DEVPKG_BUILD_LIBRARY_PROFILE/include/zlib.h"
+  "$devpkg/bin/devpkg" remove-dev-lib zlib
+  test -z "$("$devpkg/bin/devpkg" list-dev-lib)"
+
+  "$devpkg/bin/devpkg" add-dev-lib --outputs out,dev zlib
+  test -e "$DEVPKG_BUILD_LIBRARY_PROFILE/include/zlib.h"
+  "$devpkg/bin/devpkg" remove-dev-lib zlib
+
+  "$devpkg/bin/devpkg" add-dev-lib --raw "$DEVPKG_NIXPKGS_REF#zlib^out,dev"
+  test -e "$DEVPKG_BUILD_LIBRARY_PROFILE/include/zlib.h"
+  "$devpkg/bin/devpkg" remove-dev-lib zlib
 )
 
 echo "runtime-tools-check ok"
