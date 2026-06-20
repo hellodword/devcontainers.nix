@@ -50,4 +50,4 @@ tests/smoke/collect-runtime-evidence.sh oci nix-latest
 tests/smoke/collect-runtime-evidence.sh full
 ```
 
-The smoke runner never accepts extra Docker run arguments. It probes `docker info` on the host, forwards only a reachable `tcp://` Docker environment into the container for the daemon test, and skips that test otherwise.
+The smoke runner never accepts extra Docker run arguments. It probes `docker info` on the host, forwards only a reachable `tcp://` `DOCKER_HOST` into the container for the daemon test, and skips that test otherwise.

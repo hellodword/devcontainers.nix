@@ -39,15 +39,6 @@ case "${DOCKER_HOST:-}" in
     if [ "$docker_info_ok" -eq 1 ]; then
       tcp_docker_ok=1
       docker_env_args+=(--env "DOCKER_HOST=${DOCKER_HOST}")
-      if [ -n "${DOCKER_TLS_VERIFY:-}" ]; then
-        docker_env_args+=(--env "DOCKER_TLS_VERIFY=${DOCKER_TLS_VERIFY}")
-      fi
-      if [ -n "${DOCKER_CERT_PATH:-}" ]; then
-        docker_env_args+=(--env "DOCKER_CERT_PATH=${DOCKER_CERT_PATH}")
-        if [ -d "${DOCKER_CERT_PATH}" ]; then
-          docker_env_args+=(-v "${DOCKER_CERT_PATH}:${DOCKER_CERT_PATH}:ro")
-        fi
-      fi
     fi
     ;;
 esac

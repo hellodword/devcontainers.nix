@@ -101,7 +101,7 @@ let
         layers = acc.layers;
         maxLayers = layerReport.build.maxLayers;
         metadata = {
-          created_by = "devcontainers.nix2 semantic layer ${layerReport.group}";
+          created_by = "devcontainers.nix semantic layer ${layerReport.group}";
           comment = builtins.concatStringsSep "," layerReport.members;
         };
       };

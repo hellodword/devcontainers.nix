@@ -1,6 +1,6 @@
-# devcontainers.nix2
+# devcontainers.nix
 
-`devcontainers.nix2` is an x86_64-linux first Nix compiler for VS Code Dev Container OCI images.
+`devcontainers.nix` is an x86_64-linux first Nix compiler for VS Code Dev Container OCI images.
 
 ## Images
 
@@ -15,35 +15,18 @@ All images run as `vscode` by default and include a VS Code-compatible FHS runti
 
 ## Quick Start
 
-Build reports:
+Load the Go image into Docker:
 
 ```sh
-nix build .#images.nix-latest.reports
+nix run .#load-go-latest
 ```
-
-Load the base image into Docker:
-
-```sh
-nix run .#load-nix-latest
-```
-
-Run a quick check:
-
-```sh
-docker run --rm ghcr.io/hellodword/devcontainers-nix:latest id vscode
-docker run --rm ghcr.io/hellodword/devcontainers-nix:latest bash -lc 'test -e /lib64/ld-linux-x86-64.so.2 && test -e /usr/lib/libc.so.6'
-```
-
-## VS Code Dev Containers
 
 Example `.devcontainer/devcontainer.json`:
 
 ```json
 {
-  "name": "nix",
-  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
-  "remoteUser": "vscode",
-  "containerUser": "vscode"
+  "name": "go",
+  "image": "ghcr.io/hellodword/devcontainers-go:latest"
 }
 ```
 
@@ -51,17 +34,15 @@ Remote Docker daemon example:
 
 ```json
 {
-  "name": "nix",
-  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
-  "remoteUser": "vscode",
-  "containerUser": "vscode",
+  "name": "go",
+  "image": "ghcr.io/hellodword/devcontainers-go:latest",
   "containerEnv": {
     "DOCKER_HOST": "tcp://172.17.0.1:2375"
   }
 }
 ```
 
-`tcp://172.17.0.1:2375` exposes a high-privilege Docker API. Use it only on trusted local or controlled hosts. Use TLS or a secure proxy across machines.
+`tcp://172.17.0.1:2375` exposes a high-privilege Docker API. Use it only on trusted local or controlled hosts. Use a secure proxy or managed endpoint across machines.
 
 Ad-hoc user package installs inside the container go through `devpkg`:
 
