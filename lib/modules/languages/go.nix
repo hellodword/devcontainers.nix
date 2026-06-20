@@ -19,6 +19,7 @@ in
 {
   config = lib.mkIf cfg.enable {
     devcontainer.packages = packages;
+    devcontainer.libraries.presets = lib.mkBefore [ "cgo" ];
     devcontainer.vscode.extensions = [ "golang.go" ];
     devcontainer.vscode.settings = {
       "go.toolsManagement.checkForUpdates" = "off";

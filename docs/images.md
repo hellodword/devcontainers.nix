@@ -41,6 +41,8 @@ Every image includes:
 
 Dynamic build libraries are discoverable through `PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`, `NIXPKGS_CMAKE_PREFIX_PATH`, `CPATH`, `LIBRARY_PATH`, `NIX_CFLAGS_COMPILE`, and `NIX_LDFLAGS`. `LD_LIBRARY_PATH` is intentionally absent unless an image or project opts in.
 
+Go images enable the `cgo` preset, adding `CGO_CFLAGS` and `CGO_LDFLAGS` for dynamically installed build libraries. Rust images, including Flutter through its Rust base, enable the `rust-bindgen` preset, adding `BINDGEN_EXTRA_CLANG_ARGS` for bindgen include discovery. The bindgen preset does not install `clang` or `libclang`; add those explicitly if a project needs them.
+
 Example `.devcontainer/devcontainer.json` for dynamic build libraries:
 
 ```json

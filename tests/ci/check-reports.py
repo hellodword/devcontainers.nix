@@ -210,6 +210,9 @@ def main() -> int:
         fail("libraries-report.json must expand the runtime library profile")
     if libraries_report["build"].get("dynamicProfile") != expected_build_profile:
         fail("libraries-report.json must expand the build library profile")
+    library_presets = libraries_report.get("settings", {}).get("presets") or []
+    if len(library_presets) != len(set(library_presets)):
+        fail("libraries-report.json must report de-duplicated library presets")
     for profile_env, expected_profile in {
         "DEVPKG_RUNTIME_LIBRARY_PROFILE": expected_runtime_profile,
         "DEVPKG_BUILD_LIBRARY_PROFILE": expected_build_profile,
@@ -237,6 +240,30 @@ def main() -> int:
             fail(f"env-report.json must include source details for {env_name}")
         if "compiler.libraries.core" not in env_report["containerEnvSources"][env_name]["sources"]:
             fail(f"{env_name} must be sourced from the library compiler")
+    is_go_image = re.fullmatch(r"go-(latest|web|[0-9]+-[0-9]+)", image_name) is not None
+    is_rust_image = image_name in {"rust-latest", "rust-web", "flutter-latest"}
+    if is_go_image:
+        if "cgo" not in library_presets:
+            fail(f"{image_name} must enable the cgo library preset")
+        for env_name in ["CGO_CFLAGS", "CGO_LDFLAGS"]:
+            if env_name not in env_report["containerEnv"]:
+                fail(f"{image_name} must expose {env_name}")
+            if "compiler.libraries.preset.cgo" not in env_report["containerEnvSources"][env_name]["sources"]:
+                fail(f"{env_name} must be sourced from the cgo library preset")
+    elif "cgo" in library_presets:
+        fail(f"{image_name} must not enable the cgo library preset by default")
+    if is_rust_image:
+        if "rust-bindgen" not in library_presets:
+            fail(f"{image_name} must enable the rust-bindgen library preset")
+        if "BINDGEN_EXTRA_CLANG_ARGS" not in env_report["containerEnv"]:
+            fail(f"{image_name} must expose BINDGEN_EXTRA_CLANG_ARGS")
+        if (
+            "compiler.libraries.preset.rust-bindgen"
+            not in env_report["containerEnvSources"]["BINDGEN_EXTRA_CLANG_ARGS"]["sources"]
+        ):
+            fail("BINDGEN_EXTRA_CLANG_ARGS must be sourced from the rust-bindgen library preset")
+    elif "rust-bindgen" in library_presets:
+        fail(f"{image_name} must not enable the rust-bindgen library preset by default")
     for env_name in ["NIX_LD", "NIX_LD_LIBRARY_PATH"]:
         if env_name not in env_report["containerEnvSources"]:
             fail(f"env-report.json must include {env_name} source details")

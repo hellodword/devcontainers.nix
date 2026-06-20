@@ -25,6 +25,7 @@ in
 {
   config = lib.mkIf cfg.enable {
     devcontainer.packages = packages;
+    devcontainer.libraries.presets = lib.mkBefore [ "rust-bindgen" ];
     devcontainer.vscode.extensions = [
       "rust-lang.rust-analyzer"
       "tamasfe.even-better-toml"

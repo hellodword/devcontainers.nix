@@ -3,6 +3,7 @@
 let
   libraryUtils = import ../library-utils.nix { inherit lib; };
   cfg = config.devcontainer.libraries;
+  presets = lib.unique cfg.presets;
 
   runtimeOutputs = libraryUtils.uniqueDrvs (
     (map libraryUtils.runtimeOutput cfg.runtime) ++ (map libraryUtils.runtimeOutput cfg.build)
@@ -177,7 +178,7 @@ let
   presetEnvEntries = map (preset: {
     inherit preset;
     env = presetEnv preset;
-  }) cfg.presets;
+  }) presets;
   presetsEnv = lib.foldl' (acc: entry: acc // entry.env) { } presetEnvEntries;
 
   envContainer = coreEnv // presetsEnv;
@@ -220,7 +221,7 @@ in
   settings = {
     exportLdLibraryPath = cfg.exportLdLibraryPath;
     ccWrapperFlags = cfg.ccWrapperFlags;
-    presets = cfg.presets;
+    presets = presets;
   };
   env = {
     container = envContainer;
@@ -252,7 +253,7 @@ in
     settings = {
       exportLdLibraryPath = cfg.exportLdLibraryPath;
       ccWrapperFlags = cfg.ccWrapperFlags;
-      presets = cfg.presets;
+      presets = presets;
     };
     generatedEnv = envContainer;
   };

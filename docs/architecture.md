@@ -56,6 +56,8 @@ Image modules keep command packages separate from native libraries:
 - `devcontainer.libraries.runtime` adds runtime `.so` outputs. These are included in `NIX_LD_LIBRARY_PATH` together with the dynamic runtime-library profile.
 - `devcontainer.libraries.build` adds libraries needed for compiling and linking. The build set automatically contributes runtime outputs for test execution, and exposes headers, `pkg-config`, CMake prefixes, `CPATH`, `LIBRARY_PATH`, `NIX_CFLAGS_COMPILE`, and `NIX_LDFLAGS`.
 
+Language modules can opt into preset-specific variables. Go enables `cgo` by default, Rust enables `rust-bindgen` by default, and callers can override inherited presets with normal Nix module priorities such as `lib.mkForce [ ]`.
+
 Runtime library layers use bucket `70-runtime-libraries`; build-only outputs such as headers use `71-build-libraries`. Build layers link `/include` in addition to `/bin`, `/lib`, `/lib64`, `/share`, and `/etc`.
 
 `LD_LIBRARY_PATH` is not exported by default because it changes dynamic-loader search precedence for all programs in the container. Images can opt in with `devcontainer.libraries.exportLdLibraryPath = true`, and individual devcontainers can still set `remoteEnv.LD_LIBRARY_PATH` for FFI, JNA, Python `ctypes`, non-Nix toolchains, or legacy build systems.

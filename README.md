@@ -61,6 +61,8 @@ devpkg add-dev-lib openssl zlib
 devpkg list-dev-lib
 ```
 
+Go images also enable the `cgo` library preset by default, so dynamic build libraries feed `CGO_CFLAGS` and `CGO_LDFLAGS`. Rust images enable the `rust-bindgen` preset by default, so build library include paths feed `BINDGEN_EXTRA_CLANG_ARGS`; projects that need bindgen still need to provide `clang`/`libclang` as normal.
+
 Images do not export `LD_LIBRARY_PATH` by default. Set `devcontainer.libraries.exportLdLibraryPath = true` in an image module, or add an explicit `remoteEnv.LD_LIBRARY_PATH` in a project `.devcontainer/devcontainer.json` when a non-Nix toolchain or FFI loader requires it.
 
 More detail:
