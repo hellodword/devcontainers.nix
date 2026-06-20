@@ -1,10 +1,43 @@
-# Development
+# Development And Maintenance
 
-Run the static and evaluation checks:
+This guide is for maintainers extending or changing this repository. Read [Architecture](architecture.md) first if the compiler flow is unfamiliar.
+
+## Local Requirements
+
+You need:
+
+- Nix with flakes enabled
+- an `x86_64-linux` build environment
+- Docker only for loading images and running runtime smoke tests
+
+The fast local loop is:
 
 ```sh
 nix flake check
 ```
+
+This runs report checks, selected image artifact checks, runtime helper checks, and fixture checks.
+
+## Repository Map
+
+Important paths:
+
+| Path | Purpose |
+| --- | --- |
+| `flake.nix` | Pins inputs, defines image targets, apps, packages, checks, and workflow generation. |
+| `images/` | Small image-family modules that combine shared modules. |
+| `lib/modules/core/` | Shared image contract: options, user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, VS Code extensions, FHS runtime. |
+| `lib/modules/toolsets/` | Reusable command groups such as source control, Docker client, data/network, and debug tools. |
+| `lib/modules/runtimes/` | Shared language runtimes used by multiple image families. |
+| `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter. |
+| `lib/compiler/` | Pure compiler stages that turn evaluated module config into image artifacts and reports. |
+| `runtime/` | Shell helpers installed into images or exposed as package outputs. |
+| `tests/ci/` | Report, artifact, and helper validation. |
+| `tests/smoke/` | Runtime smoke execution after an image is loaded into Docker. |
+| `tests/fixtures/` | Lightweight expected-node fixtures for image composition. |
+| `docs/` | User, design, and maintenance documentation. |
+
+## Build And Inspect
 
 Build reports for one image:
 
@@ -18,29 +51,25 @@ Build the nix2container image artifact:
 nix build .#images.nix-latest.oci
 ```
 
-Load an image into Docker:
+Load an image into the local Docker daemon:
 
 ```sh
 nix run .#load-nix-latest
 nix run .#load-python3
 ```
 
-Run smoke tests after loading:
+Build the generated font root or other compiler outputs through the `images.<name>` attr when debugging a specific compiler stage:
+
+```sh
+nix build .#images.nix-latest.fonts.root --print-out-paths --no-link
+```
+
+## Smoke Tests
+
+After loading an image, run its smoke plan:
 
 ```sh
 tests/smoke/run-plan.sh nix-latest
-```
-
-Validate remote Docker CLI behavior with a reachable TCP daemon:
-
-```sh
-DOCKER_HOST=tcp://172.17.0.1:2375 tests/smoke/run-plan.sh nix-latest
-```
-
-For release smoke where Docker daemon access is mandatory:
-
-```sh
-SMOKE_REQUIRE_DOCKER_DAEMON=1 DOCKER_HOST=tcp://172.17.0.1:2375 tests/smoke/run-plan.sh nix-latest
 ```
 
 Collect runtime evidence:
@@ -50,14 +79,144 @@ tests/smoke/collect-runtime-evidence.sh oci nix-latest
 tests/smoke/collect-runtime-evidence.sh full
 ```
 
-The smoke runner never accepts extra Docker run arguments. It probes `docker info` on the host, forwards only a reachable `tcp://` `DOCKER_HOST` into the container for the daemon test, and skips that test otherwise.
+The smoke runner never accepts extra Docker run arguments. It probes Docker on the host, forwards only a reachable `tcp://` `DOCKER_HOST` into the container for the Docker daemon test, and skips that test otherwise.
+
+For a Docker daemon smoke test:
+
+```sh
+DOCKER_HOST=tcp://172.17.0.1:2375 tests/smoke/run-plan.sh nix-latest
+```
+
+To make Docker daemon access mandatory:
+
+```sh
+SMOKE_REQUIRE_DOCKER_DAEMON=1 DOCKER_HOST=tcp://172.17.0.1:2375 tests/smoke/run-plan.sh nix-latest
+```
+
+Read [Remote Docker](docker-remote.md) before changing Docker daemon smoke behavior. The design intentionally assumes the daemon is outside the devcontainer in a virtual machine or another isolated environment.
+
+## Adding Or Changing An Image
+
+1. Add or update a module in `images/`.
+2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
+3. Add the image target in `flake.nix` with target name, family, tags, module, and any version override modules.
+4. Add or update a fixture in `tests/fixtures/` with expected graph nodes.
+5. Run `nix flake check`.
+6. Build the image reports and inspect `graph.json`, `layer-plan.json`, and `metadata-label.json`.
+7. Load the image and run `tests/smoke/run-plan.sh <target>` when runtime behavior changed.
+8. Update [Usage](usage.md) if the published image contract changed.
+
+Use target names for local build outputs and smoke plans, for example `go-latest`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
+
+## Adding A Toolset
+
+A toolset is a reusable group of packages that can be enabled by many images.
+
+1. Add an option under `devcontainer.toolsets` in `lib/modules/core/options.nix`.
+2. Add a module under `lib/modules/toolsets/`.
+3. Load the module from `lib/compiler/eval.nix`.
+4. Add packages to `devcontainer.packages`.
+5. Add a graph node with a stable bucket name.
+6. Add smoke tests for important commands.
+7. Enable the toolset from image modules that need it.
+8. Run report checks and inspect graph/layer reports.
+
+Keep toolsets focused. A package belongs in a toolset when it is useful across multiple image families. If it only makes sense for one language, put it in that language module instead.
+
+## Adding A Language Or Runtime
+
+Use a runtime module when multiple language stacks need a base runtime. Use a language module when it represents the developer-facing stack for one language.
+
+1. Add options in `lib/modules/core/options.nix`.
+2. Add a runtime module under `lib/modules/runtimes/` or a language module under `lib/modules/languages/`.
+3. Load it from `lib/compiler/eval.nix`.
+4. Add packages, environment variables, path segments, VS Code extensions, settings, aliases, and smoke tests.
+5. Add graph nodes for runtime and language pieces.
+6. Add a fixture expectation for images that enable the module.
+7. Add image target wiring in `flake.nix` if the language has version-specific tags.
+8. Update [Usage](usage.md) with the user-facing image reference or `devcontainer.json` examples.
+
+Version-specific language packages should be injected through small override modules in `flake.nix`, following the Go, Node.js, Python, and Rust patterns.
+
+## Adding Compiler Behavior
+
+Compiler changes belong under `lib/compiler/`.
+
+1. Add a focused compiler or extend the existing compiler that owns the behavior.
+2. Return structured data as well as build artifacts.
+3. Thread the compiler output through `lib/default.nix`.
+4. Include generated files in `compileFilesystem` or `compileImage` only at the stage that owns them.
+5. Add report output in `compileReports`.
+6. Add report validation in `tests/ci/check-reports.py` or an adjacent check.
+7. Update [Architecture](architecture.md) when the pipeline or ownership model changes.
+
+Avoid hidden side effects. If a behavior changes the image, it should be visible in reports or smoke tests.
+
+## Adding Runtime Helpers
+
+Runtime helpers live in `runtime/` and are packaged by `runtime/default.nix`.
+
+When changing a helper:
+
+1. Keep the helper runnable outside the image when possible.
+2. Add or update tests in `tests/ci/check-runtime-tools.sh` or `tests/ci/check-runtime-validation-scripts.sh`.
+3. If the helper is installed into the image, confirm the image compiler includes it in the runtime root or generated filesystem.
+4. Document user-visible commands in [Usage](usage.md).
+
+Examples:
+
+- `devpkg` manages ad-hoc user packages and dynamic native-library profiles.
+- `devcontainer-image` validates metadata labels or project devcontainer JSON.
+- `devcontainer-task-runner` runs structured lifecycle tasks.
+- `vscode-extension-projector` projects preinstalled VS Code extensions into server extension directories.
+
+## Native Libraries
+
+Native-library behavior spans modules, compiler code, runtime helper behavior, reports, and smoke tests.
+
+When changing it, check:
+
+- `lib/modules/core/options.nix`
+- `lib/modules/core/libraries.nix`
+- `lib/compiler/libraries.nix`
+- `runtime/devpkg/main.sh`
+- `tests/ci/check-runtime-tools.sh`
+- `tests/ci/check-reports.py`
+- `docs/usage.md`
+- `docs/architecture.md`
+
+Keep runtime libraries and build libraries separate. Runtime libraries feed dynamic loading. Build libraries also expose headers, `pkg-config`, CMake prefixes, and compiler flags.
+
+## Fonts
+
+Font behavior has a dedicated design and maintenance document: [Fonts And Fontconfig](fonts-fontconfig.md).
+
+Use that document when changing default font packages, fallback order, fontconfig generation, cache policy, reports, or smoke expectations.
 
 ## GitHub Actions
 
-Image workflows are generated one file per image with `nix run .#generate-workflows`. The generator renders `.github/workflows/_build-image.yml.j2` with minijinja and writes complete `build-image-*.yml` workflows instead of using a local reusable workflow. This avoids intermittent `uses: ./.github/workflows/...` behavior in GitHub Actions.
+Image workflows are generated one file per image:
 
-One workflow per image is intentional: combining a matrix image build with workflow concurrency previously caused GitHub Actions to cancel every unfinished matrix job before the image set completed. Separate workflows give each image its own concurrency group, so a newer push cancels the older run for the same image regardless of ref. The top-level `build.yml` workflow is manual-only and takes an `image-target` input for ad-hoc image builds.
+```sh
+nix run .#generate-workflows
+```
 
-The workflows do not use GitHub Actions cache. Nix already uses configured binary substituters for reusable store paths, while the per-run image closures and Docker artifacts are large, highly input-sensitive, and expensive to upload and restore through Actions cache. Relying on fresh Nix evaluation plus substituters is simpler and avoids stale or partial cache state.
+The generator renders `.github/workflows/_build-image.yml.j2` with minijinja and writes complete `build-image-*.yml` workflows.
 
-The `Free disk space` step removes large preinstalled SDKs that these images do not use, then prunes Docker state. Hosted Ubuntu runners have limited writable disk, and building nix2container images, copying OCI artifacts, loading them into Docker, and running smoke tests can otherwise fail with `ENOSPC`. The final `df -h` makes disk pressure visible in logs.
+One workflow per image is intentional. A single matrix workflow combined with workflow concurrency can cancel unfinished matrix jobs before the image set completes. Separate workflows give each image its own concurrency group.
+
+The workflows do not use GitHub Actions cache. Nix already uses configured binary substituters for reusable store paths, while per-run image closures and Docker artifacts are large and input-sensitive.
+
+The `Free disk space` step removes large preinstalled SDKs and prunes Docker state because hosted Ubuntu runners have limited writable disk.
+
+## Documentation Rules
+
+Keep documentation split by audience:
+
+- `README.md` is only overview, quick start, and navigation.
+- `docs/usage.md` is for users writing `devcontainer.json`.
+- `docs/architecture.md` is for understanding the design.
+- `docs/development.md` is for maintainers extending the project.
+- specialized design notes stay in their focused documents.
+
+When changing a feature, update the smallest relevant set of docs. User-visible image behavior belongs in usage docs. Compiler ownership or invariants belong in architecture docs. Maintenance checklists belong in development docs or focused subsystem docs.

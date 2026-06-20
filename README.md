@@ -1,31 +1,21 @@
 # devcontainers.nix
 
-`devcontainers.nix` is an x86_64-linux first Nix compiler for VS Code Dev Container OCI images.
+`devcontainers.nix` builds x86_64-linux VS Code Dev Container OCI images with Nix and nix2container.
 
-## Images
+The published images provide Nix, common development tools, VS Code-compatible runtime glue, preconfigured editor metadata, and the `devpkg` helper for adding packages inside a container.
 
-- `nix:latest`
-- `go:latest`, `go:<major.minor>`, `go:web`
-- `nodejs:latest`, `nodejs:<major>`
-- `python:latest`, `python:<major.minor>`, `python:web`
-- `rust:latest`, `rust:web`
-- `flutter:latest`
+Available image families:
 
-All images run as the fixed `vscode` user and include a VS Code-compatible FHS runtime.
-They also default to `en_US.UTF-8` with `glibcLocales`, system bash initialization,
-bash completion, safe command-not-found suggestions from the local nix-index database,
-fontconfig with Noto CJK and emoji fonts, and a small alias set. Go images add
-`gobuild-small` for stripped, trimpath builds.
+- `ghcr.io/hellodword/devcontainers-nix:latest`
+- `ghcr.io/hellodword/devcontainers-go:latest`, `:<major.minor>`, `:web`
+- `ghcr.io/hellodword/devcontainers-nodejs:latest`, `:<major>`
+- `ghcr.io/hellodword/devcontainers-python:latest`, `:<major.minor>`, `:web`
+- `ghcr.io/hellodword/devcontainers-rust:latest`, `:web`
+- `ghcr.io/hellodword/devcontainers-flutter:latest`
 
 ## Quick Start
 
-Load the Go image into Docker:
-
-```sh
-nix run .#load-go-latest
-```
-
-Example `.devcontainer/devcontainer.json`:
+Create `.devcontainer/devcontainer.json`:
 
 ```json
 {
@@ -34,21 +24,7 @@ Example `.devcontainer/devcontainer.json`:
 }
 ```
 
-Remote Docker daemon example:
-
-```json
-{
-  "name": "go",
-  "image": "ghcr.io/hellodword/devcontainers-go:latest",
-  "containerEnv": {
-    "DOCKER_HOST": "tcp://172.17.0.1:2375"
-  }
-}
-```
-
-`tcp://172.17.0.1:2375` exposes a high-privilege Docker API. Use it only on trusted local or controlled hosts. Use a secure proxy or managed endpoint across machines.
-
-Ad-hoc user package installs inside the container go through `devpkg`:
+Inside the container, add ad-hoc packages with `devpkg`:
 
 ```sh
 devpkg add cowsay
@@ -57,48 +33,10 @@ devpkg list
 devpkg remove cowsay
 ```
 
-`devpkg` uses the image nixpkgs defaults, which allow unfree packages, accept the
-Android SDK license, accept Oracle JDK license gates when present in nixpkgs, and
-allow unsupported-system packages. This makes installs such as `devpkg add
-google-chrome` and `devpkg add microsoft-edge` evaluate with the same policy as
-the image build.
+## Documentation
 
-Native libraries use separate runtime and build profiles. Runtime libraries feed `NIX_LD_LIBRARY_PATH`; build libraries also expose headers, `pkg-config`, CMake, and compiler wrapper flags:
-
-```sh
-devpkg add-lib zlib
-devpkg add-dev-lib openssl zlib
-devpkg list-dev-lib
-```
-
-Go images also enable the `cgo` library preset by default, so dynamic build libraries feed `CGO_CFLAGS` and `CGO_LDFLAGS`. Rust images enable the `rust-bindgen` preset by default, so build library include paths feed `BINDGEN_EXTRA_CLANG_ARGS`; projects that need bindgen still need to provide `clang`/`libclang` as normal.
-
-Images do not export `LD_LIBRARY_PATH` by default. Set `devcontainer.libraries.exportLdLibraryPath = true` in an image module, or add an explicit `remoteEnv.LD_LIBRARY_PATH` in a project `.devcontainer/devcontainer.json` when a non-Nix toolchain or FFI loader requires it.
-
-Images set `LANG=en_US.UTF-8`, `LANGUAGE=en_US:en`, `LOCALE_ARCHIVE` from
-`pkgs.glibcLocales`, `XDG_CONFIG_DIRS=/etc/xdg`, and
-`XDG_DATA_DIRS=/usr/local/share:/usr/share:/share`. They intentionally do not set
-`LC_ALL`; image modules can set specific `LC_*` variables through `devcontainer.locale.lc`
-when a workflow needs a category override.
-
-Images include `fontconfig`, the standard `fc-*` inspection/cache commands,
-`noto-fonts`, `noto-fonts-cjk-sans`, `noto-fonts-cjk-serif`, and
-`noto-fonts-color-emoji`. Default fontconfig fallback prefers Simplified Chinese
-Noto CJK families for sans, serif, and monospace, uses Noto Color Emoji for emoji,
-and gets symbol coverage from `noto-fonts`. Images do not set `FONTCONFIG_FILE`
-globally and do not pre-generate fontconfig caches; first use may populate the
-user XDG cache.
-
-Shell aliases are image shell behavior, not devcontainer metadata. Modules can extend
-`devcontainer.shell.aliases`, and alias names are restricted to a conservative shell-safe
-character set.
-
-Do not set `remoteUser`, `containerUser`, or `updateRemoteUserUID` in project `.devcontainer/devcontainer.json`; these images are built for the single `vscode` user. `devcontainer-image check` rejects those overrides, and the image entrypoint refuses to start as another user.
-
-More detail:
-
+- [Usage](docs/usage.md)
 - [Architecture](docs/architecture.md)
-- [Images](docs/images.md)
+- [Development and Maintenance](docs/development.md)
 - [Fonts and Fontconfig](docs/fonts-fontconfig.md)
-- [Remote Docker](docs/docker-remote.md)
-- [Development](docs/development.md)
+- [Chromium in Dev Containers](docs/chromium.md)

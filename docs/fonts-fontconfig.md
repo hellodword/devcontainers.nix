@@ -302,7 +302,7 @@ When changing default font packages:
 2. Update `fontconfig-report.json` assertions in `tests/ci/check-reports.py`.
 3. Update smoke tests in `lib/modules/core/fonts.nix` if coverage expectations
    changed.
-4. Update `README.md`, `docs/images.md`, and this document.
+4. Update `README.md`, `docs/usage.md`, and this document.
 5. Run the report and image checks listed above.
 
 When changing default fallback order:

@@ -1,129 +1,300 @@
 # Architecture
 
-This project compiles declarative image modules into nix2container OCI images for `x86_64-linux`.
+This project is a Nix compiler for VS Code Dev Container images. It is not a collection of Dockerfiles. Image authors describe an image through Nix modules, and the compiler turns those modules into OCI layers, VS Code Dev Containers metadata, runtime helper files, and reports.
 
-## Inputs
+The main target platform is `x86_64-linux`.
 
-The flake pins:
+## Mental Model
 
-- `nixpkgs` on `github:NixOS/nixpkgs/nixos-unstable`
+There are four concepts to understand first:
+
+1. An image target is a named build such as `go-latest`, `python-web`, or `flutter-latest`.
+2. A module writes settings under `devcontainer.*`, for example packages, environment variables, VS Code extensions, lifecycle tasks, native libraries, and smoke tests.
+3. A graph node groups related package paths or generated files into a semantic unit such as `language/go`, `toolset/docker-client`, or `runtime/fonts`.
+4. The compiler reads the final module configuration and produces an OCI image plus reports that explain what was built.
+
+The high-level flow is:
+
+```text
+flake.nix image target
+  -> Nix module evaluation
+  -> graph, environment, library, metadata, shell, font, filesystem compilers
+  -> layer plan
+  -> nix2container OCI image
+  -> reports and CI checks
+```
+
+The important design choice is that image structure stays declarative. Language modules and toolset modules do not directly create tar files or Docker instructions. They add typed configuration, graph nodes, and tests. The compiler decides how those pieces become image layers and runtime files.
+
+## Inputs And Package Set
+
+The flake pins the dependency set:
+
+- `nixpkgs`
 - `rust-overlay`
 - `nix-vscode-extensions`
 - `nix-index-database`
 - `llm-agents`
 - `nix2container`
 
-The top-level `pkgs` fixpoint imports nixpkgs with a shared config:
-`allowUnfree = true`, `android_sdk.accept_license = true`,
-`oraclejdk.accept_license = true`, and `allowUnsupportedSystem = true`.
-Inputs that expose package sets are consumed through overlays, so compiler
-modules use `pkgs.*` rather than `inputs.foo.packages.*`. Local package
-overrides should be added to the flake's `projectOverlays` list so image
-builds, checks, and runtime helper packages see the same overridden drv.
+The top-level package set is imported once for `x86_64-linux` with shared nixpkgs policy:
 
-## Compiler Flow
+- `allowUnfree = true`
+- `android_sdk.accept_license = true`
+- `oraclejdk.accept_license = true`
+- `allowUnsupportedSystem = true`
 
-1. Nix modules evaluate `devcontainer.*` options.
-2. The graph compiler groups package nodes into semantic buckets.
-3. The layer compiler emits a reportable layer plan.
-4. The image compiler builds explicit nix2container layers from those buckets.
-5. A final customization layer adds runtime helpers, generated filesystem files, VS Code metadata, extension payloads, and FHS symlinks.
+Inputs that provide packages are consumed through overlays. That means modules normally use `pkgs.*`, not `inputs.foo.packages.*`. Local package overrides should be added to the flake's `projectOverlays` list so image builds, checks, reports, and runtime helper packages all see the same package set.
 
-The compiler only uses nix2container for OCI image generation.
+## Image Targets
+
+`flake.nix` defines image targets with:
+
+- a target name, used by local build outputs such as `images.go-latest`
+- a family name, used in the registry image name such as `devcontainers-go`
+- tags, used in published image references
+- one image module under `images/`
+- optional override modules for selected language versions
+
+Examples:
+
+| Target | Registry family | Tags | Base module |
+| --- | --- | --- | --- |
+| `nix-latest` | `devcontainers-nix` | `latest` | `images/nix.nix` |
+| `go-latest` | `devcontainers-go` | `latest`, current Go major/minor | `images/go.nix` |
+| `go-web` | `devcontainers-go` | `web` | `images/go-web.nix` |
+| `nodejs-latest` | `devcontainers-nodejs` | `latest`, current Node.js major | `images/nodejs.nix` |
+| `python3` | `devcontainers-python` | `latest`, current Python major/minor | `images/python.nix` |
+| `python-web` | `devcontainers-python` | `web` | `images/python-web.nix` |
+| `rust-latest` | `devcontainers-rust` | `latest` | `images/rust.nix` |
+| `rust-web` | `devcontainers-rust` | `web` | `images/rust-web.nix` |
+| `flutter-latest` | `devcontainers-flutter` | `latest` | `images/flutter.nix` |
+
+The published reference for a family is:
+
+```text
+ghcr.io/hellodword/devcontainers-<family>:<tag>
+```
+
+## Module Layers
+
+Module evaluation starts in `lib/compiler/eval.nix`. It loads these module groups before adding the image-specific modules:
+
+- core modules in `lib/modules/core/`
+- toolsets in `lib/modules/toolsets/`
+- language runtimes in `lib/modules/runtimes/`
+- language stacks in `lib/modules/languages/`
+
+Core modules define the shared image contract: user, filesystem, environment, shell, fonts, native libraries, FHS compatibility, metadata, lifecycle tasks, VS Code extensions, and options.
+
+Toolset modules add common command groups. For example source control tools, fetch/archive tools, search/navigation tools, inspect/debug tools, workflow/format tools, Docker client tools, agent tools, data/network tools, and nix-index tools.
+
+Language modules add language-specific tools, environment variables, VS Code extensions, shell aliases, graph nodes, and smoke tests. For example the Go language module adds Go, `gopls`, Delve, `golangci-lint`, `govulncheck`, the Go VS Code extension, Go cache variables, and the `gobuild-small` alias.
+
+Image modules combine these building blocks. For example `images/go.nix` imports the Nix image, enables C, Python, and Node.js runtimes, then enables the Go language module. `images/go-web.nix` imports the Go image and adds data/network tools.
+
+## Graph Nodes
+
+Every substantial package group should have a graph node under `devcontainer.graph.nodes`.
+
+A graph node records:
+
+- `kind`, such as `runtime`, `language`, or `toolset`
+- `group`, the layer bucket name
+- `paths`, the package paths that belong to the node
+- `stability`, used to describe churn
+- `sharing`, used to describe reuse across image families
+- `priority`, used by reports and planning
+- `securityClass`, such as `trusted` or `networked`
+
+The graph gives maintainers a reviewable model of the image. Instead of seeing only a large closure, maintainers can inspect which semantic units were included and where they landed.
 
 ## Layer Strategy
 
-OCI runtimes have practical layer-count limits, and GitHub Container Registry rejects oversized layer blobs. Devcontainer images accumulate many language runtimes, tools, extensions, and generated files, so this project keeps layer construction deterministic and bounded:
+OCI runtimes have practical layer-count limits, and GitHub Container Registry rejects oversized layer blobs. These images accumulate language runtimes, tools, extensions, generated files, and Nix store paths, so layer construction must be deterministic and bounded.
 
-- Module authors assign graph nodes to semantic buckets such as base runtime, FHS runtime, language tooling, VS Code extensions, and dynamic package runtime.
-- The layer compiler emits `layer-plan.json` with the configured budget, defaulting to a maximum of 100 semantic buckets with 20 reserved slots.
-- GitHub Container Registry documents a 10 GB per-layer limit and a 10 minute upload timeout. The project uses `devcontainer.layers.maxLayerSize = "8GiB"` as the default safety line.
-- Each semantic bucket is built as a single explicit nix2container layer (`maxLayers = 1`) so related paths stay together and reports remain reviewable.
-- The final customization layer uses `maxLayers = 4` for runtime helpers, metadata, generated filesystem files, and the Nix database.
-- Previously built semantic layers are passed explicitly. Their transitive `nestedLayers` metadata is cleared in the compiler so nix2container does not expand duplicate parent layers into oversized arguments.
+The project uses semantic buckets:
 
-CI checks reject layer plans that exceed the configured count budget. OCI artifact checks read the final nix2container image JSON and reject any `layers[].size` value above `budget.maxLayerSize`, so the limit is enforced against the actual registry blob sizes rather than the planning estimate.
+- base and FHS runtime
+- fonts
+- common toolsets
+- Nix runtime and Nix language tools
+- language runtimes such as Python and Node.js
+- language tooling such as Go, Rust, and Flutter
+- dynamic runtime and build libraries
+- VS Code extensions and generated metadata
 
-## VS Code FHS Runtime
+`lib/compiler/layers.nix` groups graph nodes by bucket and emits a layer plan. The default budget is 100 semantic buckets with 20 reserved slots. The default maximum layer size is `8GiB`, below the registry's documented 10 GB per-layer limit.
 
-VS Code server components and common extension helpers expect several conventional Linux paths that are not normally present in a pure Nix image. The FHS runtime provides only the compatibility surface required for those tools:
+`lib/compiler/image.nix` builds each semantic bucket as an explicit nix2container layer with `maxLayers = 1`. The final customization layer uses a small bounded number of layers for runtime helpers, metadata, generated filesystem files, and the Nix database.
 
-- `/bin/bash`, `/bin/sh`, `/usr/bin/env`, and common archive/network tools point at Nix-provided binaries.
-- The architecture dynamic loader path, for example `/lib64/ld-linux-x86-64.so.2`, points at `nix-ld`.
-- `NIX_LD` points at the real glibc loader and `NIX_LD_LIBRARY_PATH` includes glibc plus the GCC runtime libraries.
-- `/usr/lib/libc.so.6` and `/usr/lib/libstdc++.so.6` expose the glibc and GCC runtime libraries for tools that probe conventional library paths.
-- CA bundle environment variables point at `/etc/ssl/certs/ca-certificates.crt`.
+Reports and CI checks enforce this design:
 
-The FHS layer is compatibility glue for VS Code and extension tooling. It does not turn the image into a general FHS distribution.
+- `layer-plan.json` explains the planned buckets
+- image tar checks inspect the final nix2container image JSON
+- report checks reject missing buckets, over-budget plans, and invalid image metadata
 
-## Native Libraries
+## Compiler Pipeline
 
-Image modules keep command packages separate from native libraries:
+`lib/default.nix` is the compiler orchestrator. `mkImage` evaluates modules once and then runs focused compilers:
 
-- `devcontainer.packages` adds command-line tools and ordinary software to the image and `PATH`.
-- `devcontainer.libraries.runtime` adds runtime `.so` outputs. These are included in `NIX_LD_LIBRARY_PATH` together with the dynamic runtime-library profile.
-- `devcontainer.libraries.build` adds libraries needed for compiling and linking. The build set automatically contributes runtime outputs for test execution, and exposes headers, `pkg-config`, CMake prefixes, `CPATH`, `LIBRARY_PATH`, `NIX_CFLAGS_COMPILE`, and `NIX_LDFLAGS`.
+- `compileGraph` normalizes graph nodes
+- `compileLibraries` builds dynamic runtime and build library profiles
+- `compileFhsRuntime` creates compatibility paths and dynamic loader settings
+- `compileEnv` merges container, remote, and shell environments
+- `compileMetadata` renders Dev Containers metadata
+- `compileLifecycle` converts lifecycle tasks into runnable metadata commands
+- `compileShell` renders shell startup files
+- `compileFonts` renders fontconfig files and reports
+- `compileVscodeExtensions` prepares preinstalled VS Code extension payloads
+- `compileFilesystem` creates generated root filesystem files
+- `compileLayers` creates the semantic layer plan
+- `compileImage` creates the nix2container image
+- `compileReports` writes machine-readable build reports
 
-Language modules can opt into preset-specific variables. Go enables `cgo` by default, Rust enables `rust-bindgen` by default, and callers can override inherited presets with normal Nix module priorities such as `lib.mkForce [ ]`.
+Each compiler returns both build artifacts and structured data. Later compilers receive the outputs they need rather than recomputing state. This keeps the flow inspectable and makes reports match the actual image.
 
-Runtime library layers use bucket `70-runtime-libraries`; build-only outputs such as headers use `71-build-libraries`. Build layers link `/include` in addition to `/bin`, `/lib`, `/lib64`, `/share`, and `/etc`.
+## Runtime Filesystem Contract
 
-`LD_LIBRARY_PATH` is not exported by default because it changes dynamic-loader search precedence for all programs in the container. Images can opt in with `devcontainer.libraries.exportLdLibraryPath = true`, and individual devcontainers can still set `remoteEnv.LD_LIBRARY_PATH` for FFI, JNA, Python `ctypes`, non-Nix toolchains, or legacy build systems.
-
-## Locale And Shell
-
-Locale and shell runtime data are compiled separately from ordinary command packages. The `14-shell-runtime` layer holds `pkgs.glibcLocales` for `LOCALE_ARCHIVE` and `pkgs.bash-completion` for interactive Bash completion.
-
-The default locale contract is `LANG=en_US.UTF-8`, `LANGUAGE=en_US:en`, `XDG_CONFIG_DIRS=/etc/xdg`, and `XDG_DATA_DIRS=/usr/local/share:/usr/share:/share`. `LC_ALL` is intentionally unset by default because it overrides every locale category; image modules should use `devcontainer.locale.lc` for targeted `LC_*` overrides. Library presets that need `XDG_DATA_DIRS`, such as GTK or Qt, prepend their dynamic build profile share directories and then append the base XDG data directories with duplicates removed.
-
-Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`. Login shells load `/etc/profile`; interactive Bash shells load aliases, a lightweight prompt, history settings, bash completion, and `command_not_found_handle`. The command-not-found handler only queries the local nix-index database and returns 127. It does not run `comma`, install software, call the network, or execute project commands.
-
-Image modules extend aliases through `devcontainer.shell.aliases`. Alias names are restricted to letters, numbers, `_`, `-`, `.`, and `+`, and values are shell-escaped when `/etc/bashrc` is rendered. Go images add the `gobuild-small` alias from the Go language module.
-
-## Fonts And Fontconfig
-
-All images include a shared font runtime in bucket `02-fonts-runtime`. The core
-fonts module adds Noto Latin, CJK, symbol, and emoji coverage plus fontconfig
-tools, while the font compiler generates `/etc/fonts/fonts.conf` and
-devcontainer-specific default font aliases.
-
-The fontconfig integration reuses `pkgs.makeFontsConf` and follows NixOS
-`defaultFonts` and `aliases` semantics, but it does not import the NixOS
-fontconfig module. This keeps the container compiler independent from NixOS
-`environment.*` and AppArmor options.
-
-See [Fonts And Fontconfig](fonts-fontconfig.md) for the detailed design,
-generated files, report contract, cache policy, and maintenance checklist.
-
-## Nix Database
-
-Images enable nix2container's `initializeNixDatabase` support. The generated Nix database registers the store paths already present in the image, makes `/nix`, `/nix/store`, and `/nix/var/nix` writable by the container user, and avoids a separate registration workaround at startup.
-
-This is required for `devpkg`, which installs ad-hoc user packages with `nix profile add`. Without the database, Nix can see paths on disk that are not registered in `/nix/var/nix/db`, causing profile installs to fail or to reference missing store paths.
-
-The generated filesystem also includes `/etc/nixpkgs/config.nix` with the same
-nixpkgs policy as the build. Container env sets `NIXPKGS_CONFIG`,
-`NIXPKGS_ALLOW_UNFREE`, `NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM`, and
-`NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE`. `devpkg` runs flake eval/install commands
-with `--impure` so packages such as Google Chrome and Microsoft Edge can read
-those defaults instead of failing the unfree license check.
-
-The generated filesystem layer intentionally does not create `/nix` paths. `/nix` ownership and database contents are owned by the nix2container database layer to avoid tar path collisions.
-
-## Runtime Contract
-
-Images set:
+All images share a single-user runtime contract:
 
 - `User = "vscode"`
-- `WorkingDir = "/workspaces"`
+- uid/gid `1000`
 - `HOME=/home/vscode`
-- entrypoint `/usr/local/bin/devcontainer-entrypoint`
+- working directory `/workspaces`
 - default command `sleep infinity`
+- entrypoint `/usr/local/bin/devcontainer-entrypoint`
 
 Generated filesystem content includes `/etc/passwd`, `/etc/group`, `/etc/os-release`, `/home/vscode`, `/tmp`, `/var/tmp`, `/run/user/1000`, and `/workspaces`.
 
-The runtime contract is intentionally single-user. The only supported user is `vscode` with uid/gid `1000`; image modules and metadata snippets cannot set another `remoteUser`, `containerUser`, or `updateRemoteUserUID = true`. Project `.devcontainer/devcontainer.json` files should leave those fields unset, and `devcontainer-image check` reports an error if they try to override them.
+Project `devcontainer.json` files should not set `remoteUser`, `containerUser`, or `updateRemoteUserUID`. The image metadata already sets the supported values. The image entrypoint refuses to start as another user, and `devcontainer-image check` reports those overrides as errors.
 
-## Metadata
+This fixed-user design reduces the number of supported runtime states. It also keeps generated files, Nix profiles, VS Code extension projection, and helper scripts aligned on one home directory and one uid/gid pair.
 
-The image label `devcontainer.metadata` is a JSON array. It includes remote/container user settings, container and remote environment, lifecycle commands, and VS Code customizations.
+## Environment Model
+
+The project tracks three environment scopes:
+
+- container environment for the OCI image config
+- remote environment for VS Code Dev Containers metadata
+- shell environment for generated shell startup files
+
+`lib/compiler/env.nix` merges configured values with generated values from the FHS runtime and native-library compiler. It also builds `PATH` from ordered path segments, records the origin of each value, expands simple `$VAR` references, and reports conflicts.
+
+The distinction matters because Docker image environment variables, VS Code remote environment variables, and interactive shell variables are applied at different times by different tools.
+
+## FHS Runtime
+
+VS Code server components and many extension helpers expect conventional Linux paths that a pure Nix image does not naturally provide. The FHS runtime adds only the compatibility surface needed for those tools:
+
+- `/bin/bash`
+- `/bin/sh`
+- `/usr/bin/env`
+- common archive and network tools through conventional paths
+- architecture dynamic loader path such as `/lib64/ld-linux-x86-64.so.2`
+- `NIX_LD` and `NIX_LD_LIBRARY_PATH`
+- `/usr/lib/libc.so.6`
+- `/usr/lib/libstdc++.so.6`
+- CA certificate environment variables
+
+The FHS runtime is compatibility glue. It does not turn the image into a general FHS distribution, and modules should not treat it as a reason to bypass Nix store paths when a Nix-native path is available.
+
+## Native Libraries
+
+Command packages and native libraries are separate.
+
+`devcontainer.packages` adds command-line tools and ordinary software to the image and `PATH`.
+
+`devcontainer.libraries.runtime` adds runtime shared-library outputs. These feed `NIX_LD_LIBRARY_PATH` and the dynamic runtime-library profile used by `devpkg add-lib`.
+
+`devcontainer.libraries.build` adds compile/link dependencies. These feed runtime outputs for test execution and expose headers, `pkg-config`, CMake prefixes, `CPATH`, `LIBRARY_PATH`, `NIX_CFLAGS_COMPILE`, and `NIX_LDFLAGS`.
+
+Language modules can add presets:
+
+- Go enables `cgo`
+- Rust enables `rust-bindgen`
+- Flutter inherits the Rust bindgen preset through its Rust base
+
+`LD_LIBRARY_PATH` is intentionally not exported by default because it changes dynamic loader search order for every process. Projects that need it opt in explicitly through `remoteEnv`, or image modules can opt in with `devcontainer.libraries.exportLdLibraryPath = true`.
+
+## Nix Database And `devpkg`
+
+Images use nix2container's `initializeNixDatabase` support. The generated Nix database registers store paths that already exist in the image, makes `/nix`, `/nix/store`, and `/nix/var/nix` writable by the container user, and avoids startup registration workarounds.
+
+This is required for `devpkg`, which installs ad-hoc packages with `nix profile add`. Without the database, Nix could see store paths on disk that are not registered in `/nix/var/nix/db`, causing profile installs to fail or reference missing paths.
+
+The generated filesystem includes `/etc/nixpkgs/config.nix` with the same nixpkgs policy used by the image build. Container environment variables also set nixpkgs policy defaults. `devpkg` runs flake evaluation and installation commands with `--impure` so packages such as Google Chrome and Microsoft Edge can read those defaults.
+
+## Locale, Shell, And Fonts
+
+The default locale contract is:
+
+- `LANG=en_US.UTF-8`
+- `LANGUAGE=en_US:en`
+- `LOCALE_ARCHIVE` from `pkgs.glibcLocales`
+- no default `LC_ALL`
+
+`LC_ALL` is intentionally unset because it overrides every locale category. Image modules can set specific `LC_*` variables through `devcontainer.locale.lc`.
+
+Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`. Interactive Bash gets aliases, a lightweight prompt, history settings, bash completion, and a command-not-found handler. The handler only queries the local nix-index database and returns 127. It does not install software, call the network, or execute project commands.
+
+All images include fontconfig and Noto Latin, CJK, symbol, and emoji coverage. Fontconfig defaults prefer Simplified Chinese CJK families for generic sans, serif, and monospace aliases. See [Fonts And Fontconfig](fonts-fontconfig.md) for the detailed font design.
+
+## VS Code Metadata And Extensions
+
+The OCI image label `devcontainer.metadata` is a JSON array. It contains the computed Dev Containers metadata for users, environment, lifecycle commands, and VS Code customizations.
+
+VS Code extension support has two parts:
+
+- modules declare extension identifiers and settings
+- the extension compiler prepares extension payloads and metadata for projection into VS Code server extension directories
+
+Lifecycle tasks are declared as structured Nix module values. The lifecycle compiler turns them into metadata commands that call `devcontainer-task-runner`, which gives the project one consistent place for task ordering, once-only behavior, timeouts, and user validation.
+
+## Reports And Checks
+
+Reports are part of the architecture, not just debug output. They make image composition visible without unpacking an OCI artifact.
+
+Important reports include:
+
+- graph reports
+- package reports
+- environment reports
+- metadata label reports
+- lifecycle reports
+- shell reports
+- fontconfig reports
+- VS Code extension reports
+- FHS runtime reports
+- layer plans
+- smoke test plans
+- CI plans
+
+Checks use those reports to reject regressions before an image is published. Smoke tests then validate runtime behavior after an image is loaded into Docker.
+
+## Security Boundaries
+
+The images avoid expanding privileges by default:
+
+- they run as the fixed `vscode` user
+- they include Docker client tools but do not run a Docker daemon
+- they do not mount a host Docker socket
+- command-not-found suggestions are local database lookups only
+- Chromium sandbox workarounds are not forced globally
+- native library search paths are explicit and do not export `LD_LIBRARY_PATH` by default
+
+When a feature needs broader runtime access, the project should document the security model and make the user opt in through project configuration.
+
+## How To Extend The Design
+
+When adding a feature, decide which layer of the design owns it:
+
+- user-facing image behavior usually belongs in a module
+- shared generated files usually belong in a focused compiler
+- runtime commands belong under `runtime/`
+- repeated package groups should become graph nodes
+- user-visible behavior should have smoke tests
+- compiler behavior should have report checks
+- browser, font, or Docker daemon behavior should be documented because those areas have important runtime constraints
+
+The goal is for every new behavior to appear in the module config, the graph, the image, and the reports in a way a maintainer can inspect.
