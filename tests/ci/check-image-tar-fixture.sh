@@ -5,14 +5,6 @@ repo_root="${1:-.}"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-bash -n "$repo_root/tests/smoke/run-plan.sh"
-bash -n "$repo_root/tests/smoke/collect-runtime-evidence.sh"
-
-bash "$repo_root/tests/smoke/collect-runtime-evidence.sh" --help >"$tmpdir/help.txt"
-grep -q 'collect-runtime-evidence.sh oci' "$tmpdir/help.txt"
-grep -q 'collect-runtime-evidence.sh full' "$tmpdir/help.txt"
-grep -q 'DOCKER_HOST=tcp://' "$tmpdir/help.txt"
-
 reports_dir="$tmpdir/reports"
 mkdir -p "$reports_dir"
 
@@ -88,4 +80,4 @@ if python3 "$repo_root/tests/ci/check-image-tar.py" "$tmpdir/image.json" "$repor
 fi
 grep -q 'exceeds max layer size 1024 B' "$tmpdir/fail.err"
 
-echo "runtime-validation-scripts ok"
+echo "image-tar-fixture ok"

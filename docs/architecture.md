@@ -16,7 +16,7 @@ There are four concepts to understand first:
 The high-level flow is:
 
 ```text
-flake.nix image target
+flake/targets.nix image target
   -> Nix module evaluation
   -> graph, environment, library, metadata, shell, font, filesystem compilers
   -> layer plan
@@ -46,9 +46,19 @@ The top-level package set is imported once for `x86_64-linux` with shared nixpkg
 
 Inputs that provide packages are consumed through overlays. That means modules normally use `pkgs.*`, not `inputs.foo.packages.*`. Local package overrides should be added to the flake's `projectOverlays` list so image builds, checks, reports, and runtime helper packages all see the same package set.
 
+## Flake Output Structure
+
+`flake.nix` keeps the top-level assembly small: it pins inputs, imports the package set, creates the compiler, wires image outputs, and exposes packages, apps, checks, and library metadata.
+
+The larger flake internals live under `flake/`:
+
+- `flake/targets.nix` discovers language package versions and defines the image target list.
+- `flake/checks.nix` defines report checks, report CLI checks, selected image artifact checks, runtime helper checks, image tar fixtures, composition fixtures, and pure API evaluation checks.
+- `flake/workflows.nix` renders per-image GitHub Actions workflows, exposes `generate-workflows`, and checks that generated workflow files are synchronized with the template and target list.
+
 ## Image Targets
 
-`flake.nix` defines image targets with:
+`flake/targets.nix` defines image targets with:
 
 - a target name, used by local build outputs such as `images.go-latest`
 - a family name, used in the registry image name such as `devcontainers-go`
@@ -62,8 +72,10 @@ Examples:
 | --- | --- | --- | --- |
 | `nix-latest` | `devcontainers-nix` | `latest` | `images/nix.nix` |
 | `go-latest` | `devcontainers-go` | `latest`, current Go major/minor | `images/go.nix` |
+| `go-1-25` | `devcontainers-go` | `1.25` | `images/go.nix` |
 | `go-web` | `devcontainers-go` | `web` | `images/go-web.nix` |
 | `nodejs-latest` | `devcontainers-nodejs` | `latest`, current Node.js major | `images/nodejs.nix` |
+| `nodejs-24` | `devcontainers-nodejs` | `24` | `images/nodejs.nix` |
 | `python3` | `devcontainers-python` | `latest`, current Python major/minor | `images/python.nix` |
 | `python-web` | `devcontainers-python` | `web` | `images/python-web.nix` |
 | `rust-latest` | `devcontainers-rust` | `latest` | `images/rust.nix` |
@@ -286,6 +298,8 @@ Important reports include:
 - CI plans
 
 Checks use those reports to reject regressions before an image is published. Smoke tests then validate runtime behavior after an image is loaded into Docker.
+
+`flake/checks.nix` owns the Nix check set. `flake/workflows.nix` adds a generated workflow sync check so target changes and template changes are reflected in checked-in `build-image-*.yml` files.
 
 ## Security Boundaries
 

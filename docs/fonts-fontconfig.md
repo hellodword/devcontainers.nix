@@ -246,9 +246,9 @@ font smoke tests:
 - `fontconfig-cjk`
 - `fontconfig-emoji-symbols`
 
-`tests/ci/check-runtime-evidence.py` and
-`tests/ci/check-runtime-evidence-validator.sh` also know about the new report so
-collected evidence remains complete.
+The image tar fixture check exercises the artifact validator on representative
+layer-plan inputs, and runtime smoke tests validate font behavior after an image
+is loaded into Docker.
 
 ## Useful Validation Commands
 
@@ -318,7 +318,7 @@ When adding system cache generation:
 2. Add the generated cache to the image deliberately, not as an accidental side
    effect.
 3. Change `fontconfig-report.json` from `preGenerated = false`.
-4. Update report checks, docs, and runtime evidence expectations.
+4. Update report checks, docs, and smoke expectations.
 
 When exposing rendering controls:
 

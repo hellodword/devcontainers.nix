@@ -4,20 +4,23 @@ This guide is for people using the published images from a project `.devcontaine
 
 ## Image References
 
-| Image | Use when |
-| --- | --- |
-| `ghcr.io/hellodword/devcontainers-nix:latest` | You work on Nix flakes, Nix modules, or general shell tooling. |
-| `ghcr.io/hellodword/devcontainers-go:latest` | You want current Go plus common Go tools. |
-| `ghcr.io/hellodword/devcontainers-go:<major.minor>` | You need a specific Go major/minor line exposed by this repository. |
-| `ghcr.io/hellodword/devcontainers-go:web` | You build Go services that also need web and data tools. |
-| `ghcr.io/hellodword/devcontainers-nodejs:latest` | You work on Node.js, TypeScript, frontend, or package-manager heavy projects. |
-| `ghcr.io/hellodword/devcontainers-nodejs:<major>` | You need a specific even Node.js major line exposed by this repository. |
-| `ghcr.io/hellodword/devcontainers-python:latest` | You work on Python projects with `uv`, `pipx`, formatters, linters, and test tools. |
-| `ghcr.io/hellodword/devcontainers-python:<major.minor>` | You need a specific Python major/minor line exposed by this repository. |
-| `ghcr.io/hellodword/devcontainers-python:web` | You build Python services that also need web and data tools. |
-| `ghcr.io/hellodword/devcontainers-rust:latest` | You work on Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers. |
-| `ghcr.io/hellodword/devcontainers-rust:web` | You build Rust services that also need web and data tools. |
-| `ghcr.io/hellodword/devcontainers-flutter:latest` | You work on Flutter, Dart, Android, and Chromium-backed web workflows. |
+The flake builds 11 image targets. Target names are used for local Nix outputs, generated workflow names, and smoke plans. Published image references use the `ghcr.io/hellodword/devcontainers-` prefix plus the target's family and tag.
+
+| Target | Image reference | Use when |
+| --- | --- | --- |
+| `nix-latest` | `ghcr.io/hellodword/devcontainers-nix:latest` | You work on Nix flakes, Nix modules, or general shell tooling. |
+| `go-latest` | `ghcr.io/hellodword/devcontainers-go:latest` | You want current Go plus common Go tools. |
+| `go-1-25` | `ghcr.io/hellodword/devcontainers-go:1.25` | You need the previous Go major/minor line exposed by this repository. |
+| `go-web` | `ghcr.io/hellodword/devcontainers-go:web` | You build Go services that also need web and data tools. |
+| `nodejs-latest` | `ghcr.io/hellodword/devcontainers-nodejs:latest` | You work on Node.js, TypeScript, frontend, or package-manager heavy projects. |
+| `nodejs-24` | `ghcr.io/hellodword/devcontainers-nodejs:24` | You need the previous even Node.js major line exposed by this repository. |
+| `python3` | `ghcr.io/hellodword/devcontainers-python:latest` | You work on Python projects with `uv`, `pipx`, formatters, linters, and test tools. |
+| `python-web` | `ghcr.io/hellodword/devcontainers-python:web` | You build Python services that also need web and data tools. |
+| `rust-latest` | `ghcr.io/hellodword/devcontainers-rust:latest` | You work on Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers. |
+| `rust-web` | `ghcr.io/hellodword/devcontainers-rust:web` | You build Rust services that also need web and data tools. |
+| `flutter-latest` | `ghcr.io/hellodword/devcontainers-flutter:latest` | You work on Flutter, Dart, Android, and Chromium-backed web workflows. |
+
+`go-latest`, `nodejs-latest`, and `python3` also publish version tags for their current language line when the target defines one.
 
 ## Basic Devcontainer
 

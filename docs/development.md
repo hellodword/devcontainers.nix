@@ -16,7 +16,7 @@ The fast local loop is:
 nix flake check
 ```
 
-This runs report checks, selected image artifact checks, runtime helper checks, and fixture checks.
+This runs report checks, report CLI checks, selected image artifact checks, runtime helper checks, image tar fixtures, composition fixtures, API evaluation checks, and generated workflow synchronization.
 
 ## Repository Map
 
@@ -24,7 +24,8 @@ Important paths:
 
 | Path | Purpose |
 | --- | --- |
-| `flake.nix` | Pins inputs, defines image targets, apps, packages, checks, and workflow generation. |
+| `flake.nix` | Pins inputs and assembles image outputs, packages, apps, checks, and library metadata. |
+| `flake/` | Maintainer flake internals: image targets, checks, and workflow generation. |
 | `images/` | Small image-family modules that combine shared modules. |
 | `lib/modules/core/` | Shared image contract: options, user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, VS Code extensions, FHS runtime. |
 | `lib/modules/programs/` | Static program integrations such as Git, SSH, direnv, and nix-index. |
@@ -73,13 +74,6 @@ After loading an image, run its smoke plan:
 tests/smoke/run-plan.sh nix-latest
 ```
 
-Collect runtime evidence:
-
-```sh
-tests/smoke/collect-runtime-evidence.sh oci nix-latest
-tests/smoke/collect-runtime-evidence.sh full
-```
-
 The smoke runner never accepts extra Docker run arguments. It probes Docker on the host, forwards only a reachable `tcp://` `DOCKER_HOST` into the container for the Docker daemon test, and skips that test otherwise.
 
 For a Docker daemon smoke test:
@@ -100,7 +94,7 @@ Read [Remote Docker](docker-remote.md) before changing Docker daemon smoke behav
 
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
-3. Add the image target in `flake.nix` with target name, family, tags, module, and any version override modules.
+3. Add the image target in `flake/targets.nix` with target name, family, tags, module, and any version override modules.
 4. Add or update a fixture in `tests/fixtures/` with expected graph nodes.
 5. Run `nix flake check`.
 6. Build the image reports and inspect `graph.json`, `layer-plan.json`, and `metadata-label.json`.
@@ -139,7 +133,7 @@ When adding a program module:
 3. Generate files through `environment.etc`.
 4. Add packages through `environment.systemPackages`.
 5. Add shell integration through `environment.shellInit` or `environment.interactiveShellInit` only when it has no network, installer, or long-running side effects.
-6. Add report assertions in `tests/ci/check-reports.py` or pure eval assertions in `flake.nix`.
+6. Add report assertions in `tests/ci/check-reports.py` or pure eval assertions in `flake/checks.nix`.
 
 ## Adding A Language Or Runtime
 
@@ -151,10 +145,10 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 4. Add packages with `environment.systemPackages`, environment variables with `environment.variables`, path segments, VS Code extensions, settings, aliases, and smoke tests.
 5. Add graph nodes for runtime and language pieces.
 6. Add a fixture expectation for images that enable the module.
-7. Add image target wiring in `flake.nix` if the language has version-specific tags.
+7. Add image target wiring in `flake/targets.nix` if the language has version-specific tags.
 8. Update [Usage](usage.md) with the user-facing image reference or `devcontainer.json` examples.
 
-Version-specific language packages should be injected through small override modules in `flake.nix`, following the Go, Node.js, Python, and Rust patterns.
+Version-specific language packages should be injected through small override modules in `flake/targets.nix`, following the Go, Node.js, Python, and Rust patterns.
 
 ## Adding Compiler Behavior
 
@@ -177,7 +171,7 @@ Runtime helpers live in `runtime/` and are packaged by `runtime/default.nix`.
 When changing a helper:
 
 1. Keep the helper runnable outside the image when possible.
-2. Add or update tests in `tests/ci/check-runtime-tools.sh` or `tests/ci/check-runtime-validation-scripts.sh`.
+2. Add or update tests in `tests/ci/check-runtime-tools.sh`.
 3. If the helper is installed into the image, confirm the image compiler includes it in the runtime root or generated filesystem.
 4. Document user-visible commands in [Usage](usage.md).
 
@@ -233,7 +227,15 @@ nix run .#generate-workflows
 
 The generator renders `.github/workflows/_build-image.yml.j2` with minijinja and writes complete `build-image-*.yml` workflows.
 
-One workflow per image is intentional. A single matrix workflow combined with workflow concurrency can cancel unfinished matrix jobs before the image set completes. Separate workflows give each image its own concurrency group.
+One workflow per image is intentional. Image builds do not use a matrix workflow because matrix jobs and GitHub Actions concurrency have an observed failure mode where unfinished matrix jobs can be canceled before the image set completes. Separate workflows give each image target its own concurrency group and limit cancellation to that target.
+
+`flake/workflows.nix` also defines the generated workflow sync check:
+
+```sh
+nix build .#checks.x86_64-linux.generated-workflows
+```
+
+The checked-in generated workflows, template, and target list should remain synchronized.
 
 The workflows do not use GitHub Actions cache. Nix already uses configured binary substituters for reusable store paths, while per-run image closures and Docker artifacts are large and input-sensitive.
 

@@ -4,13 +4,21 @@
 
 The published images provide Nix, common development tools, VS Code-compatible runtime glue, preconfigured editor metadata, and the `devpkg` helper for adding packages inside a container.
 
-Available image families:
+Published images:
 
 - `ghcr.io/hellodword/devcontainers-nix:latest`
-- `ghcr.io/hellodword/devcontainers-go:latest`, `:<major.minor>`, `:web`
-- `ghcr.io/hellodword/devcontainers-nodejs:latest`, `:<major>`
-- `ghcr.io/hellodword/devcontainers-python:latest`, `:<major.minor>`, `:web`
-- `ghcr.io/hellodword/devcontainers-rust:latest`, `:web`
+- `ghcr.io/hellodword/devcontainers-go:latest`
+- `ghcr.io/hellodword/devcontainers-go:1.26`
+- `ghcr.io/hellodword/devcontainers-go:1.25`
+- `ghcr.io/hellodword/devcontainers-go:web`
+- `ghcr.io/hellodword/devcontainers-nodejs:latest`
+- `ghcr.io/hellodword/devcontainers-nodejs:26`
+- `ghcr.io/hellodword/devcontainers-nodejs:24`
+- `ghcr.io/hellodword/devcontainers-python:latest`
+- `ghcr.io/hellodword/devcontainers-python:3.13`
+- `ghcr.io/hellodword/devcontainers-python:web`
+- `ghcr.io/hellodword/devcontainers-rust:latest`
+- `ghcr.io/hellodword/devcontainers-rust:web`
 - `ghcr.io/hellodword/devcontainers-flutter:latest`
 
 ## Quick Start
