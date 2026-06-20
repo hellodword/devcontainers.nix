@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -9,40 +7,69 @@ let
     pnpm
     yarn
     typescript
+    typescript-language-server
     eslint
     prettier
     node-gyp
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.languages.nodejs.enable {
-    devcontainer.runtimes.nodejs.enable = true;
-    environment.systemPackages = packages;
-    devcontainer.vscode.extensions = [
-      "dbaeumer.vscode-eslint"
-      "esbenp.prettier-vscode"
-      "vue.volar"
+  config.devcontainer.profiles."language/nodejs" = {
+    kind = "language";
+    group = "41-nodejs-language";
+    packages = packages;
+    priority = 72;
+    stability = "medium";
+    sharing = "image-family";
+    securityClass = "trusted";
+    provides.commands = [
+      "pnpm"
+      "yarn"
+      "tsc"
+      "typescript-language-server"
+      "eslint"
+      "prettier"
+      "node-gyp"
     ];
-    devcontainer.vscode.settings = {
-      "typescript.tsdk" = "/usr/lib/node_modules/typescript/lib";
-      "[javascript]" = {
-        "editor.defaultFormatter" = "esbenp.prettier-vscode";
+    vscode = {
+      extensions = {
+        "dbaeumer.vscode-eslint" = {
+          native = false;
+          bucket = "83-vscode-extensions-nodejs";
+          companionTools = [
+            "node"
+            "eslint"
+          ];
+        };
+        "esbenp.prettier-vscode" = {
+          native = false;
+          bucket = "80-vscode-extensions-base";
+          companionTools = [
+            "node"
+            "prettier"
+          ];
+        };
+        "vue.volar" = {
+          native = false;
+          bucket = "83-vscode-extensions-nodejs";
+          companionTools = [
+            "node"
+            "typescript-language-server"
+          ];
+        };
       };
-      "[typescript]" = {
-        "editor.defaultFormatter" = "esbenp.prettier-vscode";
+      settings = {
+        "typescript.tsdk" = "/usr/lib/node_modules/typescript/lib";
+        "[javascript]" = {
+          "editor.defaultFormatter" = "esbenp.prettier-vscode";
+        };
+        "[typescript]" = {
+          "editor.defaultFormatter" = "esbenp.prettier-vscode";
+        };
+        "eslint.runtime" = "/usr/bin/node";
       };
-      "eslint.runtime" = "/usr/bin/node";
     };
-    devcontainer.graph.nodes."language/nodejs" = {
-      kind = "language";
-      group = "41-nodejs-language";
-      paths = packages;
-      stability = "medium";
-      sharing = "image-family";
-      priority = 72;
-      securityClass = "trusted";
-    };
-    devcontainer.tests.smoke = [
+    tests.smoke = [
       {
         name = "node-version";
         command = [

@@ -4,25 +4,10 @@
 
   config.devcontainer = {
     image.name = lib.mkOverride 800 "python-web";
-    toolsets.dataNetwork.enable = true;
-    languages.nodejs.enable = true;
-    tests.smoke = [
-      {
-        name = "python-web-stack";
-        command = [
-          "bash"
-          "-lc"
-          "python --version && uv --version && node --version && npm --version && pnpm --version"
-        ];
-      }
-      {
-        name = "python-web-formatters";
-        command = [
-          "bash"
-          "-lc"
-          "ruff --version && eslint --version && prettier --version"
-        ];
-      }
-    ];
+    profiles = {
+      "toolset/data-network".enable = lib.mkDefault true;
+      "language/nodejs".enable = lib.mkDefault true;
+      "image/python-web".enable = lib.mkDefault true;
+    };
   };
 }

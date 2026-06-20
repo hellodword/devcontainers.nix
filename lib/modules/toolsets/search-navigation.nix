@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -17,16 +15,23 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.toolsets.searchNavigation.enable {
-    environment.systemPackages = packages;
-    devcontainer.graph.nodes."toolset/search-navigation" = {
-      kind = "toolset";
-      group = "05-search-navigation-tools";
-      paths = packages;
-      stability = "stable";
-      sharing = "global";
-      priority = 88;
-      securityClass = "trusted";
-    };
+  config.devcontainer.profiles."toolset/search-navigation" = {
+    kind = "toolset";
+    group = "05-search-navigation-tools";
+    packages = packages;
+    priority = 88;
+    stability = "stable";
+    sharing = "global";
+    securityClass = "trusted";
+    provides.commands = [
+      "rg"
+      "fd"
+      "fzf"
+      "tree"
+      "bat"
+      "eza"
+      "jq"
+      "yq"
+    ];
   };
 }

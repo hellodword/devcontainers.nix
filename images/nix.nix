@@ -1,116 +1,27 @@
-{ lib, pkgs, ... }:
+{ lib, ... }:
 {
   config = {
-    environment.systemPackages = with pkgs; [
-      nix
-      man
-      nixd
-      nil
-      nixfmt
-      alejandra
-      statix
-      deadnix
-      treefmt
-    ];
-
     devcontainer.image = {
       name = lib.mkOverride 1000 "nix";
       tags = lib.mkDefault [ "latest" ];
     };
 
-    devcontainer.graph.nodes."runtime/nix" = {
-      kind = "runtime";
-      group = "10-nix-runtime";
-      paths = [ pkgs.nix ];
-      stability = "stable";
-      sharing = "global";
-      priority = 92;
-      securityClass = "trusted";
+    devcontainer.profiles = {
+      "runtime/base".enable = lib.mkDefault true;
+      "toolset/foundation".enable = lib.mkDefault true;
+      "toolset/source-control".enable = lib.mkDefault true;
+      "toolset/fetch-archive".enable = lib.mkDefault true;
+      "toolset/search-navigation".enable = lib.mkDefault true;
+      "toolset/inspect-debug".enable = lib.mkDefault true;
+      "toolset/workflow-format".enable = lib.mkDefault true;
+      "program/direnv".enable = lib.mkDefault true;
+      "toolset/editor-support".enable = lib.mkDefault true;
+      "toolset/docker-client".enable = lib.mkDefault true;
+      "toolset/nix-index".enable = lib.mkDefault true;
+      "toolset/agents".enable = lib.mkDefault true;
+      "editor/base".enable = lib.mkDefault true;
+      "runtime/nix".enable = lib.mkDefault true;
+      "language/nix".enable = lib.mkDefault true;
     };
-
-    devcontainer.graph.nodes."language/nix" = {
-      kind = "language";
-      group = "11-nix-language";
-      paths = with pkgs; [
-        nixd
-        nil
-        man
-        nixfmt
-        alejandra
-        statix
-        deadnix
-        treefmt
-      ];
-      stability = "stable";
-      sharing = "global";
-      priority = 90;
-      securityClass = "trusted";
-    };
-
-    devcontainer.vscode.extensions = [
-      "jnoortheen.nix-ide"
-      "tamasfe.even-better-toml"
-    ];
-
-    devcontainer.vscode.settings = {
-      "nix.enableLanguageServer" = true;
-      "nix.serverPath" = "nixd";
-      "nix.serverSettings" = {
-        "nixd" = {
-          "formatting" = {
-            "command" = [ "nixfmt" ];
-          };
-        };
-      };
-      "nix.formatterPath" = "nixfmt";
-    };
-
-    devcontainer.tests.smoke = [
-      {
-        name = "nix-version";
-        command = [
-          "nix"
-          "--version"
-        ];
-      }
-      {
-        name = "nixd-version";
-        command = [
-          "nixd"
-          "--version"
-        ];
-      }
-      {
-        name = "nix-language";
-        command = [
-          "bash"
-          "-lc"
-          "nixfmt --version && alejandra --version && statix --help >/dev/null && deadnix --version"
-        ];
-      }
-      {
-        name = "extension-index";
-        command = [
-          "bash"
-          "-lc"
-          "test -f /usr/share/devcontainer/vscode/extensions-index.json"
-        ];
-      }
-      {
-        name = "task-runner-list";
-        command = [
-          "devcontainer-task-runner"
-          "list"
-        ];
-      }
-      {
-        name = "devpkg-list";
-        command = [
-          "bash"
-          "-lc"
-          "devpkg list >/dev/null"
-        ];
-      }
-    ];
   };
 }

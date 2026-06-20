@@ -32,7 +32,8 @@ lib.evalModules {
     ../modules/core/fhs-runtime.nix
     ../modules/core/metadata.nix
     ../modules/core/lifecycle.nix
-    ../modules/core/vscode-extensions.nix
+    ../modules/profiles/editor-base.nix
+    ../modules/profiles/web-stacks.nix
 
     ../modules/programs/git.nix
     ../modules/programs/ssh.nix
@@ -51,10 +52,12 @@ lib.evalModules {
     ../modules/toolsets/agents.nix
     ../modules/toolsets/nix-index.nix
 
+    ../modules/runtimes/base.nix
     ../modules/runtimes/c-env.nix
     ../modules/runtimes/python-runtime.nix
     ../modules/runtimes/nodejs-runtime.nix
 
+    ../modules/languages/nix.nix
     ../modules/languages/python.nix
     ../modules/languages/nodejs.nix
     ../modules/languages/go.nix

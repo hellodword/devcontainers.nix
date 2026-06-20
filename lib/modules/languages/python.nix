@@ -1,5 +1,4 @@
 {
-  lib,
   pkgs,
   config,
   ...
@@ -20,32 +19,58 @@ let
   ];
 in
 {
-  config = lib.mkIf cfg.enable {
-    devcontainer.runtimes.python.enable = true;
-    environment.systemPackages = packages;
-    devcontainer.vscode.extensions = [
-      "ms-python.python"
-      "ms-python.vscode-pylance"
-      "ms-python.autopep8"
-      "charliermarsh.ruff"
+  config.devcontainer.profiles."language/python" = {
+    kind = "language";
+    group = "31-python-language";
+    packages = packages;
+    priority = 72;
+    stability = "medium";
+    sharing = "image-family";
+    securityClass = "trusted";
+    provides.commands = [
+      "uv"
+      "uvx"
+      "pipx"
+      "ruff"
+      "mypy"
+      "pytest"
+      "ipython"
+      "black"
+      "pylint"
+      "bandit"
     ];
-    devcontainer.vscode.settings = {
-      "python.defaultInterpreterPath" = "/usr/bin/python";
-      "[python]" = {
-        "editor.defaultFormatter" = "charliermarsh.ruff";
+    vscode = {
+      extensions = {
+        "ms-python.python" = {
+          native = true;
+          bucket = "82-vscode-extensions-python";
+          companionTools = [ "python" ];
+        };
+        "ms-python.vscode-pylance" = {
+          native = true;
+          bucket = "82-vscode-extensions-python";
+          companionTools = [ "python" ];
+        };
+        "ms-python.autopep8" = {
+          native = true;
+          bucket = "82-vscode-extensions-python";
+          companionTools = [ "python" ];
+        };
+        "charliermarsh.ruff" = {
+          native = false;
+          bucket = "82-vscode-extensions-python";
+          companionTools = [ "ruff" ];
+        };
       };
-      "ruff.nativeServer" = "on";
+      settings = {
+        "python.defaultInterpreterPath" = "/usr/bin/python";
+        "[python]" = {
+          "editor.defaultFormatter" = "charliermarsh.ruff";
+        };
+        "ruff.nativeServer" = "on";
+      };
     };
-    devcontainer.graph.nodes."language/python" = {
-      kind = "language";
-      group = "31-python-language";
-      paths = packages;
-      stability = "medium";
-      sharing = "image-family";
-      priority = 72;
-      securityClass = "trusted";
-    };
-    devcontainer.tests.smoke = [
+    tests.smoke = [
       {
         name = "python-version";
         command = [
@@ -81,13 +106,6 @@ in
           "bash"
           "-lc"
           "node --version && npm --version && npx --version"
-        ];
-      }
-      {
-        name = "nixd-version";
-        command = [
-          "nixd"
-          "--version"
         ];
       }
     ];

@@ -1,5 +1,20 @@
 { lib }:
-{ config }:
+{
+  config,
+  compiledProfiles ? {
+    packages = [ ];
+    env = {
+      variables = { };
+      variableOrigins = { };
+      remoteVariables = { };
+      remoteVariableOrigins = { };
+      aliases = { };
+      aliasOrigins = { };
+      shellInit = "";
+      interactiveShellInit = "";
+    };
+  },
+}:
 let
   pathString = path: builtins.unsafeDiscardStringContext (toString path);
   valueToString =
@@ -12,8 +27,36 @@ let
       lib.concatStringsSep ":" (map valueToString value)
     else
       pathString value;
-  stringVariables = lib.mapAttrs (_: valueToString) config.environment.variables;
-  stringRemoteEnv = lib.mapAttrs (_: valueToString) config.devcontainer.remoteEnv;
+  mergedVariables = compiledProfiles.env.variables // config.environment.variables;
+  mergeOrigins = lib.zipAttrsWith (_: values: lib.unique (lib.concatLists values));
+  mergedVariableOrigins = mergeOrigins [
+    compiledProfiles.env.variableOrigins
+    config.environment.variableOrigins
+  ];
+  mergedRemoteEnv = compiledProfiles.env.remoteVariables // config.devcontainer.remoteEnv;
+  mergedRemoteEnvOrigins = mergeOrigins [
+    compiledProfiles.env.remoteVariableOrigins
+    config.devcontainer.remoteEnvOrigins
+  ];
+  mergedShellAliases = compiledProfiles.env.aliases // config.environment.shellAliases;
+  mergedShellAliasOrigins = mergeOrigins [
+    compiledProfiles.env.aliasOrigins
+    config.environment.shellAliasOrigins
+  ];
+  mergedShellInit = lib.concatStringsSep "\n" (
+    builtins.filter (value: value != "") [
+      config.environment.shellInit
+      compiledProfiles.env.shellInit
+    ]
+  );
+  mergedInteractiveShellInit = lib.concatStringsSep "\n" (
+    builtins.filter (value: value != "") [
+      config.environment.interactiveShellInit
+      compiledProfiles.env.interactiveShellInit
+    ]
+  );
+  stringVariables = lib.mapAttrs (_: valueToString) mergedVariables;
+  stringRemoteEnv = lib.mapAttrs (_: valueToString) mergedRemoteEnv;
   invalidVariableNames = builtins.filter (
     name: builtins.match "[A-Za-z_][A-Za-z0-9_]*" name == null
   ) (builtins.attrNames stringVariables);
@@ -82,27 +125,33 @@ let
   packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (pathString drv));
 in
 {
-  systemPackages = config.environment.systemPackages;
-  packageNames = map packageName config.environment.systemPackages;
+  systemPackages = lib.unique (config.environment.systemPackages ++ compiledProfiles.packages);
+  packageNames = map packageName (
+    lib.unique (config.environment.systemPackages ++ compiledProfiles.packages)
+  );
   pathsToLink = config.environment.pathsToLink;
   extraOutputsToInstall = config.environment.extraOutputsToInstall;
   variables = stringVariables;
-  variableOrigins = config.environment.variableOrigins;
+  variableOrigins = mergedVariableOrigins;
   remoteEnv = stringRemoteEnv;
-  remoteEnvOrigins = config.devcontainer.remoteEnvOrigins;
-  shellAliases = config.environment.shellAliases;
-  shellAliasOrigins = config.environment.shellAliasOrigins;
-  shellInit = config.environment.shellInit;
-  interactiveShellInit = config.environment.interactiveShellInit;
+  remoteEnvOrigins = mergedRemoteEnvOrigins;
+  shellAliases = mergedShellAliases;
+  shellAliasOrigins = mergedShellAliasOrigins;
+  shellInit = mergedShellInit;
+  interactiveShellInit = mergedInteractiveShellInit;
   etc = validatedEtcEntries;
   report = {
-    packageCount = builtins.length config.environment.systemPackages;
-    packages = map packageName config.environment.systemPackages;
+    packageCount = builtins.length (
+      lib.unique (config.environment.systemPackages ++ compiledProfiles.packages)
+    );
+    packages = map packageName (
+      lib.unique (config.environment.systemPackages ++ compiledProfiles.packages)
+    );
     pathsToLink = config.environment.pathsToLink;
     extraOutputsToInstall = config.environment.extraOutputsToInstall;
     variables = stringVariables;
     remoteEnv = stringRemoteEnv;
-    shellAliases = config.environment.shellAliases;
+    shellAliases = mergedShellAliases;
     etc = map (entry: {
       inherit (entry)
         name

@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -13,17 +11,19 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.toolsets.workflowFormat.enable {
-    environment.systemPackages = packages;
-    programs.direnv.enable = lib.mkDefault true;
-    devcontainer.graph.nodes."toolset/workflow-format" = {
-      kind = "toolset";
-      group = "07-workflow-format-tools";
-      paths = packages;
-      stability = "stable";
-      sharing = "global";
-      priority = 82;
-      securityClass = "trusted";
-    };
+  config.devcontainer.profiles."toolset/workflow-format" = {
+    kind = "toolset";
+    group = "07-workflow-format-tools";
+    packages = packages;
+    priority = 82;
+    stability = "stable";
+    sharing = "global";
+    securityClass = "trusted";
+    provides.commands = [
+      "just"
+      "shellcheck"
+      "shfmt"
+      "editorconfig"
+    ];
   };
 }

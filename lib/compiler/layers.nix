@@ -20,7 +20,7 @@ let
   bucketOrder = config.devcontainer.layers.buckets;
   layerNames = lib.filter (bucket: compiledGraph.groups ? ${bucket}) bucketOrder;
   pathsForMembers =
-    members: lib.unique (lib.concatMap (name: config.devcontainer.graph.nodes.${name}.paths) members);
+    members: lib.unique (lib.concatMap (name: compiledGraph.rawNodes.${name}.paths) members);
   packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (pathString drv));
   mkLayer =
     group:
@@ -47,6 +47,9 @@ let
         maxLayers = 1;
       };
     };
+  nonEmptyLayerNames = builtins.filter (
+    group: (pathsForMembers compiledGraph.groups.${group}) != [ ]
+  ) layerNames;
 in
 {
   budget = {
@@ -55,6 +58,6 @@ in
     reserve = config.devcontainer.layers.reserve;
     maxLayerSize = config.devcontainer.layers.maxLayerSize;
   };
-  order = layerNames;
-  layers = map mkLayer layerNames;
+  order = nonEmptyLayerNames;
+  layers = map mkLayer nonEmptyLayerNames;
 }

@@ -51,7 +51,6 @@ in
   config = lib.mkIf cfg.enable (
     lib.mkMerge [
       {
-        environment.systemPackages = [ cfg.package ];
         environment.etc."gitconfig".text = gitConfigText;
         environment.interactiveShellInit = vscodeGitEditorHook;
       }
@@ -63,19 +62,6 @@ in
       (lib.mkIf cfg.prompt.enable {
         environment.etc."profile.d/git-prompt.sh".text = promptHook;
       })
-
-      {
-        devcontainer.tests.smoke = [
-          {
-            name = "git-system-config";
-            command = [
-              "bash"
-              "-lc"
-              "test -r /etc/gitconfig && git config --system --list >/dev/null"
-            ];
-          }
-        ];
-      }
     ]
   );
 }

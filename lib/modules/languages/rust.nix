@@ -1,5 +1,4 @@
 {
-  lib,
   pkgs,
   config,
   ...
@@ -24,43 +23,51 @@ let
   ];
 in
 {
-  config = lib.mkIf cfg.enable {
-    environment.systemPackages = packages;
-    devcontainer.libraries.presets = lib.mkBefore [ "rust-bindgen" ];
-    devcontainer.vscode.extensions = [
-      "rust-lang.rust-analyzer"
-      "tamasfe.even-better-toml"
+  config.devcontainer.profiles."language/rust" = {
+    kind = "language";
+    group = "51-rust-language";
+    packages = packages;
+    priority = 70;
+    stability = "medium";
+    sharing = "image-family";
+    securityClass = "trusted";
+    provides.commands = [
+      "rustc"
+      "cargo"
+      "rustfmt"
+      "clippy-driver"
+      "rust-analyzer"
+      "cargo-nextest"
+      "cargo-edit"
+      "cargo-audit"
+      "rustup"
     ];
-    devcontainer.vscode.settings = {
-      "rust-analyzer.server.path" = "/usr/bin/rust-analyzer";
-      "rust-analyzer.check.command" = "clippy";
+    libraries.presets = [ "rust-bindgen" ];
+    vscode = {
+      extensions."rust-lang.rust-analyzer" = {
+        native = true;
+        bucket = "85-vscode-extensions-rust";
+        companionTools = [
+          "rust-analyzer"
+          "cargo"
+          "clippy-driver"
+        ];
+      };
+      settings = {
+        "rust-analyzer.server.path" = "/usr/bin/rust-analyzer";
+        "rust-analyzer.check.command" = "clippy";
+      };
     };
-    environment.variables = {
-      RUST_BACKTRACE = "1";
-      CARGO_HOME = "$XDG_DATA_HOME/cargo";
-      RUSTUP_HOME = "$XDG_DATA_HOME/rustup";
-      CARGO_TARGET_DIR = "$WORKSPACE/target";
+    env = {
+      variables = {
+        RUST_BACKTRACE = "1";
+        CARGO_HOME = "$XDG_DATA_HOME/cargo";
+        RUSTUP_HOME = "$XDG_DATA_HOME/rustup";
+        CARGO_TARGET_DIR = "$WORKSPACE/target";
+      };
+      path = [ "$CARGO_HOME/bin" ];
     };
-    environment.variableOrigins = {
-      RUST_BACKTRACE = [ "languages.rust" ];
-      CARGO_HOME = [ "languages.rust" ];
-      RUSTUP_HOME = [ "languages.rust" ];
-      CARGO_TARGET_DIR = [ "languages.rust" ];
-    };
-    devcontainer.path.segments.language = [ "$CARGO_HOME/bin" ];
-    devcontainer.path.segmentOrigins.language = {
-      "$CARGO_HOME/bin" = [ "languages.rust" ];
-    };
-    devcontainer.graph.nodes."language/rust" = {
-      kind = "language";
-      group = "51-rust-language";
-      paths = packages;
-      stability = "medium";
-      sharing = "image-family";
-      priority = 70;
-      securityClass = "trusted";
-    };
-    devcontainer.tests.smoke = [
+    tests.smoke = [
       {
         name = "rustc-version";
         command = [

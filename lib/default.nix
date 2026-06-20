@@ -35,6 +35,10 @@ let
       inherit lib;
     };
 
+    compileProfiles = import ./compiler/profiles.nix {
+      inherit lib;
+    };
+
     compileLibraries = import ./compiler/libraries.nix {
       inherit lib;
     };
@@ -92,14 +96,22 @@ let
       }:
       let
         evaluated = evalImage { modules = modules ++ lib.optional (module != null) module; };
+        profiles = compileProfiles {
+          config = evaluated.config;
+        };
         environment = compileEnvironment {
           config = evaluated.config;
+          compiledProfiles = profiles;
         };
         libraries = compileLibraries {
           config = evaluated.config;
           compiledEnvironment = environment;
+          compiledProfiles = profiles;
         };
-        graph = compileGraph { config = evaluated.config; };
+        graph = compileGraph {
+          config = evaluated.config;
+          compiledProfiles = profiles;
+        };
         fhsRuntime = compileFhsRuntime {
           config = evaluated.config;
           compiledLibraries = libraries;
@@ -109,13 +121,11 @@ let
           compiledEnvironment = environment;
           compiledFhsRuntime = fhsRuntime;
           compiledLibraries = libraries;
-        };
-        metadata = compileMetadata {
-          config = evaluated.config;
-          compiledEnv = env;
+          compiledProfiles = profiles;
         };
         lifecycle = compileLifecycle {
           config = evaluated.config;
+          compiledProfiles = profiles;
         };
         shell = compileShell {
           config = evaluated.config;
@@ -127,6 +137,12 @@ let
         };
         vscodeExtensions = compileVscodeExtensions {
           config = evaluated.config;
+          compiledProfiles = profiles;
+        };
+        metadata = compileMetadata {
+          config = evaluated.config;
+          compiledEnv = env;
+          compiledProfiles = profiles;
         };
         filesystem = compileFilesystem {
           config = evaluated.config;
@@ -165,6 +181,7 @@ let
           compiledLifecycle = lifecycle;
           compiledShell = shell;
           compiledFonts = fonts;
+          compiledProfiles = profiles;
           compiledVscodeExtensions = vscodeExtensions;
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
@@ -176,6 +193,7 @@ let
         inherit
           graph
           environment
+          profiles
           env
           libraries
           metadata
@@ -186,6 +204,7 @@ let
           fonts
           ;
         inherit lifecycle vscodeExtensions;
+        profileReport = profiles.report;
         inherit (image)
           rootfs
           oci
@@ -198,6 +217,7 @@ let
           metadata-label-json
           metadata-merged-preview-json
           metadata-schema-report-json
+          profile-report-json
           image-plan-json
           layer-plan-json
           env-report-json

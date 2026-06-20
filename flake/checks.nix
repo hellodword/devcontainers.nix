@@ -182,10 +182,6 @@ let
                 "beta"
               ];
             };
-            devcontainer.vscode.extensions = [
-              "tamasfe.even-better-toml"
-              "redhat.vscode-yaml"
-            ];
             environment.variableOrigins = {
               API_BOOL = [ "tests.api" ];
               API_INT = [ "tests.api" ];
@@ -266,6 +262,177 @@ let
         }).config.security.sudo.enable
         null
     )).success;
+  extensionMetadataRequiredRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [
+            (
+              { lib, ... }:
+              {
+                config = {
+                  devcontainer.image.name = "extension-metadata-required";
+                  devcontainer.image.family = lib.mkForce "test";
+                  devcontainer.profiles."test/extension" = {
+                    enable = true;
+                    kind = "test";
+                    group = "80-vscode-extensions-base";
+                    packages = [ ];
+                    priority = 1;
+                    stability = "stable";
+                    sharing = "single-image";
+                    securityClass = "trusted";
+                    vscode.extensions."redhat.vscode-yaml" = { };
+                  };
+                };
+              }
+            )
+          ];
+        }).profileReport
+        null
+    )).success;
+  duplicateProfileIdRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [
+            (
+              { lib, pkgs, ... }:
+              {
+                config = {
+                  devcontainer.image.name = "duplicate-profile-id";
+                  devcontainer.image.family = lib.mkForce "test";
+                  devcontainer.profiles = {
+                    "test/first" = {
+                      id = "test/duplicate";
+                      enable = true;
+                      kind = "test";
+                      group = "99-fallback";
+                      packages = [ pkgs.hello ];
+                      priority = 1;
+                      stability = "stable";
+                      sharing = "single-image";
+                      securityClass = "trusted";
+                    };
+                    "test/second" = {
+                      id = "test/duplicate";
+                      enable = true;
+                      kind = "test";
+                      group = "99-fallback";
+                      packages = [ pkgs.hello ];
+                      priority = 1;
+                      stability = "stable";
+                      sharing = "single-image";
+                      securityClass = "trusted";
+                    };
+                  };
+                };
+              }
+            )
+          ];
+        }).profileReport
+        null
+    )).success;
+  missingProfileGroupRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [
+            (
+              { lib, pkgs, ... }:
+              {
+                config = {
+                  devcontainer.image.name = "missing-profile-group";
+                  devcontainer.image.family = lib.mkForce "test";
+                  devcontainer.profiles."test/missing-group" = {
+                    enable = true;
+                    kind = "test";
+                    group = "not-in-layer-order";
+                    packages = [ pkgs.hello ];
+                    priority = 1;
+                    stability = "stable";
+                    sharing = "single-image";
+                    securityClass = "trusted";
+                  };
+                };
+              }
+            )
+          ];
+        }).profileReport
+        null
+    )).success;
+  missingCompanionToolRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [
+            (
+              { lib, ... }:
+              {
+                config = {
+                  devcontainer.image.name = "missing-companion-tool";
+                  devcontainer.image.family = lib.mkForce "test";
+                  devcontainer.profiles."test/extension" = {
+                    enable = true;
+                    kind = "test";
+                    group = "80-vscode-extensions-base";
+                    packages = [ ];
+                    priority = 1;
+                    stability = "stable";
+                    sharing = "single-image";
+                    securityClass = "trusted";
+                    vscode.extensions."redhat.vscode-yaml" = {
+                      native = false;
+                      bucket = "80-vscode-extensions-base";
+                      companionTools = [ "missing-tool" ];
+                    };
+                  };
+                };
+              }
+            )
+          ];
+        }).profileReport
+        null
+    )).success;
+  pythonProfileEvalImage = compiler.mkImage {
+    modules = [
+      ../images/python.nix
+      (
+        { lib, ... }:
+        {
+          config.devcontainer.image = {
+            name = lib.mkForce "profile-python-eval";
+            family = lib.mkForce "test";
+            tags = lib.mkForce [ "eval" ];
+          };
+        }
+      )
+    ];
+  };
+  pythonProfile = lib.findFirst (
+    profile: profile.id == "language/python"
+  ) (throw "language/python profile missing") pythonProfileEvalImage.profileReport.enabledProfiles;
+  pythonExtension = lib.findFirst (
+    extension: extension.id == "ms-python.python"
+  ) (throw "ms-python.python extension missing") pythonProfileEvalImage.vscodeExtensions.extensions;
+  profileDefaultOverrideImage = compiler.mkImage {
+    modules = [
+      ../images/nix.nix
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "profile-default-override";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            devcontainer.profiles."toolset/docker-client".enable = false;
+          };
+        }
+      )
+    ];
+  };
   apiEvalCheck =
     let
       env = apiEvalImage.env.containerEnv;
@@ -273,7 +440,7 @@ let
       etcPaths = map (entry: entry.path) apiEvalImage.environment.etc;
       shellText = apiEvalImage.shell.profileText + apiEvalImage.shell.bashrcText;
       layerPathsToLink = (builtins.head apiEvalImage.layers.layers).build.pathsToLink;
-      extensionIds = apiEvalImage.config.devcontainer.vscode.extensions;
+      extensionIds = apiEvalImage.profileReport.vscode.extensionIds;
       expectedExtensionIds = [
         "esbenp.prettier-vscode"
         "jnoortheen.nix-ide"
@@ -310,12 +477,39 @@ let
     assert builtins.match ".*zlib.*" env.NIX_LD_LIBRARY_PATH != null;
     assert invalidKnownHostsRejected;
     assert unsupportedSudoRejected;
+    assert extensionMetadataRequiredRejected;
+    assert duplicateProfileIdRejected;
+    assert missingProfileGroupRejected;
+    assert missingCompanionToolRejected;
+    assert !(builtins.hasAttr "toolset/docker-client" profileDefaultOverrideImage.graph.nodes);
     pkgs.writeText "api-eval-check.json" (
       builtins.toJSON {
         environment = environmentReport;
         etcPaths = etcPaths;
         invalidKnownHostsRejected = invalidKnownHostsRejected;
         unsupportedSudoRejected = unsupportedSudoRejected;
+        extensionMetadataRequiredRejected = extensionMetadataRequiredRejected;
+        duplicateProfileIdRejected = duplicateProfileIdRejected;
+        missingProfileGroupRejected = missingProfileGroupRejected;
+        missingCompanionToolRejected = missingCompanionToolRejected;
+        profileDefaultOverrideNodes = builtins.attrNames profileDefaultOverrideImage.graph.nodes;
+      }
+    );
+  profileEvalCheck =
+    assert builtins.elem "uv" pythonProfile.packages;
+    assert pythonProfile.vscode.settings."python.defaultInterpreterPath" == "/usr/bin/python";
+    assert builtins.elem "ms-python.python" pythonProfileEvalImage.profileReport.vscode.extensionIds;
+    assert builtins.elem "python-version" pythonProfile.tests.smoke;
+    assert builtins.hasAttr "language/python" pythonProfileEvalImage.graph.nodes;
+    assert pythonExtension.native;
+    assert pythonExtension.bucket == "82-vscode-extensions-python";
+    assert builtins.elem "python" pythonExtension.companionTools;
+    assert builtins.elem "language/python" pythonExtension.origins;
+    assert pythonProfileEvalImage.profileReport.validation.companionToolsProvidedByNix;
+    pkgs.writeText "profile-eval-check.json" (
+      builtins.toJSON {
+        profile = pythonProfile;
+        extension = pythonExtension;
       }
     );
 in
@@ -327,4 +521,5 @@ reportChecks
 // fixtureChecks
 // {
   api-eval = apiEvalCheck;
+  profile-eval = profileEvalCheck;
 }

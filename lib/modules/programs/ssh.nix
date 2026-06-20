@@ -30,19 +30,7 @@ let
 in
 {
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [ cfg.package ];
     environment.etc."ssh/ssh_config".text = sshConfigText;
     environment.etc."ssh/ssh_known_hosts".text = knownHostsText;
-
-    devcontainer.tests.smoke = [
-      {
-        name = "ssh-global-config";
-        command = [
-          "bash"
-          "-lc"
-          "test -r /etc/ssh/ssh_config && ssh -G example.com >/dev/null"
-        ];
-      }
-    ];
   };
 }

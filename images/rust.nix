@@ -4,9 +4,11 @@
 
   config.devcontainer = {
     image.name = lib.mkOverride 900 "rust";
-    runtimes.cEnv.enable = true;
-    runtimes.python.enable = true;
-    runtimes.nodejs.enable = true;
-    languages.rust.enable = true;
+    profiles = {
+      "runtime/c-env".enable = lib.mkDefault true;
+      "runtime/python".enable = lib.mkDefault true;
+      "runtime/nodejs".enable = lib.mkDefault true;
+      "language/rust".enable = lib.mkDefault true;
+    };
   };
 }

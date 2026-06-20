@@ -1,6 +1,15 @@
 { lib }:
-{ config, compiledEnv }:
+{
+  config,
+  compiledEnv,
+  compiledProfiles ? {
+    extensionIds = [ ];
+    settings = { };
+    tasks = { };
+  },
+}:
 let
+  allTasks = compiledProfiles.tasks // config.devcontainer.lifecycle.tasks;
   lifecycleCommands =
     let
       phases = [
@@ -15,19 +24,17 @@ let
         };
       };
       enabledPhases = lib.filter (
-        phase:
-        builtins.any (task: task.phase == phase) (builtins.attrValues config.devcontainer.lifecycle.tasks)
+        phase: builtins.any (task: task.phase == phase) (builtins.attrValues allTasks)
       ) phases;
     in
     lib.foldl' lib.recursiveUpdate { } (map mkCommand enabledPhases);
 
   vscodeCustomization =
-    lib.optionalAttrs
-      ((config.devcontainer.vscode.extensions != [ ]) || (config.devcontainer.vscode.settings != { }))
+    lib.optionalAttrs ((compiledProfiles.extensionIds != [ ]) || (compiledProfiles.settings != { }))
       {
         customizations.vscode = {
-          extensions = config.devcontainer.vscode.extensions;
-          settings = config.devcontainer.vscode.settings;
+          extensions = compiledProfiles.extensionIds;
+          settings = compiledProfiles.settings;
         };
       };
 

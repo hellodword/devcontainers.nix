@@ -191,6 +191,152 @@ let
       };
     };
   };
+  vscodeExtensionType = types.submodule (
+    { name, ... }:
+    {
+      options = {
+        id = mkOption {
+          type = nonEmptyStringType;
+          default = name;
+        };
+        native = mkOption { type = types.bool; };
+        bucket = mkOption { type = nonEmptyStringType; };
+        companionTools = mkOption { type = types.listOf nonEmptyStringType; };
+        projectionOverride = mkOption {
+          type = types.nullOr nonEmptyStringType;
+          default = null;
+        };
+        sourcePreference = mkOption {
+          type = types.enum [
+            "marketplace-first"
+            "open-vsx-first"
+          ];
+          default = "marketplace-first";
+        };
+        required = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        notes = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+        };
+      };
+    }
+  );
+  envContributionType = types.submodule {
+    options = {
+      variables = mkOption {
+        type = types.attrsOf envValueType;
+        default = { };
+      };
+      remoteVariables = mkOption {
+        type = types.attrsOf envValueType;
+        default = { };
+      };
+      path = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+      };
+      pathBucket = mkOption {
+        type = nonEmptyStringType;
+        default = "language";
+      };
+      aliases = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+      };
+      shellInit = mkOption {
+        type = types.lines;
+        default = "";
+      };
+      interactiveShellInit = mkOption {
+        type = types.lines;
+        default = "";
+      };
+    };
+  };
+  profileType = types.submodule (
+    { name, ... }:
+    {
+      options = {
+        id = mkOption {
+          type = nonEmptyStringType;
+          default = name;
+        };
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+        };
+        kind = mkOption { type = nonEmptyStringType; };
+        group = mkOption { type = nonEmptyStringType; };
+        packages = mkOption { type = types.listOf types.package; };
+        priority = mkOption { type = types.int; };
+        stability = mkOption {
+          type = types.enum [
+            "very-stable"
+            "stable"
+            "medium"
+            "volatile"
+          ];
+        };
+        sharing = mkOption {
+          type = types.enum [
+            "global"
+            "cross-language"
+            "image-family"
+            "single-image"
+          ];
+        };
+        securityClass = mkOption {
+          type = types.enum [
+            "trusted"
+            "networked"
+          ];
+        };
+        provides.commands = mkOption {
+          type = types.listOf nonEmptyStringType;
+          default = [ ];
+        };
+        vscode = {
+          extensions = mkOption {
+            type = types.attrsOf vscodeExtensionType;
+            default = { };
+          };
+          settings = mkOption {
+            type = types.attrs;
+            default = { };
+          };
+        };
+        env = mkOption {
+          type = envContributionType;
+          default = { };
+        };
+        libraries.presets = mkOption {
+          type = types.listOf (
+            types.enum [
+              "autotools"
+              "gtk"
+              "gobject-introspection"
+              "gstreamer"
+              "qt"
+              "cgo"
+              "rust-bindgen"
+            ]
+          );
+          default = [ ];
+        };
+        lifecycle.tasks = mkOption {
+          type = types.attrsOf lifecycleTaskType;
+          default = { };
+        };
+        tests.smoke = mkOption {
+          type = types.listOf smokeTestType;
+          default = [ ];
+        };
+      };
+    }
+  );
 in
 {
   options = {
@@ -654,6 +800,11 @@ in
         default = [ ];
       };
 
+      profiles = mkOption {
+        type = types.attrsOf profileType;
+        default = { };
+      };
+
       remoteEnv = mkOption {
         type = types.attrsOf envValueType;
         default = { };
@@ -780,15 +931,6 @@ in
       };
 
       vscode = {
-        extensions = mkOption {
-          type = types.listOf types.str;
-          default = [ ];
-          apply = lib.unique;
-        };
-        settings = mkOption {
-          type = types.attrs;
-          default = { };
-        };
         preinstall = {
           enable = mkOption {
             type = types.bool;
@@ -867,50 +1009,6 @@ in
       };
 
       toolsets = {
-        foundation.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        sourceControl.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        fetchArchive.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        searchNavigation.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        inspectDebug.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        workflowFormat.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        editorSupport.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        dataNetwork.enable = mkOption {
-          type = types.bool;
-          default = false;
-        };
-        dockerClient.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        agents.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        nixIndex.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
         nixIndex.comma.enable = mkOption {
           type = types.bool;
           default = true;
@@ -918,25 +1016,13 @@ in
       };
 
       runtimes = {
-        cEnv.enable = mkOption {
-          type = types.bool;
-          default = false;
-        };
         python = {
-          enable = mkOption {
-            type = types.bool;
-            default = false;
-          };
           package = mkOption {
             type = types.nullOr types.package;
             default = null;
           };
         };
         nodejs = {
-          enable = mkOption {
-            type = types.bool;
-            default = false;
-          };
           package = mkOption {
             type = types.nullOr types.package;
             default = null;
@@ -946,42 +1032,22 @@ in
 
       languages = {
         python = {
-          enable = mkOption {
-            type = types.bool;
-            default = false;
-          };
           packageSet = mkOption {
             type = types.nullOr types.attrs;
             default = null;
           };
         };
-        nodejs.enable = mkOption {
-          type = types.bool;
-          default = false;
-        };
         go = {
-          enable = mkOption {
-            type = types.bool;
-            default = false;
-          };
           package = mkOption {
             type = types.nullOr types.package;
             default = null;
           };
         };
         rust = {
-          enable = mkOption {
-            type = types.bool;
-            default = false;
-          };
           toolchain = mkOption {
             type = types.nullOr types.package;
             default = null;
           };
-        };
-        flutter.enable = mkOption {
-          type = types.bool;
-          default = false;
         };
       };
     };

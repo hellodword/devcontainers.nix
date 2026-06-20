@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -21,16 +19,27 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.toolsets.inspectDebug.enable {
-    environment.systemPackages = packages;
-    devcontainer.graph.nodes."toolset/inspect-debug" = {
-      kind = "toolset";
-      group = "06-inspect-debug-tools";
-      paths = packages;
-      stability = "medium";
-      sharing = "global";
-      priority = 84;
-      securityClass = "networked";
-    };
+  config.devcontainer.profiles."toolset/inspect-debug" = {
+    kind = "toolset";
+    group = "06-inspect-debug-tools";
+    packages = packages;
+    priority = 84;
+    stability = "medium";
+    sharing = "global";
+    securityClass = "networked";
+    provides.commands = [
+      "ps"
+      "killall"
+      "lsof"
+      "htop"
+      "btop"
+      "strace"
+      "ip"
+      "ping"
+      "dig"
+      "nc"
+      "socat"
+      "openssl"
+    ];
   };
 }

@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -12,16 +10,18 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.toolsets.dataNetwork.enable {
-    environment.systemPackages = packages;
-    devcontainer.graph.nodes."toolset/data-network" = {
-      kind = "toolset";
-      group = "08-data-network-tools";
-      paths = packages;
-      stability = "medium";
-      sharing = "image-family";
-      priority = 70;
-      securityClass = "networked";
-    };
+  config.devcontainer.profiles."toolset/data-network" = {
+    kind = "toolset";
+    group = "08-data-network-tools";
+    packages = packages;
+    priority = 70;
+    stability = "medium";
+    sharing = "image-family";
+    securityClass = "networked";
+    provides.commands = [
+      "psql"
+      "redis-cli"
+      "http"
+    ];
   };
 }

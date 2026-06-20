@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -13,31 +11,25 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.toolsets.dockerClient.enable {
-    environment.systemPackages = packages;
-
-    environment.variables = {
+  config.devcontainer.profiles."toolset/docker-client" = {
+    kind = "toolset";
+    group = "09-docker-client-tools";
+    packages = packages;
+    priority = 82;
+    stability = "medium";
+    sharing = "global";
+    securityClass = "trusted";
+    provides.commands = [
+      "docker"
+      "docker-buildx"
+      "docker-compose"
+    ];
+    env.variables = {
       DOCKER_BUILDKIT = "1";
       COMPOSE_DOCKER_CLI_BUILD = "1";
       BUILDKIT_PROGRESS = "plain";
     };
-    environment.variableOrigins = {
-      DOCKER_BUILDKIT = [ "toolsets.docker-client" ];
-      COMPOSE_DOCKER_CLI_BUILD = [ "toolsets.docker-client" ];
-      BUILDKIT_PROGRESS = [ "toolsets.docker-client" ];
-    };
-
-    devcontainer.graph.nodes."toolset/docker-client" = {
-      kind = "toolset";
-      group = "09-docker-client-tools";
-      paths = packages;
-      stability = "medium";
-      sharing = "global";
-      priority = 82;
-      securityClass = "trusted";
-    };
-
-    devcontainer.tests.smoke = [
+    tests.smoke = [
       {
         name = "docker-client";
         command = [

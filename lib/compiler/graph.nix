@@ -1,5 +1,10 @@
 { lib }:
-{ config }:
+{
+  config,
+  compiledProfiles ? {
+    graphNodes = { };
+  },
+}:
 let
   pathString = path: builtins.unsafeDiscardStringContext (toString path);
   normalizeNode = node: {
@@ -13,7 +18,8 @@ let
     paths = map pathString node.paths;
     files = node.files;
   };
-  nodes = lib.mapAttrs (_: normalizeNode) config.devcontainer.graph.nodes;
+  rawNodes = config.devcontainer.graph.nodes // compiledProfiles.graphNodes;
+  nodes = lib.mapAttrs (_: normalizeNode) rawNodes;
   groups = lib.foldl' (
     acc: name:
     let
@@ -27,5 +33,10 @@ let
   );
 in
 {
-  inherit nodes groups duplicates;
+  inherit
+    rawNodes
+    nodes
+    groups
+    duplicates
+    ;
 }

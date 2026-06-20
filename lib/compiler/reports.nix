@@ -13,6 +13,12 @@
   compiledLifecycle,
   compiledShell,
   compiledFonts,
+  compiledProfiles ? {
+    report = { };
+    smokeTests = [ ];
+    extensionIds = [ ];
+    settings = { };
+  },
   compiledVscodeExtensions,
   compiledFhsRuntime,
   compiledFilesystem,
@@ -22,11 +28,13 @@ let
   jsonFile = name: value: pkgs.writeText name (builtins.toJSON value);
 
   graph-json = jsonFile "graph.json" { inherit (compiledGraph) nodes groups; };
-  graph-normalized-json = jsonFile "graph-normalized.json" compiledGraph;
+  graph-normalized-json = jsonFile "graph-normalized.json" (removeAttrs compiledGraph [ "rawNodes" ]);
   graph-duplicates-report-json = jsonFile "graph-duplicates-report.json" compiledGraph.duplicates;
   metadata-label-json = jsonFile "metadata-label.json" compiledMetadata.label;
   metadata-merged-preview-json = jsonFile "metadata-merged-preview.json" compiledMetadata.mergedPreview;
   metadata-schema-report-json = jsonFile "metadata-schema-report.json" compiledMetadata.schemaReport;
+  allSmokeTests = config.devcontainer.tests.smoke ++ compiledProfiles.smokeTests;
+  profile-report-json = jsonFile "profile-report.json" compiledProfiles.report;
   image-plan-json = jsonFile "image-plan.json" {
     image = config.devcontainer.image.name;
     family = config.devcontainer.image.family;
@@ -41,7 +49,7 @@ let
     user = config.devcontainer.user.containerUser;
     workingDir = "/workspaces";
     entrypoint = [ "/usr/bin/devcontainer-entrypoint" ];
-    smokeTestCount = builtins.length config.devcontainer.tests.smoke;
+    smokeTestCount = builtins.length allSmokeTests;
   };
   imageTag =
     if config.devcontainer.image.tags == [ ] then
@@ -74,7 +82,7 @@ let
   };
   extensions-report-json = jsonFile "extensions-report.json" {
     image = config.devcontainer.image.name;
-    extensionCount = builtins.length config.devcontainer.vscode.extensions;
+    extensionCount = builtins.length compiledVscodeExtensions.extensions;
     extensions = compiledVscodeExtensions.extensions;
     projection = config.devcontainer.vscode.preinstall.projection;
     validation = {
@@ -91,7 +99,9 @@ let
         && extension.sourceLock ? manifestSha256
         && extension.sourceLock ? vsixSha256
       ) compiledVscodeExtensions.extensions;
-      companionToolsProvidedByNix = true;
+      companionToolsProvidedByNix =
+        (compiledProfiles.report.validation or { }).companionToolsProvidedByNix or false;
+      missingCompanionTools = (compiledProfiles.report.validation or { }).missingCompanionTools or [ ];
     };
   };
   fhs-runtime-report-json = jsonFile "fhs-runtime-report.json" {
@@ -151,7 +161,7 @@ let
   };
   smoke-test-plan-json = jsonFile "smoke-test-plan.json" {
     image = config.devcontainer.image.name;
-    tests = config.devcontainer.tests.smoke;
+    tests = allSmokeTests;
   };
   ci-plan-json = jsonFile "ci-plan.json" {
     image = config.devcontainer.image.name;
@@ -164,6 +174,7 @@ let
       "graph.json"
       "metadata-merged-preview.json"
       "metadata-schema-report.json"
+      "profile-report.json"
       "image-plan.json"
       "layer-plan.json"
       "metadata-label.json"
@@ -205,6 +216,10 @@ let
     {
       name = "metadata-schema-report.json";
       path = metadata-schema-report-json;
+    }
+    {
+      name = "profile-report.json";
+      path = profile-report-json;
     }
     {
       name = "image-plan.json";
@@ -276,6 +291,7 @@ in
     metadata-label-json
     metadata-merged-preview-json
     metadata-schema-report-json
+    profile-report-json
     image-plan-json
     tasks-json
     extensions-index-json

@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -13,18 +11,21 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.toolsets.editorSupport.enable {
-    environment.systemPackages = packages;
-    devcontainer.graph.nodes."toolset/editor-support" = {
-      kind = "toolset";
-      group = "07-editor-support-tools";
-      paths = packages;
-      stability = "medium";
-      sharing = "global";
-      priority = 82;
-      securityClass = "trusted";
-    };
-    devcontainer.tests.smoke = [
+  config.devcontainer.profiles."toolset/editor-support" = {
+    kind = "toolset";
+    group = "07-editor-support-tools";
+    packages = packages;
+    priority = 82;
+    stability = "medium";
+    sharing = "global";
+    securityClass = "trusted";
+    provides.commands = [
+      "yaml-language-server"
+      "minijinja"
+      "protoc"
+      "protols"
+    ];
+    tests.smoke = [
       {
         name = "editor-support-tools";
         command = [

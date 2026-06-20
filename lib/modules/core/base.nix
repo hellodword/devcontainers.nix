@@ -1,8 +1,6 @@
-{ pkgs, ... }:
+{ ... }:
 {
   config = {
-    environment.systemPackages = [ pkgs.bashInteractive ];
-
     devcontainer.layers.buckets = [
       "00-base-runtime"
       "01-fhs-vscode-runtime"
@@ -44,16 +42,6 @@
       "95-dynamic-package-runtime"
       "99-fallback"
     ];
-
-    devcontainer.graph.nodes."runtime/base" = {
-      kind = "runtime";
-      group = "00-base-runtime";
-      paths = [ pkgs.bashInteractive ];
-      stability = "very-stable";
-      sharing = "global";
-      priority = 100;
-      securityClass = "trusted";
-    };
 
     devcontainer.metadata.snippets = [
       {

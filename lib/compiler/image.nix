@@ -165,7 +165,7 @@ let
   '';
 
   pathsForMembers =
-    members: lib.unique (lib.concatMap (name: config.devcontainer.graph.nodes.${name}.paths) members);
+    members: lib.unique (lib.concatMap (name: compiledGraph.rawNodes.${name}.paths) members);
 
   mkSemanticLayer =
     acc: layerReport:

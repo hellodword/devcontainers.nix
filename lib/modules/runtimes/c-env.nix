@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -20,16 +18,26 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.runtimes.cEnv.enable {
-    environment.systemPackages = packages;
-    devcontainer.graph.nodes."runtime/c-env" = {
-      kind = "runtime";
-      group = "20-c-env";
-      paths = packages;
-      stability = "stable";
-      sharing = "cross-language";
-      priority = 86;
-      securityClass = "trusted";
-    };
+  config.devcontainer.profiles."runtime/c-env" = {
+    kind = "runtime";
+    group = "20-c-env";
+    packages = packages;
+    priority = 86;
+    stability = "stable";
+    sharing = "cross-language";
+    securityClass = "trusted";
+    provides.commands = [
+      "cc"
+      "gcc"
+      "pkg-config"
+      "cmake"
+      "ninja"
+      "meson"
+      "muon"
+      "make"
+      "autoconf"
+      "automake"
+      "libtool"
+    ];
   };
 }

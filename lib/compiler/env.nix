@@ -15,10 +15,26 @@
     env = { };
     envOrigins = { };
   },
+  compiledProfiles ? {
+    env = {
+      pathSegments = { };
+      pathSegmentOrigins = { };
+    };
+  },
 }:
 let
   order = config.devcontainer.path.order;
-  segmentOrigins = config.devcontainer.path.segmentOrigins;
+  pathSegments = lib.zipAttrsWith (_: values: lib.concatLists values) [
+    config.devcontainer.path.segments
+    compiledProfiles.env.pathSegments
+  ];
+  segmentOrigins =
+    lib.zipAttrsWith
+      (_: values: lib.zipAttrsWith (_: origins: lib.unique (lib.concatLists origins)) values)
+      [
+        config.devcontainer.path.segmentOrigins
+        compiledProfiles.env.pathSegmentOrigins
+      ];
   emptyOrigins = {
     container = { };
     remote = { };
@@ -126,7 +142,7 @@ let
       (
         state: bucket:
         let
-          bucketSegments = config.devcontainer.path.segments.${bucket} or [ ];
+          bucketSegments = pathSegments.${bucket} or [ ];
         in
         lib.foldl' (
           inner: segment:

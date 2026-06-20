@@ -4,8 +4,11 @@
 
   config.devcontainer = {
     image.name = lib.mkOverride 900 "python";
-    runtimes.cEnv.enable = true;
-    runtimes.nodejs.enable = true;
-    languages.python.enable = true;
+    profiles = {
+      "runtime/c-env".enable = lib.mkDefault true;
+      "runtime/python".enable = lib.mkDefault true;
+      "runtime/nodejs".enable = lib.mkDefault true;
+      "language/python".enable = lib.mkDefault true;
+    };
   };
 }

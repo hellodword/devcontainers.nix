@@ -4,17 +4,10 @@
 
   config.devcontainer = {
     image.name = lib.mkOverride 800 "rust-web";
-    toolsets.dataNetwork.enable = true;
-    languages.nodejs.enable = true;
-    tests.smoke = [
-      {
-        name = "rust-web-stack";
-        command = [
-          "bash"
-          "-lc"
-          "rustc --version && cargo --version && node --version && npm --version && pnpm --version"
-        ];
-      }
-    ];
+    profiles = {
+      "toolset/data-network".enable = lib.mkDefault true;
+      "language/nodejs".enable = lib.mkDefault true;
+      "image/rust-web".enable = lib.mkDefault true;
+    };
   };
 }

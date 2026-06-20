@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -25,16 +23,30 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.toolsets.foundation.enable {
-    environment.systemPackages = packages;
-    devcontainer.graph.nodes."toolset/foundation" = {
-      kind = "toolset";
-      group = "02-foundation-tools";
-      paths = packages;
-      stability = "very-stable";
-      sharing = "global";
-      priority = 95;
-      securityClass = "trusted";
-    };
+  config.devcontainer.profiles."toolset/foundation" = {
+    kind = "toolset";
+    group = "02-foundation-tools";
+    packages = packages;
+    priority = 95;
+    stability = "very-stable";
+    sharing = "global";
+    securityClass = "trusted";
+    provides.commands = [
+      "bash"
+      "coreutils"
+      "find"
+      "sed"
+      "grep"
+      "awk"
+      "tar"
+      "gzip"
+      "xz"
+      "zstd"
+      "file"
+      "which"
+      "less"
+      "vim"
+      "sqlite3"
+    ];
   };
 }

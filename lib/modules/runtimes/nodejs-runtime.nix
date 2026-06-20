@@ -1,5 +1,4 @@
 {
-  lib,
   pkgs,
   config,
   ...
@@ -10,36 +9,30 @@ let
   packages = [ nodejs ];
 in
 {
-  config = lib.mkIf cfg.enable {
-    environment.systemPackages = packages;
-    environment.variables = {
-      NODE_ENV = "development";
-      NPM_CONFIG_CACHE = "$XDG_CACHE_HOME/npm";
-      COREPACK_HOME = "$XDG_CACHE_HOME/corepack";
-      PNPM_HOME = "$XDG_DATA_HOME/pnpm";
-      YARN_CACHE_FOLDER = "$XDG_CACHE_HOME/yarn";
-      NODE_REPL_HISTORY = "$XDG_STATE_HOME/node_repl_history";
-    };
-    environment.variableOrigins = {
-      NODE_ENV = [ "runtimes.nodejs" ];
-      NPM_CONFIG_CACHE = [ "runtimes.nodejs" ];
-      COREPACK_HOME = [ "runtimes.nodejs" ];
-      PNPM_HOME = [ "runtimes.nodejs" ];
-      YARN_CACHE_FOLDER = [ "runtimes.nodejs" ];
-      NODE_REPL_HISTORY = [ "runtimes.nodejs" ];
-    };
-    devcontainer.path.segments.language = [ "$PNPM_HOME" ];
-    devcontainer.path.segmentOrigins.language = {
-      "$PNPM_HOME" = [ "runtimes.nodejs" ];
-    };
-    devcontainer.graph.nodes."runtime/nodejs" = {
-      kind = "runtime";
-      group = "40-nodejs-runtime";
-      paths = packages;
-      stability = "stable";
-      sharing = "cross-language";
-      priority = 85;
-      securityClass = "trusted";
+  config.devcontainer.profiles."runtime/nodejs" = {
+    kind = "runtime";
+    group = "40-nodejs-runtime";
+    packages = packages;
+    priority = 85;
+    stability = "stable";
+    sharing = "cross-language";
+    securityClass = "trusted";
+    provides.commands = [
+      "node"
+      "npm"
+      "npx"
+      "corepack"
+    ];
+    env = {
+      variables = {
+        NODE_ENV = "development";
+        NPM_CONFIG_CACHE = "$XDG_CACHE_HOME/npm";
+        COREPACK_HOME = "$XDG_CACHE_HOME/corepack";
+        PNPM_HOME = "$XDG_DATA_HOME/pnpm";
+        YARN_CACHE_FOLDER = "$XDG_CACHE_HOME/yarn";
+        NODE_REPL_HISTORY = "$XDG_STATE_HOME/node_repl_history";
+      };
+      path = [ "$PNPM_HOME" ];
     };
   };
 }

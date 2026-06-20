@@ -1,5 +1,4 @@
 {
-  lib,
   pkgs,
   config,
   ...
@@ -21,50 +20,59 @@ let
   ];
 in
 {
-  config = lib.mkIf cfg.enable {
-    environment.systemPackages = packages;
-    devcontainer.libraries.presets = lib.mkBefore [ "cgo" ];
-    devcontainer.vscode.extensions = [ "golang.go" ];
-    devcontainer.vscode.settings = {
-      "go.toolsManagement.checkForUpdates" = "off";
-      "go.toolsManagement.autoUpdate" = false;
-      "go.gopath" = "/home/vscode/.local/share/go";
-      "go.goroot" = "/usr/share/go";
+  config.devcontainer.profiles."language/go" = {
+    kind = "language";
+    group = "50-go-language";
+    packages = packages;
+    priority = 70;
+    stability = "medium";
+    sharing = "image-family";
+    securityClass = "trusted";
+    provides.commands = [
+      "go"
+      "gopls"
+      "dlv"
+      "golangci-lint"
+      "govulncheck"
+      "gotests"
+      "gomodifytags"
+      "impl"
+      "protoc-gen-go"
+    ];
+    libraries.presets = [ "cgo" ];
+    vscode = {
+      extensions."golang.go" = {
+        native = true;
+        bucket = "84-vscode-extensions-go";
+        companionTools = [
+          "go"
+          "gopls"
+          "dlv"
+        ];
+      };
+      settings = {
+        "go.toolsManagement.checkForUpdates" = "off";
+        "go.toolsManagement.autoUpdate" = false;
+        "go.gopath" = "/home/vscode/.local/share/go";
+        "go.goroot" = "/usr/share/go";
+      };
     };
-    environment.variables = {
-      GOTELEMETRY = "off";
-      GOTOOLCHAIN = "local";
-      GOPATH = "$XDG_DATA_HOME/go";
-      GOBIN = "$XDG_DATA_HOME/go/bin";
-      GOMODCACHE = "$XDG_CACHE_HOME/go/pkg/mod";
-      GOCACHE = "$XDG_CACHE_HOME/go-build";
+    env = {
+      variables = {
+        GOTELEMETRY = "off";
+        GOTOOLCHAIN = "local";
+        GOPATH = "$XDG_DATA_HOME/go";
+        GOBIN = "$XDG_DATA_HOME/go/bin";
+        GOMODCACHE = "$XDG_CACHE_HOME/go/pkg/mod";
+        GOCACHE = "$XDG_CACHE_HOME/go-build";
+      };
+      path = [ "$GOBIN" ];
+      aliases = {
+        gobuild-small = ''go build -trimpath -ldflags "-s -w -buildid="'';
+        go-build = ''go build -trimpath -ldflags "-s -w -buildid="'';
+      };
     };
-    environment.variableOrigins = {
-      GOTELEMETRY = [ "languages.go" ];
-      GOTOOLCHAIN = [ "languages.go" ];
-      GOPATH = [ "languages.go" ];
-      GOBIN = [ "languages.go" ];
-      GOMODCACHE = [ "languages.go" ];
-      GOCACHE = [ "languages.go" ];
-    };
-    devcontainer.path.segments.language = [ "$GOBIN" ];
-    devcontainer.path.segmentOrigins.language = {
-      "$GOBIN" = [ "languages.go" ];
-    };
-    environment.shellAliases.gobuild-small = ''go build -trimpath -ldflags "-s -w -buildid="'';
-    environment.shellAliases.go-build = ''go build -trimpath -ldflags "-s -w -buildid="'';
-    environment.shellAliasOrigins.gobuild-small = [ "languages.go" ];
-    environment.shellAliasOrigins.go-build = [ "languages.go" ];
-    devcontainer.graph.nodes."language/go" = {
-      kind = "language";
-      group = "50-go-language";
-      paths = packages;
-      stability = "medium";
-      sharing = "image-family";
-      priority = 70;
-      securityClass = "trusted";
-    };
-    devcontainer.tests.smoke = [
+    tests.smoke = [
       {
         name = "go-version";
         command = [

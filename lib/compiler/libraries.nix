@@ -4,11 +4,14 @@
   compiledEnvironment ? {
     variables = { };
   },
+  compiledProfiles ? {
+    libraryPresets = [ ];
+  },
 }:
 let
   libraryUtils = import ../library-utils.nix { inherit lib; };
   cfg = config.devcontainer.libraries;
-  presets = lib.unique cfg.presets;
+  presets = lib.unique (compiledProfiles.libraryPresets ++ cfg.presets);
 
   runtimeOutputs = libraryUtils.uniqueDrvs (
     (map libraryUtils.runtimeOutput cfg.runtime) ++ (map libraryUtils.runtimeOutput cfg.build)

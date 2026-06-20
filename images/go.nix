@@ -4,9 +4,11 @@
 
   config.devcontainer = {
     image.name = lib.mkOverride 900 "go";
-    runtimes.cEnv.enable = true;
-    runtimes.python.enable = true;
-    runtimes.nodejs.enable = true;
-    languages.go.enable = true;
+    profiles = {
+      "runtime/c-env".enable = lib.mkDefault true;
+      "runtime/python".enable = lib.mkDefault true;
+      "runtime/nodejs".enable = lib.mkDefault true;
+      "language/go".enable = lib.mkDefault true;
+    };
   };
 }

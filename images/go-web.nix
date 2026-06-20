@@ -4,17 +4,10 @@
 
   config.devcontainer = {
     image.name = lib.mkOverride 800 "go-web";
-    toolsets.dataNetwork.enable = true;
-    languages.nodejs.enable = true;
-    tests.smoke = [
-      {
-        name = "go-web-stack";
-        command = [
-          "bash"
-          "-lc"
-          "go version && gopls version && node --version && npm --version && pnpm --version"
-        ];
-      }
-    ];
+    profiles = {
+      "toolset/data-network".enable = lib.mkDefault true;
+      "language/nodejs".enable = lib.mkDefault true;
+      "image/go-web".enable = lib.mkDefault true;
+    };
   };
 }

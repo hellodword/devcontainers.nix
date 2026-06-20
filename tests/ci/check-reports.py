@@ -22,6 +22,7 @@ REQUIRED_REPORT_FILES = {
     "metadata-label.json",
     "metadata-merged-preview.json",
     "metadata-schema-report.json",
+    "profile-report.json",
     "security-report.json",
     "shell-report.json",
     "smoke-test-plan.json",
@@ -72,6 +73,7 @@ def main() -> int:
     metadata_label = read_json(reports_dir / "metadata-label.json")
     metadata_preview = read_json(reports_dir / "metadata-merged-preview.json")
     metadata_schema = read_json(reports_dir / "metadata-schema-report.json")
+    profile_report = read_json(reports_dir / "profile-report.json")
     layer_plan = read_json(reports_dir / "layer-plan.json")
     extensions_report = read_json(reports_dir / "extensions-report.json")
     extensions_index = read_json(reports_dir / "extensions-index.json")
@@ -87,6 +89,11 @@ def main() -> int:
     shell_report = read_json(reports_dir / "shell-report.json")
     preview_container_env = metadata_preview.get("containerEnv") or {}
     environment_report = env_report.get("environment") or {}
+    enabled_profile_ids = {profile["id"] for profile in profile_report.get("enabledProfiles") or []}
+    profile_package_names = set(profile_report.get("packages") or [])
+    profile_extension_ids = set((profile_report.get("vscode") or {}).get("extensionIds") or [])
+    profile_vscode_settings = (profile_report.get("vscode") or {}).get("settings") or {}
+    profile_library_presets = set((profile_report.get("libraries") or {}).get("presets") or [])
 
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
@@ -134,16 +141,34 @@ def main() -> int:
         fail("layer-plan.json must include one 02-fonts-runtime layer")
     if "runtime/fonts" not in font_layers[0]["members"]:
         fail("02-fonts-runtime layer must include runtime/fonts")
+    profile_ids_with_packages = {
+        profile["id"]
+        for profile in profile_report.get("enabledProfiles") or []
+        if profile.get("packageCount", 0) > 0
+    }
+    layer_members = {member for layer in layer_plan["layers"] for member in layer.get("members", [])}
+    missing_profile_layers = sorted(profile_ids_with_packages - layer_members)
+    if missing_profile_layers:
+        fail(f"layer-plan.json missing enabled package profiles: {', '.join(missing_profile_layers)}")
 
     if not smoke_plan["tests"]:
         fail("smoke-test-plan.json must include at least one test")
+    profile_smoke_names = {
+        test.get("name")
+        for test in (profile_report.get("tests") or {}).get("smoke") or []
+        if test.get("name")
+    }
+    smoke_names = {test.get("name") for test in smoke_plan["tests"]}
+    missing_profile_smoke = sorted(profile_smoke_names - smoke_names)
+    if missing_profile_smoke:
+        fail(f"smoke-test-plan.json missing profile smoke tests: {', '.join(missing_profile_smoke)}")
 
     smoke_plan_file = reports_dir / "smoke-test-plan.json"
     smoke_checker = pathlib.Path(
         os.environ.get("CHECK_SMOKE_PLAN", pathlib.Path(__file__).with_name("check-smoke-plan.py"))
     )
     subprocess.run(
-        ["python3", str(smoke_checker), str(smoke_plan_file), image_name],
+        ["python3", str(smoke_checker), str(smoke_plan_file), str(reports_dir / "profile-report.json"), image_name],
         check=True,
     )
 
@@ -155,6 +180,10 @@ def main() -> int:
         fail("image-plan.json must run as vscode")
     if image_plan["workingDir"] != "/workspaces":
         fail("image-plan.json working directory mismatch")
+    closure_packages = set((read_json(reports_dir / "closure-report.json")).get("packages") or [])
+    missing_profile_packages = sorted(profile_package_names - closure_packages)
+    if missing_profile_packages:
+        fail(f"closure-report.json missing profile packages: {', '.join(missing_profile_packages)}")
 
     if not fhs_runtime_report["enabled"]:
         fail("fhs-runtime-report.json must confirm FHS runtime is enabled")
@@ -340,39 +369,41 @@ def main() -> int:
             fail(f"env-report.json must include source details for {env_name}")
         if "compiler.libraries.core" not in env_report["containerEnvSources"][env_name]["sources"]:
             fail(f"{env_name} must be sourced from the library compiler")
-    is_go_image = re.fullmatch(r"go-(latest|web|[0-9]+-[0-9]+)", image_name) is not None
-    is_rust_image = image_name in {"rust-latest", "rust-web", "flutter-latest"}
-    if is_go_image:
+    if set(library_presets) != profile_library_presets:
+        fail("libraries-report.json presets must match profile-report.json")
+    has_go_profile = "language/go" in enabled_profile_ids
+    has_rust_profile = "language/rust" in enabled_profile_ids
+    if has_go_profile:
         if "cgo" not in library_presets:
-            fail(f"{image_name} must enable the cgo library preset")
+            fail("language/go profile must enable the cgo library preset")
         for env_name in ["CGO_CFLAGS", "CGO_LDFLAGS"]:
             if env_name not in env_report["containerEnv"]:
-                fail(f"{image_name} must expose {env_name}")
+                fail(f"language/go profile must expose {env_name}")
             if "compiler.libraries.preset.cgo" not in env_report["containerEnvSources"][env_name]["sources"]:
                 fail(f"{env_name} must be sourced from the cgo library preset")
         gobuild_alias = shell_report.get("aliases", {}).get("gobuild-small")
         if not gobuild_alias:
-            fail(f"{image_name} must include the gobuild-small shell alias")
+            fail("language/go profile must include the gobuild-small shell alias")
         if gobuild_alias.get("command") != 'go build -trimpath -ldflags "-s -w -buildid="':
             fail("gobuild-small alias command mismatch")
-        if "languages.go" not in gobuild_alias.get("origins", []):
-            fail("gobuild-small alias must be sourced from languages.go")
+        if "language/go" not in gobuild_alias.get("origins", []):
+            fail("gobuild-small alias must be sourced from language/go")
     elif "cgo" in library_presets:
-        fail(f"{image_name} must not enable the cgo library preset by default")
+        fail("cgo library preset must only come from a profile that declares it")
     elif "gobuild-small" in shell_report.get("aliases", {}):
-        fail(f"{image_name} must not include the Go-specific gobuild-small alias")
-    if is_rust_image:
+        fail("gobuild-small alias must only come from language/go")
+    if has_rust_profile:
         if "rust-bindgen" not in library_presets:
-            fail(f"{image_name} must enable the rust-bindgen library preset")
+            fail("language/rust profile must enable the rust-bindgen library preset")
         if "BINDGEN_EXTRA_CLANG_ARGS" not in env_report["containerEnv"]:
-            fail(f"{image_name} must expose BINDGEN_EXTRA_CLANG_ARGS")
+            fail("language/rust profile must expose BINDGEN_EXTRA_CLANG_ARGS")
         if (
             "compiler.libraries.preset.rust-bindgen"
             not in env_report["containerEnvSources"]["BINDGEN_EXTRA_CLANG_ARGS"]["sources"]
         ):
             fail("BINDGEN_EXTRA_CLANG_ARGS must be sourced from the rust-bindgen library preset")
     elif "rust-bindgen" in library_presets:
-        fail(f"{image_name} must not enable the rust-bindgen library preset by default")
+        fail("rust-bindgen library preset must only come from a profile that declares it")
     for env_name in ["NIX_LD", "NIX_LD_LIBRARY_PATH"]:
         if env_name not in env_report["containerEnvSources"]:
             fail(f"env-report.json must include {env_name} source details")
@@ -442,6 +473,8 @@ def main() -> int:
         fail("extensions-report.json must confirm locked extension artifacts")
     if not extensions_report["validation"]["companionToolsProvidedByNix"]:
         fail("extensions-report.json must confirm companion tools come from Nix")
+    if extensions_report["validation"].get("missingCompanionTools"):
+        fail("extensions-report.json must not report missing companion tools")
     projection_targets = extensions_index.get("projectionTargets") or []
     if any("$HOME" in target for target in projection_targets):
         fail("VS Code extension projection targets must not retain unexpanded HOME references")
@@ -469,43 +502,16 @@ def main() -> int:
             fail(f"extensions-index.json must record nix-vscode-extensions source for {extension_id}")
         if not extension["sourceLock"]["ref"]:
             fail(f"extensions-index.json must record source ref for {extension_id}")
-    required_extension_ids = {
-        "esbenp.prettier-vscode",
-        "redhat.vscode-yaml",
-        "shd101wyy.markdown-preview-enhanced",
-        "redhat.vscode-xml",
-        "tamasfe.even-better-toml",
-        "samuelcolvin.jinjahtml",
-        "ianandhum.protobuf-support",
-        "timonwong.shellcheck",
-    }
-    missing_extension_ids = required_extension_ids - seen_extension_ids
-    if missing_extension_ids:
-        fail(f"extensions-index.json missing global editor extensions: {sorted(missing_extension_ids)}")
+    if seen_extension_ids != profile_extension_ids:
+        missing_extension_ids = sorted(profile_extension_ids - seen_extension_ids)
+        extra_extension_ids = sorted(seen_extension_ids - profile_extension_ids)
+        fail(
+            "extensions-index.json must match profile-report.json; "
+            f"missing={missing_extension_ids}, extra={extra_extension_ids}"
+        )
     vscode_settings = ((metadata_preview.get("customizations") or {}).get("vscode") or {}).get("settings") or {}
-    expected_global_vscode_paths = {
-        "protobuf-support.protols.path": "/usr/bin/protols",
-        "shellcheck.executablePath": "/usr/bin/shellcheck",
-    }
-    for setting_name, expected_value in expected_global_vscode_paths.items():
-        if vscode_settings.get(setting_name) != expected_value:
-            fail(f"VS Code setting {setting_name} must be {expected_value}")
-    is_node_image = re.fullmatch(r"nodejs-(latest|[0-9]+)", image_name) is not None
-    is_python_image = image_name in {"python3", "python-web"}
-    if is_node_image:
-        expected_node_settings = {
-            "typescript.tsdk": "/usr/lib/node_modules/typescript/lib",
-            "eslint.runtime": "/usr/bin/node",
-        }
-        for setting_name, expected_value in expected_node_settings.items():
-            if vscode_settings.get(setting_name) != expected_value:
-                fail(f"{image_name} VS Code setting {setting_name} must be {expected_value}")
-    if is_python_image and vscode_settings.get("python.defaultInterpreterPath") != "/usr/bin/python":
-        fail(f"{image_name} VS Code setting python.defaultInterpreterPath must be /usr/bin/python")
-    if is_go_image and vscode_settings.get("go.goroot") != "/usr/share/go":
-        fail(f"{image_name} VS Code setting go.goroot must be /usr/share/go")
-    if is_rust_image and vscode_settings.get("rust-analyzer.server.path") != "/usr/bin/rust-analyzer":
-        fail(f"{image_name} VS Code setting rust-analyzer.server.path must be /usr/bin/rust-analyzer")
+    if vscode_settings != profile_vscode_settings:
+        fail("metadata VS Code settings must match profile-report.json")
 
     user_report = filesystem_report["user"]
     if user_report["name"] != "vscode" or user_report["uid"] != 1000:

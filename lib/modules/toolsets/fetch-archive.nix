@@ -1,7 +1,5 @@
 {
-  lib,
   pkgs,
-  config,
   ...
 }:
 let
@@ -17,16 +15,23 @@ let
   ];
 in
 {
-  config = lib.mkIf config.devcontainer.toolsets.fetchArchive.enable {
-    environment.systemPackages = packages;
-    devcontainer.graph.nodes."toolset/fetch-archive" = {
-      kind = "toolset";
-      group = "04-fetch-archive-tools";
-      paths = packages;
-      stability = "stable";
-      sharing = "global";
-      priority = 88;
-      securityClass = "networked";
-    };
+  config.devcontainer.profiles."toolset/fetch-archive" = {
+    kind = "toolset";
+    group = "04-fetch-archive-tools";
+    packages = packages;
+    priority = 88;
+    stability = "stable";
+    sharing = "global";
+    securityClass = "networked";
+    provides.commands = [
+      "curl"
+      "wget"
+      "aria2c"
+      "rsync"
+      "unzip"
+      "zip"
+      "7z"
+      "bzip2"
+    ];
   };
 }

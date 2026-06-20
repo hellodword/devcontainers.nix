@@ -1,115 +1,7 @@
 #!/usr/bin/env python3
 import json
 import pathlib
-import re
 import sys
-
-
-COMMON = {
-    "user-vscode",
-    "filesystem-writable",
-    "docker-client",
-    "docker-buildx",
-    "docker-compose",
-    "docker-remote-version",
-    "codex-version",
-    "nix-index-tools",
-    "nix-single-user-root",
-    "nixpkgs-config",
-    "fhs-ca-certificates",
-    "fontconfig-tools",
-    "fontconfig-cjk",
-    "fontconfig-emoji-symbols",
-    "locale-env",
-    "bash-interactive",
-    "bash-completion",
-    "editor-support-tools",
-    "devpkg-list",
-    "devpkg-completion",
-}
-
-REQUIRED = {
-    "nix": COMMON
-    | {
-        "nix-version",
-        "nixd-version",
-        "nix-language",
-        "extension-index",
-        "task-runner-list",
-        "devpkg-list",
-        "fhs-bash",
-        "fhs-os-release",
-        "fhs-core-tools",
-        "fhs-nix-ld",
-    },
-    "python": COMMON
-    | {
-        "python-version",
-        "uv-version",
-        "uvx-version",
-        "python-runtime-imports",
-        "python-node-runtime",
-    },
-    "nodejs": COMMON
-    | {
-        "node-version",
-        "pnpm-version",
-        "node-package-managers",
-        "node-python-runtime",
-        "node-c-env",
-    },
-    "go": COMMON
-    | {
-        "go-version",
-        "gopls-version",
-        "go-tooling",
-        "go-runtime-deps",
-    },
-    "rust": COMMON
-    | {
-        "rustc-version",
-        "cargo-version",
-        "rust-tooling",
-        "rust-runtime-deps",
-    },
-    "python-web": COMMON
-    | {
-        "python-web-stack",
-        "python-web-formatters",
-    },
-    "go-web": COMMON
-    | {
-        "go-web-stack",
-    },
-    "rust-web": COMMON
-    | {
-        "rust-web-stack",
-    },
-    "flutter": COMMON
-    | {
-        "flutter-version",
-        "dart-version",
-        "flutter-tooling",
-        "rust-tooling",
-        "node-package-managers",
-    },
-}
-
-
-def requirement_key(image_name: str) -> str:
-    if image_name == "nix-latest":
-        return "nix"
-    if re.fullmatch(r"go-(latest|[0-9]+-[0-9]+)", image_name):
-        return "go"
-    if re.fullmatch(r"nodejs-(latest|[0-9]+)", image_name):
-        return "nodejs"
-    if image_name == "python3" or re.fullmatch(r"python-[0-9]+-[0-9]+", image_name):
-        return "python"
-    if image_name == "rust-latest":
-        return "rust"
-    if image_name == "flutter-latest":
-        return "flutter"
-    return image_name
 
 
 def fail(message: str):
@@ -117,29 +9,42 @@ def fail(message: str):
     raise SystemExit(1)
 
 
+def read_json(path: pathlib.Path):
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def main() -> int:
-    if len(sys.argv) != 3:
-        print("usage: tests/ci/check-smoke-plan.py <smoke-plan.json> <image-name>", file=sys.stderr)
+    if len(sys.argv) not in {3, 4}:
+        print(
+            "usage: tests/ci/check-smoke-plan.py <smoke-plan.json> <profile-report.json> [image-name]",
+            file=sys.stderr,
+        )
         return 1
 
     plan_path = pathlib.Path(sys.argv[1])
-    image_name = sys.argv[2]
+    profile_report_path = pathlib.Path(sys.argv[2])
+    image_name = sys.argv[3] if len(sys.argv) == 4 else None
 
-    with plan_path.open("r", encoding="utf-8") as handle:
-        plan = json.load(handle)
+    plan = read_json(plan_path)
+    profile_report = read_json(profile_report_path)
 
-    key = requirement_key(image_name)
+    tests = plan.get("tests") or []
+    names = [test.get("name") for test in tests]
+    if len(names) != len(set(names)):
+        fail("smoke-test-plan.json must not contain duplicate test names")
 
-    if key not in REQUIRED:
-        fail(f"unsupported image in smoke plan: {image_name}")
-
-    names = {test["name"] for test in plan["tests"]}
-    expected = REQUIRED[key]
-    missing = sorted(expected - names)
+    required = {
+        test.get("name")
+        for test in (profile_report.get("tests") or {}).get("smoke") or []
+        if test.get("name")
+    }
+    missing = sorted(required - set(names))
     if missing:
-        fail(f"{image_name} missing tests: {', '.join(missing)}")
+        target = f"{image_name} " if image_name else ""
+        fail(f"{target}missing profile smoke tests: {', '.join(missing)}")
 
-    print(f"smoke-plan-check ok: {image_name}")
+    print(f"smoke-plan-check ok: {image_name or plan_path.name}")
     return 0
 
 

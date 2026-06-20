@@ -1,7 +1,43 @@
 { lib, config, ... }:
+let
+  cfg = config.programs.nix-index;
+  packages = [
+    cfg.package
+  ]
+  ++ lib.optional (cfg.comma.enable && cfg.comma.package != null) cfg.comma.package;
+in
 {
-  config = lib.mkIf config.devcontainer.toolsets.nixIndex.enable {
-    programs.nix-index.enable = lib.mkDefault true;
-    programs.nix-index.comma.enable = lib.mkDefault config.devcontainer.toolsets.nixIndex.comma.enable;
-  };
+  config = lib.mkMerge [
+    {
+      devcontainer.profiles."toolset/nix-index" = {
+        kind = "toolset";
+        group = "12-nix-index-tools";
+        packages = packages;
+        priority = 89;
+        stability = "stable";
+        sharing = "global";
+        securityClass = "trusted";
+        provides.commands = [
+          "nix-index"
+          "nix-locate"
+          "comma"
+        ];
+        tests.smoke = [
+          {
+            name = "nix-index-tools";
+            command = [
+              "bash"
+              "-lc"
+              "command -v nix-index && command -v nix-locate"
+            ];
+          }
+        ];
+      };
+    }
+
+    (lib.mkIf config.devcontainer.profiles."toolset/nix-index".enable {
+      programs.nix-index.enable = lib.mkDefault true;
+      programs.nix-index.comma.enable = lib.mkDefault config.devcontainer.toolsets.nixIndex.comma.enable;
+    })
+  ];
 }

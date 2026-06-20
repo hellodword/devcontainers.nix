@@ -12,28 +12,22 @@ let
   '';
 in
 {
-  config = lib.mkIf cfg.enable (
-    lib.mkMerge [
-      {
-        environment.systemPackages = packages;
-        environment.variables.DIRENV_CONFIG = "/etc/direnv";
-        environment.variableOrigins.DIRENV_CONFIG = [ "programs.direnv" ];
-        environment.interactiveShellInit = hook;
-        environment.etc."direnv/direnvrc".text = direnvrc;
-
-        devcontainer.graph.nodes."program/direnv" = {
-          kind = "program";
-          group = "07-workflow-format-tools";
-          paths = packages;
-          stability = "stable";
-          sharing = "global";
-          priority = 82;
-          securityClass = "trusted";
-        };
-      }
-
-      {
-        devcontainer.tests.smoke = [
+  config = lib.mkMerge [
+    {
+      devcontainer.profiles."program/direnv" = {
+        kind = "program";
+        group = "07-workflow-format-tools";
+        packages = packages;
+        priority = 82;
+        stability = "stable";
+        sharing = "global";
+        securityClass = "trusted";
+        provides.commands = [
+          "direnv"
+          "nix-direnv"
+        ];
+        env.variables.DIRENV_CONFIG = "/etc/direnv";
+        tests.smoke = [
           {
             name = "direnv-hook";
             command = [
@@ -43,7 +37,16 @@ in
             ];
           }
         ];
-      }
-    ]
-  );
+      };
+    }
+
+    (lib.mkIf config.devcontainer.profiles."program/direnv".enable {
+      programs.direnv.enable = lib.mkDefault true;
+    })
+
+    (lib.mkIf cfg.enable {
+      environment.interactiveShellInit = hook;
+      environment.etc."direnv/direnvrc".text = direnvrc;
+    })
+  ];
 }

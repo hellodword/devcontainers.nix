@@ -19,7 +19,7 @@ copy_or_link() {
   mkdir -p "$(dirname "$target_path")"
 
   case "$projection" in
-    copy|copy-if-needed)
+    copy|copy-if-needed|copy-if-needed-with-fhs)
       cp -a "$source_path" "$target_path"
       ;;
     *)
