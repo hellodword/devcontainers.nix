@@ -56,6 +56,12 @@ devpkg list
 devpkg remove cowsay
 ```
 
+`devpkg` uses the image nixpkgs defaults, which allow unfree packages, accept the
+Android SDK license, accept Oracle JDK license gates when present in nixpkgs, and
+allow unsupported-system packages. This makes installs such as `devpkg add
+google-chrome` and `devpkg add microsoft-edge` evaluate with the same policy as
+the image build.
+
 Native libraries use separate runtime and build profiles. Runtime libraries feed `NIX_LD_LIBRARY_PATH`; build libraries also expose headers, `pkg-config`, CMake, and compiler wrapper flags:
 
 ```sh

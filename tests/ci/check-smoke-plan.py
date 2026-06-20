@@ -15,6 +15,7 @@ COMMON = {
     "codex-version",
     "nix-index-tools",
     "nix-single-user-root",
+    "nixpkgs-config",
     "fhs-ca-certificates",
     "locale-env",
     "bash-interactive",

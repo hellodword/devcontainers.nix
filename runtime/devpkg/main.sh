@@ -35,9 +35,31 @@ die() {
   exit 1
 }
 
+nixpkgs_defaults() {
+  export NIXPKGS_CONFIG="${NIXPKGS_CONFIG:-/etc/nixpkgs/config.nix}"
+  export NIXPKGS_ALLOW_UNFREE="${NIXPKGS_ALLOW_UNFREE:-1}"
+  export NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM="${NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM:-1}"
+  export NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE="${NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE:-1}"
+}
+
+nix_eval() {
+  nixpkgs_defaults
+  nix eval --impure "$@"
+}
+
+nix_profile_add() {
+  nixpkgs_defaults
+  nix profile add --impure "$@"
+}
+
+nix_search() {
+  nixpkgs_defaults
+  nix search --impure "$@"
+}
+
 current_system() {
   if [ -z "$current_system_value" ]; then
-    current_system_value="$(nix eval --impure --expr builtins.currentSystem --raw)"
+    current_system_value="$(nix_eval --expr builtins.currentSystem --raw)"
   fi
   printf '%s\n' "$current_system_value"
 }
@@ -123,11 +145,11 @@ package_outputs() {
   local system
 
   system="$(current_system)"
-  if nix eval --json "$nixpkgs_ref#legacyPackages.${system}.${attr}.outputs" 2>/dev/null; then
+  if nix_eval --json "$nixpkgs_ref#legacyPackages.${system}.${attr}.outputs" 2>/dev/null; then
     return 0
   fi
 
-  if nix eval --json "$nixpkgs_ref#packages.${system}.${attr}.outputs" 2>/dev/null; then
+  if nix_eval --json "$nixpkgs_ref#packages.${system}.${attr}.outputs" 2>/dev/null; then
     return 0
   fi
 
@@ -241,7 +263,7 @@ cmd_add_packages() {
   for package in "$@"; do
     installables+=("$(installable_for "$package")")
   done
-  nix profile add "${installables[@]}"
+  nix_profile_add "${installables[@]}"
 }
 
 cmd_remove_packages() {
@@ -333,7 +355,7 @@ cmd_add_libraries() {
   done
 
   ensure_profile_parent "$profile"
-  nix profile add --profile "$profile" "${installables[@]}"
+  nix_profile_add --profile "$profile" "${installables[@]}"
 }
 
 cmd_remove_libraries() {
@@ -389,7 +411,7 @@ case "$cmd" in
   search)
     query="${2:-}"
     [ -n "$query" ] || { usage >&2; exit 1; }
-    nix search "$nixpkgs_ref" "$query"
+    nix_search "$nixpkgs_ref" "$query"
     ;;
   add-lib)
     shift

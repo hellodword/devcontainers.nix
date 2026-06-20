@@ -1,15 +1,12 @@
 {
   lib,
+  pkgs,
   config,
-  system,
-  inputs,
   ...
 }:
 let
-  nixIndexPackages = inputs.nix-index-database.packages.${system};
-  nixIndex = nixIndexPackages.nix-index-with-db;
-  comma =
-    if builtins.hasAttr "comma-with-db" nixIndexPackages then nixIndexPackages.comma-with-db else null;
+  nixIndex = pkgs.nix-index-with-db;
+  comma = if builtins.hasAttr "comma-with-db" pkgs then pkgs.comma-with-db else null;
   packages = [
     nixIndex
   ]

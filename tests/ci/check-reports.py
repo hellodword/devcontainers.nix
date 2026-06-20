@@ -214,6 +214,17 @@ def main() -> int:
     for env_name, expected_value in expected_xdg.items():
         if env_report["containerEnv"].get(env_name) != expected_value:
             fail(f"container env must expand {env_name} to {expected_value}")
+    expected_nixpkgs_env = {
+        "NIXPKGS_CONFIG": "/etc/nixpkgs/config.nix",
+        "NIXPKGS_ALLOW_UNFREE": "1",
+        "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM": "1",
+        "NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE": "1",
+    }
+    for env_name, expected_value in expected_nixpkgs_env.items():
+        if env_report["containerEnv"].get(env_name) != expected_value:
+            fail(f"container env must set {env_name} to {expected_value}")
+        if "core.env" not in env_report["containerEnvSources"].get(env_name, {}).get("sources", []):
+            fail(f"{env_name} must be sourced from core.env")
     for env_name, env_value in env_report["containerEnv"].items():
         if isinstance(env_value, str) and ("$HOME" in env_value or "$XDG_" in env_value):
             fail(f"container env must not retain unexpanded HOME/XDG references in {env_name}")
@@ -341,6 +352,18 @@ def main() -> int:
         fail("filesystem-report.json must declare vscode gid 1000")
     if user_report["home"] != "/home/vscode" or user_report["shell"] != "/bin/bash":
         fail("filesystem-report.json must declare the vscode home and shell")
+    nixpkgs_config = filesystem_report.get("nixpkgsConfig") or {}
+    if nixpkgs_config.get("path") != "/etc/nixpkgs/config.nix":
+        fail("filesystem-report.json must report /etc/nixpkgs/config.nix")
+    nixpkgs_config_text = nixpkgs_config.get("text") or ""
+    for required_setting in [
+        "allowUnfree = true;",
+        "android_sdk.accept_license = true;",
+        "oraclejdk.accept_license = true;",
+        "allowUnsupportedSystem = true;",
+    ]:
+        if required_setting not in nixpkgs_config_text:
+            fail(f"nixpkgs config must include {required_setting}")
     for required_file in ["/etc/profile", "/etc/bashrc", "/etc/bash.bashrc"]:
         if required_file not in filesystem_report.get("shellFiles", []):
             fail(f"filesystem-report.json missing generated shell file: {required_file}")

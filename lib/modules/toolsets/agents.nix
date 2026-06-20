@@ -1,12 +1,11 @@
 {
   lib,
+  pkgs,
   config,
-  system,
-  inputs,
   ...
 }:
 let
-  codex = inputs.llm-agents.packages.${system}.codex;
+  codex = pkgs.codex;
 in
 {
   config = lib.mkIf config.devcontainer.toolsets.agents.enable {

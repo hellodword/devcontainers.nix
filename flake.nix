@@ -36,15 +36,37 @@
       nixpkgs,
       rust-overlay,
       nix-vscode-extensions,
+      nix-index-database,
+      llm-agents,
       nix2container,
       ...
     }:
     let
       system = "x86_64-linux";
+      nixpkgsConfig = {
+        allowUnfree = true;
+        android_sdk.accept_license = true;
+        oraclejdk.accept_license = true;
+        allowUnsupportedSystem = true;
+      };
+      projectOverlays = [ ];
+      nixpkgsOverlays = [
+        nix-vscode-extensions.overlays.default
+        (final: prev: {
+          inherit (nix2container.packages.${system})
+            nix2container
+            skopeo-nix2container
+            ;
+        })
+        rust-overlay.overlays.default
+        nix-index-database.overlays.nix-index
+        llm-agents.overlays.default
+      ]
+      ++ projectOverlays;
       pkgs = import nixpkgs {
         inherit system;
-        config.allowUnfree = true;
-        overlays = [ rust-overlay.overlays.default ];
+        config = nixpkgsConfig;
+        overlays = nixpkgsOverlays;
       };
       lib = pkgs.lib;
       compiler = import ./lib {
@@ -302,7 +324,7 @@
             runtimeInputs = [
               pkgs.docker
               pkgs.jq
-              nix2container.packages.${system}.skopeo-nix2container
+              pkgs.skopeo-nix2container
             ];
             text = ''
               tmpdir="''${TMPDIR:-/tmp}"
@@ -518,7 +540,7 @@
 
       lib.${system} = {
         inherit imageNames;
-        vscodeExtensionSources = builtins.attrNames nix-vscode-extensions.extensions.${system};
+        vscodeExtensionSources = builtins.attrNames pkgs.nix-vscode-extensions;
         nix2container = compiler.nix2container;
       };
     };

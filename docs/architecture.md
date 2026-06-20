@@ -13,6 +13,14 @@ The flake pins:
 - `llm-agents`
 - `nix2container`
 
+The top-level `pkgs` fixpoint imports nixpkgs with a shared config:
+`allowUnfree = true`, `android_sdk.accept_license = true`,
+`oraclejdk.accept_license = true`, and `allowUnsupportedSystem = true`.
+Inputs that expose package sets are consumed through overlays, so compiler
+modules use `pkgs.*` rather than `inputs.foo.packages.*`. Local package
+overrides should be added to the flake's `projectOverlays` list so image
+builds, checks, and runtime helper packages see the same overridden drv.
+
 ## Compiler Flow
 
 1. Nix modules evaluate `devcontainer.*` options.
@@ -77,6 +85,13 @@ Image modules extend aliases through `devcontainer.shell.aliases`. Alias names a
 Images enable nix2container's `initializeNixDatabase` support. The generated Nix database registers the store paths already present in the image, makes `/nix`, `/nix/store`, and `/nix/var/nix` writable by the container user, and avoids a separate registration workaround at startup.
 
 This is required for `devpkg`, which installs ad-hoc user packages with `nix profile add`. Without the database, Nix can see paths on disk that are not registered in `/nix/var/nix/db`, causing profile installs to fail or to reference missing store paths.
+
+The generated filesystem also includes `/etc/nixpkgs/config.nix` with the same
+nixpkgs policy as the build. Container env sets `NIXPKGS_CONFIG`,
+`NIXPKGS_ALLOW_UNFREE`, `NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM`, and
+`NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE`. `devpkg` runs flake eval/install commands
+with `--impure` so packages such as Google Chrome and Microsoft Edge can read
+those defaults instead of failing the unfree license check.
 
 The generated filesystem layer intentionally does not create `/nix` paths. `/nix` ownership and database contents are owned by the nix2container database layer to avoid tar path collisions.
 

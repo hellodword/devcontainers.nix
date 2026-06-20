@@ -113,6 +113,7 @@ let
     passwd = compiledFilesystem.passwd;
     group = compiledFilesystem.group;
     osRelease = compiledFilesystem.osRelease;
+    nixpkgsConfig = compiledFilesystem.nixpkgsConfig;
     shellFiles = compiledFilesystem.shellFiles;
     commandNotFoundHook = {
       enabled = config.devcontainer.shell.enable && config.devcontainer.shell.bash.commandNotFound.enable;

@@ -25,6 +25,15 @@ let
     "${user.name}:x:${toString user.uid}:${toString user.gid}:${user.name}:${user.home}:${user.shell}"
     ""
   ];
+  nixpkgsConfigPath = "/etc/nixpkgs/config.nix";
+  nixpkgsConfigText = ''
+    {
+      allowUnfree = true;
+      android_sdk.accept_license = true;
+      oraclejdk.accept_license = true;
+      allowUnsupportedSystem = true;
+    }
+  '';
   groupText = lib.concatStringsSep "\n" [
     "root:x:0:"
     "${user.group}:x:${toString user.gid}:${user.name}"
@@ -38,7 +47,7 @@ let
     ""
   ];
   root = pkgs.runCommand "${config.devcontainer.image.name}-filesystem" { } ''
-    mkdir -p "$out/etc/profile.d"
+    mkdir -p "$out/etc/profile.d" "$out/etc/nixpkgs"
     mkdir -p "$out/root"
     ${dirCommands}
 
@@ -48,8 +57,9 @@ let
     printf '%s' ${lib.escapeShellArg compiledShell.profileText} >"$out/etc/profile"
     printf '%s' ${lib.escapeShellArg compiledShell.bashrcText} >"$out/etc/bashrc"
     printf '%s' ${lib.escapeShellArg compiledShell.bashBashrcText} >"$out/etc/bash.bashrc"
+    printf '%s' ${lib.escapeShellArg nixpkgsConfigText} >"$out${nixpkgsConfigPath}"
 
-    chmod 0644 "$out/etc/passwd" "$out/etc/group" "$out/etc/os-release" "$out/etc/profile" "$out/etc/bashrc" "$out/etc/bash.bashrc"
+    chmod 0644 "$out/etc/passwd" "$out/etc/group" "$out/etc/os-release" "$out/etc/profile" "$out/etc/bashrc" "$out/etc/bash.bashrc" "$out${nixpkgsConfigPath}"
   '';
   userPermName = spec: if spec.uid == 0 then "root" else user.name;
   groupPermName = spec: if spec.gid == 0 then "root" else user.group;
@@ -64,7 +74,7 @@ let
   filePerms = [
     {
       path = root;
-      regex = "^${root}/etc/(passwd|group|os-release|profile|bashrc|bash\\.bashrc)$";
+      regex = "^${root}/etc/(passwd|group|os-release|profile|bashrc|bash\\.bashrc|nixpkgs/config\\.nix)$";
       mode = "0644";
       uid = 0;
       gid = 0;
@@ -78,6 +88,10 @@ in
   passwd = passwdText;
   group = groupText;
   osRelease = osReleaseText;
+  nixpkgsConfig = {
+    path = nixpkgsConfigPath;
+    text = nixpkgsConfigText;
+  };
   commandNotFoundHook = compiledShell.commandNotFoundHook;
   shellFiles = compiledShell.generatedFiles;
   perms = directoryPerms ++ filePerms;

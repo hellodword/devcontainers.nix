@@ -38,6 +38,7 @@ Every image includes:
 - a VS Code-compatible glibc runtime exposed through conventional FHS paths
 - a fixed `vscode` user; project devcontainer JSON must not override `remoteUser`, `containerUser`, or `updateRemoteUserUID`
 - `devpkg` for ad-hoc user installs from `nixpkgs`, for example `devpkg add cowsay`
+- nixpkgs defaults for `devpkg` and interactive flake commands run with `--impure`: allow unfree packages, accept the Android SDK license, accept Oracle JDK license gates when present, and allow unsupported-system packages
 - separate dynamic native-library profiles, for example `devpkg add-lib zlib` for runtime-only libraries and `devpkg add-dev-lib openssl zlib` for headers plus link/runtime outputs
 - `en_US.UTF-8` locale defaults backed by `pkgs.glibcLocales`
 - system `/etc/profile`, `/etc/bashrc`, `/etc/bash.bashrc`, default aliases, bash completion, and local nix-index based `command_not_found_handle`

@@ -14,6 +14,10 @@ in
       EDITOR = "vim";
       VISUAL = "vim";
       NIX_CONFIG = "experimental-features = nix-command flakes";
+      NIXPKGS_CONFIG = "/etc/nixpkgs/config.nix";
+      NIXPKGS_ALLOW_UNFREE = "1";
+      NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = "1";
+      NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE = "1";
       WORKSPACE = "/workspaces/$DEVCONTAINER_WORKSPACE";
     };
     env.origins.container = {
@@ -26,7 +30,22 @@ in
       EDITOR = [ "core.env" ];
       VISUAL = [ "core.env" ];
       NIX_CONFIG = [ "core.env" ];
+      NIXPKGS_CONFIG = [ "core.env" ];
+      NIXPKGS_ALLOW_UNFREE = [ "core.env" ];
+      NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = [ "core.env" ];
+      NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE = [ "core.env" ];
       WORKSPACE = [ "core.env" ];
     };
+
+    tests.smoke = [
+      {
+        name = "nixpkgs-config";
+        command = [
+          "bash"
+          "-lc"
+          "test \"$NIXPKGS_CONFIG\" = /etc/nixpkgs/config.nix && test -r \"$NIXPKGS_CONFIG\" && test \"$NIXPKGS_ALLOW_UNFREE\" = 1 && test \"$NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM\" = 1 && test \"$NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE\" = 1"
+        ];
+      }
+    ];
   };
 }

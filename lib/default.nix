@@ -11,7 +11,7 @@ let
       inherit pkgs lib;
     };
 
-    nix2container = inputs.nix2container.packages.${system}.nix2container;
+    nix2container = pkgs.nix2container;
 
     evalImage = import ./compiler/eval.nix {
       inherit
@@ -48,12 +48,7 @@ let
     };
 
     compileVscodeExtensions = import ./compiler/vscode-extensions.nix {
-      inherit
-        lib
-        pkgs
-        system
-        inputs
-        ;
+      inherit lib pkgs;
     };
 
     compileFhsRuntime = import ./compiler/fhs-runtime.nix {

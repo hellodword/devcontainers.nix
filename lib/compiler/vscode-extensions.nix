@@ -1,14 +1,15 @@
 {
   lib,
   pkgs,
-  system,
-  inputs,
 }:
 { config }:
 let
   hashString = value: builtins.hashString "sha256" value;
   pathString = path: builtins.unsafeDiscardStringContext (toString path);
-  extensionSets = inputs.nix-vscode-extensions.extensions.${system};
+  extensionSets = {
+    vscode-marketplace-release = pkgs.vscode-marketplace-release;
+    open-vsx-release = pkgs.open-vsx-release;
+  };
   attrForId =
     id:
     let
