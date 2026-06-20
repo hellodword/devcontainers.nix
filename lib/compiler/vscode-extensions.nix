@@ -75,7 +75,11 @@ let
         "nixd"
         "nixfmt"
       ]
-    else if lib.hasPrefix "ms-python.python" id || lib.hasPrefix "ms-python.vscode-pylance" id then
+    else if
+      lib.hasPrefix "ms-python.python" id
+      || lib.hasPrefix "ms-python.vscode-pylance" id
+      || lib.hasPrefix "ms-python.autopep8" id
+    then
       [
         "python"
         "ruff"

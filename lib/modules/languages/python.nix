@@ -25,6 +25,8 @@ in
     environment.systemPackages = packages;
     devcontainer.vscode.extensions = [
       "ms-python.python"
+      "ms-python.vscode-pylance"
+      "ms-python.autopep8"
       "charliermarsh.ruff"
     ];
     devcontainer.vscode.settings = {
