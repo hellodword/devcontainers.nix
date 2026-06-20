@@ -143,6 +143,10 @@ let
                 "beta"
               ];
             };
+            devcontainer.vscode.extensions = [
+              "tamasfe.even-better-toml"
+              "redhat.vscode-yaml"
+            ];
             environment.variableOrigins = {
               API_BOOL = [ "tests.api" ];
               API_INT = [ "tests.api" ];
@@ -230,6 +234,13 @@ let
       etcPaths = map (entry: entry.path) apiEvalImage.environment.etc;
       shellText = apiEvalImage.shell.profileText + apiEvalImage.shell.bashrcText;
       layerPathsToLink = (builtins.head apiEvalImage.layers.layers).build.pathsToLink;
+      extensionIds = apiEvalImage.config.devcontainer.vscode.extensions;
+      expectedExtensionIds = [
+        "jnoortheen.nix-ide"
+        "tamasfe.even-better-toml"
+        "redhat.vscode-yaml"
+        "timonwong.shellcheck"
+      ];
     in
     assert env.API_BOOL == "1";
     assert env.API_INT == "7";
@@ -247,6 +258,8 @@ let
     assert builtins.elem "/etc/nix/nix.conf" etcPaths;
     assert builtins.elem "man" environmentReport.extraOutputsToInstall;
     assert builtins.elem "/man" layerPathsToLink;
+    assert builtins.length extensionIds == builtins.length expectedExtensionIds;
+    assert lib.all (id: builtins.elem id extensionIds) expectedExtensionIds;
     assert lib.hasInfix "API_SHELL_INIT" shellText;
     assert lib.hasInfix "API_INTERACTIVE_SHELL_INIT" shellText;
     assert apiEvalImage.fhsRuntime.dynamicLoaderMode == "nix-ld";

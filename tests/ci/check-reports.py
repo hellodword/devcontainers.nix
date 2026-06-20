@@ -429,13 +429,23 @@ def main() -> int:
     ]:
         if required_target not in projection_targets:
             fail(f"extensions-index.json missing projection target: {required_target}")
+    seen_extension_ids = set()
+    seen_extension_paths = set()
     for extension in extensions_index["extensions"]:
+        extension_id = extension["id"]
+        extension_path = extension["path"]
+        if extension_id in seen_extension_ids:
+            fail(f"extensions-index.json must not duplicate extension id: {extension_id}")
+        if extension_path in seen_extension_paths:
+            fail(f"extensions-index.json must not duplicate extension path: {extension_path}")
+        seen_extension_ids.add(extension_id)
+        seen_extension_paths.add(extension_path)
         if extension["version"] == "pinned":
-            fail(f"extensions-index.json must record a real version for {extension['id']}")
+            fail(f"extensions-index.json must record a real version for {extension_id}")
         if not extension["source"].startswith("nix-vscode-extensions."):
-            fail(f"extensions-index.json must record nix-vscode-extensions source for {extension['id']}")
+            fail(f"extensions-index.json must record nix-vscode-extensions source for {extension_id}")
         if not extension["sourceLock"]["ref"]:
-            fail(f"extensions-index.json must record source ref for {extension['id']}")
+            fail(f"extensions-index.json must record source ref for {extension_id}")
 
     user_report = filesystem_report["user"]
     if user_report["name"] != "vscode" or user_report["uid"] != 1000:

@@ -782,6 +782,7 @@ in
         extensions = mkOption {
           type = types.listOf types.str;
           default = [ ];
+          apply = lib.unique;
         };
         settings = mkOption {
           type = types.attrs;
