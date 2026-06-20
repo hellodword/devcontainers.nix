@@ -3,6 +3,7 @@
   lib,
   runtimePackages,
   nix2container,
+  lockedNixpkgsSource ? null,
 }:
 {
   config,
@@ -72,6 +73,9 @@ let
     mkdir -p "$out/usr/local/bin"
     ln -sf /bin/devcontainer-entrypoint "$out/usr/local/bin/devcontainer-entrypoint"
   '';
+  lockedNixpkgsCommands = lib.optionalString (lockedNixpkgsSource != null) ''
+    ln -sf ${lockedNixpkgsSource} "$out/usr/share/devcontainer/nixpkgs"
+  '';
 
   entrypoint = runtimePackages."devcontainer-entrypoint";
   runtimeTools = [
@@ -100,6 +104,7 @@ let
     ${mkExtensionCommands}
     ${mkSymlinkCommands}
     ${localBinCommands}
+    ${lockedNixpkgsCommands}
   '';
 
   pathsForMembers =

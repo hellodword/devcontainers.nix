@@ -120,7 +120,7 @@ Install browser packages from nixpkgs:
 }
 ```
 
-`devpkg` uses the image nixpkgs policy, including unfree package support and accepted Android SDK license gates. That lets packages such as `google-chrome` and `microsoft-edge` evaluate the same way as image builds:
+`devpkg` uses the image's locked nixpkgs input and nixpkgs policy, including unfree package support and accepted Android SDK license gates. New containers do not need to download nixpkgs before the first `devpkg add`, and packages such as `google-chrome` and `microsoft-edge` evaluate the same way as image builds:
 
 ```json
 {
@@ -137,6 +137,12 @@ devpkg search ripgrep
 devpkg add ripgrep
 devpkg list
 devpkg remove ripgrep
+```
+
+Interactive Bash completion is available for `devpkg` commands, common options, installed profile entries, and nixpkgs package attributes:
+
+```sh
+devpkg add div<TAB>
 ```
 
 ## Adding Native Libraries

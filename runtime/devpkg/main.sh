@@ -126,6 +126,10 @@ installable_for_outputs() {
   printf '%s#%s^%s\n' "$nixpkgs_ref" "$attr" "$outputs"
 }
 
+nix_string_literal() {
+  jq -nr --arg value "$1" '$value | @json'
+}
+
 profile_json() {
   nix profile list --json --no-pretty
 }
@@ -394,6 +398,148 @@ cmd_list_libraries() {
   fi
 }
 
+complete_commands() {
+  local prefix="${1:-}"
+  local command
+  local -a commands=(
+    add
+    install
+    remove
+    rm
+    uninstall
+    list
+    ls
+    search
+    add-lib
+    remove-lib
+    list-lib
+    add-dev-lib
+    remove-dev-lib
+    list-dev-lib
+    help
+    -h
+    --help
+  )
+
+  for command in "${commands[@]}"; do
+    case "$command" in
+      "$prefix"*) printf '%s\n' "$command" ;;
+    esac
+  done
+}
+
+complete_outputs() {
+  local prefix="${1:-}"
+  local output
+  local -a outputs=(
+    out
+    dev
+    lib
+    static
+    doc
+    man
+    debug
+  )
+
+  for output in "${outputs[@]}"; do
+    case "$output" in
+      "$prefix"*) printf '%s\n' "$output" ;;
+    esac
+  done
+}
+
+complete_packages() {
+  local prefix="${1:-}"
+  local parent="" leaf="$prefix"
+  local ref_literal parent_literal leaf_literal
+
+  case "$prefix" in
+    *.*)
+      parent="${prefix%.*}"
+      leaf="${prefix##*.}"
+      ;;
+  esac
+
+  ref_literal="$(nix_string_literal "$nixpkgs_ref")"
+  parent_literal="$(nix_string_literal "$parent")"
+  leaf_literal="$(nix_string_literal "$leaf")"
+
+  nix_eval --json --expr "
+    let
+      ref = ${ref_literal};
+      parent = ${parent_literal};
+      leaf = ${leaf_literal};
+      flake = builtins.getFlake ref;
+      system = builtins.currentSystem;
+      pkgs =
+        if flake ? legacyPackages && builtins.hasAttr system flake.legacyPackages then
+          flake.legacyPackages.\${system}
+        else
+          flake.packages.\${system};
+      parts = builtins.filter (part: builtins.isString part && part != \"\") (builtins.split \"\\\\.\" parent);
+      scope = builtins.foldl'
+        (current: name:
+          if builtins.isAttrs current && builtins.hasAttr name current then
+            builtins.getAttr name current
+          else
+            { })
+        pkgs
+        parts;
+      matches = builtins.filter
+        (name: builtins.substring 0 (builtins.stringLength leaf) name == leaf)
+        (if builtins.isAttrs scope then builtins.attrNames scope else [ ]);
+    in
+      map (name: if parent == \"\" then name else parent + \".\" + name) matches
+  " 2>/dev/null | jq -r '.[]' 2>/dev/null || true
+}
+
+complete_installed() {
+  local mode="${1:-}"
+  local prefix="${2:-}"
+
+  case "$mode" in
+    main)
+      profile_json
+      ;;
+    runtime)
+      profile_json_for "$(runtime_library_profile)"
+      ;;
+    build)
+      profile_json_for "$(build_library_profile)"
+      ;;
+    *)
+      die "unknown completion profile: $mode"
+      ;;
+  esac | jq -r --arg prefix "$prefix" '
+    .elements
+    | keys[]
+    | select(startswith($prefix))
+  ' 2>/dev/null || true
+}
+
+cmd_complete() {
+  local subject="${1:-}"
+  shift || true
+
+  case "$subject" in
+    commands)
+      complete_commands "${1:-}"
+      ;;
+    packages)
+      complete_packages "${1:-}"
+      ;;
+    installed)
+      complete_installed "${1:-}" "${2:-}"
+      ;;
+    outputs)
+      complete_outputs "${1:-}"
+      ;;
+    *)
+      die "unknown completion subject: $subject"
+      ;;
+  esac
+}
+
 cmd="${1:-}"
 case "$cmd" in
   add | install)
@@ -436,6 +582,10 @@ case "$cmd" in
   list-dev-lib)
     shift
     cmd_list_libraries "$(build_library_profile)" "$@"
+    ;;
+  complete)
+    shift
+    cmd_complete "$@"
     ;;
   help | -h | --help | "")
     usage

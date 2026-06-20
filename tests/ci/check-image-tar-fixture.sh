@@ -45,6 +45,7 @@ cat >"$tmpdir/image.json" <<'EOF'
       "NIXPKGS_ALLOW_UNFREE=1",
       "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1",
       "NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE=1",
+      "DEVPKG_NIXPKGS_REF=path:/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source",
       "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
       "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
       "CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",

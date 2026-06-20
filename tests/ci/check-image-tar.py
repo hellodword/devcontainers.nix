@@ -167,6 +167,11 @@ def main() -> int:
     ]:
         if required_env not in env:
             fail(f"image artifact must set expanded {required_env.split('=', 1)[0]}")
+    devpkg_ref_entries = [entry for entry in env if entry.startswith("DEVPKG_NIXPKGS_REF=")]
+    if len(devpkg_ref_entries) != 1:
+        fail("image artifact must set exactly one DEVPKG_NIXPKGS_REF entry")
+    if not re.fullmatch(r"DEVPKG_NIXPKGS_REF=path:/nix/store/[a-z0-9]{32}-source", devpkg_ref_entries[0]):
+        fail("image artifact must pin DEVPKG_NIXPKGS_REF to the locked nixpkgs store source")
     locale_archive_entries = [entry for entry in env if entry.startswith("LOCALE_ARCHIVE=")]
     if len(locale_archive_entries) != 1:
         fail("image artifact must set exactly one LOCALE_ARCHIVE entry")

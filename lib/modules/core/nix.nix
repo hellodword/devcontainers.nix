@@ -33,6 +33,22 @@ in
           "test -r /etc/nix/nix.conf && grep -F 'experimental-features = nix-command flakes' /etc/nix/nix.conf >/dev/null"
         ];
       }
+      {
+        name = "devpkg-list";
+        command = [
+          "bash"
+          "-lc"
+          "devpkg list >/dev/null"
+        ];
+      }
+      {
+        name = "devpkg-completion";
+        command = [
+          "bash"
+          "-lc"
+          "test -r /share/bash-completion/completions/devpkg && . /share/bash-completion/completions/devpkg && complete -p devpkg >/dev/null && devpkg complete packages div | grep -Fx dive >/dev/null"
+        ];
+      }
     ];
   };
 }

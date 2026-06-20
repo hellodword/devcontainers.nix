@@ -250,7 +250,9 @@ Images use nix2container's `initializeNixDatabase` support. The generated Nix da
 
 This is required for `devpkg`, which installs ad-hoc packages with `nix profile add`. Without the database, Nix could see store paths on disk that are not registered in `/nix/var/nix/db`, causing profile installs to fail or reference missing paths.
 
-The generated filesystem includes `/etc/nix/nix.conf` from `nix.settings` and `/etc/nixpkgs/config.nix` with the same nixpkgs policy used by the image build. Container environment variables also set nixpkgs policy defaults. `devpkg` runs flake evaluation and installation commands with `--impure` so packages such as Google Chrome and Microsoft Edge can read those defaults.
+The generated filesystem includes `/etc/nix/nix.conf` from `nix.settings` and `/etc/nixpkgs/config.nix` with the same nixpkgs policy used by the image build. Container environment variables also set nixpkgs policy defaults and `DEVPKG_NIXPKGS_REF=path:<locked-nixpkgs-source>`, so runtime package installs follow the flake-locked nixpkgs input without fetching nixpkgs on first use. The image keeps that source reachable through `/usr/share/devcontainer/nixpkgs` and its `/nix/store/...-source` target. `devpkg` runs flake evaluation and installation commands with `--impure` so packages such as Google Chrome and Microsoft Edge can read those defaults.
+
+The `devpkg` runtime package also ships Bash completion under `/share/bash-completion/completions/devpkg`. It completes subcommands, common options, installed profile entries, and nixpkgs package attributes from the same locked nixpkgs source.
 
 ## Locale, Shell, And Fonts
 

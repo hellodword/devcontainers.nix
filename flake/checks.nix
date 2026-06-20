@@ -47,10 +47,19 @@ let
   imageBuildChecks = lib.mapAttrs' (
     name: image:
     lib.nameValuePair "image-${imageNameToCheckName name}" (
-      pkgs.runCommand "image-${name}" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-        python3 ${../tests/ci/check-image-tar.py} ${image.oci} ${image.reports} ${name}
-        touch "$out"
-      ''
+      pkgs.runCommand "image-${name}"
+        {
+          nativeBuildInputs = [
+            pkgs.gnugrep
+            pkgs.nix
+            pkgs.python3
+          ];
+        }
+        ''
+          python3 ${../tests/ci/check-image-tar.py} ${image.oci} ${image.reports} ${name}
+          nix-store -q --references ${image.oci} | grep -F ${lib.escapeShellArg nixpkgs.outPath} >/dev/null
+          touch "$out"
+        ''
     )
   ) (lib.filterAttrs (name: _: builtins.elem name [ "nix-latest" ]) images);
 

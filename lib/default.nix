@@ -78,6 +78,7 @@ let
         runtimePackages
         nix2container
         ;
+      lockedNixpkgsSource = inputs.nixpkgs.outPath;
     };
 
     compileReports = import ./compiler/reports.nix {

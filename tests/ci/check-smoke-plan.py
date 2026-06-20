@@ -23,6 +23,8 @@ COMMON = {
     "locale-env",
     "bash-interactive",
     "bash-completion",
+    "devpkg-list",
+    "devpkg-completion",
 }
 
 REQUIRED = {

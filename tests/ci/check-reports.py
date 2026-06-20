@@ -265,6 +265,11 @@ def main() -> int:
             fail(f"container env must set {env_name} to {expected_value}")
         if "core.env" not in env_report["containerEnvSources"].get(env_name, {}).get("sources", []):
             fail(f"{env_name} must be sourced from core.env")
+    devpkg_nixpkgs_ref = env_report["containerEnv"].get("DEVPKG_NIXPKGS_REF", "")
+    if not re.fullmatch(r"path:/nix/store/[a-z0-9]{32}-source", devpkg_nixpkgs_ref):
+        fail("container env must set DEVPKG_NIXPKGS_REF to the locked nixpkgs store source")
+    if "core.env" not in env_report["containerEnvSources"].get("DEVPKG_NIXPKGS_REF", {}).get("sources", []):
+        fail("DEVPKG_NIXPKGS_REF must be sourced from core.env")
     for env_name, env_value in env_report["containerEnv"].items():
         if isinstance(env_value, str) and ("$HOME" in env_value or "$XDG_" in env_value):
             fail(f"container env must not retain unexpanded HOME/XDG references in {env_name}")
