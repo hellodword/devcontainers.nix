@@ -15,6 +15,15 @@ grep -q 'DOCKER_HOST=tcp://' "$tmpdir/help.txt"
 
 reports_dir="$tmpdir/reports"
 mkdir -p "$reports_dir"
+browser_root="$tmpdir/browser-root"
+mkdir -p "$browser_root/run/wrappers/bin" "$browser_root/opt/devcontainer/browser-sandbox"
+for helper in __chromium-suid-sandbox google-chrome-suid-sandbox microsoft-edge-suid-sandbox; do
+  printf '#!/bin/sh\nexit 0\n' >"$browser_root/run/wrappers/bin/$helper"
+  cp "$browser_root/run/wrappers/bin/$helper" "$browser_root/opt/devcontainer/browser-sandbox/$helper"
+  chmod 0755 \
+    "$browser_root/run/wrappers/bin/$helper" \
+    "$browser_root/opt/devcontainer/browser-sandbox/$helper"
+done
 
 write_layer_plan() {
   local max_layer_size="$1"
@@ -31,7 +40,46 @@ write_layer_plan() {
 EOF
 }
 
-cat >"$tmpdir/image.json" <<'EOF'
+cat >"$reports_dir/browser-sandbox-report.json" <<'EOF'
+{
+  "enabled": true,
+  "helperRoot": "/run/wrappers/bin",
+  "runtimeHelperRoot": "/opt/devcontainer/browser-sandbox",
+  "helpers": [
+    {
+      "browser": "chromium",
+      "source": "/nix/store/fixture-chromium-sandbox/bin/__chromium-suid-sandbox",
+      "targetPath": "/run/wrappers/bin/__chromium-suid-sandbox",
+      "runtimePath": "/opt/devcontainer/browser-sandbox/__chromium-suid-sandbox",
+      "package": "chromium",
+      "mode": "4755",
+      "owner": "root:root"
+    },
+    {
+      "browser": "google-chrome",
+      "source": "/nix/store/fixture-google-chrome/share/google/chrome/chrome-sandbox",
+      "targetPath": "/run/wrappers/bin/google-chrome-suid-sandbox",
+      "runtimePath": "/opt/devcontainer/browser-sandbox/google-chrome-suid-sandbox",
+      "package": "google-chrome",
+      "mode": "4755",
+      "owner": "root:root"
+    },
+    {
+      "browser": "microsoft-edge",
+      "source": "/nix/store/fixture-microsoft-edge/share/microsoft/msedge/msedge-sandbox",
+      "targetPath": "/run/wrappers/bin/microsoft-edge-suid-sandbox",
+      "runtimePath": "/opt/devcontainer/browser-sandbox/microsoft-edge-suid-sandbox",
+      "package": "microsoft-edge",
+      "mode": "4755",
+      "owner": "root:root"
+    }
+  ],
+  "preinstalledBrowsers": [],
+  "shims": []
+}
+EOF
+
+cat >"$tmpdir/image.json" <<EOF
 {
   "version": 1,
   "arch": "amd64",
@@ -68,6 +116,67 @@ cat >"$tmpdir/image.json" <<'EOF'
       "size": 2048,
       "diff_ids": "sha256:fixture",
       "mediatype": "application/vnd.oci.image.layer.v1.tar",
+      "paths": [
+        {
+          "path": "$browser_root",
+          "options": {
+            "rewrite": {
+              "regex": "^$browser_root",
+              "repl": ""
+            },
+            "perms": [
+              {
+                "regex": "^$browser_root/run/wrappers/bin/__chromium-suid-sandbox$",
+                "mode": "4755",
+                "uid": 0,
+                "gid": 0,
+                "uname": "root",
+                "gname": "root"
+              },
+              {
+                "regex": "^$browser_root/opt/devcontainer/browser-sandbox/__chromium-suid-sandbox$",
+                "mode": "4755",
+                "uid": 0,
+                "gid": 0,
+                "uname": "root",
+                "gname": "root"
+              },
+              {
+                "regex": "^$browser_root/run/wrappers/bin/google-chrome-suid-sandbox$",
+                "mode": "4755",
+                "uid": 0,
+                "gid": 0,
+                "uname": "root",
+                "gname": "root"
+              },
+              {
+                "regex": "^$browser_root/opt/devcontainer/browser-sandbox/google-chrome-suid-sandbox$",
+                "mode": "4755",
+                "uid": 0,
+                "gid": 0,
+                "uname": "root",
+                "gname": "root"
+              },
+              {
+                "regex": "^$browser_root/run/wrappers/bin/microsoft-edge-suid-sandbox$",
+                "mode": "4755",
+                "uid": 0,
+                "gid": 0,
+                "uname": "root",
+                "gname": "root"
+              },
+              {
+                "regex": "^$browser_root/opt/devcontainer/browser-sandbox/microsoft-edge-suid-sandbox$",
+                "mode": "4755",
+                "uid": 0,
+                "gid": 0,
+                "uname": "root",
+                "gname": "root"
+              }
+            ]
+          }
+        }
+      ],
       "History": {
         "created_by": "fixture layer"
       }

@@ -2,7 +2,9 @@
 import json
 import pathlib
 import re
+import stat
 import sys
+import tarfile
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 
 
@@ -109,6 +111,137 @@ def walk_strings(value):
             yield from walk_strings(child)
 
 
+def tar_member_name(path: str) -> str:
+    return path[1:] if path.startswith("/") else path
+
+
+def apply_rewrite(path: str, options: dict) -> str:
+    rewrite = options.get("rewrite") if isinstance(options, dict) else None
+    if not isinstance(rewrite, dict):
+        return path
+    regex = rewrite.get("regex")
+    repl = rewrite.get("repl", "")
+    if not isinstance(regex, str) or not isinstance(repl, str):
+        return path
+    return re.sub(regex, repl, path)
+
+
+def apply_perms(source_path: str, source_mode: int, options: dict) -> dict:
+    header = {
+        "mode": source_mode,
+        "uid": 0,
+        "gid": 0,
+        "uname": "root",
+        "gname": "root",
+    }
+    perms = options.get("perms") if isinstance(options, dict) else None
+    if not isinstance(perms, list):
+        return header
+    for perm in perms:
+        if not isinstance(perm, dict):
+            continue
+        regex = perm.get("regex")
+        if not isinstance(regex, str) or re.search(regex, source_path) is None:
+            continue
+        header["uid"] = int(perm.get("uid", 0))
+        header["gid"] = int(perm.get("gid", 0))
+        if perm.get("uname"):
+            header["uname"] = perm["uname"]
+        if perm.get("gname"):
+            header["gname"] = perm["gname"]
+        if perm.get("mode"):
+            header["mode"] = int(str(perm["mode"]), 8)
+    return header
+
+
+def validate_helper_header(header: dict, target_path: str) -> None:
+    if header["mode"] != 0o4755:
+        fail(f"{target_path} must have tar mode 4755, got {header['mode']:04o}")
+    if header["uid"] != 0 or header["gid"] != 0:
+        fail(f"{target_path} must be owned by uid/gid 0")
+    if header.get("uname") != "root" or header.get("gname") != "root":
+        fail(f"{target_path} must be owned by root:root")
+
+
+def helper_header_from_materialized_layer(layer: dict, target_path: str):
+    layer_path = layer.get("layer-path")
+    if not isinstance(layer_path, str) or not layer_path:
+        return None
+
+    try:
+        with tarfile.open(layer_path, "r:*") as archive:
+            for name in [target_path, tar_member_name(target_path)]:
+                try:
+                    member = archive.getmember(name)
+                    return {
+                        "mode": member.mode,
+                        "uid": member.uid,
+                        "gid": member.gid,
+                        "uname": member.uname,
+                        "gname": member.gname,
+                    }
+                except KeyError:
+                    continue
+    except tarfile.TarError as exc:
+        fail(f"could not inspect materialized layer {layer_path}: {exc}")
+    return None
+
+
+def helper_header_from_described_layer(layer: dict, target_path: str):
+    paths = layer.get("paths") or []
+    if not isinstance(paths, list):
+        return None
+
+    for path_entry in paths:
+        if not isinstance(path_entry, dict):
+            continue
+        root = path_entry.get("path")
+        if not isinstance(root, str):
+            continue
+        source_path = f"{root}{target_path}"
+        source = pathlib.Path(source_path)
+        if not source.is_file():
+            continue
+        options = path_entry.get("options") or {}
+        if apply_rewrite(source_path, options) != target_path:
+            continue
+        source_mode = stat.S_IMODE(source.stat().st_mode)
+        return apply_perms(source_path, source_mode, options)
+    return None
+
+
+def validate_browser_sandbox_headers(image_json: dict, browser_sandbox_report: dict) -> None:
+    helpers = browser_sandbox_report.get("helpers") or []
+    if len(helpers) != 3:
+        fail("browser-sandbox-report.json must report three sandbox helpers")
+
+    layers = image_json.get("layers") or []
+    for helper in helpers:
+        target_path = helper.get("targetPath")
+        if not isinstance(target_path, str) or not target_path.startswith("/run/wrappers/bin/"):
+            fail("browser sandbox helper must report an absolute /run/wrappers/bin targetPath")
+        runtime_path = helper.get("runtimePath")
+        if not isinstance(runtime_path, str) or not runtime_path.startswith(
+            "/opt/devcontainer/browser-sandbox/"
+        ):
+            fail("browser sandbox helper must report an absolute stable runtimePath")
+
+        for helper_path in [target_path, runtime_path]:
+            header = None
+            for layer in layers:
+                if not isinstance(layer, dict):
+                    continue
+                header = helper_header_from_materialized_layer(layer, helper_path)
+                if header is None:
+                    header = helper_header_from_described_layer(layer, helper_path)
+                if header is not None:
+                    break
+
+            if header is None:
+                fail(f"image artifact does not include browser sandbox helper {helper_path}")
+            validate_helper_header(header, helper_path)
+
+
 def main() -> int:
     if len(sys.argv) != 4:
         print(
@@ -128,6 +261,7 @@ def main() -> int:
 
     image_json = read_json(image_path)
     layer_plan = read_json(reports_dir / "layer-plan.json")
+    browser_sandbox_report = read_json(reports_dir / "browser-sandbox-report.json")
     max_layer_size = parse_size_bytes(layer_plan.get("budget", {}).get("maxLayerSize"))
 
     if image_json.get("version") != 1:
@@ -200,6 +334,8 @@ def main() -> int:
     for text in walk_strings(image_json):
         if SENSITIVE_VALUE_RE.search(text):
             fail("image artifact appears to contain sensitive material")
+
+    validate_browser_sandbox_headers(image_json, browser_sandbox_report)
 
     print(f"image-artifact-check ok: {image_name}")
     return 0

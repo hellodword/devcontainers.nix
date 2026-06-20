@@ -18,6 +18,7 @@
   compiledVscodeExtensions,
   compiledFhsRuntime,
   compiledFilesystem,
+  compiledBrowserSandbox,
   compiledGraph,
   compiledLayers,
 }:
@@ -178,9 +179,9 @@ let
     copyToRoot = [
       runtimeRoot
       metadataRoot
-      compiledFilesystem.root
+      compiledBrowserSandbox.root
     ];
-    perms = compiledFilesystem.perms;
+    perms = compiledBrowserSandbox.perms;
     maxLayers = 4;
     config = containerConfig;
     meta = {

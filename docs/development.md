@@ -18,6 +18,8 @@ Build the nix2container image artifact:
 nix build .#images.nix-latest.oci
 ```
 
+Browser sandbox changes have extra invariants around SUID helper ownership, `/run` fallback behavior, and dynamic `devpkg` shims. Read [Browser Sandbox](browser-sandbox.md) before changing `lib/compiler/browser-sandbox.nix` or the browser-shim section of `runtime/devpkg/main.sh`.
+
 Load an image into Docker:
 
 ```sh

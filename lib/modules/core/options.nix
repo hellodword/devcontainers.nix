@@ -118,6 +118,23 @@ in
       default = [ ];
     };
 
+    browserSandbox = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      preinstalledBrowsers = mkOption {
+        type = types.listOf (
+          types.enum [
+            "chromium"
+            "google-chrome"
+            "microsoft-edge"
+          ]
+        );
+        default = [ ];
+      };
+    };
+
     libraries = {
       runtime = mkOption {
         type = types.listOf types.package;

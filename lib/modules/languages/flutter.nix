@@ -20,6 +20,7 @@ in
 {
   config = lib.mkIf config.devcontainer.languages.flutter.enable {
     devcontainer.packages = flutterCore ++ android ++ browserGpu;
+    devcontainer.browserSandbox.preinstalledBrowsers = [ "chromium" ];
     devcontainer.vscode.extensions = [
       "dart-code.dart-code"
       "dart-code.flutter"

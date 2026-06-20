@@ -10,6 +10,7 @@
   compiledVscodeExtensions,
   compiledFhsRuntime,
   compiledFilesystem,
+  compiledBrowserSandbox,
   compiledLayers,
 }:
 let
@@ -96,6 +97,7 @@ let
     ) null compiledFhsRuntime.symlinks;
   };
   shell-report-json = jsonFile "shell-report.json" compiledShell.report;
+  browser-sandbox-report-json = jsonFile "browser-sandbox-report.json" compiledBrowserSandbox.report;
   filesystem-report-json = jsonFile "filesystem-report.json" {
     user = {
       inherit (config.devcontainer.user)
@@ -160,6 +162,7 @@ let
       "extensions-report.json"
       "fhs-runtime-report.json"
       "shell-report.json"
+      "browser-sandbox-report.json"
       "filesystem-report.json"
       "security-report.json"
       "smoke-test-plan.json"
@@ -232,6 +235,10 @@ let
       path = shell-report-json;
     }
     {
+      name = "browser-sandbox-report.json";
+      path = browser-sandbox-report-json;
+    }
+    {
       name = "filesystem-report.json";
       path = filesystem-report-json;
     }
@@ -267,6 +274,7 @@ in
     extensions-report-json
     fhs-runtime-report-json
     shell-report-json
+    browser-sandbox-report-json
     filesystem-report-json
     security-report-json
     smoke-test-plan-json

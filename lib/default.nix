@@ -59,6 +59,10 @@ let
       inherit pkgs lib;
     };
 
+    compileBrowserSandbox = import ./compiler/browser-sandbox.nix {
+      inherit pkgs lib;
+    };
+
     compileLayers = import ./compiler/layers.nix {
       inherit lib pkgs;
     };
@@ -114,6 +118,10 @@ let
           compiledFhsRuntime = fhsRuntime;
           compiledShell = shell;
         };
+        browserSandbox = compileBrowserSandbox {
+          config = evaluated.config;
+          compiledFilesystem = filesystem;
+        };
         layers = compileLayers {
           config = evaluated.config;
           compiledGraph = graph;
@@ -128,6 +136,7 @@ let
           compiledVscodeExtensions = vscodeExtensions;
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
+          compiledBrowserSandbox = browserSandbox;
           compiledGraph = graph;
           compiledLayers = layers;
         };
@@ -142,6 +151,7 @@ let
           compiledVscodeExtensions = vscodeExtensions;
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
+          compiledBrowserSandbox = browserSandbox;
           compiledLayers = layers;
         };
       in
@@ -156,6 +166,7 @@ let
           fhsRuntime
           filesystem
           shell
+          browserSandbox
           ;
         inherit lifecycle vscodeExtensions;
         inherit (image)
@@ -179,6 +190,7 @@ let
           fhs-runtime-report-json
           shell-report-json
           filesystem-report-json
+          browser-sandbox-report-json
           security-report-json
           smoke-test-plan-json
           ci-plan-json

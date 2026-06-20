@@ -7,6 +7,7 @@ import sys
 
 REQUIRED_REPORT_FILES = {
     "ci-plan.json",
+    "browser-sandbox-report.json",
     "closure-report.json",
     "env-report.json",
     "extensions-index.json",

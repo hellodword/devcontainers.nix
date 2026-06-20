@@ -89,6 +89,69 @@ grep -q '\[REDACTED\]' "$log_file"
 ! grep -q 'super-secret' "$log_file"
 grep -q '^done$' "$status_file"
 
+browser_project="$tmpdir/browser-project"
+(
+  export HOME="$browser_project/home"
+  export XDG_DATA_HOME="$browser_project/data"
+  export DEVPKG_PROFILE_JSON_FILE="$browser_project/profile.json"
+  export DEVPKG_BROWSER_COMMAND_PATH="$browser_project/profile-bin"
+  shim_dir="$XDG_DATA_HOME/devcontainer/bin"
+  profile_bin="$browser_project/profile-bin"
+  mkdir -p "$HOME" "$XDG_DATA_HOME" "$profile_bin"
+
+  printf '{"elements":{}}\n' >"$DEVPKG_PROFILE_JSON_FILE"
+  "$devpkg/bin/devpkg" browser-shims sync
+  test ! -e "$shim_dir/chromium"
+  test ! -e "$shim_dir/google-chrome"
+  test ! -e "$shim_dir/microsoft-edge"
+
+  printf '#!/bin/sh\nexit 0\n' >"$profile_bin/chromium"
+  printf '#!/bin/sh\nexit 0\n' >"$profile_bin/chromium-browser"
+  chmod 0755 "$profile_bin/chromium" "$profile_bin/chromium-browser"
+  cat >"$DEVPKG_PROFILE_JSON_FILE" <<'EOF'
+{
+  "elements": {
+    "chromium": {
+      "attrPath": "legacyPackages.x86_64-linux.chromium"
+    }
+  }
+}
+EOF
+  "$devpkg/bin/devpkg" browser-shims sync
+  grep -q 'devcontainers.nix browser sandbox shim' "$shim_dir/chromium"
+  grep -q '/opt/devcontainer/browser-sandbox/__chromium-suid-sandbox' "$shim_dir/chromium"
+  grep -q 'patch_chrome_devel_sandbox_exports' "$shim_dir/chromium"
+  grep -q 'devcontainers.nix browser sandbox shim' "$shim_dir/chromium-browser"
+
+  rm "$profile_bin/chromium" "$profile_bin/chromium-browser"
+  printf '{"elements":{}}\n' >"$DEVPKG_PROFILE_JSON_FILE"
+  "$devpkg/bin/devpkg" browser-shims sync
+  test ! -e "$shim_dir/chromium"
+  test ! -e "$shim_dir/chromium-browser"
+
+  mkdir -p "$shim_dir"
+  printf '#!/bin/sh\nexit 42\n' >"$shim_dir/microsoft-edge"
+  chmod 0755 "$shim_dir/microsoft-edge"
+  "$devpkg/bin/devpkg" browser-shims sync
+  grep -q 'exit 42' "$shim_dir/microsoft-edge"
+
+  printf '#!/bin/sh\nexit 0\n' >"$profile_bin/google-chrome"
+  chmod 0755 "$profile_bin/google-chrome"
+  cat >"$DEVPKG_PROFILE_JSON_FILE" <<'EOF'
+{
+  "elements": {
+    "google-chrome": {
+      "attrPath": "legacyPackages.x86_64-linux.google-chrome"
+    }
+  }
+}
+EOF
+  "$devpkg/bin/devpkg" browser-shims sync
+  grep -q 'google-chrome-suid-sandbox' "$shim_dir/google-chrome"
+  grep -q '/opt/devcontainer/browser-sandbox/google-chrome-suid-sandbox' "$shim_dir/google-chrome"
+  test ! -e "$shim_dir/chromium"
+)
+
 project_root="$tmpdir/project"
 (
   export HOME="$project_root/home"
