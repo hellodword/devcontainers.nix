@@ -23,6 +23,7 @@ lib.evalModules {
     ../modules/core/filesystem.nix
     ../modules/core/env.nix
     ../modules/core/shell.nix
+    ../modules/core/fonts.nix
     ../modules/core/libraries.nix
     ../modules/core/path.nix
     ../modules/core/fhs-runtime.nix

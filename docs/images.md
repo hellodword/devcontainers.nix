@@ -41,6 +41,7 @@ Every image includes:
 - nixpkgs defaults for `devpkg` and interactive flake commands run with `--impure`: allow unfree packages, accept the Android SDK license, accept Oracle JDK license gates when present, and allow unsupported-system packages
 - separate dynamic native-library profiles, for example `devpkg add-lib zlib` for runtime-only libraries and `devpkg add-dev-lib openssl zlib` for headers plus link/runtime outputs
 - `en_US.UTF-8` locale defaults backed by `pkgs.glibcLocales`
+- fontconfig plus Noto Sans/Serif CJK, Noto Color Emoji, Noto Sans Symbols, and the standard `fc-*` commands
 - system `/etc/profile`, `/etc/bashrc`, `/etc/bash.bashrc`, default aliases, bash completion, and local nix-index based `command_not_found_handle`
 
 Dynamic build libraries are discoverable through `PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`, `NIXPKGS_CMAKE_PREFIX_PATH`, `CPATH`, `LIBRARY_PATH`, `NIX_CFLAGS_COMPILE`, and `NIX_LDFLAGS`. `LD_LIBRARY_PATH` is intentionally absent unless an image or project opts in.
@@ -93,3 +94,19 @@ Project-level `LD_LIBRARY_PATH` opt-in:
 Images do not set `DOCKER_HOST` by default and do not run a Docker daemon.
 
 The full glibc locale archive is included for predictable UTF-8 behavior in non-NixOS containers. This costs more image space than a custom trimmed archive, but avoids locale failures in common CLI and language tooling. Images set `LANG` and `LANGUAGE`; they do not set `LC_ALL` by default so projects can override specific locale categories with `LC_CTYPE`, `LC_TIME`, or other `LC_*` variables.
+
+Fontconfig is configured at `/etc/fonts/fonts.conf` without a global
+`FONTCONFIG_FILE`. The default font aliases prefer `Noto Sans CJK SC` for
+sans-serif, `Noto Serif CJK SC` for serif, `Noto Sans Mono CJK SC` for
+monospace, and `Noto Color Emoji` for emoji. `noto-fonts` supplies Latin,
+monospace fallback, and symbols coverage through `Noto Sans Symbols` and
+`Noto Sans Symbols 2`.
+
+Fontconfig caches are not pre-generated in the image. Fontconfig can scan the
+Nix store font directories directly and will create per-user cache files under
+the XDG cache directory on first use. User overrides through
+`~/.config/fontconfig/conf.d` and `~/.config/fontconfig/fonts.conf` are enabled
+by default.
+
+See [Fonts And Fontconfig](fonts-fontconfig.md) for design rationale,
+implementation details, and maintenance checks.

@@ -13,6 +13,7 @@ REQUIRED_REPORT_FILES = {
     "extensions-report.json",
     "filesystem-report.json",
     "fhs-runtime-report.json",
+    "fontconfig-report.json",
     "graph.json",
     "graph-normalized.json",
     "graph-duplicates-report.json",

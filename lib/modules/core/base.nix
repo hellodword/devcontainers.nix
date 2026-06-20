@@ -6,6 +6,7 @@
     layers.buckets = [
       "00-base-runtime"
       "01-fhs-vscode-runtime"
+      "02-fonts-runtime"
       "02-foundation-tools"
       "03-source-control-tools"
       "04-fetch-archive-tools"

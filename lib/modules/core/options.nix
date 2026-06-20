@@ -62,6 +62,30 @@ let
       };
     };
   };
+  fontAliasType = types.submodule {
+    options = {
+      binding = mkOption {
+        type = types.enum [
+          "same"
+          "weak"
+          "strong"
+        ];
+        default = "same";
+      };
+      prefer = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+      };
+      accept = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+      };
+      default = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+      };
+    };
+  };
   lifecycleTaskType = types.submodule {
     options = {
       phase = mkOption {
@@ -116,6 +140,71 @@ in
     packages = mkOption {
       type = types.listOf types.package;
       default = [ ];
+    };
+
+    fonts = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      packages = mkOption {
+        type = types.listOf types.package;
+        default = with pkgs; [
+          noto-fonts
+          noto-fonts-cjk-sans
+          noto-fonts-cjk-serif
+          noto-fonts-color-emoji
+        ];
+      };
+      fontconfig = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        package = mkOption {
+          type = types.package;
+          default = pkgs.fontconfig;
+        };
+        includeUserConf = mkOption {
+          type = types.bool;
+          default = true;
+        };
+        localConf = mkOption {
+          type = types.lines;
+          default = "";
+        };
+        defaultFonts = {
+          sansSerif = mkOption {
+            type = types.listOf types.str;
+            default = [
+              "Noto Sans CJK SC"
+              "Noto Sans"
+            ];
+          };
+          serif = mkOption {
+            type = types.listOf types.str;
+            default = [
+              "Noto Serif CJK SC"
+              "Noto Serif"
+            ];
+          };
+          monospace = mkOption {
+            type = types.listOf types.str;
+            default = [
+              "Noto Sans Mono CJK SC"
+              "Noto Sans Mono"
+            ];
+          };
+          emoji = mkOption {
+            type = types.listOf types.str;
+            default = [ "Noto Color Emoji" ];
+          };
+        };
+        aliases = mkOption {
+          type = types.attrsOf fontAliasType;
+          default = { };
+        };
+      };
     };
 
     libraries = {

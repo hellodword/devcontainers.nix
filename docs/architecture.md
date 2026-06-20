@@ -80,6 +80,21 @@ Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`.
 
 Image modules extend aliases through `devcontainer.shell.aliases`. Alias names are restricted to letters, numbers, `_`, `-`, `.`, and `+`, and values are shell-escaped when `/etc/bashrc` is rendered. Go images add the `gobuild-small` alias from the Go language module.
 
+## Fonts And Fontconfig
+
+All images include a shared font runtime in bucket `02-fonts-runtime`. The core
+fonts module adds Noto Latin, CJK, symbol, and emoji coverage plus fontconfig
+tools, while the font compiler generates `/etc/fonts/fonts.conf` and
+devcontainer-specific default font aliases.
+
+The fontconfig integration reuses `pkgs.makeFontsConf` and follows NixOS
+`defaultFonts` and `aliases` semantics, but it does not import the NixOS
+fontconfig module. This keeps the container compiler independent from NixOS
+`environment.*` and AppArmor options.
+
+See [Fonts And Fontconfig](fonts-fontconfig.md) for the detailed design,
+generated files, report contract, cache policy, and maintenance checklist.
+
 ## Nix Database
 
 Images enable nix2container's `initializeNixDatabase` support. The generated Nix database registers the store paths already present in the image, makes `/nix`, `/nix/store`, and `/nix/var/nix` writable by the container user, and avoids a separate registration workaround at startup.

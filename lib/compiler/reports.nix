@@ -7,6 +7,7 @@
   compiledMetadata,
   compiledLifecycle,
   compiledShell,
+  compiledFonts,
   compiledVscodeExtensions,
   compiledFhsRuntime,
   compiledFilesystem,
@@ -96,6 +97,7 @@ let
     ) null compiledFhsRuntime.symlinks;
   };
   shell-report-json = jsonFile "shell-report.json" compiledShell.report;
+  fontconfig-report-json = jsonFile "fontconfig-report.json" compiledFonts.report;
   filesystem-report-json = jsonFile "filesystem-report.json" {
     user = {
       inherit (config.devcontainer.user)
@@ -159,6 +161,7 @@ let
       "extensions-index.json"
       "extensions-report.json"
       "fhs-runtime-report.json"
+      "fontconfig-report.json"
       "shell-report.json"
       "filesystem-report.json"
       "security-report.json"
@@ -228,6 +231,10 @@ let
       path = fhs-runtime-report-json;
     }
     {
+      name = "fontconfig-report.json";
+      path = fontconfig-report-json;
+    }
+    {
       name = "shell-report.json";
       path = shell-report-json;
     }
@@ -266,6 +273,7 @@ in
     closure-report-json
     extensions-report-json
     fhs-runtime-report-json
+    fontconfig-report-json
     shell-report-json
     filesystem-report-json
     security-report-json

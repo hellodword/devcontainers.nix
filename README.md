@@ -14,7 +14,8 @@
 All images run as the fixed `vscode` user and include a VS Code-compatible FHS runtime.
 They also default to `en_US.UTF-8` with `glibcLocales`, system bash initialization,
 bash completion, safe command-not-found suggestions from the local nix-index database,
-and a small alias set. Go images add `gobuild-small` for stripped, trimpath builds.
+fontconfig with Noto CJK and emoji fonts, and a small alias set. Go images add
+`gobuild-small` for stripped, trimpath builds.
 
 ## Quick Start
 
@@ -80,6 +81,14 @@ Images set `LANG=en_US.UTF-8`, `LANGUAGE=en_US:en`, `LOCALE_ARCHIVE` from
 `LC_ALL`; image modules can set specific `LC_*` variables through `devcontainer.locale.lc`
 when a workflow needs a category override.
 
+Images include `fontconfig`, the standard `fc-*` inspection/cache commands,
+`noto-fonts`, `noto-fonts-cjk-sans`, `noto-fonts-cjk-serif`, and
+`noto-fonts-color-emoji`. Default fontconfig fallback prefers Simplified Chinese
+Noto CJK families for sans, serif, and monospace, uses Noto Color Emoji for emoji,
+and gets symbol coverage from `noto-fonts`. Images do not set `FONTCONFIG_FILE`
+globally and do not pre-generate fontconfig caches; first use may populate the
+user XDG cache.
+
 Shell aliases are image shell behavior, not devcontainer metadata. Modules can extend
 `devcontainer.shell.aliases`, and alias names are restricted to a conservative shell-safe
 character set.
@@ -90,5 +99,6 @@ More detail:
 
 - [Architecture](docs/architecture.md)
 - [Images](docs/images.md)
+- [Fonts and Fontconfig](docs/fonts-fontconfig.md)
 - [Remote Docker](docs/docker-remote.md)
 - [Development](docs/development.md)

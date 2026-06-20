@@ -9,6 +9,9 @@
     commandNotFoundHook = "";
     generatedFiles = [ ];
   },
+  compiledFonts ? {
+    root = null;
+  },
 }:
 let
   user = config.devcontainer.user;
@@ -58,6 +61,9 @@ let
     printf '%s' ${lib.escapeShellArg compiledShell.bashrcText} >"$out/etc/bashrc"
     printf '%s' ${lib.escapeShellArg compiledShell.bashBashrcText} >"$out/etc/bash.bashrc"
     printf '%s' ${lib.escapeShellArg nixpkgsConfigText} >"$out${nixpkgsConfigPath}"
+    ${lib.optionalString (compiledFonts.root != null) ''
+      cp -a ${compiledFonts.root}/. "$out/"
+    ''}
 
     chmod 0644 "$out/etc/passwd" "$out/etc/group" "$out/etc/os-release" "$out/etc/profile" "$out/etc/bashrc" "$out/etc/bash.bashrc" "$out${nixpkgsConfigPath}"
   '';

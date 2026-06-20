@@ -47,6 +47,10 @@ let
       inherit pkgs lib;
     };
 
+    compileFonts = import ./compiler/fonts.nix {
+      inherit pkgs lib;
+    };
+
     compileVscodeExtensions = import ./compiler/vscode-extensions.nix {
       inherit lib pkgs;
     };
@@ -106,6 +110,9 @@ let
         shell = compileShell {
           config = evaluated.config;
         };
+        fonts = compileFonts {
+          config = evaluated.config;
+        };
         vscodeExtensions = compileVscodeExtensions {
           config = evaluated.config;
         };
@@ -113,6 +120,7 @@ let
           config = evaluated.config;
           compiledFhsRuntime = fhsRuntime;
           compiledShell = shell;
+          compiledFonts = fonts;
         };
         layers = compileLayers {
           config = evaluated.config;
@@ -125,6 +133,7 @@ let
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledShell = shell;
+          compiledFonts = fonts;
           compiledVscodeExtensions = vscodeExtensions;
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
@@ -139,6 +148,7 @@ let
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
           compiledShell = shell;
+          compiledFonts = fonts;
           compiledVscodeExtensions = vscodeExtensions;
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
@@ -156,6 +166,7 @@ let
           fhsRuntime
           filesystem
           shell
+          fonts
           ;
         inherit lifecycle vscodeExtensions;
         inherit (image)
@@ -177,6 +188,7 @@ let
           closure-report-json
           extensions-report-json
           fhs-runtime-report-json
+          fontconfig-report-json
           shell-report-json
           filesystem-report-json
           security-report-json

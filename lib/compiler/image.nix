@@ -18,6 +18,7 @@
   compiledVscodeExtensions,
   compiledFhsRuntime,
   compiledFilesystem,
+  compiledFonts,
   compiledGraph,
   compiledLayers,
 }:
@@ -133,6 +134,7 @@ let
       config.devcontainer.packages
       ++ compiledLibraries.imagePaths
       ++ compiledShell.imagePaths
+      ++ [ compiledFonts.root ]
       ++ runtimeTools;
     pathsToLink = [
       "/bin"

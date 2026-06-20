@@ -14,6 +14,7 @@ REQUIRED_REPORT_FILES = {
     "extensions-report.json",
     "filesystem-report.json",
     "fhs-runtime-report.json",
+    "fontconfig-report.json",
     "graph.json",
     "image-plan.json",
     "layer-plan.json",
@@ -79,6 +80,7 @@ def main() -> int:
     image_plan = read_json(reports_dir / "image-plan.json")
     security_report = read_json(reports_dir / "security-report.json")
     fhs_runtime_report = read_json(reports_dir / "fhs-runtime-report.json")
+    fontconfig_report = read_json(reports_dir / "fontconfig-report.json")
     ci_plan = read_json(reports_dir / "ci-plan.json")
     env_report = read_json(reports_dir / "env-report.json")
     libraries_report = read_json(reports_dir / "libraries-report.json")
@@ -120,6 +122,11 @@ def main() -> int:
             fail(f"layer {layer['group']} must be buildable as a copyToRoot layer")
         if layer["pathCount"] < 1:
             fail(f"layer {layer['group']} must include at least one store path")
+    font_layers = [layer for layer in layer_plan["layers"] if layer["group"] == "02-fonts-runtime"]
+    if len(font_layers) != 1:
+        fail("layer-plan.json must include one 02-fonts-runtime layer")
+    if "runtime/fonts" not in font_layers[0]["members"]:
+        fail("02-fonts-runtime layer must include runtime/fonts")
 
     if not smoke_plan["tests"]:
         fail("smoke-test-plan.json must include at least one test")
@@ -187,6 +194,8 @@ def main() -> int:
         fail("container env must not configure DOCKER_HOST by default")
     if "LD_LIBRARY_PATH" in env_report["containerEnv"]:
         fail("container env must not export LD_LIBRARY_PATH by default")
+    if "FONTCONFIG_FILE" in env_report["containerEnv"]:
+        fail("container env must not set FONTCONFIG_FILE globally")
     expected_locale_env = {
         "LANG": "en_US.UTF-8",
         "LANGUAGE": "en_US:en",
@@ -320,6 +329,58 @@ def main() -> int:
             fail(f"container env must set {env_name} to the CA bundle")
         if "compiler.fhs-runtime.ca-certificates" not in env_report["containerEnvSources"][env_name]["sources"]:
             fail(f"{env_name} must be sourced from FHS CA certificates")
+
+    if not fontconfig_report.get("enabled"):
+        fail("fontconfig-report.json must confirm fonts are enabled")
+    fontconfig_settings = fontconfig_report.get("fontconfig") or {}
+    if not fontconfig_settings.get("enabled"):
+        fail("fontconfig-report.json must confirm fontconfig is enabled")
+    if fontconfig_settings.get("package") != "fontconfig":
+        fail("fontconfig-report.json must report the fontconfig package")
+    if fontconfig_settings.get("configPath") != "/etc/fonts/fonts.conf":
+        fail("fontconfig-report.json must report /etc/fonts/fonts.conf")
+    if fontconfig_settings.get("confDir") != "/etc/fonts/conf.d":
+        fail("fontconfig-report.json must report /etc/fonts/conf.d")
+    reported_font_packages = {entry.get("name") for entry in fontconfig_report.get("packages", [])}
+    for required_package in [
+        "noto-fonts",
+        "noto-fonts-cjk-sans",
+        "noto-fonts-cjk-serif",
+        "noto-fonts-color-emoji",
+    ]:
+        if required_package not in reported_font_packages:
+            fail(f"fontconfig-report.json missing font package: {required_package}")
+    expected_fontconfig_tools = {
+        "fc-cache",
+        "fc-list",
+        "fc-match",
+        "fc-query",
+        "fc-scan",
+        "fc-validate",
+        "fc-cat",
+        "fc-conflist",
+        "fc-pattern",
+    }
+    if set(fontconfig_settings.get("tools") or []) != expected_fontconfig_tools:
+        fail("fontconfig-report.json must list all required fc-* tools")
+    default_fonts = fontconfig_settings.get("defaultFonts") or {}
+    if default_fonts.get("sansSerif") != ["Noto Sans CJK SC", "Noto Sans"]:
+        fail("default sans-serif fonts must prefer Noto Sans CJK SC")
+    if default_fonts.get("serif") != ["Noto Serif CJK SC", "Noto Serif"]:
+        fail("default serif fonts must prefer Noto Serif CJK SC")
+    if default_fonts.get("monospace") != ["Noto Sans Mono CJK SC", "Noto Sans Mono"]:
+        fail("default monospace fonts must prefer Noto Sans Mono CJK SC")
+    if default_fonts.get("emoji") != ["Noto Color Emoji"]:
+        fail("default emoji fonts must prefer Noto Color Emoji")
+    if fontconfig_settings.get("aliases") != {}:
+        fail("default font aliases must be empty")
+    if fontconfig_settings.get("includeUserConf") is not True:
+        fail("fontconfig must include user XDG config by default")
+    if fontconfig_settings.get("globalFontconfigFile") is not None:
+        fail("fontconfig must not set a global FONTCONFIG_FILE")
+    cache_settings = fontconfig_settings.get("cache") or {}
+    if cache_settings.get("preGenerated") is not False:
+        fail("fontconfig cache must not be pre-generated")
 
     if not extensions_report["validation"]["noNetworkDuringProjection"]:
         fail("extensions projection must stay offline")
