@@ -72,7 +72,7 @@ let
         default = false;
       };
       user = mkOption {
-        type = types.str;
+        type = types.enum [ "vscode" ];
         default = "vscode";
       };
       command = mkOption {
@@ -189,39 +189,39 @@ in
 
     user = {
       name = mkOption {
-        type = types.str;
+        type = types.enum [ "vscode" ];
         default = "vscode";
       };
       uid = mkOption {
-        type = types.int;
+        type = types.enum [ 1000 ];
         default = 1000;
       };
       group = mkOption {
-        type = types.str;
+        type = types.enum [ "vscode" ];
         default = "vscode";
       };
       gid = mkOption {
-        type = types.int;
+        type = types.enum [ 1000 ];
         default = 1000;
       };
       home = mkOption {
-        type = types.str;
+        type = types.enum [ "/home/vscode" ];
         default = "/home/vscode";
       };
       shell = mkOption {
-        type = types.str;
+        type = types.enum [ "/bin/bash" ];
         default = "/bin/bash";
       };
       remoteUser = mkOption {
-        type = types.str;
+        type = types.enum [ "vscode" ];
         default = "vscode";
       };
       containerUser = mkOption {
-        type = types.str;
+        type = types.enum [ "vscode" ];
         default = "vscode";
       };
       updateRemoteUserUID = mkOption {
-        type = types.bool;
+        type = types.enum [ false ];
         default = false;
       };
     };

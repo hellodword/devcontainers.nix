@@ -42,10 +42,21 @@ let
   // vscodeCustomization;
 
   snippets = config.devcontainer.metadata.snippets ++ [ computedSnippet ];
-  mergedPreview = lib.foldl' lib.recursiveUpdate { } snippets;
+  invalidUserSnippet = lib.findFirst (
+    snippet:
+    (snippet ? remoteUser && snippet.remoteUser != "vscode")
+    || (snippet ? containerUser && snippet.containerUser != "vscode")
+    || (snippet ? updateRemoteUserUID && snippet.updateRemoteUserUID == true)
+  ) null config.devcontainer.metadata.snippets;
+  validatedSnippets =
+    if invalidUserSnippet != null then
+      builtins.throw "devcontainer metadata may not override the user. Remove remoteUser/containerUser/updateRemoteUserUID or keep remoteUser/containerUser as vscode and updateRemoteUserUID as false."
+    else
+      snippets;
+  mergedPreview = lib.foldl' lib.recursiveUpdate { } validatedSnippets;
   dockerMetadataKey = "docker" + "Access";
   schemaReport = {
-    snippetCount = builtins.length snippets;
+    snippetCount = builtins.length validatedSnippets;
     hasRemoteUser = mergedPreview ? remoteUser;
     hasLifecycle = builtins.any (name: mergedPreview ? "${name}Command") [
       "onCreate"
@@ -58,7 +69,7 @@ let
   };
 in
 {
-  label = snippets;
+  label = validatedSnippets;
   mergedPreview = mergedPreview;
   schemaReport = schemaReport;
 }

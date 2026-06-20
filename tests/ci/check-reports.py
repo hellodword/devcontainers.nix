@@ -93,6 +93,12 @@ def main() -> int:
         fail("metadata schema must include VS Code customizations")
     if metadata_schema["hasDockerMetadata"]:
         fail(f"{image_name} metadata must not declare Docker daemon access metadata")
+    if metadata_preview.get("remoteUser") != "vscode":
+        fail("metadata merged preview must keep remoteUser as vscode")
+    if metadata_preview.get("containerUser") != "vscode":
+        fail("metadata merged preview must keep containerUser as vscode")
+    if metadata_preview.get("updateRemoteUserUID") is not False:
+        fail("metadata merged preview must disable updateRemoteUserUID")
 
     for report_name in REQUIRED_REPORT_FILES:
         report_data = read_json(reports_dir / report_name)

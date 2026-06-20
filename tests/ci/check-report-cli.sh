@@ -43,6 +43,37 @@ jq -e 'has("docker" + "Access") | not' "$reports_dir/metadata-merged-preview.jso
 jq -e 'has("mounts") | not' "$reports_dir/metadata-merged-preview.json" >/dev/null
 
 "$tool/bin/devcontainer-image" check "$reports_dir/metadata-label.json"
+cat >"$tmpdir/project-devcontainer.json" <<'EOF'
+{
+  "name": "fixture",
+  "remoteUser": "vscode",
+  "containerUser": "vscode",
+  "updateRemoteUserUID": false
+}
+EOF
+"$tool/bin/devcontainer-image" check "$tmpdir/project-devcontainer.json"
+cat >"$tmpdir/bad-user-devcontainer.json" <<'EOF'
+{
+  "name": "fixture",
+  "remoteUser": "root"
+}
+EOF
+if "$tool/bin/devcontainer-image" check "$tmpdir/bad-user-devcontainer.json" >"$tmpdir/bad-user.out" 2>"$tmpdir/bad-user.err"; then
+  echo "expected devcontainer-image check to reject user overrides" >&2
+  exit 1
+fi
+grep -q 'only support the vscode user' "$tmpdir/bad-user.err"
+cat >"$tmpdir/bad-uid-devcontainer.json" <<'EOF'
+{
+  "name": "fixture",
+  "updateRemoteUserUID": true
+}
+EOF
+if "$tool/bin/devcontainer-image" check "$tmpdir/bad-uid-devcontainer.json" >"$tmpdir/bad-uid.out" 2>"$tmpdir/bad-uid.err"; then
+  echo "expected devcontainer-image check to reject updateRemoteUserUID" >&2
+  exit 1
+fi
+grep -q 'only support the vscode user' "$tmpdir/bad-uid.err"
 "$tool/bin/devcontainer-image" diff "$reports_dir/layer-plan.json" "$reports_dir/layer-plan.json" >"$tmpdir/diff.txt"
 jq -e '.added == [] and .removed == [] and .changed == []' "$tmpdir/diff.txt" >/dev/null
 

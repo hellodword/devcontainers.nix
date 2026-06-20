@@ -82,6 +82,8 @@ Images set:
 
 Generated filesystem content includes `/etc/passwd`, `/etc/group`, `/etc/os-release`, `/home/vscode`, `/tmp`, `/var/tmp`, `/run/user/1000`, and `/workspaces`.
 
+The runtime contract is intentionally single-user. The only supported user is `vscode` with uid/gid `1000`; image modules and metadata snippets cannot set another `remoteUser`, `containerUser`, or `updateRemoteUserUID = true`. Project `.devcontainer/devcontainer.json` files should leave those fields unset, and `devcontainer-image check` reports an error if they try to override them.
+
 ## Metadata
 
 The image label `devcontainer.metadata` is a JSON array. It includes remote/container user settings, container and remote environment, lifecycle commands, and VS Code customizations.

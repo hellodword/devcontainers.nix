@@ -10,7 +10,7 @@ devcontainer-image explain filesystem [--report <dir>]
 devcontainer-image explain image-plan [--report <dir>]
 devcontainer-image explain security [--report <dir>]
 devcontainer-image diff <old-layer-plan.json> <new-layer-plan.json>
-devcontainer-image check <metadata-label.json>
+devcontainer-image check <metadata-label.json|devcontainer.json>
 devcontainer-image doctor image <name>
 EOF
 }
@@ -19,6 +19,27 @@ require_file() {
   local path="$1"
   [ -f "$path" ] || {
     echo "missing report file: $path" >&2
+    exit 1
+  }
+}
+
+check_devcontainer_user() {
+  local metadata_file="$1"
+  jq -e '
+    def user_ok:
+      ((.remoteUser? // "vscode") == "vscode")
+      and ((.containerUser? // "vscode") == "vscode")
+      and ((.updateRemoteUserUID? // false) != true);
+
+    if type == "array" then
+      length > 0 and all(.[]; user_ok)
+    elif type == "object" then
+      user_ok
+    else
+      false
+    end
+  ' "$metadata_file" >/dev/null || {
+    echo "devcontainers.nix images only support the vscode user; remove remoteUser/containerUser/updateRemoteUserUID overrides from devcontainer.json" >&2
     exit 1
   }
 }
@@ -180,7 +201,7 @@ case "$cmd" in
     metadata_file="${2:-}"
     [ -n "$metadata_file" ] || { usage >&2; exit 1; }
     require_file "$metadata_file"
-    jq -e 'type == "array" and length > 0' "$metadata_file" >/dev/null
+    check_devcontainer_user "$metadata_file"
     ;;
   doctor)
     scope="${2:-}"

@@ -36,6 +36,7 @@ Every image includes:
 
 - source control, fetch/archive, search/navigation, inspect/debug, and workflow-format tools
 - a VS Code-compatible glibc runtime exposed through conventional FHS paths
+- a fixed `vscode` user; project devcontainer JSON must not override `remoteUser`, `containerUser`, or `updateRemoteUserUID`
 - `devpkg` for ad-hoc user installs from `nixpkgs`, for example `devpkg add cowsay`
 - separate dynamic native-library profiles, for example `devpkg add-lib zlib` for runtime-only libraries and `devpkg add-dev-lib openssl zlib` for headers plus link/runtime outputs
 
