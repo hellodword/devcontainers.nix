@@ -13,14 +13,14 @@ let
       members = compiledGraph.groups.${group};
       paths = pathsForMembers members;
       priority = lib.foldl' lib.max 0 (map (name: compiledGraph.nodes.${name}.priority) members);
-      estimatedCompressedSizeMiB = builtins.length paths * 32;
+      estimatedLayerSizeMiB = builtins.length paths * 32;
     in
     {
       inherit
         group
         members
         priority
-        estimatedCompressedSizeMiB
+        estimatedLayerSizeMiB
         ;
       pathCount = builtins.length paths;
       storePaths = map pathString paths;
@@ -43,7 +43,7 @@ in
     strategy = config.devcontainer.layers.strategy;
     max = config.devcontainer.layers.max;
     reserve = config.devcontainer.layers.reserve;
-    maxCompressedLayerSize = config.devcontainer.layers.maxCompressedLayerSize;
+    maxLayerSize = config.devcontainer.layers.maxLayerSize;
   };
   order = layerNames;
   layers = map mkLayer layerNames;

@@ -368,7 +368,7 @@
         name: image:
         lib.nameValuePair "image-${imageNameToCheckName name}" (
           pkgs.runCommand "image-${name}" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-            python3 ${./tests/ci/check-image-tar.py} ${image.oci} ${name}
+            python3 ${./tests/ci/check-image-tar.py} ${image.oci} ${image.reports} ${name}
             touch "$out"
           ''
         )
@@ -399,6 +399,7 @@
                 pkgs.bash
                 pkgs.coreutils
                 pkgs.gnugrep
+                pkgs.python3
               ];
             }
             ''

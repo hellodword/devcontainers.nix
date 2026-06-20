@@ -55,7 +55,7 @@ jobs:
 
       - name: Validate OCI image artifact
         run: |
-          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" "${{ inputs.image-target }}"
+          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" reports "${{ inputs.image-target }}"
 
       - name: Load OCI image
         run: |

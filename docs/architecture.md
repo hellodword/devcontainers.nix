@@ -25,15 +25,16 @@ The compiler only uses nix2container for OCI image generation.
 
 ## Layer Strategy
 
-OCI runtimes have practical layer-count limits, and devcontainer images accumulate many language runtimes, tools, extensions, and generated files. This project keeps layer construction deterministic and bounded:
+OCI runtimes have practical layer-count limits, and GitHub Container Registry rejects oversized layer blobs. Devcontainer images accumulate many language runtimes, tools, extensions, and generated files, so this project keeps layer construction deterministic and bounded:
 
 - Module authors assign graph nodes to semantic buckets such as base runtime, FHS runtime, language tooling, VS Code extensions, and dynamic package runtime.
 - The layer compiler emits `layer-plan.json` with the configured budget, defaulting to a maximum of 100 semantic buckets with 20 reserved slots.
+- GitHub Container Registry documents a 10 GB per-layer limit and a 10 minute upload timeout. The project uses `devcontainer.layers.maxLayerSize = "8GiB"` as the default safety line.
 - Each semantic bucket is built as a single explicit nix2container layer (`maxLayers = 1`) so related paths stay together and reports remain reviewable.
 - The final customization layer uses `maxLayers = 4` for runtime helpers, metadata, generated filesystem files, and the Nix database.
 - Previously built semantic layers are passed explicitly. Their transitive `nestedLayers` metadata is cleared in the compiler so nix2container does not expand duplicate parent layers into oversized arguments.
 
-CI checks reject layer plans that exceed the configured budget.
+CI checks reject layer plans that exceed the configured count budget. OCI artifact checks read the final nix2container image JSON and reject any `layers[].size` value above `budget.maxLayerSize`, so the limit is enforced against the actual registry blob sizes rather than the planning estimate.
 
 ## VS Code FHS Runtime
 

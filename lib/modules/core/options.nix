@@ -131,7 +131,7 @@ in
         type = types.int;
         default = 20;
       };
-      maxCompressedLayerSize = mkOption {
+      maxLayerSize = mkOption {
         type = types.str;
         default = "8GiB";
       };

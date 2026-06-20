@@ -28,6 +28,7 @@ REQUIRED_CI_REPORT_FILES = REQUIRED_REPORT_FILES - {"ci-plan.json"}
 SENSITIVE_VALUE_RE = re.compile(
     r"(?i)(?:token|password|secret|api[_-]?key|access[_-]?key|private[_-]?key)\s*(?:=|:)\s*[\"']?[^\"'\\s]+"
 )
+SIZE_BUDGET_RE = re.compile(r"^\s*\d+(?:\.\d+)?\s*(?:[kmgt]?i?b?|b)?\s*$", re.IGNORECASE)
 
 
 def read_json(path: pathlib.Path):
@@ -99,6 +100,9 @@ def main() -> int:
 
     layer_count = len(layer_plan["layers"])
     layer_max = int(layer_plan["budget"]["max"])
+    max_layer_size = layer_plan["budget"].get("maxLayerSize")
+    if not isinstance(max_layer_size, str) or not SIZE_BUDGET_RE.match(max_layer_size):
+        fail("layer-plan.json budget must include maxLayerSize, for example 8GiB")
     if layer_count > layer_max:
         fail(f"layer count {layer_count} exceeds budget {layer_max}")
     for layer in layer_plan["layers"]:

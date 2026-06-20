@@ -114,8 +114,8 @@ case "$cmd" in
     removed_jsonl="$(mktemp)"
     changed_jsonl="$(mktemp)"
 
-    jq -c '.layers[] | {group, members, priority, estimatedCompressedSizeMiB}' "$old_file" >"$old_lines"
-    jq -c '.layers[] | {group, members, priority, estimatedCompressedSizeMiB}' "$new_file" >"$new_lines"
+    jq -c '.layers[] | {group, members, priority, estimatedLayerSizeMiB}' "$old_file" >"$old_lines"
+    jq -c '.layers[] | {group, members, priority, estimatedLayerSizeMiB}' "$new_file" >"$new_lines"
 
     while IFS= read -r group; do
       before_json="$(jq -c --arg group "$group" 'select(.group == $group)' "$old_lines")"
@@ -136,8 +136,8 @@ case "$cmd" in
       after_members="$(jq -c '.members' <<<"$after_json")"
       before_priority="$(jq -r '.priority' <<<"$before_json")"
       after_priority="$(jq -r '.priority' <<<"$after_json")"
-      before_size="$(jq -r '.estimatedCompressedSizeMiB' <<<"$before_json")"
-      after_size="$(jq -r '.estimatedCompressedSizeMiB' <<<"$after_json")"
+      before_size="$(jq -r '.estimatedLayerSizeMiB' <<<"$before_json")"
+      after_size="$(jq -r '.estimatedLayerSizeMiB' <<<"$after_json")"
 
       if [ "$before_members" != "$after_members" ]; then
         reasons+=("members changed")
@@ -146,7 +146,7 @@ case "$cmd" in
         reasons+=("priority changed")
       fi
       if [ "$before_size" != "$after_size" ]; then
-        reasons+=("estimatedCompressedSizeMiB changed")
+        reasons+=("estimatedLayerSizeMiB changed")
       fi
 
       if [ "${#reasons[@]}" -gt 0 ]; then
