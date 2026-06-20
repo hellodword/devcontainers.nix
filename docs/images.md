@@ -30,6 +30,10 @@ Adds the latest nightly Rust binary toolchain from `rust-overlay`, including `ru
 
 Adds Flutter, Dart, JDK, Gradle, Android tools, Chromium, and GUI/GPU diagnostics. It imports the Rust image and includes Node.js language tooling.
 
+See [Chromium In Dev Containers](chromium.md) for Chromium-family browser
+runtime notes, including GUI forwarding, `/dev/shm` sizing, and sandbox
+constraints.
+
 ## Common Toolsets
 
 Every image includes:
