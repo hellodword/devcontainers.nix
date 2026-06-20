@@ -40,7 +40,7 @@ let
     layerStrategy = compiledLayers.budget.strategy;
     user = config.devcontainer.user.containerUser;
     workingDir = "/workspaces";
-    entrypoint = [ "/usr/local/bin/devcontainer-entrypoint" ];
+    entrypoint = [ "/usr/bin/devcontainer-entrypoint" ];
     smokeTestCount = builtins.length config.devcontainer.tests.smoke;
   };
   imageTag =
@@ -127,6 +127,7 @@ let
     osRelease = compiledFilesystem.osRelease;
     nixpkgsConfig = compiledFilesystem.nixpkgsConfig;
     etcFiles = compiledFilesystem.etcFiles;
+    symlinks = compiledFilesystem.symlinks;
     shellFiles = compiledFilesystem.shellFiles;
     commandNotFoundHook = {
       enabled = config.programs.bash.enable && config.programs.bash.commandNotFound.enable;

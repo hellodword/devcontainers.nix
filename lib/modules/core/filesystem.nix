@@ -25,6 +25,31 @@ in
         uid = 0;
         gid = 0;
       };
+      "/etc/xdg" = {
+        mode = "0755";
+        uid = 0;
+        gid = 0;
+      };
+      "/var" = {
+        mode = "0755";
+        uid = 0;
+        gid = 0;
+      };
+      "/var/cache" = {
+        mode = "0755";
+        uid = 0;
+        gid = 0;
+      };
+      "/var/lib" = {
+        mode = "0755";
+        uid = 0;
+        gid = 0;
+      };
+      "/var/log" = {
+        mode = "0755";
+        uid = 0;
+        gid = 0;
+      };
       "/var/tmp" = {
         mode = "1777";
         uid = 0;

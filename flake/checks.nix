@@ -63,6 +63,36 @@ let
     )
   ) (lib.filterAttrs (name: _: builtins.elem name [ "nix-latest" ]) images);
 
+  rootfsLayoutSpecs = {
+    "nodejs-latest" = [
+      "/usr/bin/node"
+      "/usr/bin/python"
+      "/usr/lib/node_modules/typescript/lib"
+    ];
+    "go-latest" = [
+      "/usr/bin/go"
+      "/usr/share/go"
+    ];
+    "rust-latest" = [
+      "/usr/bin/rust-analyzer"
+    ];
+  };
+  rootfsLayoutChecks = lib.mapAttrs' (
+    name: requiredPaths:
+    let
+      image = images.${name};
+      requireArgs = lib.concatStringsSep " " (
+        map (path: "--require ${lib.escapeShellArg path}") requiredPaths
+      );
+    in
+    lib.nameValuePair "rootfs-layout-${imageNameToCheckName name}" (
+      pkgs.runCommand "rootfs-layout-${name}" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+        python3 ${../tests/ci/check-rootfs-layout.py} ${image.rootfs} ${image.reports} ${name} ${requireArgs}
+        touch "$out"
+      ''
+    )
+  ) rootfsLayoutSpecs;
+
   runtimeToolChecks = {
     runtime-tools =
       pkgs.runCommand "runtime-tools"
@@ -292,6 +322,7 @@ in
 reportChecks
 // reportCliChecks
 // imageBuildChecks
+// rootfsLayoutChecks
 // runtimeToolChecks
 // fixtureChecks
 // {

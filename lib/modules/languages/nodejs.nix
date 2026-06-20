@@ -24,14 +24,14 @@ in
       "vue.volar"
     ];
     devcontainer.vscode.settings = {
-      "typescript.tsdk" = "/usr/local/share/typescript/lib";
+      "typescript.tsdk" = "/usr/lib/node_modules/typescript/lib";
       "[javascript]" = {
         "editor.defaultFormatter" = "esbenp.prettier-vscode";
       };
       "[typescript]" = {
         "editor.defaultFormatter" = "esbenp.prettier-vscode";
       };
-      "eslint.runtime" = "/usr/local/bin/node";
+      "eslint.runtime" = "/usr/bin/node";
     };
     devcontainer.graph.nodes."language/nodejs" = {
       kind = "language";

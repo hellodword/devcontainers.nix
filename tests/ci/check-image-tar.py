@@ -142,6 +142,8 @@ def main() -> int:
         fail("image artifact must default to the vscode user")
     if image_config.get("WorkingDir") != "/workspaces":
         fail("image artifact must use /workspaces as the working directory")
+    if image_config.get("Entrypoint") != ["/usr/bin/devcontainer-entrypoint"]:
+        fail("image artifact entrypoint mismatch")
 
     env = image_config.get("Env")
     if not isinstance(env, list) or "HOME=/home/vscode" not in env:
@@ -151,10 +153,11 @@ def main() -> int:
         "XDG_CACHE_HOME=/home/vscode/.cache",
         "XDG_DATA_HOME=/home/vscode/.local/share",
         "XDG_STATE_HOME=/home/vscode/.local/state",
+        "XDG_RUNTIME_DIR=/run/user/1000",
         "LANG=en_US.UTF-8",
         "LANGUAGE=en_US:en",
         "XDG_CONFIG_DIRS=/etc/xdg",
-        "XDG_DATA_DIRS=/usr/local/share:/usr/share:/share",
+        "XDG_DATA_DIRS=/usr/local/share:/usr/share",
         "NIXPKGS_CONFIG=/etc/nixpkgs/config.nix",
         "NIXPKGS_ALLOW_UNFREE=1",
         "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1",

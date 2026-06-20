@@ -29,7 +29,7 @@ in
       "go.toolsManagement.checkForUpdates" = "off";
       "go.toolsManagement.autoUpdate" = false;
       "go.gopath" = "/home/vscode/.local/share/go";
-      "go.goroot" = "/usr/local/go";
+      "go.goroot" = "/usr/share/go";
     };
     environment.variables = {
       GOTELEMETRY = "off";

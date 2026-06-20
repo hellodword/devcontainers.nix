@@ -14,6 +14,7 @@
       "/include"
       "/lib"
       "/lib64"
+      "/libexec"
       "/share"
       "/etc"
     ];
@@ -69,9 +70,65 @@ let
     ) compiledFhsRuntime.symlinks
   );
 
-  localBinCommands = ''
-    mkdir -p "$out/usr/local/bin"
-    ln -sf /bin/devcontainer-entrypoint "$out/usr/local/bin/devcontainer-entrypoint"
+  usrMergePostBuild = ''
+    merge_usr_dir() {
+      local src="$1"
+      local dst="$2"
+      mkdir -p "$out/$dst"
+      if [ -e "$out/$src" ] && [ ! -L "$out/$src" ]; then
+        cp -a "$out/$src"/. "$out/$dst"/
+        rm -rf "$out/$src"
+      elif [ -L "$out/$src" ]; then
+        rm "$out/$src"
+      fi
+      ln -s "$dst" "$out/$src"
+    }
+
+    mkdir -p \
+      "$out/usr/bin" \
+      "$out/usr/sbin" \
+      "$out/usr/lib" \
+      "$out/usr/lib64" \
+      "$out/usr/libexec" \
+      "$out/usr/include" \
+      "$out/usr/share" \
+      "$out/usr/local/bin" \
+      "$out/usr/local/etc" \
+      "$out/usr/local/include" \
+      "$out/usr/local/lib" \
+      "$out/usr/local/lib64" \
+      "$out/usr/local/sbin" \
+      "$out/usr/local/share" \
+      "$out/usr/local/src"
+
+    merge_usr_dir bin usr/bin
+    merge_usr_dir sbin usr/sbin
+    merge_usr_dir lib usr/lib
+    merge_usr_dir lib64 usr/lib64
+    merge_usr_dir libexec usr/libexec
+    merge_usr_dir include usr/include
+    merge_usr_dir share usr/share
+  '';
+
+  mkUsrMergedBuildEnv =
+    args:
+    pkgs.buildEnv (
+      args
+      // {
+        postBuild = (args.postBuild or "") + "\n" + usrMergePostBuild;
+      }
+    );
+
+  copyRoot = root: ''
+    if [ -d ${root} ]; then
+      (cd ${root} && find . -type d -print) | while IFS= read -r rel; do
+        [ "$rel" = "." ] && continue
+        if [ -L "$out/$rel" ] || { [ -e "$out/$rel" ] && [ ! -d "$out/$rel" ]; }; then
+          rm -rf "$out/$rel"
+        fi
+      done
+      cp -a --no-preserve=mode,ownership --remove-destination ${root}/. "$out/"
+    fi
   '';
   lockedNixpkgsCommands = lib.optionalString (lockedNixpkgsSource != null) ''
     ln -sf ${lockedNixpkgsSource} "$out/usr/share/devcontainer/nixpkgs"
@@ -86,7 +143,7 @@ let
     entrypoint
   ];
 
-  runtimeRoot = pkgs.buildEnv {
+  runtimeRoot = mkUsrMergedBuildEnv {
     name = "${config.devcontainer.image.name}-runtime-root";
     paths = runtimeTools;
     pathsToLink = [
@@ -103,8 +160,8 @@ let
     ${mkDirCommands}
     ${mkExtensionCommands}
     ${mkSymlinkCommands}
-    ${localBinCommands}
     ${lockedNixpkgsCommands}
+    ${usrMergePostBuild}
   '';
 
   pathsForMembers =
@@ -114,7 +171,7 @@ let
     acc: layerReport:
     let
       paths = pathsForMembers layerReport.members;
-      layerRoot = pkgs.buildEnv {
+      layerRoot = mkUsrMergedBuildEnv {
         name = "${config.devcontainer.image.name}-${layerReport.group}-root";
         inherit paths;
         pathsToLink = layerReport.build.pathsToLink;
@@ -146,8 +203,8 @@ let
     roots = [ ];
   } compiledLayers.layers;
 
-  rootfs = pkgs.buildEnv {
-    name = "${config.devcontainer.image.name}-rootfs";
+  packageRoot = mkUsrMergedBuildEnv {
+    name = "${config.devcontainer.image.name}-package-root";
     paths =
       compiledEnvironment.systemPackages
       ++ compiledLibraries.imagePaths
@@ -159,6 +216,14 @@ let
     ignoreCollisions = true;
   };
 
+  rootfs = pkgs.runCommand "${config.devcontainer.image.name}-rootfs" { } ''
+    mkdir -p "$out"
+    ${copyRoot packageRoot}
+    ${copyRoot metadataRoot}
+    ${copyRoot compiledFilesystem.root}
+    ${usrMergePostBuild}
+  '';
+
   labels = {
     "devcontainer.metadata" = builtins.toJSON compiledMetadata.label;
   };
@@ -167,7 +232,7 @@ let
     User = config.devcontainer.user.containerUser;
     WorkingDir = "/workspaces";
     Env = lib.mapAttrsToList (name: value: "${name}=${value}") compiledEnv.containerEnv;
-    Entrypoint = [ "/usr/local/bin/devcontainer-entrypoint" ];
+    Entrypoint = [ "/usr/bin/devcontainer-entrypoint" ];
     Cmd = [
       "sleep"
       "infinity"

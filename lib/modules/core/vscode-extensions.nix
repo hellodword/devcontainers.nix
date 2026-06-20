@@ -68,13 +68,11 @@
         "editor.defaultFormatter" = "tamasfe.even-better-toml";
       };
       "evenBetterToml.formatter.crlf" = false;
-      "protobuf-support.protols" = {
-        path = "/usr/local/bin/protols";
-      };
+      "protobuf-support.protols.path" = "/usr/bin/protols";
       "shellcheck.enable" = true;
       "shellcheck.enableQuickFix" = true;
       "shellcheck.run" = "onSave";
-      "shellcheck.executablePath" = "/usr/local/bin/shellcheck";
+      "shellcheck.executablePath" = "/usr/bin/shellcheck";
       "shellcheck.exclude" = [ ];
       "shellcheck.customArgs" = [ ];
       "shellcheck.ignorePatterns" = {

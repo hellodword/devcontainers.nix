@@ -124,7 +124,7 @@ def main() -> int:
         if layer["pathCount"] < 1:
             fail(f"layer {layer['group']} must include at least one store path")
         paths_to_link = layer["build"].get("pathsToLink") or []
-        for required_link in ["/bin", "/lib", "/share", "/etc"]:
+        for required_link in ["/bin", "/lib", "/libexec", "/share", "/etc"]:
             if required_link not in paths_to_link:
                 fail(f"layer {layer['group']} missing pathsToLink entry: {required_link}")
         if not isinstance(layer["build"].get("extraOutputsToInstall"), list):
@@ -149,7 +149,7 @@ def main() -> int:
 
     if image_plan["backend"] != "nix2container":
         fail("image-plan.json must report nix2container backend")
-    if image_plan["entrypoint"] != ["/usr/local/bin/devcontainer-entrypoint"]:
+    if image_plan["entrypoint"] != ["/usr/bin/devcontainer-entrypoint"]:
         fail("image-plan.json entrypoint mismatch")
     if image_plan["user"] != "vscode":
         fail("image-plan.json must run as vscode")
@@ -191,7 +191,7 @@ def main() -> int:
         fail("env-report.json must include PATH source details")
     if not environment_report:
         fail("env-report.json must include the compiled environment namespace report")
-    for required_link in ["/bin", "/include", "/lib", "/lib64", "/share", "/etc"]:
+    for required_link in ["/bin", "/include", "/lib", "/lib64", "/libexec", "/share", "/etc"]:
         if required_link not in environment_report.get("pathsToLink", []):
             fail(f"environment report missing pathsToLink entry: {required_link}")
     if not isinstance(environment_report.get("extraOutputsToInstall"), list):
@@ -229,7 +229,7 @@ def main() -> int:
         "LANG": "en_US.UTF-8",
         "LANGUAGE": "en_US:en",
         "XDG_CONFIG_DIRS": "/etc/xdg",
-        "XDG_DATA_DIRS": "/usr/local/share:/usr/share:/share",
+        "XDG_DATA_DIRS": "/usr/local/share:/usr/share",
     }
     for env_name, expected_value in expected_locale_env.items():
         if env_report["containerEnv"].get(env_name) != expected_value:
@@ -250,6 +250,7 @@ def main() -> int:
         "XDG_CACHE_HOME": "/home/vscode/.cache",
         "XDG_DATA_HOME": "/home/vscode/.local/share",
         "XDG_STATE_HOME": "/home/vscode/.local/state",
+        "XDG_RUNTIME_DIR": "/run/user/1000",
     }
     for env_name, expected_value in expected_xdg.items():
         if env_report["containerEnv"].get(env_name) != expected_value:
@@ -286,6 +287,13 @@ def main() -> int:
     path_value = env_report["containerEnv"].get("PATH", "")
     if "$HOME" in path_value or "$XDG_" in path_value:
         fail("container PATH must not retain unexpanded HOME/XDG references")
+    path_segments = path_value.split(":") if path_value else []
+    if "/bin" in path_segments:
+        fail("container PATH must not include the usr-merge compatibility /bin symlink")
+    if "/usr/local/bin" not in path_segments or "/usr/bin" not in path_segments:
+        fail("container PATH must include /usr/local/bin and /usr/bin")
+    if path_segments.index("/usr/local/bin") > path_segments.index("/usr/bin"):
+        fail("container PATH must prefer /usr/local/bin before /usr/bin")
     nix_ld_env = fhs_runtime_report.get("nixLdEnv") or {}
     if env_report["containerEnv"].get("NIX_LD") != real_glibc_loader:
         fail("container env must set NIX_LD to the real glibc loader")
@@ -474,6 +482,30 @@ def main() -> int:
     missing_extension_ids = required_extension_ids - seen_extension_ids
     if missing_extension_ids:
         fail(f"extensions-index.json missing global editor extensions: {sorted(missing_extension_ids)}")
+    vscode_settings = ((metadata_preview.get("customizations") or {}).get("vscode") or {}).get("settings") or {}
+    expected_global_vscode_paths = {
+        "protobuf-support.protols.path": "/usr/bin/protols",
+        "shellcheck.executablePath": "/usr/bin/shellcheck",
+    }
+    for setting_name, expected_value in expected_global_vscode_paths.items():
+        if vscode_settings.get(setting_name) != expected_value:
+            fail(f"VS Code setting {setting_name} must be {expected_value}")
+    is_node_image = re.fullmatch(r"nodejs-(latest|[0-9]+)", image_name) is not None
+    is_python_image = image_name in {"python3", "python-web"}
+    if is_node_image:
+        expected_node_settings = {
+            "typescript.tsdk": "/usr/lib/node_modules/typescript/lib",
+            "eslint.runtime": "/usr/bin/node",
+        }
+        for setting_name, expected_value in expected_node_settings.items():
+            if vscode_settings.get(setting_name) != expected_value:
+                fail(f"{image_name} VS Code setting {setting_name} must be {expected_value}")
+    if is_python_image and vscode_settings.get("python.defaultInterpreterPath") != "/usr/bin/python":
+        fail(f"{image_name} VS Code setting python.defaultInterpreterPath must be /usr/bin/python")
+    if is_go_image and vscode_settings.get("go.goroot") != "/usr/share/go":
+        fail(f"{image_name} VS Code setting go.goroot must be /usr/share/go")
+    if is_rust_image and vscode_settings.get("rust-analyzer.server.path") != "/usr/bin/rust-analyzer":
+        fail(f"{image_name} VS Code setting rust-analyzer.server.path must be /usr/bin/rust-analyzer")
 
     user_report = filesystem_report["user"]
     if user_report["name"] != "vscode" or user_report["uid"] != 1000:
@@ -512,8 +544,13 @@ def main() -> int:
             fail(f"filesystem-report.json missing generated etc file: {required_etc}")
     directory_map = {entry["path"]: entry for entry in filesystem_report["directories"]}
     for required_dir in [
+        "/etc/xdg",
         "/home/vscode",
         "/tmp",
+        "/var",
+        "/var/cache",
+        "/var/lib",
+        "/var/log",
         "/var/tmp",
         "/run/user/1000",
         "/workspaces",
@@ -526,6 +563,13 @@ def main() -> int:
         fail("filesystem-report.json must declare sticky tmp directories")
     if directory_map["/home/vscode"]["owner"] != "vscode:vscode":
         fail("filesystem-report.json must declare vscode home ownership")
+    if directory_map["/run/user/1000"]["mode"] != "0700":
+        fail("filesystem-report.json must declare XDG_RUNTIME_DIR as mode 0700")
+    if directory_map["/run/user/1000"]["owner"] != "vscode:vscode":
+        fail("filesystem-report.json must declare XDG_RUNTIME_DIR ownership as vscode:vscode")
+    filesystem_symlinks = {entry.get("path"): entry.get("target") for entry in filesystem_report.get("symlinks", [])}
+    if filesystem_symlinks.get("/var/run") != "/run":
+        fail("filesystem-report.json must declare /var/run -> /run")
     for nix_dir in [
         "/nix",
         "/nix/store",

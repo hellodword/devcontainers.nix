@@ -28,7 +28,7 @@ in
       "charliermarsh.ruff"
     ];
     devcontainer.vscode.settings = {
-      "python.defaultInterpreterPath" = "/usr/local/bin/python";
+      "python.defaultInterpreterPath" = "/usr/bin/python";
       "[python]" = {
         "editor.defaultFormatter" = "charliermarsh.ruff";
       };

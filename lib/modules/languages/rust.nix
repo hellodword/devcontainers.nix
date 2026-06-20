@@ -32,7 +32,7 @@ in
       "tamasfe.even-better-toml"
     ];
     devcontainer.vscode.settings = {
-      "rust-analyzer.server.path" = "/usr/local/bin/rust-analyzer";
+      "rust-analyzer.server.path" = "/usr/bin/rust-analyzer";
       "rust-analyzer.check.command" = "clippy";
     };
     environment.variables = {

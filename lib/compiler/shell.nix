@@ -75,11 +75,11 @@ let
   '';
 
   completionText = lib.optionalString (cfg.enable && cfg.completion.enable) ''
-    if ! declare -F _init_completion >/dev/null 2>&1 && [ -r /share/bash-completion/bash_completion ]; then
-      . /share/bash-completion/bash_completion
+    if ! declare -F _init_completion >/dev/null 2>&1 && [ -r /usr/share/bash-completion/bash_completion ]; then
+      . /usr/share/bash-completion/bash_completion
     fi
-    if ! complete -p devpkg >/dev/null 2>&1 && [ -r /share/bash-completion/completions/devpkg ]; then
-      . /share/bash-completion/completions/devpkg
+    if ! complete -p devpkg >/dev/null 2>&1 && [ -r /usr/share/bash-completion/completions/devpkg ]; then
+      . /usr/share/bash-completion/completions/devpkg
     fi
   '';
 
@@ -89,7 +89,10 @@ let
       shift || true
       if command -v nix-locate >/dev/null 2>&1; then
         printf '%s: command not found\n' "$command" >&2
-        nix-locate --minimal --whole-name --at-root "/bin/$command" 2>/dev/null | head -n 20 >&2 || true
+        {
+          nix-locate --minimal --whole-name --at-root "/usr/bin/$command" 2>/dev/null || true
+          nix-locate --minimal --whole-name --at-root "/bin/$command" 2>/dev/null || true
+        } | sort -u | head -n 20 >&2 || true
       else
         printf '%s: command not found\n' "$command" >&2
       fi

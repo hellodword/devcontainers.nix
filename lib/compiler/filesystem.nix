@@ -84,10 +84,17 @@ let
     ''PRETTY_NAME="${osRelease.prettyName}"''
     ""
   ];
+  symlinks = [
+    {
+      path = "/var/run";
+      target = "/run";
+    }
+  ];
   root = pkgs.runCommand "${config.devcontainer.image.name}-filesystem" { } ''
     mkdir -p "$out/etc/profile.d" "$out/etc/nixpkgs"
     mkdir -p "$out/root"
     ${dirCommands}
+    ln -sfn /run "$out/var/run"
 
     printf '%s' ${lib.escapeShellArg passwdText} >"$out/etc/passwd"
     printf '%s' ${lib.escapeShellArg groupText} >"$out/etc/group"
@@ -172,5 +179,6 @@ in
     owner =
       if spec.uid == user.uid && spec.gid == user.gid then "${user.name}:${user.group}" else "root:root";
   }) directories;
+  inherit symlinks;
   fhsOsRelease = compiledFhsRuntime.osReleaseText;
 }

@@ -16,7 +16,6 @@
       system = [
         "/usr/local/bin"
         "/usr/bin"
-        "/bin"
       ];
     };
 
@@ -41,7 +40,6 @@
       system = {
         "/usr/local/bin" = [ "core.path.system" ];
         "/usr/bin" = [ "core.path.system" ];
-        "/bin" = [ "core.path.system" ];
       };
     };
   };

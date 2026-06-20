@@ -8,6 +8,7 @@
       "/include"
       "/lib"
       "/lib64"
+      "/libexec"
       "/share"
       "/etc"
     ];

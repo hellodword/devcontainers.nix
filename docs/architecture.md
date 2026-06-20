@@ -190,9 +190,11 @@ All images share a single-user runtime contract:
 - `HOME=/home/vscode`
 - working directory `/workspaces`
 - default command `sleep infinity`
-- entrypoint `/usr/local/bin/devcontainer-entrypoint`
+- entrypoint `/usr/bin/devcontainer-entrypoint`
 
-Generated filesystem content includes `/etc/passwd`, `/etc/group`, `/etc/os-release`, `/home/vscode`, `/tmp`, `/var/tmp`, `/run/user/1000`, and `/workspaces`.
+Generated filesystem content includes `/etc/passwd`, `/etc/group`, `/etc/os-release`, `/etc/xdg`, `/home/vscode`, `/tmp`, `/var/{cache,lib,log,tmp}`, `/run/user/1000`, and `/workspaces`. `/run/user/1000` is the fixed `XDG_RUNTIME_DIR`; it is owned by `vscode:vscode` and has mode `0700`. `/var/run` is a compatibility symlink to `/run`.
+
+The image root follows a usr-merge layout. Nix package outputs are still collected from their native `/bin`, `/lib`, `/share`, and related output directories, then the generated root trees are normalized so the primary runtime locations are `/usr/bin`, `/usr/lib`, `/usr/lib64`, `/usr/libexec`, `/usr/include`, and `/usr/share`. Compatibility links keep `/bin`, `/sbin`, `/lib`, `/lib64`, `/libexec`, `/include`, and `/share` available. `/usr/local/{bin,etc,include,lib,lib64,sbin,share,src}` exists for local administrator or user overlays; image-provided Nix tools are not installed there. Package `/sbin` outputs are not linked into the image by default, so Nix glibc's `ldconfig` is not exposed as `/sbin/ldconfig`; VS Code's requirement check falls back to the explicit `/usr/lib/libc.so.6` and `/usr/lib/libstdc++.so.6` compatibility links instead of reading a missing Nix store `ld.so.cache`.
 
 Project `devcontainer.json` files should not set `remoteUser`, `containerUser`, or `updateRemoteUserUID`. The image metadata already sets the supported values. The image entrypoint refuses to start as another user, and `devcontainer-image check` reports those overrides as errors.
 
@@ -252,7 +254,7 @@ This is required for `devpkg`, which installs ad-hoc packages with `nix profile 
 
 The generated filesystem includes `/etc/nix/nix.conf` from `nix.settings` and `/etc/nixpkgs/config.nix` with the same nixpkgs policy used by the image build. Container environment variables also set nixpkgs policy defaults and `DEVPKG_NIXPKGS_REF=path:<locked-nixpkgs-source>`, so runtime package installs follow the flake-locked nixpkgs input without fetching nixpkgs on first use. The image keeps that source reachable through `/usr/share/devcontainer/nixpkgs` and its `/nix/store/...-source` target. `devpkg` runs flake evaluation and installation commands with `--impure` so packages such as Google Chrome and Microsoft Edge can read those defaults.
 
-The `devpkg` runtime package also ships Bash completion under `/share/bash-completion/completions/devpkg`. It completes subcommands, common options, installed profile entries, and nixpkgs package attributes from the same locked nixpkgs source.
+The `devpkg` runtime package also ships Bash completion under `/usr/share/bash-completion/completions/devpkg` in the generated image. It completes subcommands, common options, installed profile entries, and nixpkgs package attributes from the same locked nixpkgs source.
 
 ## Locale, Shell, And Fonts
 
@@ -267,6 +269,8 @@ The default locale contract is:
 
 Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`. Interactive Bash gets aliases, a lightweight prompt, history settings, bash completion, and a command-not-found handler. The handler only queries the local nix-index database and returns 127. It does not install software, call the network, or execute project commands.
 
+XDG defaults are explicit and absolute in the container environment: `XDG_CONFIG_HOME=/home/vscode/.config`, `XDG_CACHE_HOME=/home/vscode/.cache`, `XDG_DATA_HOME=/home/vscode/.local/share`, `XDG_STATE_HOME=/home/vscode/.local/state`, `XDG_RUNTIME_DIR=/run/user/1000`, `XDG_CONFIG_DIRS=/etc/xdg`, and `XDG_DATA_DIRS=/usr/local/share:/usr/share`. `PATH` prefers project and user tools, then `/usr/local/bin:/usr/bin`; it does not include `/bin` because `/bin` is only the usr-merge compatibility symlink.
+
 All images include fontconfig and Noto Latin, CJK, symbol, and emoji coverage. Fontconfig defaults prefer Simplified Chinese CJK families for generic sans, serif, and monospace aliases. See [Fonts And Fontconfig](fonts-fontconfig.md) for the detailed font design.
 
 ## VS Code Metadata And Extensions
@@ -277,6 +281,10 @@ VS Code extension support has two parts:
 
 - modules declare extension identifiers and settings
 - the extension compiler prepares extension payloads and metadata for projection into VS Code server extension directories
+
+VS Code keeps one deliberate home-directory exception: preinstalled extensions are projected into `/home/vscode/.vscode-server/extensions`, `/home/vscode/.vscode-server-insiders/extensions`, and `/home/vscode/.vscode-remote/extensions` because the Remote Server looks there. Other shared image data lives under `/usr/share/devcontainer`. VS Code Remote Server logs show temporary socket handling as `VSC_TMP="${XDG_RUNTIME_DIR:-/tmp}"`; with `XDG_RUNTIME_DIR=/run/user/1000`, VS Code IPC sockets can use `/run/user/1000/vscode-ipc-*.sock` and only fall back to `/tmp` when the runtime directory is unset.
+
+VS Code settings that need absolute tool paths point at the usr-merged locations: language servers and command tools use `/usr/bin`, TypeScript uses `/usr/lib/node_modules/typescript/lib`, and Go uses `/usr/share/go`. `/usr/local` is left for local overrides.
 
 Lifecycle tasks are declared as structured Nix module values. The lifecycle compiler turns them into metadata commands that call `devcontainer-task-runner`, which gives the project one consistent place for task ordering, once-only behavior, timeouts, and user validation.
 

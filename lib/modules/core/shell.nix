@@ -36,7 +36,7 @@ let
     LANG = locale.defaultLocale;
     LANGUAGE = locale.language;
     XDG_CONFIG_DIRS = "/etc/xdg";
-    XDG_DATA_DIRS = "/usr/local/share:/usr/share:/share";
+    XDG_DATA_DIRS = "/usr/local/share:/usr/share";
     LOCALE_ARCHIVE = localeArchivePath;
   }
   // validatedLocaleSettings;
