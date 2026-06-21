@@ -45,6 +45,9 @@ let
     containerEnv = compiledEnv.containerEnv;
     remoteEnv = compiledEnv.remoteEnv;
   }
+  // lib.optionalAttrs config.devcontainer.gui.forwarding.enable {
+    userEnvProbe = "loginInteractiveShell";
+  }
   // lifecycleCommands
   // vscodeCustomization;
 

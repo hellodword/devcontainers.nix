@@ -800,6 +800,11 @@ in
         default = [ ];
       };
 
+      gui.forwarding.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+
       profiles = mkOption {
         type = types.attrsOf profileType;
         default = { };

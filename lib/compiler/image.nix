@@ -137,6 +137,7 @@ let
   entrypoint = runtimePackages."devcontainer-entrypoint";
   runtimeTools = [
     runtimePackages."devcontainer-task-runner"
+    runtimePackages."devcontainer-gui-env"
     runtimePackages."vscode-extension-projector"
     runtimePackages.devpkg
     runtimePackages."devcontainer-image"

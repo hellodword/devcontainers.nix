@@ -97,6 +97,9 @@ in
   "devcontainer-entrypoint" = writeShellApp "devcontainer-entrypoint" [
     pkgs.coreutils
   ] ./devcontainer-entrypoint/main.sh;
+  "devcontainer-gui-env" = writeShellApp "devcontainer-gui-env" [
+    pkgs.coreutils
+  ] ./devcontainer-gui-env/main.sh;
   "devcontainer-task-runner" = writeShellApp "devcontainer-task-runner" [
     pkgs.bash
     pkgs.coreutils

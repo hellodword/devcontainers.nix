@@ -32,6 +32,7 @@ lib.evalModules {
     ../modules/core/fhs-runtime.nix
     ../modules/core/metadata.nix
     ../modules/core/lifecycle.nix
+    ../modules/core/gui-forwarding.nix
     ../modules/profiles/editor-base.nix
     ../modules/profiles/web-stacks.nix
 

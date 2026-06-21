@@ -161,6 +161,7 @@
       packages.${system} = imagePackages // {
         default = images."nix-latest".reports;
         "devcontainer-image" = compiler.runtimePackages."devcontainer-image";
+        "devcontainer-gui-env" = compiler.runtimePackages."devcontainer-gui-env";
         "devcontainer-task-runner" = compiler.runtimePackages."devcontainer-task-runner";
         "vscode-extension-projector" = compiler.runtimePackages."vscode-extension-projector";
         devpkg = compiler.runtimePackages.devpkg;

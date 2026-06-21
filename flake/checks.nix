@@ -101,6 +101,7 @@ let
             pkgs.bash
             pkgs.coreutils
             pkgs.gnugrep
+            pkgs.python3
           ];
         }
         ''
@@ -108,6 +109,7 @@ let
           export DEVCONTAINER_PROJECTOR=${compiler.runtimePackages."vscode-extension-projector"}
           export DEVCONTAINER_RUNNER=${compiler.runtimePackages."devcontainer-task-runner"}
           export DEVCONTAINER_DEVPKG=${compiler.runtimePackages.devpkg}
+          export DEVCONTAINER_GUI_ENV_TOOL=${compiler.runtimePackages."devcontainer-gui-env"}
           export DEVPKG_NIXPKGS_REF=path:${nixpkgs.outPath}
           bash ${../tests/ci/check-runtime-tools.sh}
           touch "$out"
@@ -439,6 +441,8 @@ let
       environmentReport = apiEvalImage.environment.report;
       etcPaths = map (entry: entry.path) apiEvalImage.environment.etc;
       shellText = apiEvalImage.shell.profileText + apiEvalImage.shell.bashrcText;
+      metadataPreview = apiEvalImage.metadata.mergedPreview;
+      taskNames = map (task: task.name) apiEvalImage.lifecycle.tasks;
       layerPathsToLink = (builtins.head apiEvalImage.layers.layers).build.pathsToLink;
       extensionIds = apiEvalImage.profileReport.vscode.extensionIds;
       expectedExtensionIds = [
@@ -473,6 +477,10 @@ let
     assert lib.all (id: builtins.elem id extensionIds) expectedExtensionIds;
     assert lib.hasInfix "API_SHELL_INIT" shellText;
     assert lib.hasInfix "API_INTERACTIVE_SHELL_INIT" shellText;
+    assert lib.hasInfix "devcontainer-gui-env.sh" shellText;
+    assert metadataPreview.userEnvProbe == "loginInteractiveShell";
+    assert builtins.hasAttr "postStartCommand" metadataPreview;
+    assert builtins.elem "gui-env-refresh" taskNames;
     assert apiEvalImage.fhsRuntime.dynamicLoaderMode == "nix-ld";
     assert builtins.match ".*zlib.*" env.NIX_LD_LIBRARY_PATH != null;
     assert invalidKnownHostsRejected;

@@ -9,47 +9,6 @@ Firefox success as proof that Chromium has the same launch path.
 
 ## Current Use
 
-### GUI Forwarding
-
-VS Code Dev Containers can provide GUI forwarding automatically. In observed
-VS Code sessions it sets variables such as:
-
-```sh
-DISPLAY=:0
-WAYLAND_DISPLAY=vscode-wayland-...sock
-```
-
-That means GUI forwarding may exist even when no project `devcontainer.json`
-declares explicit X11 or Wayland mounts. Check the actual running container:
-
-```sh
-env | sort | grep -E '^(DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR)='
-test -n "${WAYLAND_DISPLAY:-}" && ls -l "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
-```
-
-Chromium can still fail with X11 authorization errors:
-
-```text
-Authorization required, but no authorization protocol specified
-ERROR:ui/ozone/platform/x11/ozone_platform_x11.cc:257] Missing X server or $DISPLAY
-ERROR:ui/aura/env.cc:246] The platform failed to initialize. Exiting.
-```
-
-This is an X11 startup failure. The `/run/dbus/system_bus_socket` message often
-appears in the same log, but it is usually a warning rather than the fatal
-condition for this failure mode.
-
-If the VS Code session provides Wayland but Chromium still takes the X11 path,
-pass an explicit platform argument when launching Chromium:
-
-```sh
-chromium --ozone-platform=wayland
-```
-
-The project does not inject this argument by default. Browser launch policy is
-left to the project or user command because GUI forwarding differs across VS
-Code, Dev Containers CLI, Docker, CI, local desktop sessions, and remote hosts.
-
 ### `/dev/shm` Size
 
 Docker creates `/dev/shm` as a tmpfs mount. If no size is specified, Docker's
@@ -297,7 +256,6 @@ Nixpkgs wrapper also sets useful runtime details:
 - `XDG_DATA_DIRS`
 - xdg-utils fallback `PATH`
 - `LD_PRELOAD` filtering for `libredirect`
-- Wayland flags derived from `NIXOS_OZONE_WL` and `WAYLAND_DISPLAY`
 
 Calling the unwrapped Chromium binary directly would have required duplicating
 all of that behavior and would be likely to drift when nixpkgs changes.

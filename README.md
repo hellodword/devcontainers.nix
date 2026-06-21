@@ -57,4 +57,5 @@ devpkg remove cowsay
 - [Architecture](docs/architecture.md)
 - [Development and Maintenance](docs/development.md)
 - [Fonts and Fontconfig](docs/fonts-fontconfig.md)
+- [GUI Forwarding](docs/gui-forwarding.md)
 - [Chromium in Dev Containers](docs/chromium.md)

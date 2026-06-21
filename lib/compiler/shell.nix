@@ -55,6 +55,12 @@ let
   interactiveShellInitText = lib.optionalString (compiledEnvironment.interactiveShellInit != "") ''
     ${compiledEnvironment.interactiveShellInit}
   '';
+  guiEnvFile = "/run/user/${toString config.devcontainer.user.uid}/devcontainer-gui-env.sh";
+  guiEnvSourceText = lib.optionalString config.devcontainer.gui.forwarding.enable ''
+    if [ -r ${lib.escapeShellArg guiEnvFile} ]; then
+      . ${lib.escapeShellArg guiEnvFile}
+    fi
+  '';
 
   promptText = lib.optionalString (cfg.enable && cfg.prompt.enable) ''
     PROMPT_DIRTRIM=3
@@ -103,6 +109,7 @@ let
   profileText = ''
     # System profile for devcontainers.nix images.
     ${environmentExportText}
+    ${guiEnvSourceText}
     ${shellInitText}
 
     if [ -d /etc/profile.d ]; then
@@ -135,6 +142,7 @@ let
 
   ''
   + environmentExportText
+  + guiEnvSourceText
   + aliasesText
   + promptText
   + historyText
