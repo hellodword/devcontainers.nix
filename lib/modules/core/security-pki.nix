@@ -5,9 +5,11 @@
   ...
 }:
 let
+  caCertificates = import ../../ca-certificates.nix { inherit lib pkgs; };
   cfg = config.security.pki;
-  certBundleTarget = "/etc/ssl/certs/ca-certificates.crt";
-  baseBundle = "${cfg.package}${certBundleTarget}";
+  certBundleTarget = caCertificates.bundleTarget;
+  baseBundleRoot = caCertificates.mkRoot cfg.package;
+  baseBundle = "${baseBundleRoot}${certBundleTarget}";
   needsCustomBundle = cfg.certificates != [ ] || cfg.certificateFiles != [ ] || cfg.blacklist != [ ];
   extraCerts = pkgs.writeText "extra-ca-certificates.pem" (
     lib.concatStringsSep "\n" (cfg.certificates ++ [ "" ])

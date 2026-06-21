@@ -36,6 +36,7 @@ Important paths:
 | `runtime/` | Shell helpers installed into images or exposed as package outputs. |
 | `tests/ci/` | Report, artifact, and helper validation. |
 | `tests/smoke/` | Runtime smoke execution after an image is loaded into Docker. |
+| `tests/e2e/` | Heavy VS Code GUI Dev Containers tests. |
 | `tests/fixtures/` | Lightweight expected-node fixtures for image composition. |
 | `docs/` | User, design, and maintenance documentation. |
 
@@ -89,6 +90,16 @@ SMOKE_REQUIRE_DOCKER_DAEMON=1 DOCKER_HOST=tcp://172.17.0.1:2375 tests/smoke/run-
 ```
 
 Read [Remote Docker](docker-remote.md) before changing Docker daemon smoke behavior. The design intentionally assumes the daemon is outside the devcontainer in a virtual machine or another isolated environment.
+
+## Heavy VS Code GUI E2E
+
+Real VS Code Dev Containers GUI tests are exposed as package outputs named
+`e2e-vscode-<image>-<session>`. They are intentionally not part of
+`nix flake check`.
+
+Read [VS Code GUI E2E Testing](e2e-testing.md) before changing
+`tests/e2e/vscode-gui.nix`, desktop sessions, Command Palette automation,
+timeouts, or GUI readiness detection.
 
 ## Adding Or Changing An Image
 

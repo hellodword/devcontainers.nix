@@ -97,6 +97,14 @@
           images
           ;
       };
+      e2ePackages = import ./flake/e2e.nix {
+        inherit
+          pkgs
+          lib
+          targets
+          images
+          ;
+      };
 
       imageLoadApps = lib.mapAttrs' (
         name: image:
@@ -158,15 +166,18 @@
 
       images = images;
 
-      packages.${system} = imagePackages // {
-        default = images."nix-latest".reports;
-        "devcontainer-image" = compiler.runtimePackages."devcontainer-image";
-        "devcontainer-gui-env" = compiler.runtimePackages."devcontainer-gui-env";
-        "devcontainer-task-runner" = compiler.runtimePackages."devcontainer-task-runner";
-        "vscode-extension-projector" = compiler.runtimePackages."vscode-extension-projector";
-        devpkg = compiler.runtimePackages.devpkg;
-        generate-workflows = workflows.generateWorkflows;
-      };
+      packages.${system} =
+        imagePackages
+        // e2ePackages
+        // {
+          default = images."nix-latest".reports;
+          "devcontainer-image" = compiler.runtimePackages."devcontainer-image";
+          "devcontainer-gui-env" = compiler.runtimePackages."devcontainer-gui-env";
+          "devcontainer-task-runner" = compiler.runtimePackages."devcontainer-task-runner";
+          "vscode-extension-projector" = compiler.runtimePackages."vscode-extension-projector";
+          devpkg = compiler.runtimePackages.devpkg;
+          generate-workflows = workflows.generateWorkflows;
+        };
 
       apps.${system} = imageLoadApps // {
         default = imageLoadApps."load-nix-latest";

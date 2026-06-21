@@ -13,6 +13,7 @@
   },
 }:
 let
+  caCertificates = import ../ca-certificates.nix { inherit lib pkgs; };
   cfg = config.devcontainer.compat.fhsRuntime;
   nixLdCfg = config.programs.nix-ld;
   pkiCfg = config.security.pki;
@@ -68,9 +69,9 @@ let
     NIX_LD = realGlibcLoader;
     NIX_LD_LIBRARY_PATH = nixLdLibraryPath;
   };
-  certBundleTarget = "/etc/ssl/certs/ca-certificates.crt";
+  certBundleTarget = caCertificates.bundleTarget;
   caCertificatesEnabled = cfg.enable && pkiCfg.installCACerts;
-  caCertificatesRoot = pkiCfg.package;
+  caCertificatesRoot = caCertificates.mkRoot pkiCfg.package;
   certBundleSource = "${caCertificatesRoot}${certBundleTarget}";
   caCertificatesEnv = lib.optionalAttrs caCertificatesEnabled {
     SSL_CERT_FILE = certBundleTarget;

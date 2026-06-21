@@ -31,16 +31,17 @@ let
       entry:
       let
         parent = builtins.dirOf entry.path;
+        source = lib.escapeShellArg entry.source;
       in
       if entry.source != null then
         ''
           rm -rf "$out${entry.path}"
           mkdir -p "$out${parent}"
-          if [ -d ${lib.escapeShellArg entry.sourcePath} ]; then
+          if [ -d ${source} ]; then
             mkdir -p "$out${entry.path}"
-            cp -a ${lib.escapeShellArg entry.sourcePath}/. "$out${entry.path}/"
+            cp -a ${source}/. "$out${entry.path}/"
           else
-            cp -L ${lib.escapeShellArg entry.sourcePath} "$out${entry.path}"
+            cp -L ${source} "$out${entry.path}"
           fi
           chmod ${entry.mode} "$out${entry.path}"
         ''
