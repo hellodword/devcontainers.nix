@@ -244,8 +244,8 @@ def main() -> int:
         fail("env-report.json PATH source details must include path entries")
     if not env_report["containerEnvSources"]["EDITOR"]["sources"]:
         fail("env-report.json must include source labels for container env entries")
-    if preview_container_env.get("PATH") != env_report["containerEnv"]["PATH"]:
-        fail("metadata merged preview must retain the compiled PATH entry")
+    if "PATH" in preview_container_env:
+        fail("metadata merged preview must not publish PATH by default")
     if preview_container_env.get("EDITOR") != env_report["containerEnv"]["EDITOR"]:
         fail("metadata merged preview must retain the compiled EDITOR entry")
     if "DOCKER_HOST" in env_report["containerEnv"]:

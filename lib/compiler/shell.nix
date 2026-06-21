@@ -37,7 +37,10 @@ let
   aliasLines = map renderAlias sortedAliasNames;
   aliasesText =
     if cfg.enable && aliasLines != [ ] then lib.concatStringsSep "\n" (aliasLines ++ [ "" ]) else "";
-  sortedEnvNames = lib.sort lib.lessThan (builtins.attrNames compiledEnv.containerEnv);
+  compiledPath = compiledEnv.containerEnv.PATH or "";
+  sortedEnvNames = lib.sort lib.lessThan (
+    builtins.filter (name: name != "PATH") (builtins.attrNames compiledEnv.containerEnv)
+  );
   renderExport =
     name:
     let
@@ -49,6 +52,41 @@ let
       lib.concatStringsSep "\n" ((map renderExport sortedEnvNames) ++ [ "" ])
     else
       "";
+  pathMergeText = lib.optionalString (compiledPath != "") ''
+    __devcontainer_compiled_path=${lib.escapeShellArg compiledPath}
+    __devcontainer_path=""
+    __devcontainer_old_ifs="$IFS"
+    IFS=:
+    for __devcontainer_path_segment in ''${PATH:-}; do
+      [ -n "$__devcontainer_path_segment" ] || continue
+      case ":$__devcontainer_path:" in
+        *:"$__devcontainer_path_segment":*) ;;
+        *)
+          if [ -n "$__devcontainer_path" ]; then
+            __devcontainer_path="$__devcontainer_path:$__devcontainer_path_segment"
+          else
+            __devcontainer_path="$__devcontainer_path_segment"
+          fi
+          ;;
+      esac
+    done
+    for __devcontainer_path_segment in $__devcontainer_compiled_path; do
+      [ -n "$__devcontainer_path_segment" ] || continue
+      case ":$__devcontainer_path:" in
+        *:"$__devcontainer_path_segment":*) ;;
+        *)
+          if [ -n "$__devcontainer_path" ]; then
+            __devcontainer_path="$__devcontainer_path:$__devcontainer_path_segment"
+          else
+            __devcontainer_path="$__devcontainer_path_segment"
+          fi
+          ;;
+      esac
+    done
+    IFS="$__devcontainer_old_ifs"
+    export PATH="$__devcontainer_path"
+    unset __devcontainer_compiled_path __devcontainer_path __devcontainer_old_ifs __devcontainer_path_segment
+  '';
   shellInitText = lib.optionalString (compiledEnvironment.shellInit != "") ''
     ${compiledEnvironment.shellInit}
   '';
@@ -109,6 +147,7 @@ let
   profileText = ''
     # System profile for devcontainers.nix images.
     ${environmentExportText}
+    ${pathMergeText}
     ${guiEnvSourceText}
     ${shellInitText}
 
@@ -142,6 +181,7 @@ let
 
   ''
   + environmentExportText
+  + pathMergeText
   + guiEnvSourceText
   + aliasesText
   + promptText

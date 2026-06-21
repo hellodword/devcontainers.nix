@@ -435,6 +435,61 @@ let
       )
     ];
   };
+  shellPathMergeCheck =
+    let
+      profileFile = pkgs.writeText "api-eval-profile" apiEvalImage.shell.profileText;
+      bashrcFile = pkgs.writeText "api-eval-bashrc" apiEvalImage.shell.bashrcText;
+    in
+    pkgs.runCommand "shell-path-merge"
+      {
+        nativeBuildInputs = [
+          pkgs.bash
+          pkgs.coreutils
+        ];
+      }
+      ''
+        check_path_segment_once() {
+          local path_value="$1"
+          local segment="$2"
+          local count=0
+          local old_ifs="$IFS"
+          local part
+          IFS=:
+          for part in $path_value; do
+            if [ "$part" = "$segment" ]; then
+              count=$((count + 1))
+            fi
+          done
+          IFS="$old_ifs"
+          if [ "$count" -ne 1 ]; then
+            echo "$segment count in PATH: $count" >&2
+            echo "$path_value" >&2
+            exit 1
+          fi
+        }
+
+        remote_cli=/vscode/vscode-server/bin/linux-x64/test/bin/remote-cli
+
+        profile_path="$(
+          PATH="$remote_cli:/usr/bin:/usr/bin" \
+            ${pkgs.bash}/bin/bash --noprofile --norc -c '. ${profileFile}; printf "\n%s\n" "$PATH"' 2>/dev/null \
+            | tail -n 1
+        )"
+        check_path_segment_once "$profile_path" "$remote_cli"
+        check_path_segment_once "$profile_path" "/usr/bin"
+        check_path_segment_once "$profile_path" "/usr/local/bin"
+
+        bashrc_path="$(
+          PATH="$remote_cli:/usr/bin:/usr/bin" \
+            ${pkgs.bash}/bin/bash --noprofile --norc -ic '. ${bashrcFile}; printf "\n%s\n" "$PATH"' 2>/dev/null \
+            | tail -n 1
+        )"
+        check_path_segment_once "$bashrc_path" "$remote_cli"
+        check_path_segment_once "$bashrc_path" "/usr/bin"
+        check_path_segment_once "$bashrc_path" "/usr/local/bin"
+
+        touch "$out"
+      '';
   apiEvalCheck =
     let
       env = apiEvalImage.env.containerEnv;
@@ -478,7 +533,11 @@ let
     assert lib.hasInfix "API_SHELL_INIT" shellText;
     assert lib.hasInfix "API_INTERACTIVE_SHELL_INIT" shellText;
     assert lib.hasInfix "devcontainer-gui-env.sh" shellText;
+    assert lib.hasInfix "__devcontainer_compiled_path" shellText;
+    assert lib.hasInfix "export PATH=\"$__devcontainer_path\"" shellText;
+    assert !(lib.hasInfix "export PATH='/workspaces" shellText);
     assert metadataPreview.userEnvProbe == "loginInteractiveShell";
+    assert !(builtins.hasAttr "PATH" (metadataPreview.containerEnv or { }));
     assert builtins.hasAttr "postStartCommand" metadataPreview;
     assert builtins.elem "gui-env-refresh" taskNames;
     assert apiEvalImage.fhsRuntime.dynamicLoaderMode == "nix-ld";
@@ -530,4 +589,5 @@ reportChecks
 // {
   api-eval = apiEvalCheck;
   profile-eval = profileEvalCheck;
+  shell-path-merge = shellPathMergeCheck;
 }

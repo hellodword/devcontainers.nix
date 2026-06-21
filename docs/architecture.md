@@ -212,6 +212,16 @@ The project tracks two configured environment scopes plus generated compiler val
 
 The distinction matters because Docker image environment variables, VS Code remote environment variables, and interactive shell variables are applied at different times by different tools.
 
+`PATH` is the most important edge case. The image config keeps the compiled
+`PATH` for non-VS Code processes and reports, but generated Dev Containers
+metadata does not publish `containerEnv.PATH` by default. VS Code injects its
+Remote CLI directory, such as `/vscode/vscode-server/.../bin/remote-cli`, into
+the container process environment after the image is built. If metadata or
+login shell startup files re-export the compiled `PATH` as a plain static value,
+the injected `code` command disappears from terminals. Generated shell startup
+files must merge the inherited `PATH` first and append any missing compiled
+segments, rather than replacing `PATH`.
+
 ## FHS Runtime
 
 VS Code server components and many extension helpers expect conventional Linux paths that a pure Nix image does not naturally provide. The FHS runtime adds only the compatibility surface needed for those tools:

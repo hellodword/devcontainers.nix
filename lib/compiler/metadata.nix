@@ -42,7 +42,7 @@ let
     remoteUser = config.devcontainer.user.remoteUser;
     containerUser = config.devcontainer.user.containerUser;
     updateRemoteUserUID = config.devcontainer.user.updateRemoteUserUID;
-    containerEnv = compiledEnv.containerEnv;
+    containerEnv = removeAttrs compiledEnv.containerEnv [ "PATH" ];
     remoteEnv = compiledEnv.remoteEnv;
   }
   // lib.optionalAttrs config.devcontainer.gui.forwarding.enable {
