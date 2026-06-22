@@ -4,15 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [ master ]
-    paths:
-      - flake.nix
-      - flake.lock
-      - flake/**
-      - images/**
-      - lib/**
-      - runtime/**
-      - tests/**
-      - .github/workflows/**
 
 concurrency:
   group: build-image-go-web
