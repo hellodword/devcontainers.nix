@@ -159,6 +159,7 @@
         "chat.mcp.access" = "none";
         "chat.disableAIFeatures" = true;
         "inlineChat.enableV2" = false;
+        "terminal.integrated.suggest.enabled" = false;
       };
     };
   };
