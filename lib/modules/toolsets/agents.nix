@@ -3,7 +3,7 @@
   ...
 }:
 let
-  codex = pkgs.codex;
+  codex = pkgs.llm-agents.codex;
 in
 {
   config.devcontainer.profiles."toolset/agents" = {

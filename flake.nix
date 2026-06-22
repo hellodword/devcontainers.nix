@@ -49,7 +49,30 @@
         oraclejdk.accept_license = true;
         allowUnsupportedSystem = true;
       };
-      projectOverlays = [ ];
+      projectOverlays = [
+        (
+          final: prev:
+          let
+            codexPatch = final.fetchpatch {
+              name = "timeout-overrides.patch";
+              url = "https://raw.githubusercontent.com/hellodword/agents-misc/refs/heads/master/codex/patches/rust-v0.141.0.patch";
+              hash = "sha256-LbAKgxbZKvsnO6V98W80sDI4hxqxLagGK2yY7Ox6+7g=";
+            };
+          in
+          {
+            llm-agents = prev.llm-agents // {
+              codex = prev.llm-agents.codex.overrideAttrs (old: {
+                postPatch = (old.postPatch or "") + ''
+                  (
+                    cd ..
+                    patch -p1 < ${codexPatch}
+                  )
+                '';
+              });
+            };
+          }
+        )
+      ];
       nixpkgsOverlays = [
         nix-vscode-extensions.overlays.default
         (final: prev: {
