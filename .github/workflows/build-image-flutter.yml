@@ -40,7 +40,7 @@ jobs:
 
       - name: Validate reports
         run: |
-          python3 tests/ci/check-reports.py reports "flutter"
+          nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#checks.x86_64-linux.reports-flutter --no-link
 
       - name: Upload reports
         uses: actions/upload-artifact@v7
@@ -54,7 +54,7 @@ jobs:
 
       - name: Validate OCI image artifact
         run: |
-          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" reports "flutter"
+          nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#checks.x86_64-linux.artifact-image-flutter --no-link
 
       - name: Load OCI image
         run: |
@@ -64,10 +64,7 @@ jobs:
         env:
           SMOKE_LOG_DIR: smoke-logs
         run: |
-          image_ref="$(jq -r '.imageRef' reports/ci-plan.json)"
-          plan_path="$(nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#images.flutter.smoke --print-out-paths --no-link)"
-          chmod +x tests/smoke/run-plan.sh
-          ./tests/smoke/run-plan.sh "$image_ref" "$plan_path"
+          nix run --extra-experimental-features nix-command --extra-experimental-features flakes .#run-smoke-plan -- flutter
 
       - name: Upload smoke logs
         if: always()

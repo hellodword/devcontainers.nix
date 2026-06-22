@@ -14,6 +14,20 @@ let
       python3 ${../../tests/ci/check-reports.py} ${image.reports} ${name}
     '') images
   );
+  reportChecks = lib.mapAttrs' (
+    name: image:
+    lib.nameValuePair "reports-${name}" (
+      pkgs.runCommand "reports-${name}"
+        {
+          nativeBuildInputs = [ pkgs.python3 ];
+        }
+        ''
+          export CHECK_SMOKE_PLAN=${../../tests/ci/check-smoke-plan.py}
+          python3 ${../../tests/ci/check-reports.py} ${image.reports} ${name}
+          touch "$out"
+        ''
+    )
+  ) images;
   smokePlanLines = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (name: image: ''
       echo "checking smoke plan for ${name}"
@@ -251,7 +265,8 @@ let
         null
     )).success;
 in
-{
+reportChecks
+// {
   contracts-reports-all =
     pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pkgs.python3 ]; }
       ''
