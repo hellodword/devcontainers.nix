@@ -16,6 +16,7 @@ let
     netcat
     socat
     openssl
+    net-tools
   ];
 in
 {

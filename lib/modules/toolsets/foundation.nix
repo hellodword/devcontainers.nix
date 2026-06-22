@@ -20,6 +20,7 @@ let
     vim
     util-linux
     sqlite
+    diffutils
   ];
 in
 {
