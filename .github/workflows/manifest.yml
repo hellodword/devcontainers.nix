@@ -26,6 +26,22 @@ jobs:
           docker system prune -af || true
           df -h
 
+      # https://github.com/orgs/community/discussions/42479#discussioncomment-4484937
+      # https://github.com/wph95/opentelemetry-demo-webstore/blob/ae08811157db7ba590a7c8dd6faa2cb9d1473bef/.github/workflows/release.yml#L24-L29
+      # limit docker push image concurrency to 1
+      # to avoid github package return 429 ratelimit error
+      - name: Set docker upload concurrent
+        run: |
+          echo $'{"max-concurrent-downloads": 50, "max-concurrent-uploads": 2}' | sudo dd status=none of=/etc/docker/daemon.json
+          sudo service docker restart
+
+      # https://discourse.nixos.org/t/building-docker-image-in-github-actions-leads-to-skopeo-related-issues/40636/4
+      - name: Fix dockerTools.pullImage issue
+        run: |
+          sudo chmod 755 /run/containers
+          sudo mkdir -p "/run/containers/$(id -u runner)"
+          sudo chown runner: "/run/containers/$(id -u runner)"
+
       - name: Checkout
         uses: actions/checkout@v7
 

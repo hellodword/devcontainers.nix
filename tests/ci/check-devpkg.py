@@ -96,7 +96,21 @@ def parse_profile_args(args: list[str]) -> tuple[str, list[str]]:
     return profile, rest
 
 
+def strip_global_args(args: list[str]) -> list[str]:
+    stripped = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--extra-experimental-features":
+            index += 2
+        else:
+            stripped.extend(args[index:])
+            break
+    return stripped
+
+
 def main(argv: list[str]) -> int:
+    argv = strip_global_args(argv)
     cmd = argv[0] if argv else ""
     args = argv[1:]
     if cmd == "eval":

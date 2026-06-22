@@ -8,6 +8,12 @@ from pathlib import Path
 
 NIXPKGS_REF = os.environ.get("DEVPKG_NIXPKGS_REF", "nixpkgs")
 NIX_BIN = os.environ.get("DEVPKG_NIX_BIN", "nix")
+NIX_EXPERIMENTAL_FLAGS = [
+    "--extra-experimental-features",
+    "nix-command",
+    "--extra-experimental-features",
+    "flakes",
+]
 CURRENT_SYSTEM = None
 
 
@@ -87,7 +93,7 @@ def nix_run(args: list[str], *, capture: bool = False, stderr=None) -> subproces
         kwargs["stdout"] = subprocess.PIPE
         if stderr is None:
             kwargs["stderr"] = subprocess.PIPE
-    return subprocess.run([NIX_BIN, *args], **kwargs)
+    return subprocess.run([NIX_BIN, *NIX_EXPERIMENTAL_FLAGS, *args], **kwargs)
 
 
 def nix_check(args: list[str]) -> int:

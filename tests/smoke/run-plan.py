@@ -11,6 +11,13 @@ USAGE = """usage: run-smoke-plan [--tag tag ...] <image-ref> <smoke-plan.json>
    or: run-smoke-plan [--tag tag ...] <image-name>
 """
 
+NIX_EXPERIMENTAL_FLAGS = [
+    "--extra-experimental-features",
+    "nix-command",
+    "--extra-experimental-features",
+    "flakes",
+]
+
 
 def fail(message: str) -> None:
     print(message, file=sys.stderr)
@@ -46,7 +53,7 @@ def parse_args(argv: list[str]) -> tuple[list[str], str, str | None]:
 
 def nix_build(attr: str) -> str:
     result = subprocess.run(
-        ["nix", "build", attr, "--print-out-paths", "--no-link"],
+        ["nix", *NIX_EXPERIMENTAL_FLAGS, "build", attr, "--print-out-paths", "--no-link"],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
