@@ -76,8 +76,8 @@ Examples:
 | `go-web` | `devcontainers-go` | `web` | `images/go-web.nix` |
 | `nodejs` | `devcontainers-nodejs` | `latest`, current Node.js major | `images/nodejs.nix` |
 | `nodejs-24` | `devcontainers-nodejs` | `24` | `images/nodejs.nix` |
-| `python3` | `devcontainers-python` | `latest`, current Python major/minor | `images/python.nix` |
-| `python3-web` | `devcontainers-python` | `web` | `images/python3-web.nix` |
+| `python3` | `devcontainers-python3` | `latest`, current Python major/minor | `images/python.nix` |
+| `python3-web` | `devcontainers-python3` | `web` | `images/python3-web.nix` |
 | `rust` | `devcontainers-rust` | `latest` | `images/rust.nix` |
 | `rust-web` | `devcontainers-rust` | `web` | `images/rust-web.nix` |
 | `flutter` | `devcontainers-flutter` | `latest` | `images/flutter.nix` |

@@ -209,7 +209,7 @@ let
     })
     (mkImageTarget {
       target = "python3";
-      family = "python";
+      family = "python3";
       tags = [
         "latest"
         pythonLatestVersion
@@ -219,7 +219,7 @@ let
     })
     (mkImageTarget {
       target = "python3-web";
-      family = "python";
+      family = "python3";
       tags = [ "web" ];
       module = ../images/python3-web.nix;
       extraModules = commonLatestRuntimeModules;

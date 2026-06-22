@@ -14,8 +14,8 @@ The flake builds 11 image targets. Target names are used for local Nix outputs, 
 | `go-web` | `ghcr.io/hellodword/devcontainers-go:web` | You build Go services that also need web and data tools. |
 | `nodejs` | `ghcr.io/hellodword/devcontainers-nodejs:latest` | You work on Node.js, TypeScript, frontend, or package-manager heavy projects. |
 | `nodejs-24` | `ghcr.io/hellodword/devcontainers-nodejs:24` | You need the previous even Node.js major line exposed by this repository. |
-| `python3` | `ghcr.io/hellodword/devcontainers-python:latest` | You work on Python projects with `uv`, `pipx`, formatters, linters, and test tools. |
-| `python3-web` | `ghcr.io/hellodword/devcontainers-python:web` | You build Python services that also need web and data tools. |
+| `python3` | `ghcr.io/hellodword/devcontainers-python3:latest` | You work on Python projects with `uv`, `pipx`, formatters, linters, and test tools. |
+| `python3-web` | `ghcr.io/hellodword/devcontainers-python3:web` | You build Python services that also need web and data tools. |
 | `rust` | `ghcr.io/hellodword/devcontainers-rust:latest` | You work on Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers. |
 | `rust-web` | `ghcr.io/hellodword/devcontainers-rust:web` | You build Rust services that also need web and data tools. |
 | `flutter` | `ghcr.io/hellodword/devcontainers-flutter:latest` | You work on Flutter, Dart, Android, and Chromium-backed web workflows. |
@@ -43,7 +43,7 @@ Minimal Python project:
 ```json
 {
   "name": "python",
-  "image": "ghcr.io/hellodword/devcontainers-python:latest"
+  "image": "ghcr.io/hellodword/devcontainers-python3:latest"
 }
 ```
 
@@ -157,7 +157,7 @@ Runtime libraries are for programs that need shared objects at execution time:
 ```json
 {
   "name": "ffi-runtime",
-  "image": "ghcr.io/hellodword/devcontainers-python:latest",
+  "image": "ghcr.io/hellodword/devcontainers-python3:latest",
   "postCreateCommand": "devpkg add-lib libGL"
 }
 ```
@@ -199,7 +199,7 @@ If a non-Nix toolchain or FFI loader needs `LD_LIBRARY_PATH`, opt in explicitly:
 ```json
 {
   "name": "ffi",
-  "image": "ghcr.io/hellodword/devcontainers-python:latest",
+  "image": "ghcr.io/hellodword/devcontainers-python3:latest",
   "postCreateCommand": "devpkg add-dev-lib openssl zlib",
   "remoteEnv": {
     "LD_LIBRARY_PATH": "/home/vscode/.local/share/devpkg/runtime-libraries/profile/lib:/home/vscode/.local/share/devpkg/build-libraries/profile/lib:${containerEnv:LD_LIBRARY_PATH}"
@@ -273,7 +273,7 @@ Python service with the web variant:
 ```json
 {
   "name": "python3-web",
-  "image": "ghcr.io/hellodword/devcontainers-python:web",
+  "image": "ghcr.io/hellodword/devcontainers-python3:web",
   "postCreateCommand": "uv sync"
 }
 ```
