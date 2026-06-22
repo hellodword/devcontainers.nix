@@ -1,3 +1,7 @@
+
+
+
+
 name: build-image-python3-web
 
 on:
@@ -116,3 +120,106 @@ jobs:
         with:
           name: digest-python3-web
           path: digest.txt
+
+  e2e:
+    name: e2e-python3-web-${{ matrix.session }}
+    needs: build
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        session: ["wayland-sway"]
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          docker system prune -af || true
+          df -h
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        run: |
+          sudo mkdir -p /etc/nix
+          printf '%s\n' 'experimental-features = nix-command flakes' | sudo tee -a /etc/nix/nix.conf
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon --yes
+          echo '/nix/var/nix/profiles/default/bin' >> "$GITHUB_PATH"
+
+      - name: Enable KVM
+        run: |
+          if [ ! -e /dev/kvm ]; then
+            echo "/dev/kvm is missing; e2e requires a KVM-capable runner" >&2
+            exit 1
+          fi
+          sudo chmod 666 /dev/kvm
+          ls -l /dev/kvm
+
+      - name: Run e2e test
+        run: |
+          set -euo pipefail
+
+          attr=".#e2e-vscode-python3-web-${{ matrix.session }}"
+          drv_path="$(
+            nix path-info \
+              --extra-experimental-features nix-command \
+              --extra-experimental-features flakes \
+              --derivation \
+              "$attr"
+          )"
+          printf '%s\n' "$drv_path" > e2e-drv-path.txt
+
+          set +e
+          NO_COLOR=1 TERM=dumb nix build \
+            --extra-experimental-features nix-command \
+            --extra-experimental-features flakes \
+            "$attr" \
+            --print-out-paths \
+            --no-link \
+            >e2e-output-path.txt \
+            2>e2e-build.stderr.log
+          status="$?"
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            output_path="$(tail -n1 e2e-output-path.txt)"
+            test -n "$output_path"
+            mkdir -p e2e-output
+            if [ -d "$output_path" ]; then
+              cp -R "$output_path"/. e2e-output/
+            else
+              cp -R "$output_path" e2e-output/
+            fi
+            exit 0
+          fi
+
+          mkdir -p e2e-logs
+          cp e2e-build.stderr.log e2e-logs/
+          NO_COLOR=1 TERM=dumb nix \
+            --extra-experimental-features nix-command \
+            --extra-experimental-features flakes \
+            --log-format raw \
+            log "$drv_path" \
+            >"e2e-logs/$(basename "$drv_path").log" \
+            2>&1 || true
+          sed -r -i 's/\x1B\[[0-9;]*[mK]//g' e2e-logs/*.log
+          exit "$status"
+
+      - name: Upload e2e output
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-output-python3-web-${{ matrix.session }}
+          path: e2e-output
+          if-no-files-found: error
+
+      - name: Upload e2e nix logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-nix-logs-python3-web-${{ matrix.session }}
+          path: e2e-logs
+          if-no-files-found: warn
