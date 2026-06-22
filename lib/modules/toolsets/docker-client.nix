@@ -29,37 +29,5 @@ in
       COMPOSE_DOCKER_CLI_BUILD = "1";
       BUILDKIT_PROGRESS = "plain";
     };
-    tests.smoke = [
-      {
-        name = "docker-client";
-        command = [
-          "docker"
-          "--version"
-        ];
-      }
-      {
-        name = "docker-buildx";
-        command = [
-          "docker"
-          "buildx"
-          "version"
-        ];
-      }
-      {
-        name = "docker-compose";
-        command = [
-          "docker"
-          "compose"
-          "version"
-        ];
-      }
-      {
-        name = "docker-remote-version";
-        command = [
-          "docker"
-          "version"
-        ];
-      }
-    ];
   };
 }

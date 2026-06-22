@@ -17,15 +17,6 @@ in
     environment.variables.TZDIR = "/etc/zoneinfo";
     environment.variableOrigins.TZDIR = [ "core.time" ];
 
-    devcontainer.tests.smoke = [
-      {
-        name = "timezone";
-        command = [
-          "bash"
-          "-lc"
-          "test -e /etc/localtime && test -d /etc/zoneinfo && test \"$TZDIR\" = /etc/zoneinfo"
-        ];
-      }
-    ];
+    devcontainer.tests.capabilities = [ "shell.locale" ];
   };
 }

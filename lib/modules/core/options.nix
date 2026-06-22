@@ -53,15 +53,7 @@ let
       };
     };
   };
-  smokeTestType = types.submodule {
-    options = {
-      name = mkOption { type = types.str; };
-      command = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
-      };
-    };
-  };
+  capabilityListType = types.listOf nonEmptyStringType;
   fontAliasType = types.submodule {
     options = {
       binding = mkOption {
@@ -330,8 +322,8 @@ let
           type = types.attrsOf lifecycleTaskType;
           default = { };
         };
-        tests.smoke = mkOption {
-          type = types.listOf smokeTestType;
+        tests.capabilities = mkOption {
+          type = capabilityListType;
           default = [ ];
         };
       };
@@ -989,8 +981,8 @@ in
         default = { };
       };
 
-      tests.smoke = mkOption {
-        type = types.listOf smokeTestType;
+      tests.capabilities = mkOption {
+        type = capabilityListType;
         default = [ ];
       };
 

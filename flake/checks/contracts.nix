@@ -1,0 +1,315 @@
+{
+  pkgs,
+  lib,
+  compiler,
+  images,
+  ...
+}:
+
+let
+  repoRoot = ../..;
+  reportLines = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (
+      name: image:
+      ''
+        echo "checking reports for ${name}"
+        python3 ${../../tests/ci/check-reports.py} ${image.reports} ${name}
+      ''
+    ) images
+  );
+  smokePlanLines = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (
+      name: image:
+      ''
+        echo "checking smoke plan for ${name}"
+        python3 ${../../tests/ci/check-smoke-plan.py} ${image.smoke} ${image.profile-report-json} ${name}
+      ''
+    ) images
+  );
+  imageContracts = lib.mapAttrsToList (
+    name: image:
+    let
+      plan = builtins.fromJSON (builtins.readFile image.image-plan-json);
+      smoke = builtins.fromJSON (builtins.readFile image.smoke);
+    in
+    {
+      inherit name;
+      family = plan.family;
+      publishRefs = plan.publishRefs;
+      smokeCapabilities = smoke.capabilities;
+    }
+  ) images;
+  imageNames = builtins.attrNames images;
+  smokePlan = image: builtins.fromJSON (builtins.readFile image.smoke);
+  smokeCapabilities = image: (smokePlan image).capabilities;
+  smokeCase =
+    id: image:
+    lib.findFirst (test: test.id == id) (throw "missing smoke case ${id}") (smokePlan image).tests;
+  previousTargets = builtins.filter (
+    name:
+    (lib.hasPrefix "go-" name && name != "go-latest" && name != "go-web")
+    || (lib.hasPrefix "nodejs-" name && name != "nodejs-latest")
+  ) imageNames;
+
+  apiEvalImage = compiler.mkImage {
+    modules = [
+      ../../images/nix.nix
+      (
+        { pkgs, lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "api-eval";
+              family = lib.mkForce "api";
+              tags = lib.mkForce [ "eval" ];
+            };
+            environment.systemPackages = [ pkgs.hello ];
+            environment.pathsToLink = [
+              "/bin"
+              "/share"
+              "/man"
+            ];
+            environment.extraOutputsToInstall = [
+              "man"
+              "dev"
+            ];
+            environment.variables.API_BOOL = true;
+            environment.variableOrigins.API_BOOL = [ "tests.api" ];
+            environment.etc."api/example.conf".text = "enabled\n";
+            environment.shellInit = "export API_SHELL_INIT=1";
+            environment.interactiveShellInit = "export API_INTERACTIVE_SHELL_INIT=1";
+            programs.git.enable = true;
+            programs.ssh.enable = true;
+            programs.ssh.knownHosts.localhost.publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICodexCodexCodexCodexCodexCodexCodexCodexCodex";
+            programs.nix-index.enable = true;
+          };
+        }
+      )
+    ];
+  };
+
+  pythonProfileEvalImage = compiler.mkImage {
+    modules = [
+      ../../images/python.nix
+      (
+        { lib, ... }:
+        {
+          config.devcontainer.image = {
+            name = lib.mkForce "profile-python-eval";
+            family = lib.mkForce "test";
+            tags = lib.mkForce [ "eval" ];
+          };
+        }
+      )
+    ];
+  };
+  pythonProfile = lib.findFirst (
+    profile: profile.id == "language/python"
+  ) (throw "language/python profile missing") pythonProfileEvalImage.profileReport.enabledProfiles;
+  pythonExtension = lib.findFirst (
+    extension: extension.id == "ms-python.python"
+  ) (throw "ms-python.python extension missing") pythonProfileEvalImage.vscodeExtensions.extensions;
+  customLocaleImage = compiler.mkImage {
+    modules = [
+      ../../images/nix.nix
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "custom-locale-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            i18n.defaultLocale = "fr_FR.UTF-8";
+            i18n.language = "fr_FR:fr";
+          };
+        }
+      )
+    ];
+  };
+  customLocaleCommand = lib.concatStringsSep " " (smokeCase "shell.locale" customLocaleImage).command;
+  shellFeatureEvalImage = compiler.mkImage {
+    modules = [
+      ../../images/nix.nix
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "shell-feature-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            programs.bash.completion.enable = false;
+            programs.bash.commandNotFound.enable = false;
+          };
+        }
+      )
+    ];
+  };
+  shellFeatureCapabilities = smokeCapabilities shellFeatureEvalImage;
+  shellFeatureInteractiveCommand = lib.concatStringsSep " " (smokeCase "shell.interactive" shellFeatureEvalImage).command;
+  shellFeatureDevpkgCommand = lib.concatStringsSep " " (smokeCase "devpkg.core" shellFeatureEvalImage).command;
+  flutterCoreEvalImage = compiler.mkImage {
+    modules = [
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "flutter-core-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            devcontainer.profiles."language/flutter".enable = true;
+          };
+        }
+      )
+    ];
+  };
+  flutterCoreCapabilities = smokeCapabilities flutterCoreEvalImage;
+  nixLatestCapabilities = smokeCapabilities images."nix-latest";
+
+  invalidKnownHostsRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [
+            (
+              { ... }:
+              {
+                config = {
+                  devcontainer.image.name = "invalid-known-hosts";
+                  programs.ssh.enable = true;
+                  programs.ssh.knownHosts.bad.publicKey = "";
+                };
+              }
+            )
+          ];
+        }).environment.report
+        null
+    )).success;
+  unsupportedSudoRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [
+            (
+              { ... }:
+              {
+                config = {
+                  devcontainer.image.name = "unsupported-sudo";
+                  security.sudo.enable = true;
+                };
+              }
+            )
+          ];
+        }).config.security.sudo.enable
+        null
+    )).success;
+  missingCompanionToolRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [
+            (
+              { lib, ... }:
+              {
+                config = {
+                  devcontainer.image.name = "missing-companion-tool";
+                  devcontainer.image.family = lib.mkForce "test";
+                  devcontainer.profiles."test/extension" = {
+                    enable = true;
+                    kind = "test";
+                    group = "80-vscode-extensions-base";
+                    packages = [ ];
+                    priority = 1;
+                    stability = "stable";
+                    sharing = "single-image";
+                    securityClass = "trusted";
+                    vscode.extensions."redhat.vscode-yaml" = {
+                      native = false;
+                      bucket = "80-vscode-extensions-base";
+                      companionTools = [ "missing-tool" ];
+                    };
+                  };
+                };
+              }
+            )
+          ];
+        }).profileReport
+        null
+    )).success;
+in
+{
+  contracts-reports-all =
+    pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+      export CHECK_SMOKE_PLAN=${../../tests/ci/check-smoke-plan.py}
+      ${reportLines}
+      touch "$out"
+    '';
+
+  contracts-smoke-plan-all =
+    pkgs.runCommand "contracts-smoke-plan-all" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+      ${smokePlanLines}
+      touch "$out"
+    '';
+
+  contracts-hermetic-checks =
+    pkgs.runCommand "contracts-hermetic-checks" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+      python3 ${../../tests/ci/check-hermetic-default-checks.py} ${repoRoot}
+      touch "$out"
+    '';
+
+  contracts-image-targets =
+    assert builtins.length previousTargets >= 2;
+    assert lib.all (contract: contract.publishRefs != [ ]) imageContracts;
+    assert lib.all (contract: contract.smokeCapabilities != [ ]) imageContracts;
+    pkgs.writeText "contracts-image-targets.json" (
+      builtins.toJSON {
+        previousTargets = previousTargets;
+        images = imageContracts;
+      }
+    );
+
+  contracts-compiler-env =
+    assert apiEvalImage.env.containerEnv.API_BOOL == "1";
+    assert apiEvalImage.env.containerEnv.TZDIR == "/etc/zoneinfo";
+    assert builtins.elem "/etc/api/example.conf" (map (entry: entry.path) apiEvalImage.environment.etc);
+    assert builtins.elem "man" apiEvalImage.environment.report.extraOutputsToInstall;
+    pkgs.writeText "contracts-compiler-env.json" (builtins.toJSON apiEvalImage.environment.report);
+
+  contracts-compiler-profiles =
+    assert builtins.elem "uv" pythonProfile.packages;
+    assert pythonProfile.vscode.settings."python.defaultInterpreterPath" == "/usr/bin/python";
+    assert builtins.elem "language.python" pythonProfile.tests.capabilities;
+    assert builtins.hasAttr "language/python" pythonProfileEvalImage.graph.nodes;
+    assert pythonExtension.native;
+    assert builtins.elem "python" pythonExtension.companionTools;
+    assert pythonProfileEvalImage.profileReport.validation.companionToolsProvidedByNix;
+    assert lib.hasInfix "fr_FR.UTF-8" customLocaleCommand;
+    assert lib.hasInfix "fr_FR:fr" customLocaleCommand;
+    assert !(lib.hasInfix "en_US.UTF-8" customLocaleCommand);
+    assert builtins.elem "shell.interactive" shellFeatureCapabilities;
+    assert !(lib.hasInfix "bash-completion" shellFeatureInteractiveCommand);
+    assert !(lib.hasInfix "command_not_found_handle" shellFeatureInteractiveCommand);
+    assert !(lib.hasInfix "complete -p devpkg" shellFeatureDevpkgCommand);
+    assert builtins.elem "language.flutter" flutterCoreCapabilities;
+    assert !(builtins.elem "runtime.android-sdk" flutterCoreCapabilities);
+    assert !(builtins.elem "runtime.browser-gui-gpu" flutterCoreCapabilities);
+    assert !(builtins.elem "language.flutter-rust-bridge" flutterCoreCapabilities);
+    assert builtins.elem "editor-support.tools" nixLatestCapabilities;
+    assert builtins.elem "nix-index.tools" nixLatestCapabilities;
+    assert builtins.elem "codex.cli" nixLatestCapabilities;
+    pkgs.writeText "contracts-compiler-profiles.json" (builtins.toJSON pythonProfile);
+
+  contracts-compiler-metadata =
+    assert apiEvalImage.metadata.mergedPreview.userEnvProbe == "loginInteractiveShell";
+    assert !(builtins.hasAttr "PATH" (apiEvalImage.metadata.mergedPreview.containerEnv or { }));
+    assert builtins.hasAttr "postStartCommand" apiEvalImage.metadata.mergedPreview;
+    assert invalidKnownHostsRejected;
+    assert unsupportedSudoRejected;
+    assert missingCompanionToolRejected;
+    pkgs.writeText "contracts-compiler-metadata.json" (builtins.toJSON apiEvalImage.metadata.schemaReport);
+}

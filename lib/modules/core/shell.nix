@@ -101,48 +101,11 @@ in
     })
 
     {
-      devcontainer.tests.smoke = [
-        {
-          name = "locale-env";
-          command = [
-            "bash"
-            "-lc"
-            (
-              ''test "$LANG" = ${lib.escapeShellArg locale.defaultLocale} && test "$LANGUAGE" = ${lib.escapeShellArg locale.language}''
-              + " && test -r \"$LOCALE_ARCHIVE\""
-            )
-          ];
-        }
-      ];
+      devcontainer.tests.capabilities = [ "shell.locale" ];
     }
 
     (lib.mkIf cfg.enable {
-      devcontainer.tests.smoke = [
-        {
-          name = "bash-interactive";
-          command = [
-            "bash"
-            "-ic"
-            (
-              "alias ll >/dev/null && alias sha3-256sum >/dev/null"
-              + lib.optionalString cfg.commandNotFound.enable " && type command_not_found_handle >/dev/null"
-            )
-          ];
-        }
-      ];
-    })
-
-    (lib.mkIf (cfg.enable && cfg.completion.enable) {
-      devcontainer.tests.smoke = [
-        {
-          name = "bash-completion";
-          command = [
-            "bash"
-            "-ic"
-            "test -r /usr/share/bash-completion/bash_completion && type _comp_complete_load >/dev/null && complete -p -D >/dev/null"
-          ];
-        }
-      ];
+      devcontainer.tests.capabilities = [ "shell.interactive" ];
     })
   ];
 }

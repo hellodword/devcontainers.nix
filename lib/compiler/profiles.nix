@@ -166,7 +166,7 @@ let
   duplicateTaskNames = duplicateValues (map (entry: entry.name) taskEntries);
   tasks = lib.listToAttrs (map (entry: lib.nameValuePair entry.name entry.task) taskEntries);
 
-  smokeTests = lib.concatMap (profile: profile.tests.smoke) sortedProfiles;
+  testCapabilities = lib.concatMap (profile: profile.tests.capabilities) sortedProfiles;
   packages = lib.concatMap (profile: profile.packages) sortedProfiles;
   packageNames = map packageName packages;
   providedCommands = lib.unique (lib.concatMap (profile: profile.provides.commands) sortedProfiles);
@@ -234,7 +234,7 @@ let
       tasks = lib.sort lib.lessThan (builtins.attrNames profile.lifecycle.tasks);
     };
     tests = {
-      smoke = map (test: test.name) profile.tests.smoke;
+      capabilities = profile.tests.capabilities;
     };
   }) sortedProfiles;
 
@@ -262,8 +262,7 @@ let
       tasks = lib.sort lib.lessThan (builtins.attrNames tasks);
     };
     tests = {
-      smoke = smokeTests;
-      smokeNames = map (test: test.name) smokeTests;
+      capabilities = testCapabilities;
     };
     graph = {
       nodes = builtins.attrNames graphNodes;
@@ -298,7 +297,7 @@ else
       extensionIds
       settings
       tasks
-      smokeTests
+      testCapabilities
       libraryPresets
       providedCommands
       report

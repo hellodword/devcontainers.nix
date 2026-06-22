@@ -25,15 +25,6 @@ in
       "protoc"
       "protols"
     ];
-    tests.smoke = [
-      {
-        name = "editor-support-tools";
-        command = [
-          "bash"
-          "-lc"
-          "yaml-language-server --version && minijinja --version && protoc --version && protols --version"
-        ];
-      }
-    ];
+    tests.capabilities = [ "editor-support.tools" ];
   };
 }

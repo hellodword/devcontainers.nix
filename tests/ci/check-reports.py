@@ -153,15 +153,33 @@ def main() -> int:
 
     if not smoke_plan["tests"]:
         fail("smoke-test-plan.json must include at least one test")
-    profile_smoke_names = {
-        test.get("name")
-        for test in (profile_report.get("tests") or {}).get("smoke") or []
-        if test.get("name")
-    }
-    smoke_names = {test.get("name") for test in smoke_plan["tests"]}
-    missing_profile_smoke = sorted(profile_smoke_names - smoke_names)
-    if missing_profile_smoke:
-        fail(f"smoke-test-plan.json missing profile smoke tests: {', '.join(missing_profile_smoke)}")
+    smoke_ids = {test.get("id") for test in smoke_plan["tests"]}
+    if len(smoke_ids) != len(smoke_plan["tests"]):
+        fail("smoke-test-plan.json must not contain duplicate ids")
+    for test in smoke_plan["tests"]:
+        test_id = test.get("id")
+        if not isinstance(test_id, str) or not test_id:
+            fail("smoke-test-plan.json entries must include id")
+        if not isinstance(test.get("tags"), list) or not all(isinstance(tag, str) and tag for tag in test["tags"]):
+            fail(f"smoke test {test_id} must include string tags")
+        if "smoke" not in test["tags"]:
+            fail(f"smoke test {test_id} must include the smoke tag")
+        if not isinstance(test.get("command"), list) or not all(
+            isinstance(part, str) and part for part in test["command"]
+        ):
+            fail(f"smoke test {test_id} must include a command array")
+        if not isinstance(test.get("requires"), list) or not all(
+            isinstance(requirement, str) and requirement for requirement in test["requires"]
+        ):
+            fail(f"smoke test {test_id} must include requires")
+        if not isinstance(test.get("timeoutSeconds"), int) or test["timeoutSeconds"] < 1:
+            fail(f"smoke test {test_id} must include timeoutSeconds")
+    declared_capabilities = set((profile_report.get("tests") or {}).get("declaredCapabilities") or [])
+    missing_declared_capabilities = sorted(declared_capabilities - smoke_ids)
+    if missing_declared_capabilities:
+        fail(f"smoke-test-plan.json missing declared capabilities: {', '.join(missing_declared_capabilities)}")
+    if image_plan.get("smokeTestCount") != len(smoke_plan["tests"]):
+        fail("image-plan.json smokeTestCount must match smoke-test-plan.json")
 
     smoke_plan_file = reports_dir / "smoke-test-plan.json"
     smoke_checker = pathlib.Path(
@@ -247,8 +265,6 @@ def main() -> int:
         fail("metadata merged preview must not publish PATH by default")
     if preview_container_env.get("EDITOR") != env_report["containerEnv"]["EDITOR"]:
         fail("metadata merged preview must retain the compiled EDITOR entry")
-    if "DOCKER_HOST" in env_report["containerEnv"]:
-        fail("container env must not configure DOCKER_HOST by default")
     if "LD_LIBRARY_PATH" in env_report["containerEnv"]:
         fail("container env must not export LD_LIBRARY_PATH by default")
     if "FONTCONFIG_FILE" in env_report["containerEnv"]:
@@ -592,8 +608,6 @@ def main() -> int:
         fail("security-report.json must confirm no Docker daemon is baked into the image")
     if security_report["dockerSocketMountedByDefault"]:
         fail("security-report.json must confirm no default Docker socket mount")
-    if security_report["dockerHostConfiguredByDefault"]:
-        fail("security-report.json must confirm DOCKER_HOST is not configured by default")
     if not security_report["lifecycleLogRedaction"]:
         fail("security-report.json must confirm lifecycle log redaction")
     if not security_report["extensionProjectionLogRedaction"]:

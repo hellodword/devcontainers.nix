@@ -15,9 +15,15 @@
   compiledFonts,
   compiledProfiles ? {
     report = { };
-    smokeTests = [ ];
+    testCapabilities = [ ];
     extensionIds = [ ];
     settings = { };
+  },
+  compiledTests ? {
+    report = { };
+    tests = [ ];
+    capabilities = [ ];
+    declaredCapabilities = [ ];
   },
   compiledVscodeExtensions,
   compiledFhsRuntime,
@@ -33,8 +39,16 @@ let
   metadata-label-json = jsonFile "metadata-label.json" compiledMetadata.label;
   metadata-merged-preview-json = jsonFile "metadata-merged-preview.json" compiledMetadata.mergedPreview;
   metadata-schema-report-json = jsonFile "metadata-schema-report.json" compiledMetadata.schemaReport;
-  allSmokeTests = config.devcontainer.tests.smoke ++ compiledProfiles.smokeTests;
-  profile-report-json = jsonFile "profile-report.json" compiledProfiles.report;
+  allSmokeTests = compiledTests.tests;
+  profile-report-json = jsonFile "profile-report.json" (
+    compiledProfiles.report
+    // {
+      tests = (compiledProfiles.report.tests or { }) // {
+        declaredCapabilities = compiledProfiles.testCapabilities or [ ];
+        resolvedCapabilities = compiledTests.capabilities;
+      };
+    }
+  );
   image-plan-json = jsonFile "image-plan.json" {
     image = config.devcontainer.image.name;
     family = config.devcontainer.image.family;
@@ -151,7 +165,6 @@ let
     extensionProjectionLogRedaction = true;
     dockerDaemonBakedIntoImage = false;
     dockerSocketMountedByDefault = false;
-    dockerHostConfiguredByDefault = compiledEnv.containerEnv ? DOCKER_HOST;
     extensionArtifactsLocked = builtins.all (
       extension: extension ? sourceLock && extension.sourceLock ? sha256
     ) compiledVscodeExtensions.extensions;
@@ -162,6 +175,7 @@ let
   smoke-test-plan-json = jsonFile "smoke-test-plan.json" {
     image = config.devcontainer.image.name;
     tests = allSmokeTests;
+    capabilities = compiledTests.capabilities;
   };
   ci-plan-json = jsonFile "ci-plan.json" {
     image = config.devcontainer.image.name;

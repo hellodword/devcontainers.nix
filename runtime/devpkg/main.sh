@@ -1,6 +1,7 @@
 set -euo pipefail
 
 nixpkgs_ref="${DEVPKG_NIXPKGS_REF:-nixpkgs}"
+nix_bin="${DEVPKG_NIX_BIN:-nix}"
 current_system_value=""
 
 usage() {
@@ -44,17 +45,17 @@ nixpkgs_defaults() {
 
 nix_eval() {
   nixpkgs_defaults
-  nix eval --impure "$@"
+  "$nix_bin" eval --impure "$@"
 }
 
 nix_profile_add() {
   nixpkgs_defaults
-  nix profile add --impure "$@"
+  "$nix_bin" profile add --impure "$@"
 }
 
 nix_search() {
   nixpkgs_defaults
-  nix search --impure "$@"
+  "$nix_bin" search --impure "$@"
 }
 
 current_system() {
@@ -131,13 +132,13 @@ nix_string_literal() {
 }
 
 profile_json() {
-  nix profile list --json --no-pretty
+  "$nix_bin" profile list --json --no-pretty
 }
 
 profile_json_for() {
   local profile="$1"
 
-  if nix profile list --profile "$profile" --json --no-pretty 2>/dev/null; then
+  if "$nix_bin" profile list --profile "$profile" --json --no-pretty 2>/dev/null; then
     return 0
   fi
 
@@ -278,7 +279,7 @@ cmd_remove_packages() {
   for package in "$@"; do
     removals+=("$(resolve_profile_name "$package")")
   done
-  nix profile remove "${removals[@]}"
+  "$nix_bin" profile remove "${removals[@]}"
 }
 
 cmd_list_packages() {
@@ -375,7 +376,7 @@ cmd_remove_libraries() {
   for package in "$@"; do
     removals+=("$(resolve_profile_name_from_json "$package" "$profile_json_command")")
   done
-  nix profile remove --profile "$profile" "${removals[@]}"
+  "$nix_bin" profile remove --profile "$profile" "${removals[@]}"
 }
 
 cmd_list_libraries() {

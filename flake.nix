@@ -95,6 +95,7 @@
           nixpkgs
           compiler
           images
+          workflows
           ;
       };
       e2ePackages = import ./flake/e2e.nix {
@@ -141,6 +142,7 @@
         lib.nameValuePair "load-${name}" {
           type = "app";
           program = "${loadImage}/bin/load-${name}";
+          meta.description = "Load the ${name} devcontainer image into Docker";
         }
       ) images;
       imagePackages = lib.mapAttrs' (
@@ -184,6 +186,7 @@
         generate-workflows = {
           type = "app";
           program = "${workflows.generateWorkflows}/bin/generate-workflows";
+          meta.description = "Regenerate checked-in image build workflows";
         };
       };
 

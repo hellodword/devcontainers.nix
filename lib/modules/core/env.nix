@@ -43,15 +43,6 @@ in
       WORKSPACE = [ "core.env" ];
     };
 
-    devcontainer.tests.smoke = [
-      {
-        name = "nixpkgs-config";
-        command = [
-          "bash"
-          "-lc"
-          "test \"$NIXPKGS_CONFIG\" = /etc/nixpkgs/config.nix && test -r \"$NIXPKGS_CONFIG\" && test \"$NIXPKGS_ALLOW_UNFREE\" = 1 && test \"$NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM\" = 1 && test \"$NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE\" = 1 && test \"$DO_NOT_TRACK\" = true && test \"$NIX_PAGER\" = cat && test \"$NIX_PATH\" = nixpkgs=/usr/share/devcontainer/nixpkgs && case \"$DEVPKG_NIXPKGS_REF\" in path:/nix/store/*-source) true ;; *) false ;; esac"
-        ];
-      }
-    ];
+    devcontainer.tests.capabilities = [ "nixpkgs.config" ];
   };
 }

@@ -22,16 +22,7 @@ in
           "nix-locate"
           "comma"
         ];
-        tests.smoke = [
-          {
-            name = "nix-index-tools";
-            command = [
-              "bash"
-              "-lc"
-              "command -v nix-index && command -v nix-locate"
-            ];
-          }
-        ];
+        tests.capabilities = [ "nix-index.tools" ];
       };
     }
 

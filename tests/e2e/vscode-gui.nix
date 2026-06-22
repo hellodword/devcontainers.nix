@@ -469,50 +469,22 @@ let
                     ;;
         esac
 
-        e2e_smoke_allowlist='
-        fhs-bash
-        fhs-os-release
-        fhs-core-tools
-        fhs-nix-ld
-        fontconfig-tools
-        fontconfig-cjk
-        fontconfig-emoji-symbols
-        timezone
-        nix-conf
-        devpkg-list
-        devpkg-completion
-        locale-env
-        bash-interactive
-        bash-completion
-        nixpkgs-config
-        user-vscode
-        filesystem-writable
-        nix-single-user-root
-        git-system-config
-        git-bash-completion
-        ssh-global-config
-        '
-
         require test -f "$smoke_plan"
-        jq -c '.tests[]' "$smoke_plan" | while IFS= read -r test_case; do
-          name="$(printf '%s' "$test_case" | jq -r '.name')"
-          if ! printf '%s\n' "$e2e_smoke_allowlist" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -Fx "$name" >/dev/null; then
-            echo "skip smoke $name"
+        jq -c '.tests[] | select(.tags | index("e2e-baseline"))' "$smoke_plan" | while IFS= read -r test_case; do
+          id="$(printf '%s' "$test_case" | jq -r '.id')"
+          mapfile -t command_parts < <(printf '%s' "$test_case" | jq -r '.command[]')
+          timeout_seconds="$(printf '%s' "$test_case" | jq -r '(.timeoutSeconds // 30) * ${toString timeoutScaleValue}')"
+          if [ "''${#command_parts[@]}" -eq 0 ]; then
+            echo "skip smoke $id"
             continue
           fi
 
-          mapfile -t command_parts < <(printf '%s' "$test_case" | jq -r '.command[]')
-                  if [ "''${#command_parts[@]}" -eq 0 ]; then
-                    echo "skip smoke $name"
-                    continue
-                  fi
-
-                  echo "==> smoke $name"
-                  printf 'command='
-                  printf '%q ' "''${command_parts[@]}"
-                  printf '\n'
-                  timeout ${toString (scaledTimeout 30)} "''${command_parts[@]}"
-                done
+          echo "==> smoke $id"
+          printf 'command='
+          printf '%q ' "''${command_parts[@]}"
+          printf '\n'
+          timeout "$timeout_seconds" "''${command_parts[@]}"
+        done
       '';
     in
     pkgs.testers.runNixOSTest {

@@ -112,22 +112,7 @@ in
           needs = [ "xdg-dirs" ];
         };
       };
-      tests.smoke = [
-        {
-          name = "flutter-version";
-          command = [
-            "flutter"
-            "--version"
-          ];
-        }
-        {
-          name = "dart-version";
-          command = [
-            "dart"
-            "--version"
-          ];
-        }
-      ];
+      tests.capabilities = [ "language.flutter" ];
     };
 
     "runtime/android-sdk" = {
@@ -142,6 +127,7 @@ in
         "adb"
         "fastboot"
       ];
+      tests.capabilities = [ "runtime.android-sdk" ];
     };
 
     "runtime/browser-gui-gpu" = {
@@ -156,6 +142,7 @@ in
         "chromium"
         "glxinfo"
       ];
+      tests.capabilities = [ "runtime.browser-gui-gpu" ];
     };
 
     "language/flutter-rust-bridge" = {
@@ -172,16 +159,7 @@ in
         "sqlx"
         "sqlitebrowser"
       ];
-      tests.smoke = [
-        {
-          name = "flutter-tooling";
-          command = [
-            "bash"
-            "-lc"
-            "java -version && gradle --version && rustc --version && node --version && python --version && protoc-gen-dart --version && flutter_rust_bridge_codegen --version && sqlx --version && sqlite3 --version"
-          ];
-        }
-      ];
+      tests.capabilities = [ "language.flutter-rust-bridge" ];
     };
   };
 }

@@ -110,9 +110,9 @@ def walk_strings(value):
 
 
 def main() -> int:
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         print(
-            "usage: tests/ci/check-image-tar.py <nix2container-image-json> <reports-dir> <image-name>",
+            "usage: tests/ci/check-image-tar.py <nix2container-image-json> <reports-dir> <image-name> <expected-devpkg-nixpkgs-ref>",
             file=sys.stderr,
         )
         return 1
@@ -120,6 +120,7 @@ def main() -> int:
     image_path = pathlib.Path(sys.argv[1])
     reports_dir = pathlib.Path(sys.argv[2])
     image_name = sys.argv[3]
+    expected_devpkg_nixpkgs_ref = sys.argv[4]
 
     if not image_path.is_file():
         fail(f"image artifact is not a file: {image_path}")
@@ -173,7 +174,9 @@ def main() -> int:
     devpkg_ref_entries = [entry for entry in env if entry.startswith("DEVPKG_NIXPKGS_REF=")]
     if len(devpkg_ref_entries) != 1:
         fail("image artifact must set exactly one DEVPKG_NIXPKGS_REF entry")
-    if not re.fullmatch(r"DEVPKG_NIXPKGS_REF=path:/nix/store/[a-z0-9]{32}-source", devpkg_ref_entries[0]):
+    if not re.fullmatch(r"path:/nix/store/[a-z0-9]{32}-source", expected_devpkg_nixpkgs_ref):
+        fail("expected DEVPKG_NIXPKGS_REF must be a locked nixpkgs store source")
+    if devpkg_ref_entries[0] != f"DEVPKG_NIXPKGS_REF={expected_devpkg_nixpkgs_ref}":
         fail("image artifact must pin DEVPKG_NIXPKGS_REF to the locked nixpkgs store source")
     locale_archive_entries = [entry for entry in env if entry.startswith("LOCALE_ARCHIVE=")]
     if len(locale_archive_entries) != 1:

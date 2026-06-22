@@ -69,43 +69,6 @@ in
         "eslint.runtime" = "/usr/bin/node";
       };
     };
-    tests.smoke = [
-      {
-        name = "node-version";
-        command = [
-          "node"
-          "--version"
-        ];
-      }
-      {
-        name = "pnpm-version";
-        command = [
-          "pnpm"
-          "--version"
-        ];
-      }
-      {
-        name = "node-package-managers";
-        command = [
-          "bash"
-          "-lc"
-          "npm --version && npx --version && corepack --version && yarn --version"
-        ];
-      }
-      {
-        name = "node-python-runtime";
-        command = [
-          "python"
-          "--version"
-        ];
-      }
-      {
-        name = "node-c-env";
-        command = [
-          "cc"
-          "--version"
-        ];
-      }
-    ];
+    tests.capabilities = [ "language.nodejs" ];
   };
 }

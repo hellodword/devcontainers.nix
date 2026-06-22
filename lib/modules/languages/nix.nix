@@ -22,30 +22,7 @@ in
       sharing = "global";
       securityClass = "trusted";
       provides.commands = [ "nix" ];
-      tests.smoke = [
-        {
-          name = "nix-version";
-          command = [
-            "nix"
-            "--version"
-          ];
-        }
-        {
-          name = "extension-index";
-          command = [
-            "bash"
-            "-lc"
-            "test -f /usr/share/devcontainer/vscode/extensions-index.json"
-          ];
-        }
-        {
-          name = "task-runner-list";
-          command = [
-            "devcontainer-task-runner"
-            "list"
-          ];
-        }
-      ];
+      tests.capabilities = [ "nix.runtime" ];
     };
 
     "language/nix" = {
@@ -88,23 +65,7 @@ in
           "nix.formatterPath" = "nixfmt";
         };
       };
-      tests.smoke = [
-        {
-          name = "nixd-version";
-          command = [
-            "nixd"
-            "--version"
-          ];
-        }
-        {
-          name = "nix-language";
-          command = [
-            "bash"
-            "-lc"
-            "nixfmt --version && alejandra --version && statix --help >/dev/null && deadnix --version"
-          ];
-        }
-      ];
+      tests.capabilities = [ "language.nix" ];
     };
   };
 }

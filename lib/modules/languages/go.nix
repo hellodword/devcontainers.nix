@@ -72,37 +72,6 @@ in
         go-build = ''go build -trimpath -ldflags "-s -w -buildid="'';
       };
     };
-    tests.smoke = [
-      {
-        name = "go-version";
-        command = [
-          "go"
-          "version"
-        ];
-      }
-      {
-        name = "gopls-version";
-        command = [
-          "gopls"
-          "version"
-        ];
-      }
-      {
-        name = "go-tooling";
-        command = [
-          "bash"
-          "-lc"
-          "dlv version && golangci-lint version && (govulncheck -version || govulncheck --version) && command -v gotests gomodifytags impl protoc-gen-go >/dev/null"
-        ];
-      }
-      {
-        name = "go-runtime-deps";
-        command = [
-          "bash"
-          "-lc"
-          "python --version && node --version && cc --version"
-        ];
-      }
-    ];
+    tests.capabilities = [ "language.go" ];
   };
 }

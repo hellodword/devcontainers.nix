@@ -24,7 +24,7 @@ flake/targets.nix image target
   -> reports and CI checks
 ```
 
-The important design choice is that image structure stays declarative. Language modules and toolset modules do not directly create tar files or Docker instructions. They add typed configuration, graph nodes, and tests. The compiler decides how those pieces become image layers and runtime files.
+The important design choice is that image structure stays declarative. Language modules and toolset modules do not directly create tar files or Docker instructions. They add typed configuration, graph nodes, and capability IDs. The compiler decides how those pieces become image layers, runtime files, reports, and smoke plans.
 
 ## Inputs And Package Set
 
@@ -53,7 +53,7 @@ Inputs that provide packages are consumed through overlays. That means modules n
 The larger flake internals live under `flake/`:
 
 - `flake/targets.nix` discovers language package versions and defines the image target list.
-- `flake/checks.nix` defines report checks, report CLI checks, selected image artifact checks, runtime helper checks, image tar fixtures, composition fixtures, and pure API evaluation checks.
+- `flake/checks.nix` aggregates focused check suites under `flake/checks/`: contracts, tooling, artifacts, report CLI behavior, and generated workflow synchronization.
 - `flake/workflows.nix` renders per-image GitHub Actions workflows, exposes `generate-workflows`, and checks that generated workflow files are synchronized with the template and target list.
 
 ## Image Targets
@@ -102,7 +102,7 @@ Core modules define the shared image contract: user, filesystem, environment, sh
 
 Toolset modules add common command groups. For example source control tools, fetch/archive tools, search/navigation tools, inspect/debug tools, workflow/format tools, Docker client tools, agent tools, data/network tools, and nix-index tools.
 
-Language modules add language-specific tools, environment variables, VS Code extensions, shell aliases, graph nodes, and smoke tests. For example the Go language module adds Go, `gopls`, Delve, `golangci-lint`, `govulncheck`, the Go VS Code extension, Go cache variables, and the `gobuild-small` alias.
+Language modules add language-specific tools, environment variables, VS Code extensions, shell aliases, graph nodes, and capability declarations. For example the Go language module adds Go, `gopls`, Delve, `golangci-lint`, `govulncheck`, the Go VS Code extension, Go cache variables, the `gobuild-small` alias, and the `language.go` smoke capability.
 
 ## NixOS-like API Subset
 
@@ -317,9 +317,15 @@ Important reports include:
 - smoke test plans
 - CI plans
 
-Checks use those reports to reject regressions before an image is published. Smoke tests then validate runtime behavior after an image is loaded into Docker.
+Checks use those reports to reject regressions before an image is published. Smoke tests then validate user-visible runtime capabilities after an image is loaded into Docker.
 
-`flake/checks.nix` owns the Nix check set. `flake/workflows.nix` adds a generated workflow sync check so target changes and template changes are reflected in checked-in `build-image-*.yml` files.
+`flake/checks.nix` owns the Nix check set by aggregating:
+
+- `contracts` for pure evaluation and static public contracts
+- `tooling` for runtime helper behavior
+- `artifacts` for selected OCI/rootfs checks
+- `report-cli` for the report inspection CLI
+- generated workflow synchronization
 
 ## Security Boundaries
 
@@ -343,8 +349,8 @@ When adding a feature, decide which layer of the design owns it:
 - shared generated files usually belong in a focused compiler
 - runtime commands belong under `runtime/`
 - repeated package groups should become graph nodes
-- user-visible behavior should have smoke tests
-- compiler behavior should have report checks
+- user-visible image behavior should declare a smoke capability
+- compiler behavior should have contract or report checks
 - browser, font, or Docker daemon behavior should be documented because those areas have important runtime constraints
 
 The goal is for every new behavior to appear in the module config, the graph, the image, and the reports in a way a maintainer can inspect.

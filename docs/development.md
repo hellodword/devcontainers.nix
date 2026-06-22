@@ -16,7 +16,7 @@ The fast local loop is:
 nix flake check
 ```
 
-This runs report checks, report CLI checks, selected image artifact checks, runtime helper checks, image tar fixtures, composition fixtures, API evaluation checks, and generated workflow synchronization.
+This runs contract checks, report CLI checks, selected image artifact checks, focused runtime helper suites, and generated workflow synchronization.
 
 ## Repository Map
 
@@ -37,7 +37,6 @@ Important paths:
 | `tests/ci/` | Report, artifact, and helper validation. |
 | `tests/smoke/` | Runtime smoke execution after an image is loaded into Docker. |
 | `tests/e2e/` | Heavy VS Code GUI Dev Containers tests. |
-| `tests/fixtures/` | Lightweight expected-node fixtures for image composition. |
 | `docs/` | User, design, and maintenance documentation. |
 
 ## Build And Inspect
@@ -75,21 +74,7 @@ After loading an image, run its smoke plan:
 tests/smoke/run-plan.sh nix-latest
 ```
 
-The smoke runner never accepts extra Docker run arguments. It probes Docker on the host, forwards only a reachable `tcp://` `DOCKER_HOST` into the container for the Docker daemon test, and skips that test otherwise.
-
-For a Docker daemon smoke test:
-
-```sh
-DOCKER_HOST=tcp://172.17.0.1:2375 tests/smoke/run-plan.sh nix-latest
-```
-
-To make Docker daemon access mandatory:
-
-```sh
-SMOKE_REQUIRE_DOCKER_DAEMON=1 DOCKER_HOST=tcp://172.17.0.1:2375 tests/smoke/run-plan.sh nix-latest
-```
-
-Read [Remote Docker](docker-remote.md) before changing Docker daemon smoke behavior. The design intentionally assumes the daemon is outside the devcontainer in a virtual machine or another isolated environment.
+The smoke runner never accepts extra Docker run arguments and does not inject Docker daemon configuration into the container. It validates image capabilities that are owned by this repository; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
 
 ## Heavy VS Code GUI E2E
 
@@ -106,7 +91,7 @@ timeouts, or GUI readiness detection.
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
 3. Add the image target in `flake/targets.nix` with target name, family, tags, module, and any version override modules.
-4. Add or update a fixture in `tests/fixtures/` with expected graph nodes.
+4. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
 5. Run `nix flake check`.
 6. Build the image reports and inspect `graph.json`, `layer-plan.json`, and `metadata-label.json`.
 7. Load the image and run `tests/smoke/run-plan.sh <target>` when runtime behavior changed.
@@ -123,7 +108,7 @@ A toolset is a reusable group of packages that can be enabled by many images.
 3. Load the module from `lib/compiler/eval.nix`.
 4. Add packages to `environment.systemPackages`.
 5. Add a graph node with a stable bucket name.
-6. Add smoke tests for important commands.
+6. Add a capability in `lib/tests/smoke-catalog.nix` for important user-visible commands.
 7. Enable the toolset from image modules that need it.
 8. Run report checks and inspect graph/layer reports.
 
@@ -144,7 +129,7 @@ When adding a program module:
 3. Generate files through `environment.etc`.
 4. Add packages through `environment.systemPackages`.
 5. Add shell integration through `environment.shellInit` or `environment.interactiveShellInit` only when it has no network, installer, or long-running side effects.
-6. Add report assertions in `tests/ci/check-reports.py` or pure eval assertions in `flake/checks.nix`.
+6. Add report assertions in `tests/ci/check-reports.py` or a focused contract check under `flake/checks/`.
 
 ## Adding A Language Or Runtime
 
@@ -153,9 +138,9 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 1. Add options in `lib/modules/core/options.nix`.
 2. Add a runtime module under `lib/modules/runtimes/` or a language module under `lib/modules/languages/`.
 3. Load it from `lib/compiler/eval.nix`.
-4. Add packages with `environment.systemPackages`, environment variables with `environment.variables`, path segments, VS Code extensions, settings, aliases, and smoke tests.
+4. Add packages with `environment.systemPackages`, environment variables with `environment.variables`, path segments, VS Code extensions, settings, aliases, and capability declarations.
 5. Add graph nodes for runtime and language pieces.
-6. Add a fixture expectation for images that enable the module.
+6. Add a capability in `lib/tests/smoke-catalog.nix` when the module exposes user-visible behavior that should run in a real container.
 7. Add image target wiring in `flake/targets.nix` if the language has version-specific tags.
 8. Update [Usage](usage.md) with the user-facing image reference or `devcontainer.json` examples.
 
@@ -173,7 +158,7 @@ Compiler changes belong under `lib/compiler/`.
 6. Add report validation in `tests/ci/check-reports.py` or an adjacent check.
 7. Update [Architecture](architecture.md) when the pipeline or ownership model changes.
 
-Avoid hidden side effects. If a behavior changes the image, it should be visible in reports or smoke tests.
+Avoid hidden side effects. If a behavior changes the image, it should be visible in reports, a compiler contract, or a capability smoke test.
 
 ## Adding Runtime Helpers
 
@@ -182,7 +167,7 @@ Runtime helpers live in `runtime/` and are packaged by `runtime/default.nix`.
 When changing a helper:
 
 1. Keep the helper runnable outside the image when possible.
-2. Add or update tests in `tests/ci/check-runtime-tools.sh`.
+2. Add or update the focused helper suite in `tests/ci/check-devpkg.sh`, `tests/ci/check-task-runner.sh`, `tests/ci/check-vscode-extension-projector.sh`, or `tests/ci/check-gui-env.sh`.
 3. If the helper is installed into the image, confirm the image compiler includes it in the runtime root or generated filesystem.
 4. Document user-visible commands in [Usage](usage.md).
 
@@ -203,7 +188,7 @@ When changing it, check:
 - `lib/modules/core/libraries.nix`
 - `lib/compiler/libraries.nix`
 - `runtime/devpkg/main.sh`
-- `tests/ci/check-runtime-tools.sh`
+- the focused helper suite under `tests/ci/check-*.sh`
 - `tests/ci/check-reports.py`
 - `docs/usage.md`
 - `docs/architecture.md`

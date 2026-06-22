@@ -39,6 +39,10 @@ let
       inherit lib;
     };
 
+    compileTestPlan = import ./compiler/test-plan.nix {
+      inherit lib;
+    };
+
     compileLibraries = import ./compiler/libraries.nix {
       inherit lib;
     };
@@ -139,6 +143,10 @@ let
           config = evaluated.config;
           compiledProfiles = profiles;
         };
+        tests = compileTestPlan {
+          config = evaluated.config;
+          compiledProfiles = profiles;
+        };
         metadata = compileMetadata {
           config = evaluated.config;
           compiledEnv = env;
@@ -182,6 +190,7 @@ let
           compiledShell = shell;
           compiledFonts = fonts;
           compiledProfiles = profiles;
+          compiledTests = tests;
           compiledVscodeExtensions = vscodeExtensions;
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
@@ -194,6 +203,7 @@ let
           graph
           environment
           profiles
+          tests
           env
           libraries
           metadata

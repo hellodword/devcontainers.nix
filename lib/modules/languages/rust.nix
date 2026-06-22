@@ -67,37 +67,6 @@ in
       };
       path = [ "$CARGO_HOME/bin" ];
     };
-    tests.smoke = [
-      {
-        name = "rustc-version";
-        command = [
-          "rustc"
-          "--version"
-        ];
-      }
-      {
-        name = "cargo-version";
-        command = [
-          "cargo"
-          "--version"
-        ];
-      }
-      {
-        name = "rust-tooling";
-        command = [
-          "bash"
-          "-lc"
-          "rustfmt --version && cargo clippy --version && rust-analyzer --version && rustup --version"
-        ];
-      }
-      {
-        name = "rust-runtime-deps";
-        command = [
-          "bash"
-          "-lc"
-          "python --version && node --version && cc --version"
-        ];
-      }
-    ];
+    tests.capabilities = [ "language.rust" ];
   };
 }

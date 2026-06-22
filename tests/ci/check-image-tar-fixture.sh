@@ -73,11 +73,15 @@ cat >"$tmpdir/image.json" <<'EOF'
 EOF
 
 write_layer_plan "8GiB"
-python3 "$repo_root/tests/ci/check-image-tar.py" "$tmpdir/image.json" "$reports_dir" fixture >"$tmpdir/pass.out"
+python3 "$repo_root/tests/ci/check-image-tar.py" \
+  "$tmpdir/image.json" "$reports_dir" fixture \
+  path:/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source >"$tmpdir/pass.out"
 grep -q 'image-artifact-check ok: fixture' "$tmpdir/pass.out"
 
 write_layer_plan "1KiB"
-if python3 "$repo_root/tests/ci/check-image-tar.py" "$tmpdir/image.json" "$reports_dir" fixture >"$tmpdir/fail.out" 2>"$tmpdir/fail.err"; then
+if python3 "$repo_root/tests/ci/check-image-tar.py" \
+  "$tmpdir/image.json" "$reports_dir" fixture \
+  path:/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source >"$tmpdir/fail.out" 2>"$tmpdir/fail.err"; then
   echo "expected oversized layer validation to fail" >&2
   exit 1
 fi
