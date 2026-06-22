@@ -147,6 +147,18 @@ let
       family = "nix";
       tags = [ "latest" ];
       module = ../images/nix.nix;
+      extraModules = commonLatestRuntimeModules ++ [
+        (
+          { lib, ... }:
+          {
+            config.devcontainer.profiles = {
+              "runtime/python".enable = lib.mkDefault true;
+              "language/python".enable = lib.mkDefault true;
+              "runtime/nodejs".enable = lib.mkDefault true;
+            };
+          }
+        )
+      ];
     })
     (mkImageTarget {
       target = "go";

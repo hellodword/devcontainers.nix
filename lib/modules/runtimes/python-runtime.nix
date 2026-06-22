@@ -6,7 +6,11 @@
 let
   cfg = config.devcontainer.runtimes.python;
   python = if cfg.package == null then pkgs.python3 else cfg.package;
-  packages = [ python ];
+  packages = [
+    python
+    python.pkgs.pip
+    pkgs.uv
+  ];
 in
 {
   config.devcontainer.profiles."runtime/python" = {
@@ -20,6 +24,10 @@ in
     provides.commands = [
       "python"
       "python3"
+      "pip"
+      "pip3"
+      "uv"
+      "uvx"
     ];
     env = {
       variables = {
@@ -39,5 +47,6 @@ in
         "$PYTHONUSERBASE/bin"
       ];
     };
+    tests.capabilities = [ "runtime.python" ];
   };
 }

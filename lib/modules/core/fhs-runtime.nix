@@ -40,9 +40,10 @@ in
       securityClass = "trusted";
     };
 
-    devcontainer.tests.capabilities =
-      [ "fhs.runtime" ]
-      ++ lib.optionals pki.installCACerts [ "fhs.ca-certificates" ]
-      ++ lib.optionals nixLd.enable [ "fhs.nix-ld" ];
+    devcontainer.tests.capabilities = [
+      "fhs.runtime"
+    ]
+    ++ lib.optionals pki.installCACerts [ "fhs.ca-certificates" ]
+    ++ lib.optionals nixLd.enable [ "fhs.nix-ld" ];
   };
 }

@@ -8,7 +8,7 @@ The flake builds 11 image targets. Target names are used for local Nix outputs, 
 
 | Target | Image reference | Use when |
 | --- | --- | --- |
-| `nix` | `ghcr.io/hellodword/devcontainers-nix:latest` | You work on Nix flakes, Nix modules, or general shell tooling. |
+| `nix` | `ghcr.io/hellodword/devcontainers-nix:latest` | You work on Nix flakes, Nix modules, or general shell tooling, and still want Python tooling plus the Node.js runtime available. |
 | `go` | `ghcr.io/hellodword/devcontainers-go:latest` | You want current Go plus common Go tools. |
 | `go-1_25` | `ghcr.io/hellodword/devcontainers-go:1.25` | You need the previous Go major/minor line exposed by this repository. |
 | `go-web` | `ghcr.io/hellodword/devcontainers-go:web` | You build Go services that also need web and data tools. |

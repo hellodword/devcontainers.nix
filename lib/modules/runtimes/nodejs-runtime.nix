@@ -41,5 +41,6 @@ in
       };
       path = [ "$PNPM_HOME" ];
     };
+    tests.capabilities = [ "runtime.nodejs" ];
   };
 }

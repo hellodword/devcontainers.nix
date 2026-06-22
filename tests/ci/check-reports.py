@@ -91,6 +91,7 @@ def main() -> int:
     environment_report = env_report.get("environment") or {}
     enabled_profile_ids = {profile["id"] for profile in profile_report.get("enabledProfiles") or []}
     profile_package_names = set(profile_report.get("packages") or [])
+    provided_commands = set((profile_report.get("provides") or {}).get("commands") or [])
     profile_extension_ids = set((profile_report.get("vscode") or {}).get("extensionIds") or [])
     profile_vscode_settings = (profile_report.get("vscode") or {}).get("settings") or {}
     profile_library_presets = set((profile_report.get("libraries") or {}).get("presets") or [])
@@ -180,6 +181,15 @@ def main() -> int:
         fail(f"smoke-test-plan.json missing declared capabilities: {', '.join(missing_declared_capabilities)}")
     if image_plan.get("smokeTestCount") != len(smoke_plan["tests"]):
         fail("image-plan.json smokeTestCount must match smoke-test-plan.json")
+    if image_name == "nix":
+        required_profiles = {"runtime/python", "language/python", "runtime/nodejs"}
+        missing_profiles = sorted(required_profiles - enabled_profile_ids)
+        if missing_profiles:
+            fail(f"nix image missing required profiles: {', '.join(missing_profiles)}")
+        required_commands = {"python", "python3", "pip", "pip3", "uv", "uvx", "node", "npm", "npx", "corepack"}
+        missing_commands = sorted(required_commands - provided_commands)
+        if missing_commands:
+            fail(f"nix image missing required runtime commands: {', '.join(missing_commands)}")
 
     smoke_plan_file = reports_dir / "smoke-test-plan.json"
     smoke_checker = pathlib.Path(

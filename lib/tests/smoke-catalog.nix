@@ -17,41 +17,48 @@ let
         timeoutSeconds
         ;
     };
-  baseline = [ "smoke" "baseline" "e2e-baseline" ];
+  baseline = [
+    "smoke"
+    "baseline"
+    "e2e-baseline"
+  ];
   shellLocaleCommand = lib.concatStringsSep " && " [
     ''test "$LANG" = ${lib.escapeShellArg config.i18n.defaultLocale}''
     ''test "$LANGUAGE" = ${lib.escapeShellArg config.i18n.language}''
     ''test -r "$LOCALE_ARCHIVE"''
-    ''test -e /etc/localtime''
-    ''test -d /etc/zoneinfo''
+    "test -e /etc/localtime"
+    "test -d /etc/zoneinfo"
     ''test "$TZDIR" = /etc/zoneinfo''
   ];
-  shellInteractiveChecks =
-    [
-      "alias ll >/dev/null"
-      "alias sha3-256sum >/dev/null"
-    ]
-    ++ lib.optionals config.programs.bash.completion.enable [
-      "test -r /usr/share/bash-completion/bash_completion"
-      "complete -p -D >/dev/null"
-    ]
-    ++ lib.optionals config.programs.bash.commandNotFound.enable [
-      "type command_not_found_handle >/dev/null"
-    ];
-  devpkgCoreChecks =
-    [ "devpkg list >/dev/null" ]
-    ++ lib.optionals (config.programs.bash.enable && config.programs.bash.completion.enable) [
-      "complete -p devpkg >/dev/null"
-      "COMP_WORDS=(devpkg ad)"
-      "COMP_CWORD=1"
-      "_devpkg"
-      ''printf '%s\n' "''${COMPREPLY[@]}" | grep -Fx add >/dev/null''
-    ];
+  shellInteractiveChecks = [
+    "alias ll >/dev/null"
+    "alias sha3-256sum >/dev/null"
+  ]
+  ++ lib.optionals config.programs.bash.completion.enable [
+    "test -r /usr/share/bash-completion/bash_completion"
+    "complete -p -D >/dev/null"
+  ]
+  ++ lib.optionals config.programs.bash.commandNotFound.enable [
+    "type command_not_found_handle >/dev/null"
+  ];
+  devpkgCoreChecks = [
+    "devpkg list >/dev/null"
+  ]
+  ++ lib.optionals (config.programs.bash.enable && config.programs.bash.completion.enable) [
+    "complete -p devpkg >/dev/null"
+    "COMP_WORDS=(devpkg ad)"
+    "COMP_CWORD=1"
+    "_devpkg"
+    ''printf '%s\n' "''${COMPREPLY[@]}" | grep -Fx add >/dev/null''
+  ];
 in
 {
   "base.user" = mkCase {
     id = "base.user";
-    tags = baseline ++ [ "base" "user" ];
+    tags = baseline ++ [
+      "base"
+      "user"
+    ];
     command = [
       "bash"
       "-lc"
@@ -60,7 +67,10 @@ in
   };
   "base.filesystem" = mkCase {
     id = "base.filesystem";
-    tags = baseline ++ [ "base" "filesystem" ];
+    tags = baseline ++ [
+      "base"
+      "filesystem"
+    ];
     command = [
       "bash"
       "-lc"
@@ -69,7 +79,10 @@ in
   };
   "base.nix-store" = mkCase {
     id = "base.nix-store";
-    tags = baseline ++ [ "base" "nix" ];
+    tags = baseline ++ [
+      "base"
+      "nix"
+    ];
     command = [
       "bash"
       "-lc"
@@ -87,7 +100,10 @@ in
   };
   "fhs.ca-certificates" = mkCase {
     id = "fhs.ca-certificates";
-    tags = baseline ++ [ "fhs" "ca-certificates" ];
+    tags = baseline ++ [
+      "fhs"
+      "ca-certificates"
+    ];
     command = [
       "bash"
       "-lc"
@@ -101,7 +117,10 @@ in
   };
   "fhs.nix-ld" = mkCase {
     id = "fhs.nix-ld";
-    tags = baseline ++ [ "fhs" "nix-ld" ];
+    tags = baseline ++ [
+      "fhs"
+      "nix-ld"
+    ];
     command = [
       "bash"
       "-lc"
@@ -116,7 +135,10 @@ in
   };
   "nix.runtime" = mkCase {
     id = "nix.runtime";
-    tags = baseline ++ [ "nix" "runtime" ];
+    tags = baseline ++ [
+      "nix"
+      "runtime"
+    ];
     command = [
       "bash"
       "-lc"
@@ -134,7 +156,10 @@ in
   };
   "nixpkgs.config" = mkCase {
     id = "nixpkgs.config";
-    tags = baseline ++ [ "nix" "config" ];
+    tags = baseline ++ [
+      "nix"
+      "config"
+    ];
     command = [
       "bash"
       "-lc"
@@ -143,7 +168,10 @@ in
   };
   "shell.locale" = mkCase {
     id = "shell.locale";
-    tags = baseline ++ [ "shell" "locale" ];
+    tags = baseline ++ [
+      "shell"
+      "locale"
+    ];
     command = [
       "bash"
       "-lc"
@@ -170,7 +198,11 @@ in
   };
   "fontconfig.cjk-emoji" = mkCase {
     id = "fontconfig.cjk-emoji";
-    tags = baseline ++ [ "fontconfig" "cjk" "emoji" ];
+    tags = baseline ++ [
+      "fontconfig"
+      "cjk"
+      "emoji"
+    ];
     command = [
       "bash"
       "-lc"
@@ -179,7 +211,11 @@ in
   };
   "source-control.git-ssh" = mkCase {
     id = "source-control.git-ssh";
-    tags = baseline ++ [ "source-control" "git" "ssh" ];
+    tags = baseline ++ [
+      "source-control"
+      "git"
+      "ssh"
+    ];
     command = [
       "bash"
       "-ic"
@@ -188,7 +224,11 @@ in
   };
   "editor-support.tools" = mkCase {
     id = "editor-support.tools";
-    tags = [ "smoke" "tooling" "editor-support" ];
+    tags = [
+      "smoke"
+      "tooling"
+      "editor-support"
+    ];
     command = [
       "bash"
       "-lc"
@@ -197,7 +237,11 @@ in
   };
   "nix-index.tools" = mkCase {
     id = "nix-index.tools";
-    tags = [ "smoke" "tooling" "nix-index" ];
+    tags = [
+      "smoke"
+      "tooling"
+      "nix-index"
+    ];
     command = [
       "bash"
       "-lc"
@@ -206,7 +250,11 @@ in
   };
   "codex.cli" = mkCase {
     id = "codex.cli";
-    tags = [ "smoke" "tooling" "codex" ];
+    tags = [
+      "smoke"
+      "tooling"
+      "codex"
+    ];
     command = [
       "codex"
       "--version"
@@ -214,25 +262,65 @@ in
   };
   "language.nix" = mkCase {
     id = "language.nix";
-    tags = [ "smoke" "language" "nix" ];
+    tags = [
+      "smoke"
+      "language"
+      "nix"
+    ];
     command = [
       "bash"
       "-lc"
       "nixd --version && nixfmt --version && alejandra --version && statix --help >/dev/null && deadnix --version"
     ];
   };
-  "language.python" = mkCase {
-    id = "language.python";
-    tags = [ "smoke" "language" "python" ];
+  "runtime.python" = mkCase {
+    id = "runtime.python";
+    tags = [
+      "smoke"
+      "runtime"
+      "python"
+    ];
     command = [
       "bash"
       "-lc"
-      "python --version && uv --version && uvx --version && python -c 'import ssl, sqlite3, ctypes'"
+      "python --version && python3 --version && pip --version && pip3 --version && uv --version && uvx --version && python -c 'import ssl, sqlite3, ctypes'"
+    ];
+  };
+  "language.python" = mkCase {
+    id = "language.python";
+    tags = [
+      "smoke"
+      "language"
+      "python"
+    ];
+    command = [
+      "bash"
+      "-lc"
+      "pipx --version && ruff --version && mypy --version && pytest --version && ipython --version && black --version && pylint --version && bandit --version"
+    ];
+  };
+  "runtime.nodejs" = mkCase {
+    id = "runtime.nodejs";
+    tags = [
+      "smoke"
+      "runtime"
+      "nodejs"
+      "node"
+    ];
+    command = [
+      "bash"
+      "-lc"
+      "node --version && npm --version && npx --version && corepack --version"
     ];
   };
   "language.nodejs" = mkCase {
     id = "language.nodejs";
-    tags = [ "smoke" "language" "nodejs" "node" ];
+    tags = [
+      "smoke"
+      "language"
+      "nodejs"
+      "node"
+    ];
     command = [
       "bash"
       "-lc"
@@ -241,7 +329,11 @@ in
   };
   "language.go" = mkCase {
     id = "language.go";
-    tags = [ "smoke" "language" "go" ];
+    tags = [
+      "smoke"
+      "language"
+      "go"
+    ];
     command = [
       "bash"
       "-lc"
@@ -250,7 +342,11 @@ in
   };
   "language.rust" = mkCase {
     id = "language.rust";
-    tags = [ "smoke" "language" "rust" ];
+    tags = [
+      "smoke"
+      "language"
+      "rust"
+    ];
     command = [
       "bash"
       "-lc"
@@ -259,7 +355,11 @@ in
   };
   "language.flutter" = mkCase {
     id = "language.flutter";
-    tags = [ "smoke" "language" "flutter" ];
+    tags = [
+      "smoke"
+      "language"
+      "flutter"
+    ];
     command = [
       "bash"
       "-lc"
@@ -269,7 +369,12 @@ in
   };
   "runtime.android-sdk" = mkCase {
     id = "runtime.android-sdk";
-    tags = [ "smoke" "runtime" "android" "flutter" ];
+    tags = [
+      "smoke"
+      "runtime"
+      "android"
+      "flutter"
+    ];
     command = [
       "bash"
       "-lc"
@@ -278,7 +383,14 @@ in
   };
   "runtime.browser-gui-gpu" = mkCase {
     id = "runtime.browser-gui-gpu";
-    tags = [ "smoke" "runtime" "browser" "gui" "gpu" "flutter" ];
+    tags = [
+      "smoke"
+      "runtime"
+      "browser"
+      "gui"
+      "gpu"
+      "flutter"
+    ];
     command = [
       "bash"
       "-lc"
@@ -287,7 +399,12 @@ in
   };
   "language.flutter-rust-bridge" = mkCase {
     id = "language.flutter-rust-bridge";
-    tags = [ "smoke" "language" "flutter" "rust-bridge" ];
+    tags = [
+      "smoke"
+      "language"
+      "flutter"
+      "rust-bridge"
+    ];
     command = [
       "bash"
       "-lc"
@@ -296,7 +413,11 @@ in
   };
   "web.python" = mkCase {
     id = "web.python";
-    tags = [ "smoke" "web" "python" ];
+    tags = [
+      "smoke"
+      "web"
+      "python"
+    ];
     command = [
       "bash"
       "-lc"
@@ -305,7 +426,11 @@ in
   };
   "web.go" = mkCase {
     id = "web.go";
-    tags = [ "smoke" "web" "go" ];
+    tags = [
+      "smoke"
+      "web"
+      "go"
+    ];
     command = [
       "bash"
       "-lc"
@@ -314,7 +439,11 @@ in
   };
   "web.rust" = mkCase {
     id = "web.rust";
-    tags = [ "smoke" "web" "rust" ];
+    tags = [
+      "smoke"
+      "web"
+      "rust"
+    ];
     command = [
       "bash"
       "-lc"

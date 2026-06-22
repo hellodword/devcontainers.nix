@@ -124,9 +124,12 @@ let
       )
     ];
   };
-  pythonProfile = lib.findFirst (
+  pythonLanguageProfile = lib.findFirst (
     profile: profile.id == "language/python"
   ) (throw "language/python profile missing") pythonProfileEvalImage.profileReport.enabledProfiles;
+  pythonRuntimeProfile = lib.findFirst (
+    profile: profile.id == "runtime/python"
+  ) (throw "runtime/python profile missing") pythonProfileEvalImage.profileReport.enabledProfiles;
   pythonExtension = lib.findFirst (
     extension: extension.id == "ms-python.python"
   ) (throw "ms-python.python extension missing") pythonProfileEvalImage.vscodeExtensions.extensions;
@@ -316,9 +319,13 @@ reportChecks
     pkgs.writeText "contracts-compiler-env.json" (builtins.toJSON apiEvalImage.environment.report);
 
   contracts-compiler-profiles =
-    assert builtins.elem "uv" pythonProfile.packages;
-    assert pythonProfile.vscode.settings."python.defaultInterpreterPath" == "/usr/bin/python";
-    assert builtins.elem "language.python" pythonProfile.tests.capabilities;
+    assert builtins.elem "uv" pythonRuntimeProfile.packages;
+    assert builtins.elem "pip" pythonRuntimeProfile.packages;
+    assert builtins.elem "runtime.python" pythonRuntimeProfile.tests.capabilities;
+    assert builtins.hasAttr "runtime/python" pythonProfileEvalImage.graph.nodes;
+    assert builtins.elem "pipx" pythonLanguageProfile.packages;
+    assert pythonLanguageProfile.vscode.settings."python.defaultInterpreterPath" == "/usr/bin/python";
+    assert builtins.elem "language.python" pythonLanguageProfile.tests.capabilities;
     assert builtins.hasAttr "language/python" pythonProfileEvalImage.graph.nodes;
     assert pythonExtension.native;
     assert builtins.elem "python" pythonExtension.companionTools;
@@ -338,7 +345,12 @@ reportChecks
     assert builtins.elem "editor-support.tools" nixCapabilities;
     assert builtins.elem "nix-index.tools" nixCapabilities;
     assert builtins.elem "codex.cli" nixCapabilities;
-    pkgs.writeText "contracts-compiler-profiles.json" (builtins.toJSON pythonProfile);
+    pkgs.writeText "contracts-compiler-profiles.json" (
+      builtins.toJSON {
+        pythonLanguage = pythonLanguageProfile;
+        pythonRuntime = pythonRuntimeProfile;
+      }
+    );
 
   contracts-compiler-metadata =
     assert apiEvalImage.metadata.mergedPreview.userEnvProbe == "loginInteractiveShell";

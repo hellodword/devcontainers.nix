@@ -7,7 +7,6 @@ let
   cfg = config.devcontainer.languages.python;
   pythonPackages = if cfg.packageSet == null then pkgs.python3Packages else cfg.packageSet;
   packages = [
-    pkgs.uv
     pkgs.pipx
     pythonPackages.ruff
     pythonPackages.mypy
@@ -28,8 +27,6 @@ in
     sharing = "image-family";
     securityClass = "trusted";
     provides.commands = [
-      "uv"
-      "uvx"
       "pipx"
       "ruff"
       "mypy"
