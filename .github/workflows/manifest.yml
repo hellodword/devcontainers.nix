@@ -51,7 +51,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          mapfile -t targets < <(nix eval --json .#lib.x86_64-linux.imageNames | jq -r '.[]')
+          mapfile -t targets < <(nix eval --extra-experimental-features nix-command --extra-experimental-features flakes --json .#lib.x86_64-linux.imageNames | jq -r '.[]')
           mkdir -p manifest-artifacts
 
           for target in "${targets[@]}"; do
@@ -73,7 +73,7 @@ jobs:
             unzip -q "$zip_path" -d "$out_dir"
 
             digest="$(tr -d '\n' <"$out_dir/digest.txt")"
-            ci_plan="$(nix build ".#images.$target.ci-plan-json" --print-out-paths --no-link)"
+            ci_plan="$(nix build --extra-experimental-features nix-command --extra-experimental-features flakes ".#images.$target.ci-plan-json" --print-out-paths --no-link)"
             mapfile -t publish_refs < <(jq -r '.publishRefs[]' "$ci_plan")
 
             for target_ref in "${publish_refs[@]}"; do

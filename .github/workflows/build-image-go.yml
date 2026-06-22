@@ -35,7 +35,7 @@ jobs:
 
       - name: Build reports
         run: |
-          nix build .#images.go.reports --print-out-paths --no-link > report-path.txt
+          nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#images.go.reports --print-out-paths --no-link > report-path.txt
           cp -R "$(cat report-path.txt)" reports
 
       - name: Validate reports
@@ -50,7 +50,7 @@ jobs:
 
       - name: Build OCI image artifact
         run: |
-          nix build .#images.go.oci --print-out-paths --no-link > oci-path.txt
+          nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#images.go.oci --print-out-paths --no-link > oci-path.txt
 
       - name: Validate OCI image artifact
         run: |
@@ -58,14 +58,14 @@ jobs:
 
       - name: Load OCI image
         run: |
-          nix run .#load-go
+          nix run --extra-experimental-features nix-command --extra-experimental-features flakes .#load-go
 
       - name: Run smoke plan
         env:
           SMOKE_LOG_DIR: smoke-logs
         run: |
           image_ref="$(jq -r '.imageRef' reports/ci-plan.json)"
-          plan_path="$(nix build .#images.go.smoke --print-out-paths --no-link)"
+          plan_path="$(nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#images.go.smoke --print-out-paths --no-link)"
           chmod +x tests/smoke/run-plan.sh
           ./tests/smoke/run-plan.sh "$image_ref" "$plan_path"
 
