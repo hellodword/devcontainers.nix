@@ -8,36 +8,48 @@ let
       parts = lib.splitVersion version;
     in
     "${builtins.elemAt parts 0}.${builtins.elemAt parts 1}";
-  versionTarget = version: lib.replaceStrings [ "." ] [ "-" ] version;
+  versionTarget = version: lib.replaceStrings [ "." ] [ "_" ] version;
 
-  sortedGoVersions =
+  mkPackageVersionEntries =
+    {
+      attrPattern,
+      versionFromMatch,
+      versionFilter ? (_: true),
+    }:
     let
-      attrs = builtins.filter (name: builtins.match "go_[0-9]+_[0-9]+" name != null) (
-        builtins.attrNames pkgs
-      );
+      attrs = builtins.filter (name: builtins.match attrPattern name != null) (builtins.attrNames pkgs);
       mkEntry =
         attr:
         let
-          match = builtins.match "go_([0-9]+)_([0-9]+)" attr;
+          match = builtins.match attrPattern attr;
+          version = versionFromMatch match;
         in
         {
-          inherit attr;
-          version = "${builtins.elemAt match 0}.${builtins.elemAt match 1}";
+          inherit attr version;
           package = builtins.getAttr attr pkgs;
+          targetSuffix = versionTarget version;
         };
     in
-    lib.sort (a: b: lib.versionOlder b.version a.version) (map mkEntry attrs);
+    lib.sort (a: b: lib.versionOlder b.version a.version) (
+      builtins.filter (entry: versionFilter entry.version) (map mkEntry attrs)
+    );
+
+  previousVersionEntry =
+    name: latestVersion: entries:
+    lib.findFirst (
+      entry: entry.version != latestVersion
+    ) (throw "nixpkgs must expose a previous ${name} package") entries;
+
+  sortedGoVersions = mkPackageVersionEntries {
+    attrPattern = "go_([0-9]+)_([0-9]+)";
+    versionFromMatch = match: "${builtins.elemAt match 0}.${builtins.elemAt match 1}";
+  };
   goLatestPackage = if pkgs ? go_latest then pkgs.go_latest else pkgs.go;
   goLatestVersion = majorMinor goLatestPackage.version;
-  goPrevious = lib.findFirst (
-    entry: entry.version != goLatestVersion
-  ) (throw "nixpkgs must expose a previous Go major.minor package") sortedGoVersions;
+  goPrevious = previousVersionEntry "Go major.minor" goLatestVersion sortedGoVersions;
 
   sortedNodejsVersions =
     let
-      attrs = builtins.filter (name: builtins.match "nodejs_[0-9]+" name != null) (
-        builtins.attrNames pkgs
-      );
       isEvenMajor =
         version:
         builtins.elem (lib.substring (builtins.stringLength version - 1) 1 version) [
@@ -47,26 +59,16 @@ let
           "6"
           "8"
         ];
-      mkEntry =
-        attr:
-        let
-          match = builtins.match "nodejs_([0-9]+)" attr;
-        in
-        {
-          inherit attr;
-          version = builtins.elemAt match 0;
-          package = builtins.getAttr attr pkgs;
-        };
     in
-    lib.sort (a: b: lib.versionOlder b.version a.version) (
-      builtins.filter (entry: isEvenMajor entry.version) (map mkEntry attrs)
-    );
+    mkPackageVersionEntries {
+      attrPattern = "nodejs_([0-9]+)";
+      versionFromMatch = match: builtins.elemAt match 0;
+      versionFilter = isEvenMajor;
+    };
   nodejsLatestPackage =
     if pkgs ? nodejs_latest then pkgs.nodejs_latest else (builtins.head sortedNodejsVersions).package;
   nodejsLatestVersion = major nodejsLatestPackage.version;
-  nodejsPrevious = lib.findFirst (
-    entry: entry.version != nodejsLatestVersion
-  ) (throw "nixpkgs must expose a previous Node.js major package") sortedNodejsVersions;
+  nodejsPrevious = previousVersionEntry "Node.js major" nodejsLatestVersion sortedNodejsVersions;
 
   pythonLatestPackage = pkgs.python3;
   pythonLatestPackageSet = pkgs.python3Packages;
@@ -141,13 +143,13 @@ let
 
   imageTargetList = [
     (mkImageTarget {
-      target = "nix-latest";
+      target = "nix";
       family = "nix";
       tags = [ "latest" ];
       module = ../images/nix.nix;
     })
     (mkImageTarget {
-      target = "go-latest";
+      target = "go";
       family = "go";
       tags = [
         "latest"
@@ -157,7 +159,7 @@ let
       extraModules = goLatestRuntimeModules;
     })
     (mkImageTarget {
-      target = "go-${versionTarget goPrevious.version}";
+      target = "go-${goPrevious.targetSuffix}";
       family = "go";
       tags = [ goPrevious.version ];
       module = ../images/go.nix;
@@ -174,7 +176,7 @@ let
       extraModules = goLatestRuntimeModules;
     })
     (mkImageTarget {
-      target = "nodejs-latest";
+      target = "nodejs";
       family = "nodejs";
       tags = [
         "latest"
@@ -204,14 +206,14 @@ let
       extraModules = commonLatestRuntimeModules;
     })
     (mkImageTarget {
-      target = "python-web";
+      target = "python3-web";
       family = "python";
       tags = [ "web" ];
-      module = ../images/python-web.nix;
+      module = ../images/python3-web.nix;
       extraModules = commonLatestRuntimeModules;
     })
     (mkImageTarget {
-      target = "rust-latest";
+      target = "rust";
       family = "rust";
       tags = [ "latest" ];
       module = ../images/rust.nix;
@@ -225,7 +227,7 @@ let
       extraModules = rustLatestRuntimeModules;
     })
     (mkImageTarget {
-      target = "flutter-latest";
+      target = "flutter";
       family = "flutter";
       tags = [ "latest" ];
       module = ../images/flutter.nix;

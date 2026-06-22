@@ -9,14 +9,6 @@ let
   vscodeGui = import ../tests/e2e/vscode-gui.nix {
     inherit pkgs lib;
   };
-  canaryImages = [
-    "nix-latest"
-    "flutter-latest"
-  ];
-  canarySessions = [
-    "x11-xfce"
-    "wayland-kde"
-  ];
 in
 lib.listToAttrs (
   lib.concatMap (
@@ -29,6 +21,6 @@ lib.listToAttrs (
           image = images.${imageName};
         }
       )
-    ) canarySessions
-  ) canaryImages
+    ) vscodeGui.sessionNames
+  ) targets.imageNames
 )

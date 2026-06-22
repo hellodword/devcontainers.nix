@@ -16,7 +16,7 @@
       ''
         python3 ${../../tests/ci/check-report-cli.py} ${
           compiler.runtimePackages."devcontainer-image"
-        } ${images.nix-latest.reports} nix-latest
+        } ${images.nix.reports} nix
         touch "$out"
       '';
 }

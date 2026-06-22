@@ -388,20 +388,20 @@ sed -n '1,120p' /nix/store/...-chromium-.../bin/chromium
 Check report output from the reverted implementation:
 
 ```sh
-nix eval --json .#images.flutter-latest.browserSandbox.report
+nix eval --json .#images.flutter.browserSandbox.report
 ```
 
 Check generated shim content from the reverted implementation:
 
 ```sh
-nix build .#images.flutter-latest.browserSandbox.root --no-link --print-out-paths
-sed -n '1,180p' /nix/store/...-flutter-latest-customization-root/home/vscode/.local/share/devcontainer/bin/chromium
+nix build .#images.flutter.browserSandbox.root --no-link --print-out-paths
+sed -n '1,180p' /nix/store/...-flutter-customization-root/home/vscode/.local/share/devcontainer/bin/chromium
 ```
 
 Validate final image tar headers:
 
 ```sh
-nix build .#checks.x86_64-linux.image-nix_latest
+nix build .#checks.x86_64-linux.artifact-image-nix
 ```
 
 These commands are historical. They may not work after the revert unless a

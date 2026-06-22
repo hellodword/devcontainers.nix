@@ -44,26 +44,26 @@ Important paths:
 Build reports for one image:
 
 ```sh
-nix build .#images.nix-latest.reports
+nix build .#images.nix.reports
 ```
 
 Build the nix2container image artifact:
 
 ```sh
-nix build .#images.nix-latest.oci
+nix build .#images.nix.oci
 ```
 
 Load an image into the local Docker daemon:
 
 ```sh
-nix run .#load-nix-latest
+nix run .#load-nix
 nix run .#load-python3
 ```
 
 Build the generated font root or other compiler outputs through the `images.<name>` attr when debugging a specific compiler stage:
 
 ```sh
-nix build .#images.nix-latest.fonts.root --print-out-paths --no-link
+nix build .#images.nix.fonts.root --print-out-paths --no-link
 ```
 
 ## Smoke Tests
@@ -71,7 +71,7 @@ nix build .#images.nix-latest.fonts.root --print-out-paths --no-link
 After loading an image, run its smoke plan:
 
 ```sh
-nix run .#run-smoke-plan -- nix-latest
+nix run .#run-smoke-plan -- nix
 ```
 
 The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths come from nixpkgs. It still talks to the host Docker daemon and writes logs to `${SMOKE_LOG_DIR:-smoke-logs}`. It never accepts extra Docker run arguments and does not inject Docker daemon configuration into the container. It validates image capabilities that are owned by this repository; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
@@ -90,14 +90,14 @@ timeouts, or GUI readiness detection.
 
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
-3. Add the image target in `flake/targets.nix` with target name, family, tags, module, and any version override modules.
+3. Add the image target in `flake/targets.nix` with target name, family, tags, module, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
 4. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
 5. Run `nix flake check`.
 6. Build the image reports and inspect `graph.json`, `layer-plan.json`, and `metadata-label.json`.
 7. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
 8. Update [Usage](usage.md) if the published image contract changed.
 
-Use target names for local build outputs and smoke plans, for example `go-latest`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
+Use target names for local build outputs and smoke plans, for example `go`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
 
 ## Adding A Toolset
 
@@ -144,7 +144,7 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 7. Add image target wiring in `flake/targets.nix` if the language has version-specific tags.
 8. Update [Usage](usage.md) with the user-facing image reference or `devcontainer.json` examples.
 
-Version-specific language packages should be injected through small override modules in `flake/targets.nix`, following the Go, Node.js, Python, and Rust patterns.
+Version-specific language packages should be discovered from nixpkgs or the relevant overlay in `flake/targets.nix`, then injected through small override modules following the Go, Node.js, Python, and Rust patterns.
 
 ## Adding Compiler Behavior
 

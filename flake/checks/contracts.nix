@@ -9,22 +9,16 @@
 let
   repoRoot = ../..;
   reportLines = lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (
-      name: image:
-      ''
-        echo "checking reports for ${name}"
-        python3 ${../../tests/ci/check-reports.py} ${image.reports} ${name}
-      ''
-    ) images
+    lib.mapAttrsToList (name: image: ''
+      echo "checking reports for ${name}"
+      python3 ${../../tests/ci/check-reports.py} ${image.reports} ${name}
+    '') images
   );
   smokePlanLines = lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (
-      name: image:
-      ''
-        echo "checking smoke plan for ${name}"
-        python3 ${../../tests/ci/check-smoke-plan.py} ${image.smoke} ${image.profile-report-json} ${name}
-      ''
-    ) images
+    lib.mapAttrsToList (name: image: ''
+      echo "checking smoke plan for ${name}"
+      python3 ${../../tests/ci/check-smoke-plan.py} ${image.smoke} ${image.profile-report-json} ${name}
+    '') images
   );
   imageContracts = lib.mapAttrsToList (
     name: image:
@@ -47,9 +41,21 @@ let
     lib.findFirst (test: test.id == id) (throw "missing smoke case ${id}") (smokePlan image).tests;
   previousTargets = builtins.filter (
     name:
-    (lib.hasPrefix "go-" name && name != "go-latest" && name != "go-web")
-    || (lib.hasPrefix "nodejs-" name && name != "nodejs-latest")
+    (lib.hasPrefix "go-" name && name != "go" && name != "go-web")
+    || (lib.hasPrefix "nodejs-" name && name != "nodejs")
   ) imageNames;
+  requiredTargets = [
+    "nix"
+    "go"
+    "go-web"
+    "nodejs"
+    "python3"
+    "python3-web"
+    "rust"
+    "rust-web"
+    "flutter"
+  ];
+  latestSuffixTargets = builtins.filter (name: lib.hasSuffix "-latest" name) imageNames;
 
   apiEvalImage = compiler.mkImage {
     modules = [
@@ -80,7 +86,8 @@ let
             environment.interactiveShellInit = "export API_INTERACTIVE_SHELL_INIT=1";
             programs.git.enable = true;
             programs.ssh.enable = true;
-            programs.ssh.knownHosts.localhost.publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICodexCodexCodexCodexCodexCodexCodexCodexCodex";
+            programs.ssh.knownHosts.localhost.publicKey =
+              "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICodexCodexCodexCodexCodexCodexCodexCodexCodex";
             programs.nix-index.enable = true;
           };
         }
@@ -149,8 +156,10 @@ let
     ];
   };
   shellFeatureCapabilities = smokeCapabilities shellFeatureEvalImage;
-  shellFeatureInteractiveCommand = lib.concatStringsSep " " (smokeCase "shell.interactive" shellFeatureEvalImage).command;
-  shellFeatureDevpkgCommand = lib.concatStringsSep " " (smokeCase "devpkg.core" shellFeatureEvalImage).command;
+  shellFeatureInteractiveCommand = lib.concatStringsSep " " (smokeCase "shell.interactive" shellFeatureEvalImage)
+  .command;
+  shellFeatureDevpkgCommand = lib.concatStringsSep " " (smokeCase "devpkg.core" shellFeatureEvalImage)
+  .command;
   flutterCoreEvalImage = compiler.mkImage {
     modules = [
       (
@@ -169,7 +178,7 @@ let
     ];
   };
   flutterCoreCapabilities = smokeCapabilities flutterCoreEvalImage;
-  nixLatestCapabilities = smokeCapabilities images."nix-latest";
+  nixCapabilities = smokeCapabilities images."nix";
 
   invalidKnownHostsRejected =
     !(builtins.tryEval (
@@ -244,26 +253,35 @@ let
 in
 {
   contracts-reports-all =
-    pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-      export CHECK_SMOKE_PLAN=${../../tests/ci/check-smoke-plan.py}
-      ${reportLines}
-      touch "$out"
-    '';
+    pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pkgs.python3 ]; }
+      ''
+        export CHECK_SMOKE_PLAN=${../../tests/ci/check-smoke-plan.py}
+        ${reportLines}
+        touch "$out"
+      '';
 
   contracts-smoke-plan-all =
-    pkgs.runCommand "contracts-smoke-plan-all" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-      ${smokePlanLines}
-      touch "$out"
-    '';
+    pkgs.runCommand "contracts-smoke-plan-all" { nativeBuildInputs = [ pkgs.python3 ]; }
+      ''
+        ${smokePlanLines}
+        touch "$out"
+      '';
 
   contracts-hermetic-checks =
-    pkgs.runCommand "contracts-hermetic-checks" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-      python3 ${../../tests/ci/check-hermetic-default-checks.py} ${repoRoot}
-      touch "$out"
-    '';
+    pkgs.runCommand "contracts-hermetic-checks" { nativeBuildInputs = [ pkgs.python3 ]; }
+      ''
+        python3 ${../../tests/ci/check-hermetic-default-checks.py} ${repoRoot}
+        touch "$out"
+      '';
 
   contracts-image-targets =
     assert builtins.length previousTargets >= 2;
+    assert latestSuffixTargets == [ ];
+    assert lib.all (name: builtins.elem name imageNames) requiredTargets;
+    assert lib.all (
+      name:
+      (builtins.match "go-[0-9]+_[0-9]+" name != null) || (builtins.match "nodejs-[0-9]+" name != null)
+    ) previousTargets;
     assert lib.all (contract: contract.publishRefs != [ ]) imageContracts;
     assert lib.all (contract: contract.smokeCapabilities != [ ]) imageContracts;
     pkgs.writeText "contracts-image-targets.json" (
@@ -302,9 +320,9 @@ in
     assert !(builtins.elem "runtime.android-sdk" flutterCoreCapabilities);
     assert !(builtins.elem "runtime.browser-gui-gpu" flutterCoreCapabilities);
     assert !(builtins.elem "language.flutter-rust-bridge" flutterCoreCapabilities);
-    assert builtins.elem "editor-support.tools" nixLatestCapabilities;
-    assert builtins.elem "nix-index.tools" nixLatestCapabilities;
-    assert builtins.elem "codex.cli" nixLatestCapabilities;
+    assert builtins.elem "editor-support.tools" nixCapabilities;
+    assert builtins.elem "nix-index.tools" nixCapabilities;
+    assert builtins.elem "codex.cli" nixCapabilities;
     pkgs.writeText "contracts-compiler-profiles.json" (builtins.toJSON pythonProfile);
 
   contracts-compiler-metadata =
@@ -314,5 +332,7 @@ in
     assert invalidKnownHostsRejected;
     assert unsupportedSudoRejected;
     assert missingCompanionToolRejected;
-    pkgs.writeText "contracts-compiler-metadata.json" (builtins.toJSON apiEvalImage.metadata.schemaReport);
+    pkgs.writeText "contracts-compiler-metadata.json" (
+      builtins.toJSON apiEvalImage.metadata.schemaReport
+    );
 }

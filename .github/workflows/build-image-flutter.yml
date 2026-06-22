@@ -1,4 +1,4 @@
-name: build-image-nix-latest
+name: build-image-flutter
 
 on:
   workflow_dispatch:
@@ -15,12 +15,12 @@ on:
       - .github/workflows/**
 
 concurrency:
-  group: build-image-nix-latest
+  group: build-image-flutter
   cancel-in-progress: true
 
 jobs:
   build:
-    name: build-nix-latest
+    name: build-flutter
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -44,37 +44,37 @@ jobs:
 
       - name: Build reports
         run: |
-          nix build .#images.nix-latest.reports --print-out-paths --no-link > report-path.txt
+          nix build .#images.flutter.reports --print-out-paths --no-link > report-path.txt
           cp -R "$(cat report-path.txt)" reports
 
       - name: Validate reports
         run: |
-          python3 tests/ci/check-reports.py reports "nix-latest"
+          python3 tests/ci/check-reports.py reports "flutter"
 
       - name: Upload reports
         uses: actions/upload-artifact@v7
         with:
-          name: reports-nix-latest
+          name: reports-flutter
           path: reports
 
       - name: Build OCI image artifact
         run: |
-          nix build .#images.nix-latest.oci --print-out-paths --no-link > oci-path.txt
+          nix build .#images.flutter.oci --print-out-paths --no-link > oci-path.txt
 
       - name: Validate OCI image artifact
         run: |
-          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" reports "nix-latest"
+          python3 tests/ci/check-image-tar.py "$(cat oci-path.txt)" reports "flutter"
 
       - name: Load OCI image
         run: |
-          nix run .#load-nix-latest
+          nix run .#load-flutter
 
       - name: Run smoke plan
         env:
           SMOKE_LOG_DIR: smoke-logs
         run: |
           image_ref="$(jq -r '.imageRef' reports/ci-plan.json)"
-          plan_path="$(nix build .#images.nix-latest.smoke --print-out-paths --no-link)"
+          plan_path="$(nix build .#images.flutter.smoke --print-out-paths --no-link)"
           chmod +x tests/smoke/run-plan.sh
           ./tests/smoke/run-plan.sh "$image_ref" "$plan_path"
 
@@ -82,7 +82,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: smoke-logs-nix-latest
+          name: smoke-logs-flutter
           path: smoke-logs
 
       - name: Login to GHCR
@@ -110,5 +110,5 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v7
         with:
-          name: digest-nix-latest
+          name: digest-flutter
           path: digest.txt

@@ -1,6 +1,6 @@
 { self }:
 {
-  image = self.images."python-web";
+  image = self.images."python3-web";
   expectedNodes = [
     "language/python"
     "language/nodejs"

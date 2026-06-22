@@ -1,7 +1,7 @@
 { ... }:
 {
   config.devcontainer.profiles = {
-    "image/python-web" = {
+    "image/python3-web" = {
       kind = "image";
       group = "99-fallback";
       packages = [ ];

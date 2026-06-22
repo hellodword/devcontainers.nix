@@ -1,6 +1,6 @@
 { self }:
 {
-  image = self.images."nodejs-latest";
+  image = self.images."nodejs";
   expectedNodes = [
     "runtime/python"
     "runtime/nodejs"

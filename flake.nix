@@ -182,7 +182,7 @@
         imagePackages
         // e2ePackages
         // {
-          default = images."nix-latest".reports;
+          default = images."nix".reports;
           "devcontainer-image" = compiler.runtimePackages."devcontainer-image";
           "devcontainer-gui-env" = compiler.runtimePackages."devcontainer-gui-env";
           "devcontainer-task-runner" = compiler.runtimePackages."devcontainer-task-runner";
@@ -192,7 +192,7 @@
         };
 
       apps.${system} = imageLoadApps // {
-        default = imageLoadApps."load-nix-latest";
+        default = imageLoadApps."load-nix";
         generate-workflows = {
           type = "app";
           program = "${workflows.generateWorkflows}/bin/generate-workflows";

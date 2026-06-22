@@ -8,7 +8,7 @@ The main target platform is `x86_64-linux`.
 
 There are four concepts to understand first:
 
-1. An image target is a named build such as `go-latest`, `python-web`, or `flutter-latest`.
+1. An image target is a named build such as `go`, `python3-web`, or `flutter`.
 2. A module writes typed settings. Project-specific image contract remains under `devcontainer.*`, while maintainer-facing NixOS-like subsets such as `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, `programs.*`, and `nix.*` describe static image content.
 3. A graph node groups related package paths or generated files into a semantic unit such as `language/go`, `toolset/docker-client`, or `runtime/fonts`.
 4. The compiler reads the final module configuration and produces an OCI image plus reports that explain what was built.
@@ -60,7 +60,7 @@ The larger flake internals live under `flake/`:
 
 `flake/targets.nix` defines image targets with:
 
-- a target name, used by local build outputs such as `images.go-latest`
+- a target name, used by local build outputs such as `images.go`
 - a family name, used in the registry image name such as `devcontainers-go`
 - tags, used in published image references
 - one image module under `images/`
@@ -70,17 +70,17 @@ Examples:
 
 | Target | Registry family | Tags | Base module |
 | --- | --- | --- | --- |
-| `nix-latest` | `devcontainers-nix` | `latest` | `images/nix.nix` |
-| `go-latest` | `devcontainers-go` | `latest`, current Go major/minor | `images/go.nix` |
-| `go-1-25` | `devcontainers-go` | `1.25` | `images/go.nix` |
+| `nix` | `devcontainers-nix` | `latest` | `images/nix.nix` |
+| `go` | `devcontainers-go` | `latest`, current Go major/minor | `images/go.nix` |
+| `go-1_25` | `devcontainers-go` | `1.25` | `images/go.nix` |
 | `go-web` | `devcontainers-go` | `web` | `images/go-web.nix` |
-| `nodejs-latest` | `devcontainers-nodejs` | `latest`, current Node.js major | `images/nodejs.nix` |
+| `nodejs` | `devcontainers-nodejs` | `latest`, current Node.js major | `images/nodejs.nix` |
 | `nodejs-24` | `devcontainers-nodejs` | `24` | `images/nodejs.nix` |
 | `python3` | `devcontainers-python` | `latest`, current Python major/minor | `images/python.nix` |
-| `python-web` | `devcontainers-python` | `web` | `images/python-web.nix` |
-| `rust-latest` | `devcontainers-rust` | `latest` | `images/rust.nix` |
+| `python3-web` | `devcontainers-python` | `web` | `images/python3-web.nix` |
+| `rust` | `devcontainers-rust` | `latest` | `images/rust.nix` |
 | `rust-web` | `devcontainers-rust` | `web` | `images/rust-web.nix` |
-| `flutter-latest` | `devcontainers-flutter` | `latest` | `images/flutter.nix` |
+| `flutter` | `devcontainers-flutter` | `latest` | `images/flutter.nix` |
 
 The published reference for a family is:
 
