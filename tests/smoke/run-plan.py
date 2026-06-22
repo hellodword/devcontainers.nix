@@ -83,6 +83,14 @@ def write_and_print(log_file: Path, text: str, *, stderr: bool = False) -> None:
     print(text, end="", file=sys.stderr if stderr else sys.stdout)
 
 
+def decode_process_output(output: bytes | str | None) -> str:
+    if output is None:
+        return ""
+    if isinstance(output, bytes):
+        return output.decode(errors="replace")
+    return output
+
+
 def run_test(image_ref: str, test: dict, smoke_log_dir: Path) -> int:
     test_id = test.get("id")
     timeout_seconds = int(test.get("timeoutSeconds", 30))
@@ -113,19 +121,16 @@ def run_test(image_ref: str, test: dict, smoke_log_dir: Path) -> int:
     try:
         result = subprocess.run(
             docker_command,
-            text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             timeout=timeout_seconds,
         )
-        output = header + (result.stdout or "")
+        output = header + decode_process_output(result.stdout)
         log_file.write_text(output, encoding="utf-8")
         print(output, end="")
         return result.returncode
     except subprocess.TimeoutExpired as exc:
-        partial = exc.stdout or ""
-        if isinstance(partial, bytes):
-            partial = partial.decode(errors="replace")
+        partial = decode_process_output(exc.stdout)
         output = header + partial + f"timeout after {timeout_seconds}s\n"
         log_file.write_text(output, encoding="utf-8")
         print(output, end="")
