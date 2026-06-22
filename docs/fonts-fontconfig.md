@@ -274,7 +274,7 @@ After loading an image, run the normal smoke plan:
 
 ```sh
 nix run .#load-nix-latest
-tests/smoke/run-plan.sh nix-latest
+nix run .#run-smoke-plan -- nix-latest
 ```
 
 Useful manual checks inside a container:

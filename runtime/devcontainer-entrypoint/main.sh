@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 current_user="$(id -un 2>/dev/null || true)"

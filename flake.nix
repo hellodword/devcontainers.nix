@@ -148,6 +148,16 @@
       imagePackages = lib.mapAttrs' (
         name: image: lib.nameValuePair "devcontainer-${name}" image.oci
       ) images;
+      smokePlanRunner = pkgs.writeShellApplication {
+        name = "run-smoke-plan";
+        runtimeInputs = [
+          pkgs.docker
+          pkgs.nix
+        ];
+        text = ''
+          exec ${pkgs.python3}/bin/python3 ${./tests/smoke/run-plan.py} "$@"
+        '';
+      };
       nixfmtFormatter = pkgs.writeShellApplication {
         name = "nixfmt";
         runtimeInputs = [
@@ -187,6 +197,11 @@
           type = "app";
           program = "${workflows.generateWorkflows}/bin/generate-workflows";
           meta.description = "Regenerate checked-in image build workflows";
+        };
+        run-smoke-plan = {
+          type = "app";
+          program = "${smokePlanRunner}/bin/run-smoke-plan";
+          meta.description = "Run an image smoke-test plan against the host Docker daemon";
         };
       };
 

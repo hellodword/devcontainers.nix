@@ -278,6 +278,8 @@ in
     assert apiEvalImage.env.containerEnv.TZDIR == "/etc/zoneinfo";
     assert builtins.elem "/etc/api/example.conf" (map (entry: entry.path) apiEvalImage.environment.etc);
     assert builtins.elem "man" apiEvalImage.environment.report.extraOutputsToInstall;
+    assert lib.hasInfix "complete -p git" apiEvalImage.shell.bashrcText;
+    assert lib.hasInfix "share/bash-completion/completions/git" apiEvalImage.shell.bashrcText;
     pkgs.writeText "contracts-compiler-env.json" (builtins.toJSON apiEvalImage.environment.report);
 
   contracts-compiler-profiles =
@@ -295,6 +297,7 @@ in
     assert !(lib.hasInfix "bash-completion" shellFeatureInteractiveCommand);
     assert !(lib.hasInfix "command_not_found_handle" shellFeatureInteractiveCommand);
     assert !(lib.hasInfix "complete -p devpkg" shellFeatureDevpkgCommand);
+    assert !(lib.hasInfix "complete -p git" shellFeatureEvalImage.shell.bashrcText);
     assert builtins.elem "language.flutter" flutterCoreCapabilities;
     assert !(builtins.elem "runtime.android-sdk" flutterCoreCapabilities);
     assert !(builtins.elem "runtime.browser-gui-gpu" flutterCoreCapabilities);

@@ -6,12 +6,26 @@ let
       inherit name runtimeInputs;
       text = builtins.readFile scriptPath;
     };
-  devpkgApp = writeShellApp "devpkg" [
-    pkgs.bash
-    pkgs.coreutils
-    pkgs.jq
+  writePythonApp =
+    name: runtimeInputs: scriptPath:
+    pkgs.runCommand name
+      {
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+      }
+      (
+        ''
+          mkdir -p "$out/bin"
+          substitute ${scriptPath} "$out/bin/${name}" \
+            --replace-fail '#!/usr/bin/env python3' '#!${pkgs.python3}/bin/python3'
+          chmod +x "$out/bin/${name}"
+        ''
+        + lib.optionalString (runtimeInputs != [ ]) ''
+          wrapProgram "$out/bin/${name}" --prefix PATH : ${lib.makeBinPath runtimeInputs}
+        ''
+      );
+  devpkgApp = writePythonApp "devpkg" [
     pkgs.nix
-  ] ./devpkg/main.sh;
+  ] ./devpkg/main.py;
   devpkgCompletionText = ''
     _devpkg()
     {
@@ -100,21 +114,12 @@ in
   "devcontainer-gui-env" = writeShellApp "devcontainer-gui-env" [
     pkgs.coreutils
   ] ./devcontainer-gui-env/main.sh;
-  "devcontainer-task-runner" = writeShellApp "devcontainer-task-runner" [
-    pkgs.bash
-    pkgs.coreutils
-    pkgs.findutils
-    pkgs.gnugrep
-    pkgs.jq
-    pkgs.moreutils
-  ] ./devcontainer-task-runner/main.sh;
-  "vscode-extension-projector" = writeShellApp "vscode-extension-projector" [
-    pkgs.bash
-    pkgs.coreutils
-    pkgs.findutils
-    pkgs.gnugrep
-    pkgs.jq
-  ] ./vscode-extension-projector/main.sh;
+  "devcontainer-task-runner" =
+    writePythonApp "devcontainer-task-runner" [ ]
+      ./devcontainer-task-runner/main.py;
+  "vscode-extension-projector" =
+    writePythonApp "vscode-extension-projector" [ ]
+      ./vscode-extension-projector/main.py;
   devpkg = pkgs.symlinkJoin {
     name = "devpkg";
     paths = [
@@ -122,11 +127,5 @@ in
       devpkgCompletion
     ];
   };
-  "devcontainer-image" = writeShellApp "devcontainer-image" [
-    pkgs.bash
-    pkgs.coreutils
-    pkgs.diffutils
-    pkgs.gnugrep
-    pkgs.jq
-  ] ./devcontainer-image/main.sh;
+  "devcontainer-image" = writePythonApp "devcontainer-image" [ ] ./devcontainer-image/main.py;
 }

@@ -48,6 +48,33 @@ def require_symlink(rootfs: pathlib.Path, absolute_path: str, target: str):
         fail(f"rootfs {absolute_path} must point to {target}, got {actual}")
 
 
+def require_declared_commands(rootfs: pathlib.Path, reports_dir: pathlib.Path):
+    profile_report = read_json(reports_dir / "profile-report.json")
+    provided_commands = profile_report.get("provides", {}).get("commands") or []
+    search_dirs = [
+        "/usr/local/bin",
+        "/usr/local/sbin",
+        "/usr/bin",
+        "/usr/sbin",
+        "/bin",
+        "/sbin",
+    ]
+    missing = []
+    invalid = []
+
+    for command in sorted(set(provided_commands)):
+        if not command or "/" in command:
+            invalid.append(command)
+            continue
+        if not any(root_path(rootfs, f"{directory}/{command}").exists() for directory in search_dirs):
+            missing.append(command)
+
+    if invalid:
+        fail(f"profile-report.json declares invalid command names: {', '.join(invalid)}")
+    if missing:
+        fail(f"profile-report.json declares commands missing from rootfs PATH: {', '.join(missing)}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("rootfs", type=pathlib.Path)
@@ -131,6 +158,8 @@ def main() -> int:
         fail("filesystem report must declare /run/user/1000 owner as vscode:vscode")
     if runtime_report.get("mode") != "0700":
         fail("filesystem report must declare /run/user/1000 mode as 0700")
+
+    require_declared_commands(args.rootfs, args.reports_dir)
 
     extensions_index = read_json(root_path(args.rootfs, "/usr/share/devcontainer/vscode/extensions-index.json"))
     projection_targets = set(extensions_index.get("projectionTargets") or [])

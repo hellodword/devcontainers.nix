@@ -71,10 +71,10 @@ nix build .#images.nix-latest.fonts.root --print-out-paths --no-link
 After loading an image, run its smoke plan:
 
 ```sh
-tests/smoke/run-plan.sh nix-latest
+nix run .#run-smoke-plan -- nix-latest
 ```
 
-The smoke runner never accepts extra Docker run arguments and does not inject Docker daemon configuration into the container. It validates image capabilities that are owned by this repository; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
+The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths come from nixpkgs. It still talks to the host Docker daemon and writes logs to `${SMOKE_LOG_DIR:-smoke-logs}`. It never accepts extra Docker run arguments and does not inject Docker daemon configuration into the container. It validates image capabilities that are owned by this repository; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
 
 ## Heavy VS Code GUI E2E
 
@@ -94,7 +94,7 @@ timeouts, or GUI readiness detection.
 4. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
 5. Run `nix flake check`.
 6. Build the image reports and inspect `graph.json`, `layer-plan.json`, and `metadata-label.json`.
-7. Load the image and run `tests/smoke/run-plan.sh <target>` when runtime behavior changed.
+7. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
 8. Update [Usage](usage.md) if the published image contract changed.
 
 Use target names for local build outputs and smoke plans, for example `go-latest`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
@@ -167,7 +167,7 @@ Runtime helpers live in `runtime/` and are packaged by `runtime/default.nix`.
 When changing a helper:
 
 1. Keep the helper runnable outside the image when possible.
-2. Add or update the focused helper suite in `tests/ci/check-devpkg.sh`, `tests/ci/check-task-runner.sh`, `tests/ci/check-vscode-extension-projector.sh`, or `tests/ci/check-gui-env.sh`.
+2. Add or update the focused helper suite in `tests/ci/check-devpkg.py`, `tests/ci/check-task-runner.py`, `tests/ci/check-vscode-extension-projector.py`, or `tests/ci/check-gui-env.py`.
 3. If the helper is installed into the image, confirm the image compiler includes it in the runtime root or generated filesystem.
 4. Document user-visible commands in [Usage](usage.md).
 
@@ -187,8 +187,8 @@ When changing it, check:
 - `lib/modules/core/options.nix`
 - `lib/modules/core/libraries.nix`
 - `lib/compiler/libraries.nix`
-- `runtime/devpkg/main.sh`
-- the focused helper suite under `tests/ci/check-*.sh`
+- `runtime/devpkg/main.py`
+- the focused helper suite under `tests/ci/check-*.py`
 - `tests/ci/check-reports.py`
 - `docs/usage.md`
 - `docs/architecture.md`

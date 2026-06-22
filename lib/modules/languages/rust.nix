@@ -38,7 +38,9 @@ in
       "clippy-driver"
       "rust-analyzer"
       "cargo-nextest"
-      "cargo-edit"
+      "cargo-add"
+      "cargo-rm"
+      "cargo-upgrade"
       "cargo-audit"
       "rustup"
     ];

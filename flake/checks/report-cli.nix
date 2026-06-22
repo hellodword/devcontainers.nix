@@ -1,18 +1,20 @@
-{ pkgs, compiler, images, ... }:
+{
+  pkgs,
+  compiler,
+  images,
+  ...
+}:
 
 {
   report-cli-core =
     pkgs.runCommand "report-cli-core"
       {
         nativeBuildInputs = [
-          pkgs.bash
-          pkgs.coreutils
-          pkgs.gnugrep
-          pkgs.jq
+          pkgs.python3
         ];
       }
       ''
-        bash ${../../tests/ci/check-report-cli.sh} ${
+        python3 ${../../tests/ci/check-report-cli.py} ${
           compiler.runtimePackages."devcontainer-image"
         } ${images.nix-latest.reports} nix-latest
         touch "$out"

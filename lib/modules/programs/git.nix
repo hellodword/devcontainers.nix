@@ -35,6 +35,13 @@ let
       export GIT_PS1_SHOWUNTRACKEDFILES=1
     fi
   '';
+  completionHook =
+    lib.optionalString (config.programs.bash.enable && config.programs.bash.completion.enable)
+      ''
+        if ! complete -p git >/dev/null 2>&1 && [ -r ${cfg.package}/share/bash-completion/completions/git ]; then
+          . ${cfg.package}/share/bash-completion/completions/git
+        fi
+      '';
   vscodeGitEditorHook = ''
     if [ -z "$(${cfg.package}/bin/git config --get core.editor)" ] && [ -z "''${GIT_EDITOR:-}" ]; then
       if [ "''${TERM_PROGRAM:-}" = "vscode" ]; then
@@ -52,7 +59,7 @@ in
     lib.mkMerge [
       {
         environment.etc."gitconfig".text = gitConfigText;
-        environment.interactiveShellInit = vscodeGitEditorHook;
+        environment.interactiveShellInit = completionHook + vscodeGitEditorHook;
       }
 
       (lib.mkIf (attributesText != "") {

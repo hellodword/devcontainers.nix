@@ -21,7 +21,7 @@ in
     securityClass = "trusted";
     provides.commands = [
       "yaml-language-server"
-      "minijinja"
+      "minijinja-cli"
       "protoc"
       "protols"
     ];

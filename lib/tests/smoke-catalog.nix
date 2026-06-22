@@ -192,7 +192,7 @@ in
     command = [
       "bash"
       "-lc"
-      "yaml-language-server --version && minijinja --version && protoc --version && protols --version"
+      "yaml-language-server --version && minijinja-cli --version && protoc --version && protols --version"
     ];
   };
   "nix-index.tools" = mkCase {

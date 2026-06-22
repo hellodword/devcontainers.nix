@@ -6,7 +6,14 @@
 let
   cfg = config.devcontainer.runtimes.nodejs;
   nodejs = if cfg.package == null then pkgs.nodejs else cfg.package;
-  packages = [ nodejs ];
+  corepackCommand = pkgs.runCommand "corepack-command" { } ''
+    mkdir -p "$out/bin"
+    ln -s ${pkgs.corepack}/bin/corepack "$out/bin/corepack"
+  '';
+  packages = [
+    nodejs
+    corepackCommand
+  ];
 in
 {
   config.devcontainer.profiles."runtime/nodejs" = {
