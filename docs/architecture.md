@@ -112,7 +112,7 @@ Some maintainer-facing options intentionally reuse familiar NixOS names:
 - `i18n.defaultLocale`, `i18n.extraLocaleSettings`, and `i18n.glibcLocales`
 - `time.timeZone`
 - `security.pki.*` for CA certificates only
-- `programs.bash`, `programs.git`, `programs.ssh`, `programs.direnv`, `programs.nix-index`, and `programs.nix-ld`
+- `programs.bash`, `programs.git`, `programs.ssh`, `programs.nix-index`, and `programs.nix-ld`
 - `nix.settings`
 
 This reuse is scoped to static OCI image generation. The project does not import NixOS modules or imply NixOS runtime semantics. Do not add APIs that require a service manager, daemon lifecycle, PAM, polkit, setuid wrappers, sudo, multi-user account management, or a Docker daemon inside the devcontainer.

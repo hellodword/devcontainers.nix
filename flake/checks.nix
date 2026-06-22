@@ -218,7 +218,6 @@ let
               knownHosts.localhost.publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICodexCodexCodexCodexCodexCodexCodexCodexCodex";
               extraConfig = "  StrictHostKeyChecking accept-new";
             };
-            programs.direnv.enable = true;
             programs.nix-index.enable = true;
             programs.nix-ld.libraries = [ pkgs.zlib ];
             nix.settings.substituters = [ "https://cache.nixos.org/" ];
@@ -524,7 +523,6 @@ let
     assert builtins.elem "/etc/gitattributes" etcPaths;
     assert builtins.elem "/etc/ssh/ssh_config" etcPaths;
     assert builtins.elem "/etc/ssh/ssh_known_hosts" etcPaths;
-    assert builtins.elem "/etc/direnv/direnvrc" etcPaths;
     assert builtins.elem "/etc/nix/nix.conf" etcPaths;
     assert builtins.elem "man" environmentReport.extraOutputsToInstall;
     assert builtins.elem "/man" layerPathsToLink;

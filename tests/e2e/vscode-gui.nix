@@ -491,7 +491,6 @@ let
         git-system-config
         git-bash-completion
         ssh-global-config
-        direnv-hook
         '
 
         require test -f "$smoke_plan"

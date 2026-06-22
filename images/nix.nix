@@ -14,7 +14,6 @@
       "toolset/search-navigation".enable = lib.mkDefault true;
       "toolset/inspect-debug".enable = lib.mkDefault true;
       "toolset/workflow-format".enable = lib.mkDefault true;
-      "program/direnv".enable = lib.mkDefault true;
       "toolset/editor-support".enable = lib.mkDefault true;
       "toolset/docker-client".enable = lib.mkDefault true;
       "toolset/nix-index".enable = lib.mkDefault true;

@@ -38,7 +38,6 @@ lib.evalModules {
 
     ../modules/programs/git.nix
     ../modules/programs/ssh.nix
-    ../modules/programs/direnv.nix
     ../modules/programs/nix-index.nix
 
     ../modules/toolsets/foundation.nix

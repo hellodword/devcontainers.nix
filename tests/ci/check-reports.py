@@ -236,7 +236,6 @@ def main() -> int:
         "/etc/gitconfig",
         "/etc/ssh/ssh_config",
         "/etc/ssh/ssh_known_hosts",
-        "/etc/direnv/direnvrc",
     ]:
         if required_etc not in reported_etc_paths:
             fail(f"environment report missing generated etc file: {required_etc}")
@@ -544,7 +543,6 @@ def main() -> int:
         "/etc/gitconfig",
         "/etc/ssh/ssh_config",
         "/etc/ssh/ssh_known_hosts",
-        "/etc/direnv/direnvrc",
     ]:
         if required_etc not in filesystem_etc_paths:
             fail(f"filesystem-report.json missing generated etc file: {required_etc}")

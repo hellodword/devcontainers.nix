@@ -28,7 +28,7 @@ Important paths:
 | `flake/` | Maintainer flake internals: image targets, checks, and workflow generation. |
 | `images/` | Small image-family modules that combine shared modules. |
 | `lib/modules/core/` | Shared image contract: options, user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, VS Code extensions, FHS runtime. |
-| `lib/modules/programs/` | Static program integrations such as Git, SSH, direnv, and nix-index. |
+| `lib/modules/programs/` | Static program integrations such as Git, SSH, and nix-index. |
 | `lib/modules/toolsets/` | Reusable command groups such as source control, Docker client, data/network, and debug tools. |
 | `lib/modules/runtimes/` | Shared language runtimes used by multiple image families. |
 | `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter. |
@@ -133,7 +133,7 @@ Keep toolsets focused. A package belongs in a toolset when it is useful across m
 
 Use `lib/modules/programs/` for static program integrations that need generated `/etc` files or shell hooks.
 
-Allowed NixOS-like surfaces are the static subset documented in [Architecture](architecture.md): `programs.git`, `programs.ssh`, `programs.direnv`, `programs.nix-index`, `programs.nix-ld`, `programs.bash`, `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, and `nix.settings`.
+Allowed NixOS-like surfaces are the static subset documented in [Architecture](architecture.md): `programs.git`, `programs.ssh`, `programs.nix-index`, `programs.nix-ld`, `programs.bash`, `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, and `nix.settings`.
 
 Do not add NixOS APIs that imply runtime service management, privilege elevation, PAM, polkit, sudo, setuid wrappers, multi-user state, or a Docker daemon. Unknown `services.*`, `users.users`, `users.groups`, and `virtualisation.docker.enable` usage should stay unsupported.
 

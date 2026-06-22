@@ -93,7 +93,7 @@ Other important defaults:
 - `/etc/localtime`, `/etc/zoneinfo`, and `TZDIR=/etc/zoneinfo` are present
 - `fontconfig` and Noto Latin, CJK, symbol, and emoji fonts are installed
 - Docker client tools are installed, but no Docker daemon is started inside the container
-- Git, OpenSSH client tools, direnv, nix-direnv, and nix-index are available in the base image set
+- Git, OpenSSH client tools, and nix-index are available in the base image set
 - `LD_LIBRARY_PATH` is not exported by default
 
 ## Adding Packages
@@ -204,7 +204,7 @@ If a non-Nix toolchain or FFI loader needs `LD_LIBRARY_PATH`, opt in explicitly:
 
 ## Advanced Runtime Overrides
 
-The image already includes system-level Git, SSH, CA, timezone, direnv, and nix-index support. Project-specific overrides should stay in `devcontainer.json` or mounted project files, not in a published image.
+The image already includes system-level Git, SSH, CA, timezone, and nix-index support. Project-specific overrides should stay in `devcontainer.json` or mounted project files, not in a published image.
 
 Example with project-local Git/SSH/CA/timezone settings:
 
@@ -219,7 +219,7 @@ Example with project-local Git/SSH/CA/timezone settings:
     "GIT_SSL_CAINFO": "/workspaces/${localWorkspaceFolderBasename}/.devcontainer/ca-bundle.pem",
     "GIT_SSH_COMMAND": "ssh -F /workspaces/${localWorkspaceFolderBasename}/.devcontainer/ssh_config"
   },
-  "postCreateCommand": "git config --global include.path /workspaces/${localWorkspaceFolderBasename}/.devcontainer/gitconfig && direnv allow . || true"
+  "postCreateCommand": "git config --global include.path /workspaces/${localWorkspaceFolderBasename}/.devcontainer/gitconfig"
 }
 ```
 

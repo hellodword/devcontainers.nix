@@ -560,25 +560,6 @@ in
         };
       };
 
-      direnv = {
-        enable = mkOption {
-          type = types.bool;
-          default = false;
-        };
-        package = mkOption {
-          type = types.package;
-          default = pkgs.direnv;
-        };
-        nix-direnv.enable = mkOption {
-          type = types.bool;
-          default = true;
-        };
-        nix-direnv.package = mkOption {
-          type = types.package;
-          default = pkgs.nix-direnv;
-        };
-      };
-
       nix-index = {
         enable = mkOption {
           type = types.bool;
