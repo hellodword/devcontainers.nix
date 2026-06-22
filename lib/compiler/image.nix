@@ -146,7 +146,7 @@ let
 
   runtimeRoot = mkUsrMergedBuildEnv {
     name = "${config.devcontainer.image.name}-runtime-root";
-    paths = runtimeTools;
+    paths = runtimeTools ++ compiledShell.imagePaths;
     pathsToLink = [
       "/bin"
       "/share"

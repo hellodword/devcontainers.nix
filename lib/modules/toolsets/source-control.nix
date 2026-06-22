@@ -43,6 +43,14 @@ in
             ];
           }
           {
+            name = "git-bash-completion";
+            command = [
+              "bash"
+              "-ic"
+              "COMP_WORDS=(git che) && COMP_CWORD=1 && _comp_complete_load git >/dev/null 2>&1 || true; complete -p git >/dev/null && COMP_WORDS=(git che) && COMP_CWORD=1 && __git_wrap__git_main git che git && printf '%s\\n' \"\${COMPREPLY[@]}\" | grep -Fx 'checkout ' >/dev/null"
+            ];
+          }
+          {
             name = "ssh-global-config";
             command = [
               "bash"

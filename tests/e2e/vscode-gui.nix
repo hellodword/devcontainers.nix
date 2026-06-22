@@ -489,6 +489,7 @@ let
         filesystem-writable
         nix-single-user-root
         git-system-config
+        git-bash-completion
         ssh-global-config
         direnv-hook
         '

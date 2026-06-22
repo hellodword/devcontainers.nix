@@ -139,7 +139,7 @@ in
           command = [
             "bash"
             "-ic"
-            "type _init_completion >/dev/null || complete -p >/dev/null"
+            "test -r /usr/share/bash-completion/bash_completion && type _comp_complete_load >/dev/null && complete -p -D >/dev/null"
           ];
         }
       ];
