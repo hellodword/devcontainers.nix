@@ -22,6 +22,11 @@ The flake builds 11 image targets. Target names are used for local Nix outputs, 
 
 `go`, `nodejs`, and `python3` also publish version tags for their current language line when the target defines one.
 
+```shell
+nix eval --json .#images \
+    --apply 'images: builtins.mapAttrs (_: image: "${image.oci.imageName}:${image.oci.imageTag}") images' | jq -r 'to_entries[] | "\(.value)"'
+```
+
 ## Basic Devcontainer
 
 Minimal Go project:
