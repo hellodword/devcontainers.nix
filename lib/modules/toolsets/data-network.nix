@@ -4,8 +4,6 @@
 }:
 let
   packages = with pkgs; [
-    postgresql
-    redis
     httpie
   ];
 in
