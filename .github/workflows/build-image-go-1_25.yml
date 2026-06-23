@@ -13,6 +13,10 @@ concurrency:
   group: build-image-go-1_25
   cancel-in-progress: true
 
+env:
+  CACHIX_CACHE_NAME: hellodword-codex
+  CACHIX_PUBLIC_KEY: hellodword-codex.cachix.org-1:0URmcnC9aynWh9+FJ2tf+HQloylGgZzPtrz3sttTTiQ=
+
 jobs:
   build:
     name: build-go-1_25
@@ -80,6 +84,8 @@ jobs:
             "experimental-features = nix-command flakes" \
             "max-jobs = auto" \
             "trusted-users = root ${USER}" \
+            "extra-substituters = https://${CACHIX_CACHE_NAME}.cachix.org" \
+            "extra-trusted-public-keys = ${CACHIX_PUBLIC_KEY}" \
             | sudo tee -a /etc/nix/nix.conf
 
           sudo systemctl restart nix-daemon
@@ -210,6 +216,8 @@ jobs:
             "experimental-features = nix-command flakes" \
             "max-jobs = auto" \
             "trusted-users = root ${USER}" \
+            "extra-substituters = https://${CACHIX_CACHE_NAME}.cachix.org" \
+            "extra-trusted-public-keys = ${CACHIX_PUBLIC_KEY}" \
             | sudo tee -a /etc/nix/nix.conf
 
           sudo systemctl restart nix-daemon
