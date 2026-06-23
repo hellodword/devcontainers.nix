@@ -46,21 +46,56 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Nix
+
+      - name: Install Nix with official installer
+        shell: bash
         run: |
-          sudo mkdir -p /etc/nix
-          printf '%s\n' 'experimental-features = nix-command flakes' | sudo tee -a /etc/nix/nix.conf
-          curl -L https://nixos.org/nix/install | sh -s -- --daemon --yes
-          echo '/nix/var/nix/profiles/default/bin' >> "$GITHUB_PATH"
+          set -euxo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y xz-utils
+
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon
+
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+          echo "NIX_REMOTE=daemon" >> "$GITHUB_ENV"
+
+          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+
+          nix --version
+
+      - name: Configure Nix
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          sudo sed -i \
+            -e '/^experimental-features[[:space:]]*=/d' \
+            -e '/^max-jobs[[:space:]]*=/d' \
+            -e '/^substituters[[:space:]]*=/d' \
+            -e '/^trusted-public-keys[[:space:]]*=/d' \
+            -e '/^trusted-users[[:space:]]*=/d' \
+            /etc/nix/nix.conf
+
+          printf '%s\n' \
+            "experimental-features = nix-command flakes" \
+            "max-jobs = auto" \
+            "trusted-users = root ${USER}" \
+            | sudo tee -a /etc/nix/nix.conf
+
+          sudo systemctl restart nix-daemon
+
+          nix config show experimental-features
+          nix config show substituters
 
       - name: Build reports
         run: |
-          nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#images.go-web.reports --print-out-paths --no-link > report-path.txt
+          nix build --accept-flake-config .#images.go-web.reports --print-out-paths --no-link > report-path.txt
           cp -R "$(cat report-path.txt)" reports
 
       - name: Validate reports
         run: |
-          nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#checks.x86_64-linux.reports-go-web --no-link
+          nix build --accept-flake-config .#checks.x86_64-linux.reports-go-web --no-link
 
       - name: Upload reports
         uses: actions/upload-artifact@v7
@@ -70,21 +105,21 @@ jobs:
 
       - name: Build OCI image artifact
         run: |
-          nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#images.go-web.oci --print-out-paths --no-link > oci-path.txt
+          nix build --accept-flake-config .#images.go-web.oci --print-out-paths --no-link > oci-path.txt
 
       - name: Validate OCI image artifact
         run: |
-          nix build --extra-experimental-features nix-command --extra-experimental-features flakes .#checks.x86_64-linux.artifact-image-go-web --no-link
+          nix build --accept-flake-config .#checks.x86_64-linux.artifact-image-go-web --no-link
 
       - name: Load OCI image
         run: |
-          nix run --extra-experimental-features nix-command --extra-experimental-features flakes .#load-go-web
+          nix run --accept-flake-config .#load-go-web
 
       - name: Run smoke plan
         env:
           SMOKE_LOG_DIR: smoke-logs
         run: |
-          nix run --extra-experimental-features nix-command --extra-experimental-features flakes .#run-smoke-plan -- go-web
+          nix run --accept-flake-config .#run-smoke-plan -- go-web
 
       - name: Upload smoke logs
         if: always()
@@ -142,12 +177,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Nix
+      - name: Install Nix with official installer
+        shell: bash
         run: |
-          sudo mkdir -p /etc/nix
-          printf '%s\n' 'experimental-features = nix-command flakes' | sudo tee -a /etc/nix/nix.conf
-          curl -L https://nixos.org/nix/install | sh -s -- --daemon --yes
-          echo '/nix/var/nix/profiles/default/bin' >> "$GITHUB_PATH"
+          set -euxo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y xz-utils
+
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon
+
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+          echo "NIX_REMOTE=daemon" >> "$GITHUB_ENV"
+
+          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+
+          nix --version
+
+      - name: Configure Nix
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          sudo sed -i \
+            -e '/^experimental-features[[:space:]]*=/d' \
+            -e '/^max-jobs[[:space:]]*=/d' \
+            -e '/^substituters[[:space:]]*=/d' \
+            -e '/^trusted-public-keys[[:space:]]*=/d' \
+            -e '/^trusted-users[[:space:]]*=/d' \
+            /etc/nix/nix.conf
+
+          printf '%s\n' \
+            "experimental-features = nix-command flakes" \
+            "max-jobs = auto" \
+            "trusted-users = root ${USER}" \
+            | sudo tee -a /etc/nix/nix.conf
+
+          sudo systemctl restart nix-daemon
+
+          nix config show experimental-features
+          nix config show substituters
 
       - name: Enable KVM
         run: |
