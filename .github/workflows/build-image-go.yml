@@ -46,7 +46,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-
       - name: Install Nix with official installer
         shell: bash
         run: |
@@ -234,8 +233,7 @@ jobs:
           attr=".#e2e-vscode-go-${{ matrix.session }}"
           drv_path="$(
             nix path-info \
-              --extra-experimental-features nix-command \
-              --extra-experimental-features flakes \
+              --accept-flake-config \
               --derivation \
               "$attr"
           )"
@@ -243,8 +241,7 @@ jobs:
 
           set +e
           NO_COLOR=1 TERM=dumb nix build \
-            --extra-experimental-features nix-command \
-            --extra-experimental-features flakes \
+            --accept-flake-config \
             "$attr" \
             --print-out-paths \
             --no-link \
