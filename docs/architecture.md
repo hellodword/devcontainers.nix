@@ -34,7 +34,7 @@ The flake pins the dependency set:
 - `rust-overlay`
 - `nix-vscode-extensions`
 - `nix-index-database`
-- `llm-agents`
+- `agents-misc`
 - `nix2container`
 
 The top-level package set is imported once for `x86_64-linux` with shared nixpkgs policy:

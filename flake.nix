@@ -19,10 +19,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    llm-agents = {
-      url = "github:numtide/llm-agents.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    agents-misc.url = "github:hellodword/agents-misc";
 
     nix2container = {
       url = "github:nlewo/nix2container";
@@ -37,7 +34,7 @@
       rust-overlay,
       nix-vscode-extensions,
       nix-index-database,
-      llm-agents,
+      agents-misc,
       nix2container,
       ...
     }:
@@ -49,30 +46,7 @@
         oraclejdk.accept_license = true;
         allowUnsupportedSystem = true;
       };
-      projectOverlays = [
-        (
-          final: prev:
-          let
-            codexPatch = final.fetchpatch {
-              name = "timeout-overrides.patch";
-              url = "https://raw.githubusercontent.com/hellodword/agents-misc/refs/heads/master/codex/patches/rust-v0.141.0.patch";
-              hash = "sha256-LbAKgxbZKvsnO6V98W80sDI4hxqxLagGK2yY7Ox6+7g=";
-            };
-          in
-          {
-            llm-agents = prev.llm-agents // {
-              codex = prev.llm-agents.codex.overrideAttrs (old: {
-                postPatch = (old.postPatch or "") + ''
-                  (
-                    cd ..
-                    patch -p1 < ${codexPatch}
-                  )
-                '';
-              });
-            };
-          }
-        )
-      ];
+      projectOverlays = [ ];
       nixpkgsOverlays = [
         nix-vscode-extensions.overlays.default
         (final: prev: {
@@ -83,7 +57,7 @@
         })
         rust-overlay.overlays.default
         nix-index-database.overlays.nix-index
-        llm-agents.overlays.default
+        agents-misc.overlays.default
       ]
       ++ projectOverlays;
       pkgs = import nixpkgs {

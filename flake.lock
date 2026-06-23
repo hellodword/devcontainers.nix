@@ -1,12 +1,33 @@
 {
   "nodes": {
+    "agents-misc": {
+      "inputs": {
+        "llm-agents": "llm-agents",
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "lastModified": 1782198564,
+        "narHash": "sha256-EKPqhjdkedqWucSKbuv5xOuNWVt5bdVu7JrdXq6XKyE=",
+        "owner": "hellodword",
+        "repo": "agents-misc",
+        "rev": "fbb2352f4e74e18159ce71192fbd5c31f674ffce",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hellodword",
+        "repo": "agents-misc",
+        "type": "github"
+      }
+    },
     "blueprint": {
       "inputs": {
         "nixpkgs": [
+          "agents-misc",
           "llm-agents",
           "nixpkgs"
         ],
         "systems": [
+          "agents-misc",
           "llm-agents",
           "systems"
         ]
@@ -28,18 +49,22 @@
     "bun2nix": {
       "inputs": {
         "flake-parts": [
+          "agents-misc",
           "llm-agents",
           "flake-parts"
         ],
         "nixpkgs": [
+          "agents-misc",
           "llm-agents",
           "nixpkgs"
         ],
         "systems": [
+          "agents-misc",
           "llm-agents",
           "systems"
         ],
         "treefmt-nix": [
+          "agents-misc",
           "llm-agents",
           "treefmt-nix"
         ]
@@ -61,6 +86,7 @@
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
+          "agents-misc",
           "llm-agents",
           "nixpkgs"
         ]
@@ -85,17 +111,18 @@
         "bun2nix": "bun2nix",
         "flake-parts": "flake-parts",
         "nixpkgs": [
+          "agents-misc",
           "nixpkgs"
         ],
         "systems": "systems",
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1782109184,
-        "narHash": "sha256-AR6RSK2b8SLGWSDqlni+OnAp8z5NqZo5Lih3+4J4Jdo=",
+        "lastModified": 1782192798,
+        "narHash": "sha256-QF9SB2T03wrPlkOZAx3N7IkbR8XqlsQ5wdbpYX48I8w=",
         "owner": "numtide",
         "repo": "llm-agents.nix",
-        "rev": "1a30e47b2e639c3286f6379d2811711ce4906950",
+        "rev": "404f4ca6ecc83245410004f7949369ab31776fdc",
         "type": "github"
       },
       "original": {
@@ -111,11 +138,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781422160,
-        "narHash": "sha256-W7S8O86bVrw2gaomEwkHStOzmPpnFIHQ6lS4Q2HffJ0=",
+        "lastModified": 1782030356,
+        "narHash": "sha256-h4WpMr455AfRub0FXBaon6Vcpe0waUyJ4GivIW6oyd4=",
         "owner": "nix-community",
         "repo": "nix-index-database",
-        "rev": "854d04e2368fb2e9c328a36b3c0a04cd713bfae1",
+        "rev": "3017088b49efd404f78e3b104f553b97e4af786b",
         "type": "github"
       },
       "original": {
@@ -131,11 +158,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781844943,
-        "narHash": "sha256-0nNEl0eJX4TRZS+IIgS0zcXPXUywmvpZH392ad1me9Y=",
+        "lastModified": 1782187352,
+        "narHash": "sha256-mZ26pjHZPcDoCy7KYIoOe7FGofmsQzsYXtlN+gqcVyE=",
         "owner": "nix-community",
         "repo": "nix-vscode-extensions",
-        "rev": "c964ff7750c6794b44ad44f4a76c9d33c1ec489d",
+        "rev": "cf6c44bb3a6268ef0cb018208b35b8561f37431c",
         "type": "github"
       },
       "original": {
@@ -166,6 +193,22 @@
     },
     "nixpkgs": {
       "locked": {
+        "lastModified": 1781607440,
+        "narHash": "sha256-rxO+uc/KFbSJp+pgyXRuAX6QlG9hJdnt0BXpEQRXY+U=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "3e41b24abd260e8f71dbe2f5737d24122f972158",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
         "lastModified": 1781577229,
         "narHash": "sha256-lrp67w8AulE9Ks53n27I45ADSzbOCn4H+CNW1Ck8B+8=",
         "owner": "NixOS",
@@ -182,11 +225,11 @@
     },
     "root": {
       "inputs": {
-        "llm-agents": "llm-agents",
+        "agents-misc": "agents-misc",
         "nix-index-database": "nix-index-database",
         "nix-vscode-extensions": "nix-vscode-extensions",
         "nix2container": "nix2container",
-        "nixpkgs": "nixpkgs",
+        "nixpkgs": "nixpkgs_2",
         "rust-overlay": "rust-overlay"
       }
     },
@@ -197,11 +240,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781850613,
-        "narHash": "sha256-UL/f++6fbg1MSC63NSynUVsww+DSay0N5TsbFzLZIsQ=",
+        "lastModified": 1782184651,
+        "narHash": "sha256-4XHdXp3MRa++XiGkltJChCtdbCmSlNTwQRfWQOhqbRw=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "4baecb43a008cd004e5220a777e1724bd8d43e43",
+        "rev": "f59bc28dd0b89e9c0240d1b80195559fc79c2471",
         "type": "github"
       },
       "original": {
@@ -228,6 +271,7 @@
     "treefmt-nix": {
       "inputs": {
         "nixpkgs": [
+          "agents-misc",
           "llm-agents",
           "nixpkgs"
         ]
