@@ -42,7 +42,7 @@ in
     libraries.presets = [ "cgo" ];
     vscode = {
       extensions."golang.go" = {
-        native = true;
+        native = false;
         bucket = "84-vscode-extensions-go";
         companionTools = [
           "go"

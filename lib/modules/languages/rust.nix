@@ -47,7 +47,7 @@ in
     libraries.presets = [ "rust-bindgen" ];
     vscode = {
       extensions."rust-lang.rust-analyzer" = {
-        native = true;
+        native = false;
         bucket = "85-vscode-extensions-rust";
         companionTools = [
           "rust-analyzer"

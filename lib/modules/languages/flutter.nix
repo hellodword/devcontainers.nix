@@ -42,12 +42,12 @@ in
       vscode = {
         extensions = {
           "dart-code.dart-code" = {
-            native = true;
+            native = false;
             bucket = "86-vscode-extensions-flutter";
             companionTools = [ "dart" ];
           };
           "dart-code.flutter" = {
-            native = true;
+            native = false;
             bucket = "86-vscode-extensions-flutter";
             companionTools = [
               "flutter"

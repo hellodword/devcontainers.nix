@@ -39,17 +39,17 @@ in
     vscode = {
       extensions = {
         "ms-python.python" = {
-          native = true;
+          native = false;
           bucket = "82-vscode-extensions-python";
           companionTools = [ "python" ];
         };
         "ms-python.vscode-pylance" = {
-          native = true;
+          native = false;
           bucket = "82-vscode-extensions-python";
           companionTools = [ "python" ];
         };
         "ms-python.autopep8" = {
-          native = true;
+          native = false;
           bucket = "82-vscode-extensions-python";
           companionTools = [ "python" ];
         };
