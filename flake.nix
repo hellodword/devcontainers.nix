@@ -76,7 +76,7 @@
           ;
       };
 
-      targets = import ./flake/targets.nix { inherit pkgs lib; };
+      targets = import ./images { inherit pkgs lib; };
       images = lib.mapAttrs (
         _: target: compiler.mkImage { inherit (target) modules; }
       ) targets.imageTargets;

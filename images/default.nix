@@ -89,6 +89,7 @@ let
       family,
       tags,
       module,
+      docs,
       extraModules ? [ ],
     }:
     {
@@ -97,6 +98,7 @@ let
         family
         tags
         module
+        docs
         extraModules
         ;
       modules = [
@@ -146,7 +148,8 @@ let
       target = "nix";
       family = "nix";
       tags = [ "latest" ];
-      module = ../images/nix.nix;
+      module = ./nix.nix;
+      docs.useWhen = "Use for Nix flakes, Nix modules, shell tooling, and general repositories that still benefit from Python and Node.js runtimes.";
       extraModules = commonLatestRuntimeModules ++ [
         (
           { lib, ... }:
@@ -167,14 +170,16 @@ let
         "latest"
         goLatestVersion
       ];
-      module = ../images/go.nix;
+      module = ./go.nix;
+      docs.useWhen = "Use for current Go projects with common Go tools.";
       extraModules = goLatestRuntimeModules;
     })
     (mkImageTarget {
       target = "go-${goPrevious.targetSuffix}";
       family = "go";
       tags = [ goPrevious.version ];
-      module = ../images/go.nix;
+      module = ./go.nix;
+      docs.useWhen = "Use for the previous Go major/minor line exposed by this repository.";
       extraModules = [
         (goVersionModule goPrevious.package)
       ]
@@ -184,7 +189,8 @@ let
       target = "go-web";
       family = "go";
       tags = [ "web" ];
-      module = ../images/go-web.nix;
+      module = ./go-web.nix;
+      docs.useWhen = "Use for Go services that also need web and data tools.";
       extraModules = goLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -194,14 +200,16 @@ let
         "latest"
         nodejsLatestVersion
       ];
-      module = ../images/nodejs.nix;
+      module = ./nodejs.nix;
+      docs.useWhen = "Use for Node.js, TypeScript, frontend, and package-manager heavy projects.";
       extraModules = commonLatestRuntimeModules;
     })
     (mkImageTarget {
       target = "nodejs-${nodejsPrevious.version}";
       family = "nodejs";
       tags = [ nodejsPrevious.version ];
-      module = ../images/nodejs.nix;
+      module = ./nodejs.nix;
+      docs.useWhen = "Use for the previous even Node.js major line exposed by this repository.";
       extraModules = [
         (pythonVersionModule pythonLatestPackage pythonLatestPackageSet)
         (nodejsVersionModule nodejsPrevious.package)
@@ -214,35 +222,40 @@ let
         "latest"
         pythonLatestVersion
       ];
-      module = ../images/python.nix;
+      module = ./python.nix;
+      docs.useWhen = "Use for Python projects with uv, pipx, formatters, linters, and test tools.";
       extraModules = commonLatestRuntimeModules;
     })
     (mkImageTarget {
       target = "python3-web";
       family = "python3";
       tags = [ "web" ];
-      module = ../images/python3-web.nix;
+      module = ./python3-web.nix;
+      docs.useWhen = "Use for Python services that also need web and data tools.";
       extraModules = commonLatestRuntimeModules;
     })
     (mkImageTarget {
       target = "rust";
       family = "rust";
       tags = [ "latest" ];
-      module = ../images/rust.nix;
+      module = ./rust.nix;
+      docs.useWhen = "Use for Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers.";
       extraModules = rustLatestRuntimeModules;
     })
     (mkImageTarget {
       target = "rust-web";
       family = "rust";
       tags = [ "web" ];
-      module = ../images/rust-web.nix;
+      module = ./rust-web.nix;
+      docs.useWhen = "Use for Rust services that also need web and data tools.";
       extraModules = rustLatestRuntimeModules;
     })
     (mkImageTarget {
       target = "flutter";
       family = "flutter";
       tags = [ "latest" ];
-      module = ../images/flutter.nix;
+      module = ./flutter.nix;
+      docs.useWhen = "Use for Flutter, Dart, Android, and Chromium-backed web workflows.";
       extraModules = rustLatestRuntimeModules;
     })
   ];

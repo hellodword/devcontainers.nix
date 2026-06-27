@@ -16,7 +16,7 @@ There are four concepts to understand first:
 The high-level flow is:
 
 ```text
-flake/targets.nix image target
+images/default.nix image target
   -> Nix module evaluation
   -> profile compiler
   -> graph, environment, library, metadata, test-plan, shell, font, filesystem compilers
@@ -51,9 +51,11 @@ Inputs that provide packages are consumed through overlays. That means modules n
 
 `flake.nix` keeps the top-level assembly small: it pins inputs, imports the package set, creates the compiler, wires image outputs, and exposes packages, apps, checks, and library metadata.
 
+The target registry lives in `images/default.nix`; it discovers language package
+versions and defines the image target list next to the image modules it owns.
+
 The larger flake internals live under `flake/`:
 
-- `flake/targets.nix` discovers language package versions and defines the image target list.
 - `flake/docs.nix` renders checked-in documentation snippets from the target list and exposes `generate-docs`.
 - `flake/checks.nix` aggregates focused check suites under `flake/checks/`: contracts, tooling, artifacts, report CLI behavior, and generated workflow synchronization.
 - `flake/workflows.nix` renders per-image GitHub Actions workflows, exposes `generate-workflows`, and checks that generated workflow files are synchronized with the template and target list.
@@ -61,7 +63,7 @@ The larger flake internals live under `flake/`:
 
 ## Image Targets
 
-`flake/targets.nix` defines image targets with:
+`images/default.nix` defines image targets with:
 
 - a target name, used by local build outputs such as `images.go`
 - a family name, used in the registry image name such as `devcontainers-go`

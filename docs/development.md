@@ -110,7 +110,7 @@ timeouts, or GUI readiness detection.
 
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
-3. Add the image target in `flake/targets.nix` with target name, family, tags, module, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
+3. Add the image target in `images/default.nix` with target name, family, tags, module, `docs.useWhen`, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
 4. Run `nix run .#generate-docs` when targets, families, tags, or published image references changed.
 5. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
 6. Run `nix flake check`.
@@ -162,11 +162,11 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 4. Define one or more `devcontainer.profiles` leaf profiles for packages, environment variables, path segments, VS Code extensions, settings, aliases, library presets, lifecycle tasks, and capability declarations.
 5. Define a bundle profile only when a named stack should enable multiple leaf profiles without owning resources itself.
 6. Add a capability in `lib/tests/smoke-catalog.nix` when the module exposes user-visible behavior that should run in a real container.
-7. Add image target wiring in `flake/targets.nix` if the language has version-specific tags.
+7. Add image target wiring in `images/default.nix` if the language has version-specific tags.
 8. Run `nix run .#generate-docs` if image targets, families, or tags changed.
 9. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed beyond the generated reference table.
 
-Version-specific language packages should be discovered from nixpkgs or the relevant overlay in `flake/targets.nix`, then injected through small override modules following the Go, Node.js, Python, and Rust patterns.
+Version-specific language packages should be discovered from nixpkgs or the relevant overlay in `images/default.nix`, then injected through small override modules following the Go, Node.js, Python, and Rust patterns.
 
 ## Adding Compiler Behavior
 

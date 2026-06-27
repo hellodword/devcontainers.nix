@@ -6,9 +6,9 @@ selection, report content, workflow policy, or E2E behavior changes here.
 
 ## Drift Scope
 
-- `flake/docs.nix` owns `docsMetadata` separately from the image target list.
-- `flake/targets.nix` owns `imageTargetList`, while image modules under
-  `images/` own part of `devcontainer.image`.
+- `flake/docs.nix` owned documentation text separately from the image target list.
+- The legacy flake target registry owned `imageTargetList`, while image modules
+  owned part of `devcontainer.image`.
 - `lib/compiler/reports.nix` separately lists report derivations, link farm
   entries, and `ci-plan.json` `reportFiles`.
 - `tests/ci/check-reports.py` keeps its own required report file lists.
@@ -16,8 +16,8 @@ selection, report content, workflow policy, or E2E behavior changes here.
   `lib/compiler/image.nix`, and `flake/checks/tooling.nix`.
 - `tests/e2e/vscode-gui.nix` owns session names, while
   `docs/e2e-testing.md` hand-writes the session table.
-- `tests/fixtures/*.nix` files are not referenced by default checks, smoke
-  tests, or E2E tests.
+- Legacy fixture files under the test fixture directory are not referenced by
+  default checks, smoke tests, or E2E tests.
 
 ## Baseline Commands
 
