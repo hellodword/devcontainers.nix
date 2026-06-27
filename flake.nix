@@ -98,6 +98,7 @@
           nixpkgs
           compiler
           images
+          targets
           workflows
           ;
       };

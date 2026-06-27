@@ -5,6 +5,7 @@
   nixpkgs,
   compiler,
   images,
+  targets,
   workflows,
 }:
 
@@ -17,6 +18,7 @@ let
       nixpkgs
       compiler
       images
+      targets
       workflows
       ;
   };

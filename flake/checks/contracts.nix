@@ -3,6 +3,7 @@
   lib,
   compiler,
   images,
+  targets,
   ...
 }:
 
@@ -48,6 +49,40 @@ let
     }
   ) images;
   imageNames = builtins.attrNames images;
+  targetNames = map (target: target.target) targets.imageTargetList;
+  sortedTargetNames = lib.sort builtins.lessThan targetNames;
+  uniqueTargetNames = lib.unique targetNames;
+  nonEmptyString = value: builtins.isString value && value != "";
+  targetRegistryContracts = map (
+    target:
+    let
+      indexedTarget = targets.imageTargets.${target.target};
+      imageConfig = images.${target.target}.config.devcontainer.image;
+    in
+    {
+      name = target.target;
+      registry = {
+        inherit (target)
+          family
+          tags
+          ;
+        docsUseWhen = target.docs.useWhen or null;
+      };
+      compiled = {
+        name = imageConfig.name;
+        family = imageConfig.family;
+        tags = imageConfig.tags;
+      };
+      indexedTargetMatches =
+        indexedTarget.target == target.target
+        && indexedTarget.family == target.family
+        && indexedTarget.tags == target.tags
+        && indexedTarget.docs.useWhen == target.docs.useWhen;
+      docsValid = target ? docs && target.docs ? useWhen && nonEmptyString target.docs.useWhen;
+      compiledMatches =
+        imageConfig.name == target.target && imageConfig.family == target.family && imageConfig.tags == target.tags;
+    }
+  ) targets.imageTargetList;
   smokePlan = image: image.reportData.smokePlan;
   smokeCapabilities = image: (smokePlan image).capabilities;
   smokeCase =
@@ -77,7 +112,8 @@ let
     (lib.hasPrefix "go-" name && name != "go" && name != "go-web")
     || (lib.hasPrefix "nodejs-" name && name != "nodejs")
   ) imageNames;
-  requiredTargets = [
+  # Publishing policy: these public image targets must remain exposed.
+  requiredImageFamiliesOrTargets = [
     "nix"
     "go"
     "go-web"
@@ -462,7 +498,14 @@ reportChecks
   contracts-image-targets =
     assert builtins.length previousTargets >= 2;
     assert latestSuffixTargets == [ ];
-    assert lib.all (name: builtins.elem name imageNames) requiredTargets;
+    assert targetNames == targets.imageNames;
+    assert sortedTargetNames == imageNames;
+    assert builtins.length uniqueTargetNames == builtins.length targetNames;
+    assert lib.all nonEmptyString targetNames;
+    assert lib.all (contract: contract.indexedTargetMatches) targetRegistryContracts;
+    assert lib.all (contract: contract.docsValid) targetRegistryContracts;
+    assert lib.all (contract: contract.compiledMatches) targetRegistryContracts;
+    assert lib.all (name: builtins.elem name imageNames) requiredImageFamiliesOrTargets;
     assert lib.all (
       name:
       (builtins.match "go-[0-9]+_[0-9]+" name != null) || (builtins.match "nodejs-[0-9]+" name != null)
@@ -472,6 +515,7 @@ reportChecks
     pkgs.writeText "contracts-image-targets.json" (
       builtins.toJSON {
         previousTargets = previousTargets;
+        registry = targetRegistryContracts;
         images = imageContracts;
       }
     );
