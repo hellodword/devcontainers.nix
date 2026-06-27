@@ -182,51 +182,10 @@ let
     shellInitHasNoSideEffects = true;
   };
   smoke-test-plan-json = jsonFile "smoke-test-plan.json" smokePlan;
-  ci-plan-json = jsonFile "ci-plan.json" {
-    image = config.devcontainer.image.name;
-    family = config.devcontainer.image.family;
-    tag = imageTag;
-    imageRef = imageRef;
-    publishRefs = publishRefs;
-    architectures = config.devcontainer.image.architectures;
-    reportFiles = [
-      "graph.json"
-      "metadata-merged-preview.json"
-      "metadata-schema-report.json"
-      "profile-report.json"
-      "image-plan.json"
-      "layer-plan.json"
-      "metadata-label.json"
-      "env-report.json"
-      "libraries-report.json"
-      "closure-report.json"
-      "extensions-index.json"
-      "extensions-report.json"
-      "fhs-runtime-report.json"
-      "fontconfig-report.json"
-      "shell-report.json"
-      "filesystem-report.json"
-      "security-report.json"
-      "smoke-test-plan.json"
-    ];
-  };
-
-  reports = pkgs.linkFarm "reports-${config.devcontainer.image.name}" [
+  baseReportEntries = [
     {
       name = "graph.json";
       path = graph-json;
-    }
-    {
-      name = "graph-normalized.json";
-      path = graph-normalized-json;
-    }
-    {
-      name = "graph-duplicates-report.json";
-      path = graph-duplicates-report-json;
-    }
-    {
-      name = "metadata-label.json";
-      path = metadata-label-json;
     }
     {
       name = "metadata-merged-preview.json";
@@ -245,16 +204,12 @@ let
       path = image-plan-json;
     }
     {
-      name = "tasks.json";
-      path = tasks-json;
-    }
-    {
-      name = "extensions-index.json";
-      path = extensions-index-json;
-    }
-    {
       name = "layer-plan.json";
       path = layer-plan-json;
+    }
+    {
+      name = "metadata-label.json";
+      path = metadata-label-json;
     }
     {
       name = "env-report.json";
@@ -267,6 +222,10 @@ let
     {
       name = "closure-report.json";
       path = closure-report-json;
+    }
+    {
+      name = "extensions-index.json";
+      path = extensions-index-json;
     }
     {
       name = "extensions-report.json";
@@ -297,10 +256,43 @@ let
       path = smoke-test-plan-json;
     }
     {
-      name = "ci-plan.json";
-      path = ci-plan-json;
+      name = "graph-normalized.json";
+      path = graph-normalized-json;
+      includeInCiPlan = false;
+    }
+    {
+      name = "graph-duplicates-report.json";
+      path = graph-duplicates-report-json;
+      includeInCiPlan = false;
+    }
+    {
+      name = "tasks.json";
+      path = tasks-json;
+      includeInCiPlan = false;
     }
   ];
+  ciReportFileNames = map (entry: entry.name) (
+    builtins.filter (entry: entry.includeInCiPlan or true) baseReportEntries
+  );
+  ci-plan-json = jsonFile "ci-plan.json" {
+    image = config.devcontainer.image.name;
+    family = config.devcontainer.image.family;
+    tag = imageTag;
+    imageRef = imageRef;
+    publishRefs = publishRefs;
+    architectures = config.devcontainer.image.architectures;
+    reportFiles = ciReportFileNames;
+  };
+  reportEntries = baseReportEntries ++ [
+    {
+      name = "ci-plan.json";
+      path = ci-plan-json;
+      includeInCiPlan = false;
+    }
+  ];
+  reports = pkgs.linkFarm "reports-${config.devcontainer.image.name}" (
+    map (entry: { inherit (entry) name path; }) reportEntries
+  );
 in
 {
   inherit

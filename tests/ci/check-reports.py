@@ -6,29 +6,11 @@ import re
 import subprocess
 import sys
 
-REQUIRED_REPORT_FILES = {
-    "ci-plan.json",
-    "closure-report.json",
-    "env-report.json",
-    "extensions-index.json",
-    "extensions-report.json",
-    "filesystem-report.json",
-    "fhs-runtime-report.json",
-    "fontconfig-report.json",
-    "graph.json",
-    "image-plan.json",
-    "layer-plan.json",
-    "libraries-report.json",
-    "metadata-label.json",
-    "metadata-merged-preview.json",
-    "metadata-schema-report.json",
-    "profile-report.json",
-    "security-report.json",
-    "shell-report.json",
-    "smoke-test-plan.json",
+ALLOWED_NON_CI_REPORT_FILES = {
+    "graph-duplicates-report.json",
+    "graph-normalized.json",
+    "tasks.json",
 }
-
-REQUIRED_CI_REPORT_FILES = REQUIRED_REPORT_FILES - {"ci-plan.json"}
 SENSITIVE_VALUE_RE = re.compile(
     r"(?i)(?:token|password|secret|api[_-]?key|access[_-]?key|private[_-]?key)\s*(?:=|:)\s*[\"']?[^\"'\\s]+"
 )
@@ -64,11 +46,35 @@ def main() -> int:
     reports_dir = pathlib.Path(sys.argv[1])
     image_name = sys.argv[2]
 
-    missing_reports = sorted(
-        report_name for report_name in REQUIRED_REPORT_FILES if not (reports_dir / report_name).is_file()
-    )
+    if not reports_dir.is_dir():
+        fail(f"reports directory does not exist: {reports_dir}")
+
+    ci_plan_path = reports_dir / "ci-plan.json"
+    if not ci_plan_path.is_file():
+        fail("reports directory missing ci-plan.json")
+
+    ci_plan = read_json(ci_plan_path)
+    if not isinstance(ci_plan.get("reportFiles"), list) or not all(
+        isinstance(report_name, str) and report_name for report_name in ci_plan.get("reportFiles", [])
+    ):
+        fail("ci-plan.json reportFiles must be a list of report file names")
+
+    ci_report_files = list(ci_plan["reportFiles"])
+    if len(ci_report_files) != len(set(ci_report_files)):
+        fail("ci-plan.json reportFiles must not contain duplicates")
+    if "ci-plan.json" in ci_report_files:
+        fail("ci-plan.json must not list itself in reportFiles")
+
+    missing_reports = sorted(report_name for report_name in ci_report_files if not (reports_dir / report_name).is_file())
     if missing_reports:
-        fail(f"reports directory missing files: {', '.join(missing_reports)}")
+        fail(f"ci-plan.json lists missing report files: {', '.join(missing_reports)}")
+
+    json_report_files = sorted(path.name for path in reports_dir.glob("*.json"))
+    unlisted_reports = sorted(
+        set(json_report_files) - set(ci_report_files) - {"ci-plan.json"} - ALLOWED_NON_CI_REPORT_FILES
+    )
+    if unlisted_reports:
+        fail(f"reports directory contains unlisted report files: {', '.join(unlisted_reports)}")
 
     metadata_label = read_json(reports_dir / "metadata-label.json")
     metadata_preview = read_json(reports_dir / "metadata-merged-preview.json")
@@ -83,7 +89,6 @@ def main() -> int:
     security_report = read_json(reports_dir / "security-report.json")
     fhs_runtime_report = read_json(reports_dir / "fhs-runtime-report.json")
     fontconfig_report = read_json(reports_dir / "fontconfig-report.json")
-    ci_plan = read_json(reports_dir / "ci-plan.json")
     env_report = read_json(reports_dir / "env-report.json")
     libraries_report = read_json(reports_dir / "libraries-report.json")
     shell_report = read_json(reports_dir / "shell-report.json")
@@ -131,7 +136,7 @@ def main() -> int:
     if metadata_preview.get("updateRemoteUserUID") is not False:
         fail("metadata merged preview must disable updateRemoteUserUID")
 
-    for report_name in REQUIRED_REPORT_FILES:
+    for report_name in sorted(set(json_report_files) - ALLOWED_NON_CI_REPORT_FILES):
         report_data = read_json(reports_dir / report_name)
         for text in walk_strings(report_data):
             if SENSITIVE_VALUE_RE.search(text):
@@ -631,11 +636,6 @@ def main() -> int:
     ]:
         if nix_dir in directory_map:
             fail(f"filesystem-report.json must leave {nix_dir} to initializeNixDatabase")
-
-    ci_report_files = set(ci_plan["reportFiles"])
-    missing_ci_reports = sorted(REQUIRED_CI_REPORT_FILES - ci_report_files)
-    if missing_ci_reports:
-        fail(f"ci-plan.json missing report files: {', '.join(missing_ci_reports)}")
 
     if security_report["dockerDaemonBakedIntoImage"]:
         fail("security-report.json must confirm no Docker daemon is baked into the image")
