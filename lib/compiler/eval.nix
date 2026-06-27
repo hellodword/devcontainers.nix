@@ -33,8 +33,13 @@ lib.evalModules {
     ../modules/core/metadata.nix
     ../modules/core/lifecycle.nix
     ../modules/core/gui-forwarding.nix
-    ../modules/profiles/editor-base.nix
     ../modules/profiles/web-stacks.nix
+
+    ../modules/editor/base.nix
+    ../modules/editor/core.nix
+    ../modules/editor/prettier.nix
+    ../modules/editor/shellcheck.nix
+    ../modules/editor/markdown-preview.nix
 
     ../modules/programs/git.nix
     ../modules/programs/ssh.nix
@@ -52,11 +57,20 @@ lib.evalModules {
     ../modules/toolsets/agents.nix
     ../modules/toolsets/nix-index.nix
 
+    ../modules/tools/shell-format.nix
+    ../modules/tools/editorconfig.nix
+
     ../modules/runtimes/base.nix
     ../modules/runtimes/c-env.nix
     ../modules/runtimes/python-runtime.nix
     ../modules/runtimes/nodejs-runtime.nix
 
+    ../modules/languages/just.nix
+    ../modules/languages/yaml.nix
+    ../modules/languages/xml.nix
+    ../modules/languages/toml.nix
+    ../modules/languages/jinja.nix
+    ../modules/languages/protobuf.nix
     ../modules/languages/nix.nix
     ../modules/languages/python.nix
     ../modules/languages/nodejs.nix

@@ -90,6 +90,12 @@ def main() -> int:
     preview_container_env = metadata_preview.get("containerEnv") or {}
     environment_report = env_report.get("environment") or {}
     enabled_profile_ids = {profile["id"] for profile in profile_report.get("enabledProfiles") or []}
+    root_enabled_profile_ids = {
+        profile["id"] for profile in profile_report.get("rootEnabledProfiles") or []
+    }
+    effective_enabled_profile_ids = {
+        profile["id"] for profile in profile_report.get("effectiveEnabledProfiles") or []
+    }
     profile_package_names = set(profile_report.get("packages") or [])
     provided_commands = set((profile_report.get("provides") or {}).get("commands") or [])
     profile_extension_ids = set((profile_report.get("vscode") or {}).get("extensionIds") or [])
@@ -98,6 +104,18 @@ def main() -> int:
 
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
+    if effective_enabled_profile_ids != enabled_profile_ids:
+        fail("profile-report.json enabledProfiles must remain the effective profile set")
+    if not root_enabled_profile_ids:
+        fail("profile-report.json must include rootEnabledProfiles")
+    if set(profile_report.get("effectiveEnabledProfileIds") or []) != enabled_profile_ids:
+        fail("profile-report.json effectiveEnabledProfileIds must match enabledProfiles")
+    if set(profile_report.get("rootEnabledProfileIds") or []) != root_enabled_profile_ids:
+        fail("profile-report.json rootEnabledProfileIds must match rootEnabledProfiles")
+    include_graph = profile_report.get("includeGraph") or {}
+    for profile in profile_report.get("enabledProfiles") or []:
+        if profile["id"] not in include_graph:
+            fail(f"profile-report.json includeGraph missing {profile['id']}")
     if not metadata_schema["hasRemoteUser"]:
         fail("metadata schema must include remoteUser")
     if not metadata_schema["hasLifecycle"]:
@@ -527,6 +545,11 @@ def main() -> int:
             fail(f"extensions-index.json must record nix-vscode-extensions source for {extension_id}")
         if not extension["sourceLock"]["ref"]:
             fail(f"extensions-index.json must record source ref for {extension_id}")
+        origins = extension.get("origins") or []
+        if len(origins) != 1:
+            fail(f"extension {extension_id} must have exactly one profile origin")
+        if extension_id == "esbenp.prettier-vscode" and origins != ["editor/prettier"]:
+            fail("Prettier extension must be owned only by editor/prettier")
     if seen_extension_ids != profile_extension_ids:
         missing_extension_ids = sorted(profile_extension_ids - seen_extension_ids)
         extra_extension_ids = sorted(seen_extension_ids - profile_extension_ids)

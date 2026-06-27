@@ -54,15 +54,15 @@ in
         };
         settings = {
           "nix.enableLanguageServer" = true;
-          "nix.serverPath" = "nixd";
+          "nix.serverPath" = "/usr/bin/nixd";
           "nix.serverSettings" = {
             "nixd" = {
               "formatting" = {
-                "command" = [ "nixfmt" ];
+                "command" = [ "/usr/bin/nixfmt" ];
               };
             };
           };
-          "nix.formatterPath" = "nixfmt";
+          "nix.formatterPath" = "/usr/bin/nixfmt";
         };
       };
       tests.capabilities = [ "language.nix" ];

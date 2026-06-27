@@ -263,6 +263,17 @@ let
         kind = mkOption { type = nonEmptyStringType; };
         group = mkOption { type = nonEmptyStringType; };
         packages = mkOption { type = types.listOf types.package; };
+        includes = mkOption {
+          type = types.listOf nonEmptyStringType;
+          default = [ ];
+        };
+        composition.role = mkOption {
+          type = types.enum [
+            "leaf"
+            "bundle"
+          ];
+          default = "leaf";
+        };
         priority = mkOption { type = types.int; };
         stability = mkOption {
           type = types.enum [

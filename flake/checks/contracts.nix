@@ -53,6 +53,25 @@ let
   smokeCase =
     id: image:
     lib.findFirst (test: test.id == id) (throw "missing smoke case ${id}") (smokePlan image).tests;
+  extensionById =
+    image: id:
+    lib.findFirst (
+      extension: extension.id == id
+    ) (throw "missing VS Code extension ${id}") image.vscodeExtensions.extensions;
+  hasCompanionTools =
+    extension: tools: lib.all (tool: builtins.elem tool extension.companionTools) tools;
+  testProfile =
+    attrs:
+    {
+      kind = "test";
+      group = "99-fallback";
+      packages = [ ];
+      priority = 1;
+      stability = "stable";
+      sharing = "single-image";
+      securityClass = "trusted";
+    }
+    // attrs;
   previousTargets = builtins.filter (
     name:
     (lib.hasPrefix "go-" name && name != "go" && name != "go-web")
@@ -267,6 +286,154 @@ let
         }).profileReport
         null
     )).success;
+  profileIncludeEvalImage = compiler.mkImage {
+    modules = [
+      (
+        { pkgs, lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "profile-include-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            devcontainer.profiles = {
+              "test/bundle-a" = testProfile {
+                enable = true;
+                priority = 2;
+                composition.role = "bundle";
+                includes = [
+                  "test/leaf-a"
+                  "test/leaf-b"
+                ];
+              };
+              "test/bundle-b" = testProfile {
+                enable = true;
+                composition.role = "bundle";
+                includes = [ "test/leaf-a" ];
+              };
+              "test/leaf-a" = testProfile {
+                packages = [ pkgs.hello ];
+                priority = 3;
+                provides.commands = [ "hello" ];
+              };
+              "test/leaf-b" = testProfile { };
+            };
+          };
+        }
+      )
+    ];
+  };
+  profileIncludeIds = map (profile: profile.id) profileIncludeEvalImage.profileReport.enabledProfiles;
+  profileIncludeLeafA = lib.findFirst (
+    profile: profile.id == "test/leaf-a"
+  ) (throw "test/leaf-a missing") profileIncludeEvalImage.profileReport.enabledProfiles;
+  profileEvalRejected =
+    module:
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [ module ];
+        }).profileReport
+        null
+    )).success;
+  unknownIncludeRejected = profileEvalRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "unknown-include";
+        devcontainer.image.family = lib.mkForce "test";
+        devcontainer.profiles."test/bundle" = testProfile {
+          enable = true;
+          composition.role = "bundle";
+          includes = [ "test/missing" ];
+        };
+      };
+    }
+  );
+  includeCycleRejected = profileEvalRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "include-cycle";
+        devcontainer.image.family = lib.mkForce "test";
+        devcontainer.profiles = {
+          "test/a" = testProfile {
+            enable = true;
+            composition.role = "bundle";
+            includes = [ "test/b" ];
+          };
+          "test/b" = testProfile {
+            composition.role = "bundle";
+            includes = [ "test/a" ];
+          };
+        };
+      };
+    }
+  );
+  bundleResourcesRejected = profileEvalRejected (
+    { pkgs, lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "bundle-resources";
+        devcontainer.image.family = lib.mkForce "test";
+        devcontainer.profiles."test/bundle" = testProfile {
+          enable = true;
+          packages = [ pkgs.hello ];
+          composition.role = "bundle";
+          provides.commands = [ "hello" ];
+          vscode.settings."test.bundle" = true;
+          env.variables.TEST_BUNDLE = "1";
+        };
+      };
+    }
+  );
+  leafIncludesRejected = profileEvalRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "leaf-includes";
+        devcontainer.image.family = lib.mkForce "test";
+        devcontainer.profiles = {
+          "test/leaf" = testProfile {
+            enable = true;
+            includes = [ "test/other-leaf" ];
+          };
+          "test/other-leaf" = testProfile { };
+        };
+      };
+    }
+  );
+  publishedExtensionOriginViolations = lib.concatMap (
+    name:
+    map
+      (extension: {
+        image = name;
+        extension = extension.id;
+        origins = extension.origins or [ ];
+      })
+      (
+        builtins.filter (
+          extension: builtins.length (extension.origins or [ ]) != 1
+        ) images.${name}.vscodeExtensions.extensions
+      )
+  ) imageNames;
+  prettierOriginViolations = lib.concatMap (
+    name:
+    map
+      (extension: {
+        image = name;
+        origins = extension.origins or [ ];
+      })
+      (
+        builtins.filter (
+          extension:
+          extension.id == "esbenp.prettier-vscode" && (extension.origins or [ ]) != [ "editor/prettier" ]
+        ) images.${name}.vscodeExtensions.extensions
+      )
+  ) imageNames;
+  justExtension = extensionById images."nix" "nefrob.vscode-just-syntax";
+  pythonExtensionIds = map (extension: extension.id) images."python3".vscodeExtensions.extensions;
 in
 reportChecks
 // {
@@ -319,6 +486,33 @@ reportChecks
     pkgs.writeText "contracts-compiler-env.json" (builtins.toJSON apiEvalImage.environment.report);
 
   contracts-compiler-profiles =
+    assert builtins.elem "test/bundle-a" profileIncludeEvalImage.profileReport.rootEnabledProfileIds;
+    assert builtins.elem "test/bundle-b" profileIncludeEvalImage.profileReport.rootEnabledProfileIds;
+    assert builtins.elem "test/leaf-a" profileIncludeIds;
+    assert builtins.elem "test/leaf-b" profileIncludeIds;
+    assert builtins.length (builtins.filter (id: id == "test/leaf-a") profileIncludeIds) == 1;
+    assert
+      profileIncludeEvalImage.profileReport.includeGraph."test/bundle-a" == [
+        "test/leaf-a"
+        "test/leaf-b"
+      ];
+    assert
+      profileIncludeLeafA.includedBy == [
+        "test/bundle-a"
+        "test/bundle-b"
+      ];
+    assert unknownIncludeRejected;
+    assert includeCycleRejected;
+    assert bundleResourcesRejected;
+    assert leafIncludesRejected;
+    assert publishedExtensionOriginViolations == [ ];
+    assert prettierOriginViolations == [ ];
+    assert justExtension.origins == [ "language/just" ];
+    assert hasCompanionTools justExtension [
+      "just"
+      "just-lsp"
+    ];
+    assert !(builtins.elem "ms-python.autopep8" pythonExtensionIds);
     assert builtins.elem "uv" pythonRuntimeProfile.packages;
     assert builtins.elem "pip" pythonRuntimeProfile.packages;
     assert builtins.elem "runtime.python" pythonRuntimeProfile.tests.capabilities;
@@ -327,7 +521,7 @@ reportChecks
     assert pythonLanguageProfile.vscode.settings."python.defaultInterpreterPath" == "/usr/bin/python";
     assert builtins.elem "language.python" pythonLanguageProfile.tests.capabilities;
     assert builtins.hasAttr "language/python" pythonProfileEvalImage.graph.nodes;
-    assert pythonExtension.native;
+    assert !(pythonExtension.native);
     assert builtins.elem "python" pythonExtension.companionTools;
     assert pythonProfileEvalImage.profileReport.validation.companionToolsProvidedByNix;
     assert lib.hasInfix "fr_FR.UTF-8" customLocaleCommand;
@@ -343,6 +537,7 @@ reportChecks
     assert !(builtins.elem "runtime.browser-gui-gpu" flutterCoreCapabilities);
     assert !(builtins.elem "language.flutter-rust-bridge" flutterCoreCapabilities);
     assert builtins.elem "editor-support.tools" nixCapabilities;
+    assert builtins.elem "workflow-format.tools" nixCapabilities;
     assert builtins.elem "nix-index.tools" nixCapabilities;
     assert builtins.elem "codex.cli" nixCapabilities;
     pkgs.writeText "contracts-compiler-profiles.json" (

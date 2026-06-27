@@ -56,6 +56,8 @@ in
           };
         };
         settings = {
+          "dart.sdkPath" = "${pkgs.dart}";
+          "dart.flutterSdkPath" = "${pkgs.flutter}";
           "dart.checkForSdkUpdates" = false;
           "dart.updateDevTools" = false;
           "dart.debugSdkLibraries" = true;

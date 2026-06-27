@@ -48,10 +48,18 @@ in
           bucket = "82-vscode-extensions-python";
           companionTools = [ "python" ];
         };
-        "ms-python.autopep8" = {
+        "ms-python.debugpy" = {
           native = false;
           bucket = "82-vscode-extensions-python";
           companionTools = [ "python" ];
+        };
+        "ms-python.vscode-python-envs" = {
+          native = false;
+          bucket = "82-vscode-extensions-python";
+          companionTools = [
+            "python"
+            "uv"
+          ];
         };
         "charliermarsh.ruff" = {
           native = false;
@@ -65,6 +73,8 @@ in
           "editor.defaultFormatter" = "charliermarsh.ruff";
         };
         "ruff.nativeServer" = "on";
+        "ruff.path" = [ "/usr/bin/ruff" ];
+        "python-envs.alwaysUseUv" = true;
       };
     };
     tests.capabilities = [ "language.python" ];

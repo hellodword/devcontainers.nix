@@ -1,21 +1,24 @@
 { ... }:
 {
-  config.devcontainer.profiles."toolset/editor-support" = {
-    kind = "toolset";
-    group = "07-editor-support-tools";
+  config.devcontainer.profiles."editor/base" = {
+    kind = "editor";
+    group = "80-vscode-extensions-base";
     packages = [ ];
-    priority = 82;
-    stability = "medium";
+    priority = 80;
+    stability = "stable";
     sharing = "global";
     securityClass = "trusted";
     composition.role = "bundle";
     includes = [
+      "editor/core"
+      "editor/prettier"
       "language/yaml"
+      "editor/markdown-preview"
       "language/xml"
       "language/toml"
       "language/jinja"
       "language/protobuf"
+      "editor/shellcheck"
     ];
-    tests.capabilities = [ "editor-support.tools" ];
   };
 }

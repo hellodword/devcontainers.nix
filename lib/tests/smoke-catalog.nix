@@ -235,6 +235,19 @@ in
       "yaml-language-server --version && minijinja-cli --version && protoc --version && protols --version"
     ];
   };
+  "workflow-format.tools" = mkCase {
+    id = "workflow-format.tools";
+    tags = [
+      "smoke"
+      "tooling"
+      "workflow-format"
+    ];
+    command = [
+      "bash"
+      "-lc"
+      "just --version && just-lsp --version && shfmt --version"
+    ];
+  };
   "nix-index.tools" = mkCase {
     id = "nix-index.tools";
     tags = [

@@ -16,10 +16,7 @@ let
         value: builtins.length (builtins.filter (candidate: candidate == value) values) > 1
       ) values
     );
-
-  enabledAttrs = lib.filterAttrs (_: profile: profile.enable) config.devcontainer.profiles;
-  unsortedProfiles = lib.mapAttrsToList (_: profile: profile) enabledAttrs;
-  sortedProfiles = lib.sort (
+  sortProfiles = lib.sort (
     a: b:
     let
       groupA = bucketRank a.group;
@@ -31,10 +28,74 @@ let
       a.priority > b.priority
     else
       a.id < b.id
-  ) unsortedProfiles;
+  );
 
+  allProfiles = lib.mapAttrsToList (_: profile: profile) config.devcontainer.profiles;
+  allProfileIds = map (profile: profile.id) allProfiles;
+  duplicateProfileIds = duplicateValues allProfileIds;
+  profileById = lib.listToAttrs (map (profile: lib.nameValuePair profile.id profile) allProfiles);
+  rootProfiles = sortProfiles (builtins.filter (profile: profile.enable) allProfiles);
+  rootEnabledIds = map (profile: profile.id) rootProfiles;
+
+  expandProfile =
+    stack: id:
+    if !(builtins.hasAttr id profileById) then
+      builtins.throw "devcontainer.profiles includes unknown profile ${id} from ${lib.concatStringsSep " -> " stack}"
+    else if builtins.elem id stack then
+      builtins.throw "devcontainer.profiles include cycle: ${
+        lib.concatStringsSep " -> " (stack ++ [ id ])
+      }"
+    else
+      let
+        profile = profileById.${id};
+      in
+      [ id ] ++ lib.concatMap (child: expandProfile (stack ++ [ id ]) child) profile.includes;
+
+  effectiveIds = lib.unique (lib.concatMap (id: expandProfile [ ] id) rootEnabledIds);
+  sortedProfiles = sortProfiles (map (id: profileById.${id}) effectiveIds);
   enabledIds = map (profile: profile.id) sortedProfiles;
-  duplicateProfileIds = duplicateValues enabledIds;
+
+  profileEnvIsEmpty =
+    profile:
+    profile.env.variables == { }
+    && profile.env.remoteVariables == { }
+    && profile.env.path == [ ]
+    && profile.env.aliases == { }
+    && profile.env.shellInit == ""
+    && profile.env.interactiveShellInit == "";
+  profileHasBundleResources =
+    profile:
+    profile.packages != [ ]
+    || profile.provides.commands != [ ]
+    || profile.vscode.extensions != { }
+    || profile.vscode.settings != { }
+    || !(profileEnvIsEmpty profile)
+    || profile.libraries.presets != [ ]
+    || profile.lifecycle.tasks != { };
+  leafProfilesWithIncludes = map (profile: profile.id) (
+    builtins.filter (profile: profile.composition.role == "leaf" && profile.includes != [ ]) allProfiles
+  );
+  bundleProfilesWithResources = map (profile: profile.id) (
+    builtins.filter (
+      profile: profile.composition.role == "bundle" && profileHasBundleResources profile
+    ) allProfiles
+  );
+
+  includeEdges = lib.concatMap (
+    parent:
+    map (child: {
+      inherit parent child;
+    }) profileById.${parent}.includes
+  ) effectiveIds;
+  includedBy =
+    id:
+    lib.sort lib.lessThan (
+      lib.unique (map (edge: edge.parent) (builtins.filter (edge: edge.child == id) includeEdges))
+    );
+  includeGraph = lib.listToAttrs (
+    map (id: lib.nameValuePair id profileById.${id}.includes) (lib.sort lib.lessThan effectiveIds)
+  );
+
   unknownProfileGroups = lib.unique (
     builtins.filter (group: !(builtins.hasAttr group bucketRanks)) (
       map (profile: profile.group) sortedProfiles
@@ -59,6 +120,17 @@ let
     ) profile.vscode.extensions
   ) sortedProfiles;
   groupedExtensionEntries = lib.groupBy (entry: entry.id) extensionEntries;
+  duplicateExtensionOwners =
+    lib.mapAttrsToList
+      (extensionId: entries: {
+        inherit extensionId;
+        origins = lib.unique (map (entry: entry.profileId) entries);
+      })
+      (
+        lib.filterAttrs (
+          _: entries: builtins.length (lib.unique (map (entry: entry.profileId) entries)) > 1
+        ) groupedExtensionEntries
+      );
 
   singleValue =
     field: extensionId: entries:
@@ -201,7 +273,7 @@ let
     ) sortedProfiles
   );
 
-  profileReports = map (profile: {
+  mkProfileReport = profile: {
     inherit (profile)
       id
       kind
@@ -211,6 +283,12 @@ let
       sharing
       securityClass
       ;
+    composition = {
+      role = profile.composition.role;
+    };
+    includes = profile.includes;
+    includedBy = includedBy profile.id;
+    rootEnabled = builtins.elem profile.id rootEnabledIds;
     packageCount = builtins.length profile.packages;
     packages = map packageName profile.packages;
     provides = profile.provides;
@@ -236,10 +314,17 @@ let
     tests = {
       capabilities = profile.tests.capabilities;
     };
-  }) sortedProfiles;
+  };
+  rootProfileReports = map mkProfileReport rootProfiles;
+  profileReports = map mkProfileReport sortedProfiles;
 
   report = {
+    rootEnabledProfiles = rootProfileReports;
+    rootEnabledProfileIds = rootEnabledIds;
+    effectiveEnabledProfiles = profileReports;
+    effectiveEnabledProfileIds = enabledIds;
     enabledProfiles = profileReports;
+    includeGraph = includeGraph;
     packages = packageNames;
     provides = {
       commands = providedCommands;
@@ -274,13 +359,19 @@ let
   };
 in
 if duplicateProfileIds != [ ] then
-  builtins.throw "devcontainer.profiles contains duplicate enabled profile ids: ${lib.concatStringsSep ", " duplicateProfileIds}"
+  builtins.throw "devcontainer.profiles contains duplicate profile ids: ${lib.concatStringsSep ", " duplicateProfileIds}"
+else if leafProfilesWithIncludes != [ ] then
+  builtins.throw "devcontainer.profiles leaf profiles cannot declare includes: ${lib.concatStringsSep ", " leafProfilesWithIncludes}"
+else if bundleProfilesWithResources != [ ] then
+  builtins.throw "devcontainer.profiles bundle profiles cannot declare packages, commands, VS Code extensions/settings, env, library presets, or lifecycle tasks: ${lib.concatStringsSep ", " bundleProfilesWithResources}"
 else if unknownProfileGroups != [ ] then
   builtins.throw "devcontainer.profiles contains groups not present in devcontainer.layers.buckets: ${lib.concatStringsSep ", " unknownProfileGroups}"
 else if unknownPathBuckets != [ ] then
   builtins.throw "devcontainer.profiles contains PATH buckets not present in devcontainer.path.order: ${lib.concatStringsSep ", " unknownPathBuckets}"
 else if unknownExtensionBuckets != [ ] then
   builtins.throw "devcontainer.profiles contains VS Code extension buckets not present in devcontainer.layers.buckets: ${lib.concatStringsSep ", " unknownExtensionBuckets}"
+else if duplicateExtensionOwners != [ ] then
+  builtins.throw "devcontainer.profiles declares duplicate VS Code extension owners: ${builtins.toJSON duplicateExtensionOwners}"
 else if duplicateTaskNames != [ ] then
   builtins.throw "devcontainer.profiles declares duplicate lifecycle task names: ${lib.concatStringsSep ", " duplicateTaskNames}"
 else if extensionCompanionMisses != [ ] then
