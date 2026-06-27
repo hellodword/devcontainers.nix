@@ -25,8 +25,8 @@ Important paths:
 | Path | Purpose |
 | --- | --- |
 | `flake.nix` | Pins inputs and assembles image outputs, packages, apps, checks, and library metadata. |
-| `flake/` | Maintainer flake internals: image targets, checks, and workflow generation. |
-| `images/` | Small image-family modules that combine shared modules. |
+| `flake/` | Maintainer flake internals: docs, checks, workflow generation, and E2E output wiring. |
+| `images/` | Image target registry plus small image-family modules that combine shared modules. |
 | `lib/modules/core/` | Shared image contract: options, user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, VS Code extensions, FHS runtime. |
 | `lib/modules/programs/` | Static program integrations such as Git, SSH, and nix-index. |
 | `lib/modules/toolsets/` | Reusable command groups such as source control, Docker client, data/network, and debug tools. |
@@ -38,6 +38,19 @@ Important paths:
 | `tests/smoke/` | Runtime smoke execution after an image is loaded into Docker. |
 | `tests/e2e/` | Heavy VS Code GUI Dev Containers tests. |
 | `docs/` | User, design, and maintenance documentation. |
+
+## Maintenance Registries
+
+Keep source-of-truth metadata near the owner:
+
+- Image target identity, generated target docs, workflow E2E opt-in, and image-specific check policy live in `images/default.nix`.
+- Report file entries live in `lib/compiler/reports.nix` as `baseReportEntries` and `reportEntries`; `ci-plan.json` and report checks derive from them.
+- Runtime helper metadata lives in `runtime/default.nix`; public package exposure, image installation, and focused helper checks derive from it.
+- VS Code GUI E2E session metadata lives in `tests/e2e/vscode-gui.nix`; exported E2E attrs and generated docs derive from `sessionEntries`.
+
+`flake/docs.nix`, `flake/workflows.nix`, and check modules consume these
+registries. Do not add parallel image, report, helper, or session lists there
+unless the new list is an explicit policy guard.
 
 ## Build And Inspect
 
@@ -106,17 +119,24 @@ Read [VS Code GUI E2E Testing](e2e-testing.md) before changing
 `tests/e2e/vscode-gui.nix`, desktop sessions, Command Palette automation,
 timeouts, or GUI readiness detection.
 
+When adding a GUI E2E session, add it to `sessionEntries` in
+`tests/e2e/vscode-gui.nix` with backend, desktop docs, launch flags, readiness
+logic, and NixOS module data. Then run `nix run .#generate-docs` so the session
+table in [VS Code GUI E2E Testing](e2e-testing.md) stays derived from the
+registry.
+
 ## Adding Or Changing An Image
 
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
 3. Add the image target in `images/default.nix` with target name, family, tags, module, `docs.useWhen`, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
-4. Run `nix run .#generate-docs` when targets, families, tags, or published image references changed.
-5. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
-6. Run `nix flake check`.
-7. Build the image reports and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `metadata-label.json`.
-8. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
-9. Update [Usage](usage.md) if the published image contract changed beyond the generated image-reference snippet.
+4. Set target metadata for policy that belongs to the image: `ci.e2eSessions` for workflow GUI E2E coverage and `checks` for required public targets, report CLI sample coverage, or rootfs path requirements.
+5. Run `nix run .#generate-docs` when targets, families, tags, generated docs text, or published image references changed.
+6. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
+7. Run `nix flake check`.
+8. Build the image reports and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `metadata-label.json`.
+9. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
+10. Update [Usage](usage.md) if the published image contract changed beyond the generated image-reference snippet.
 
 Use target names for local build outputs and smoke plans, for example `go`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
 
@@ -150,7 +170,7 @@ When adding a program module:
 3. Generate files through `environment.etc`.
 4. Add packages through `environment.systemPackages`.
 5. Add shell integration through `environment.shellInit` or `environment.interactiveShellInit` only when it has no network, installer, or long-running side effects.
-6. Add report assertions in `tests/ci/check-reports.py` or a focused contract check under `flake/checks/`.
+6. Add focused report assertions in `tests/ci/check-reports.py` or a contract check under `flake/checks/` when the generated report schema changes.
 
 ## Adding A Language Or Runtime
 
@@ -176,8 +196,8 @@ Compiler changes belong under `lib/compiler/`.
 2. Return structured data as well as build artifacts.
 3. Thread the compiler output through `lib/default.nix`.
 4. Include generated files in `compileFilesystem` or `compileImage` only at the stage that owns them.
-5. Add report output in `compileReports`.
-6. Add report validation in `tests/ci/check-reports.py` or an adjacent check.
+5. Add report output in `compileReports`, including a `baseReportEntries` or `reportEntries` entry when it should appear in the reports link farm.
+6. Add report validation in `tests/ci/check-reports.py` or an adjacent check; do not add a separate required-file list for reports already declared in `compileReports`.
 7. Update [Architecture](architecture.md) when the pipeline or ownership model changes.
 
 Avoid hidden side effects. If a behavior changes the image, it should be visible in reports, a compiler contract, or a capability smoke test.
@@ -187,13 +207,16 @@ Do not add direct `devcontainer.graph.nodes` entries for ordinary package groups
 ## Adding Runtime Helpers
 
 Runtime helpers live in `runtime/` and are packaged by `runtime/default.nix`.
+The `helperDefs` registry is the source of truth for public package exposure,
+image installation, and focused helper checks.
 
 When changing a helper:
 
 1. Keep the helper runnable outside the image when possible.
-2. Add or update the focused helper suite in `tests/ci/check-devpkg.py`, `tests/ci/check-task-runner.py`, `tests/ci/check-vscode-extension-projector.py`, or `tests/ci/check-gui-env.py`.
-3. If the helper is installed into the image, confirm the image compiler includes it in the runtime root or generated filesystem.
-4. Document user-visible commands in [Usage](usage.md).
+2. Add or update its `helperDefs` metadata: `publicPackage`, `installInImage`, and optional `checkName`, `checkScript`, and `checkEnvName`.
+3. Add or update the focused helper suite in `tests/ci/check-devpkg.py`, `tests/ci/check-task-runner.py`, `tests/ci/check-vscode-extension-projector.py`, or `tests/ci/check-gui-env.py`.
+4. Confirm derived wiring by checking the public flake package, image runtime root, and `tool-*` check when those metadata flags apply.
+5. Document user-visible commands in [Usage](usage.md).
 
 Examples:
 
@@ -201,6 +224,16 @@ Examples:
 - `devcontainer-image` validates metadata labels or project devcontainer JSON.
 - `devcontainer-task-runner` runs structured lifecycle tasks.
 - `vscode-extension-projector` projects preinstalled VS Code extensions into server extension directories.
+
+## Adding Reports
+
+Reports are declared in `lib/compiler/reports.nix`.
+
+1. Create the report JSON derivation from compiler-owned structured data.
+2. Add it to `baseReportEntries` when it should be part of the report directory and `ci-plan.json` `reportFiles`.
+3. Set `includeInCiPlan = false` only for internal or compatibility files that should be linked but not required by CI report validation.
+4. Update `tests/ci/check-reports.py` for schema/content assertions. It reads the report file list from `ci-plan.json`.
+5. Update [Architecture](architecture.md) or a focused subsystem document when the report changes maintainer-visible workflow.
 
 ## Native Libraries
 
@@ -255,7 +288,7 @@ One workflow per image is intentional. Image builds do not use a matrix workflow
 nix build .#checks.x86_64-linux.generated-workflows
 ```
 
-The checked-in generated workflows, template, and target list should remain synchronized.
+The checked-in generated workflows, template, and target registry should remain synchronized.
 
 The workflows do not use GitHub Actions cache. Nix already uses configured binary substituters for reusable store paths, while per-run image closures and Docker artifacts are large and input-sensitive.
 
@@ -273,12 +306,14 @@ Keep documentation split by audience:
 
 When changing a feature, update the smallest relevant set of docs. User-visible image behavior belongs in usage docs. Compiler ownership or invariants belong in architecture docs. Maintenance checklists belong in development docs or focused subsystem docs.
 
-Generated snippets are deliberately limited to target-derived image reference tables:
+Generated snippets are deliberately limited to target-derived image reference
+tables and E2E session metadata:
 
 ```sh
 nix run .#generate-docs
 ```
 
-The generator updates only marked blocks in `README.md`, `docs/usage.md`, and
-`docs/architecture.md`. There is no documentation consistency check; run the
-generator as part of target, family, and tag changes.
+The generator updates only marked blocks in `README.md`, `docs/usage.md`,
+`docs/architecture.md`, and `docs/e2e-testing.md`. There is no documentation
+consistency check; run the generator as part of target, family, tag, target docs,
+or E2E session changes.

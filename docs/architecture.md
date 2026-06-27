@@ -53,12 +53,14 @@ Inputs that provide packages are consumed through overlays. That means modules n
 
 The target registry lives in `images/default.nix`; it discovers language package
 versions and defines the image target list next to the image modules it owns.
+Target records are the owner for image identity, documentation `use when` text,
+workflow E2E opt-in sessions, and image-specific check policy.
 
 The larger flake internals live under `flake/`:
 
-- `flake/docs.nix` renders checked-in documentation snippets from the target list and exposes `generate-docs`.
+- `flake/docs.nix` renders checked-in documentation snippets from target and E2E session metadata and exposes `generate-docs`.
 - `flake/checks.nix` aggregates focused check suites under `flake/checks/`: contracts, tooling, artifacts, report CLI behavior, and generated workflow synchronization.
-- `flake/workflows.nix` renders per-image GitHub Actions workflows, exposes `generate-workflows`, and checks that generated workflow files are synchronized with the template and target list.
+- `flake/workflows.nix` renders per-image GitHub Actions workflows, exposes `generate-workflows`, and checks that generated workflow files are synchronized with the template and target registry.
 - `flake/e2e.nix` exposes heavy VS Code GUI Dev Containers tests under the custom `e2e.${system}` output.
 
 ## Image Targets
@@ -69,6 +71,9 @@ The larger flake internals live under `flake/`:
 - a family name, used in the registry image name such as `devcontainers-go`
 - tags, used in published image references
 - one image module under `images/`
+- `docs.useWhen`, used by generated README and usage tables
+- optional `ci.e2eSessions`, used by workflow generation
+- optional `checks`, used by required-target, report CLI, and rootfs checks
 - optional override modules for selected language versions
 
 Examples:
@@ -94,6 +99,10 @@ The published reference for a family is:
 ```text
 ghcr.io/hellodword/devcontainers-<family>:<tag>
 ```
+
+`flake/docs.nix`, `flake/workflows.nix`, and focused checks consume this target
+registry. They should not keep separate image-name or image-documentation
+registries.
 
 ## Module Layers
 
@@ -206,9 +215,14 @@ Reports and CI checks enforce this design:
 - `compileFilesystem` creates generated root filesystem files
 - `compileLayers` creates the semantic layer plan
 - `compileImage` creates the nix2container image
-- `compileReports` writes machine-readable build reports
+- `compileReports` writes machine-readable build reports and owns the report entry registry
 
 Each compiler returns both build artifacts and structured data. Later compilers receive the outputs they need rather than recomputing state. This keeps the flow inspectable and makes reports match the actual image.
+
+`compileReports` defines `baseReportEntries`, derives `ci-plan.json`
+`reportFiles`, and links the reports directory from those same entries. Report
+checks read `ci-plan.json` before validating files, so adding a report starts in
+the report compiler rather than in a separate checker list.
 
 ## Runtime Filesystem Contract
 
@@ -295,6 +309,16 @@ The generated filesystem includes `/etc/nix/nix.conf` from `nix.settings` and `/
 
 The `devpkg` runtime package also ships Bash completion under `/usr/share/bash-completion/completions/devpkg` in the generated image. It completes subcommands, common options, installed profile entries, and nixpkgs package attributes from the same locked nixpkgs source.
 
+## Runtime Helpers
+
+Runtime helper metadata lives in `runtime/default.nix`. The helper registry
+defines each helper package plus whether it is exposed as a public flake
+package, installed into images, and covered by a focused tool check.
+
+`flake.nix`, `lib/compiler/image.nix`, and `flake/checks/tooling.nix` consume
+that metadata. Public packages, image installation, and check wiring should not
+maintain separate helper lists.
+
 ## Locale, Shell, And Fonts
 
 The default locale contract is:
@@ -356,6 +380,16 @@ Checks use those reports to reject regressions before an image is published. Smo
 - `artifacts` for selected OCI/rootfs checks
 - `report-cli` for the report inspection CLI
 - generated workflow synchronization
+
+Image-specific check policy belongs on target records in `images/default.nix`.
+For example, target metadata marks required public image targets, the report CLI
+sample target, and rootfs path requirements. The check modules derive concrete
+check attributes from that metadata while preserving compatibility names such as
+`report-cli-core` and `artifact-rootfs-maximal`.
+
+VS Code GUI E2E session metadata lives beside the tests in
+`tests/e2e/vscode-gui.nix`. `sessionEntries` drives the exported `e2e` attrs and
+the generated session table in [VS Code GUI E2E Testing](e2e-testing.md).
 
 ## Security Boundaries
 

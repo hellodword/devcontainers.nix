@@ -1,23 +1,39 @@
 # Maintenance Registry Baseline
 
 This note records the pre-migration maintenance surface for the registry
-consolidation work. It is intentionally descriptive: no image behavior, package
-selection, report content, workflow policy, or E2E behavior changes here.
+consolidation work. It is intentionally historical: no image behavior, package
+selection, report content, workflow policy, or E2E behavior changed in this
+baseline step.
 
 ## Drift Scope
 
 - `flake/docs.nix` owned documentation text separately from the image target list.
 - The legacy flake target registry owned `imageTargetList`, while image modules
   owned part of `devcontainer.image`.
-- `lib/compiler/reports.nix` separately lists report derivations, link farm
+- `lib/compiler/reports.nix` separately listed report derivations, link farm
   entries, and `ci-plan.json` `reportFiles`.
-- `tests/ci/check-reports.py` keeps its own required report file lists.
-- Runtime helper knowledge is spread across `runtime/default.nix`, `flake.nix`,
+- `tests/ci/check-reports.py` kept its own required report file lists.
+- Runtime helper knowledge was spread across `runtime/default.nix`, `flake.nix`,
   `lib/compiler/image.nix`, and `flake/checks/tooling.nix`.
-- `tests/e2e/vscode-gui.nix` owns session names, while
-  `docs/e2e-testing.md` hand-writes the session table.
-- Legacy fixture files under the test fixture directory are not referenced by
-  default checks, smoke tests, or E2E tests.
+- `tests/e2e/vscode-gui.nix` owned session names, while
+  `docs/e2e-testing.md` hand-wrote the session table.
+- Legacy graph expectation files were not referenced by default checks, smoke
+  tests, or E2E tests.
+
+## Migration Outcome
+
+Current maintenance ownership is:
+
+- image target registry: `images/default.nix`
+- generated target docs and workflow E2E target policy: image target metadata
+- report registry: `lib/compiler/reports.nix`
+- runtime helper registry: `runtime/default.nix`
+- E2E session registry: `tests/e2e/vscode-gui.nix`
+
+`nix flake check --no-build` still warns about custom `images` and `e2e`
+outputs. That remains accepted because those outputs are intentionally exposed
+for image artifacts and opt-in GUI E2E derivations outside the default flake
+schema.
 
 ## Baseline Commands
 
