@@ -1,13 +1,35 @@
 {
   pkgs,
   lib,
-  imageNames,
+  targets,
 }:
 
 let
   workflowDir = ../.github/workflows;
   template = ../.github/workflows/_build-image.yml.j2;
-  imageNameArray = lib.concatMapStringsSep "\n" (name: "    ${lib.escapeShellArg name}") imageNames;
+  renderWorkflowCommands =
+    {
+      outputDir,
+      templateArg,
+    }:
+    lib.concatMapStringsSep "\n" (
+      target:
+      let
+        imageTarget = target.target;
+        e2eSessionsJson = builtins.toJSON (target.ci.e2eSessions or [ ]);
+      in
+      ''
+        minijinja-cli \
+          --strict \
+          --autoescape none \
+          --syntax variable-start='<<' \
+          --syntax variable-end='>>' \
+          --define image_target=${lib.escapeShellArg imageTarget} \
+          --define e2e_sessions:=${lib.escapeShellArg e2eSessionsJson} \
+          --output "${outputDir}/build-image-${imageTarget}.yml" \
+          ${templateArg}
+      ''
+    ) targets.imageTargetList;
 
   generatedWorkflows =
     pkgs.runCommand "generated-workflows"
@@ -19,20 +41,10 @@ let
       }
       ''
         mkdir -p "$out"
-        targets=(
-        ${imageNameArray}
-        )
-
-        for target in "''${targets[@]}"; do
-          minijinja-cli \
-            --strict \
-            --autoescape none \
-            --syntax variable-start='<<' \
-            --syntax variable-end='>>' \
-            --define image_target="$target" \
-            --output "$out/build-image-$target.yml" \
-            ${template}
-        done
+        ${renderWorkflowCommands {
+          outputDir = "$out";
+          templateArg = "${template}";
+        }}
       '';
 
   generateWorkflows = pkgs.writeShellApplication {
@@ -49,20 +61,10 @@ let
       find "$workflow_dir" -maxdepth 1 -type f -name 'build-image-*.yml' -delete
       test -f "$template"
 
-      targets=(
-      ${imageNameArray}
-      )
-
-      for target in "''${targets[@]}"; do
-        minijinja-cli \
-          --strict \
-          --autoescape none \
-          --syntax variable-start='<<' \
-          --syntax variable-end='>>' \
-          --define image_target="$target" \
-          --output "$workflow_dir/build-image-$target.yml" \
-          "$template"
-      done
+      ${renderWorkflowCommands {
+        outputDir = "$workflow_dir";
+        templateArg = "\"$template\"";
+      }}
     '';
   };
 

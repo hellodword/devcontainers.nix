@@ -1,7 +1,5 @@
 
 
-
-
 name: build-image-go-web
 
 on:

@@ -81,8 +81,7 @@
         _: target: compiler.mkImage { inherit (target) modules; }
       ) targets.imageTargets;
       workflows = import ./flake/workflows.nix {
-        inherit pkgs lib;
-        imageNames = targets.imageNames;
+        inherit pkgs lib targets;
       };
       docs = import ./flake/docs.nix {
         inherit

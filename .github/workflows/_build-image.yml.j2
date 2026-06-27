@@ -1,6 +1,4 @@
-{% set e2e_image_targets = ["go-web", "rust-web"] %}
-{% set e2e_sessions = ["wayland-sway"] %}
-{% set e2e_enabled = image_target in e2e_image_targets and e2e_sessions | length > 0 %}
+{% set e2e_enabled = e2e_sessions | length > 0 %}
 {% set e2e_matrix_sessions = e2e_sessions if e2e_sessions | length > 0 else ["disabled"] %}
 name: build-image-<< image_target >>
 

@@ -90,6 +90,7 @@ let
       tags,
       module,
       docs,
+      ci ? { },
       extraModules ? [ ],
     }:
     {
@@ -99,6 +100,7 @@ let
         tags
         module
         docs
+        ci
         extraModules
         ;
       modules = [
@@ -191,6 +193,7 @@ let
       tags = [ "web" ];
       module = ./go-web.nix;
       docs.useWhen = "Use for Go services that also need web and data tools.";
+      ci.e2eSessions = [ "wayland-sway" ];
       extraModules = goLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -248,6 +251,7 @@ let
       tags = [ "web" ];
       module = ./rust-web.nix;
       docs.useWhen = "Use for Rust services that also need web and data tools.";
+      ci.e2eSessions = [ "wayland-sway" ];
       extraModules = rustLatestRuntimeModules;
     })
     (mkImageTarget {

@@ -1,7 +1,5 @@
 
 
-
-
 name: build-image-python3-web
 
 on:
@@ -171,7 +169,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        session: ["wayland-sway"]
+        session: ["disabled"]
     steps:
       - name: Free disk space
         run: |
