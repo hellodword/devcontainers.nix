@@ -106,26 +106,86 @@ let
     complete -F _devpkg devpkg
   '';
   devpkgCompletion = pkgs.writeTextDir "share/bash-completion/completions/devpkg" devpkgCompletionText;
-in
-{
-  "devcontainer-entrypoint" = writeShellApp "devcontainer-entrypoint" [
-    pkgs.coreutils
-  ] ./devcontainer-entrypoint/main.sh;
-  "devcontainer-gui-env" = writeShellApp "devcontainer-gui-env" [
-    pkgs.coreutils
-  ] ./devcontainer-gui-env/main.sh;
-  "devcontainer-task-runner" =
-    writePythonApp "devcontainer-task-runner" [ ]
-      ./devcontainer-task-runner/main.py;
-  "vscode-extension-projector" =
-    writePythonApp "vscode-extension-projector" [ ]
-      ./vscode-extension-projector/main.py;
-  devpkg = pkgs.symlinkJoin {
-    name = "devpkg";
-    paths = [
-      devpkgApp
-      devpkgCompletion
-    ];
+  packages = rec {
+    "devcontainer-entrypoint" = writeShellApp "devcontainer-entrypoint" [
+      pkgs.coreutils
+    ] ./devcontainer-entrypoint/main.sh;
+    "devcontainer-gui-env" = writeShellApp "devcontainer-gui-env" [
+      pkgs.coreutils
+    ] ./devcontainer-gui-env/main.sh;
+    "devcontainer-task-runner" =
+      writePythonApp "devcontainer-task-runner" [ ]
+        ./devcontainer-task-runner/main.py;
+    "vscode-extension-projector" =
+      writePythonApp "vscode-extension-projector" [ ]
+        ./vscode-extension-projector/main.py;
+    devpkg = pkgs.symlinkJoin {
+      name = "devpkg";
+      paths = [
+        devpkgApp
+        devpkgCompletion
+      ];
+    };
+    "devcontainer-image" = writePythonApp "devcontainer-image" [ ] ./devcontainer-image/main.py;
   };
-  "devcontainer-image" = writePythonApp "devcontainer-image" [ ] ./devcontainer-image/main.py;
+  helperNames = [
+    "devcontainer-entrypoint"
+    "devcontainer-task-runner"
+    "devcontainer-gui-env"
+    "vscode-extension-projector"
+    "devpkg"
+    "devcontainer-image"
+  ];
+  helperDefs = {
+    "devcontainer-entrypoint" = {
+      publicPackage = false;
+      installInImage = true;
+    };
+    "devcontainer-gui-env" = {
+      publicPackage = true;
+      installInImage = true;
+      checkName = "gui-env";
+      checkScript = ../tests/ci/check-gui-env.py;
+      checkEnvName = "DEVCONTAINER_GUI_ENV_TOOL";
+    };
+    "devcontainer-task-runner" = {
+      publicPackage = true;
+      installInImage = true;
+      checkName = "task-runner";
+      checkScript = ../tests/ci/check-task-runner.py;
+      checkEnvName = "DEVCONTAINER_RUNNER";
+    };
+    "vscode-extension-projector" = {
+      publicPackage = true;
+      installInImage = true;
+      checkName = "vscode-extension-projector";
+      checkScript = ../tests/ci/check-vscode-extension-projector.py;
+      checkEnvName = "DEVCONTAINER_PROJECTOR";
+    };
+    devpkg = {
+      publicPackage = true;
+      installInImage = true;
+      checkName = "devpkg";
+      checkScript = ../tests/ci/check-devpkg.py;
+      checkEnvName = "DEVCONTAINER_DEVPKG";
+    };
+    "devcontainer-image" = {
+      publicPackage = true;
+      installInImage = true;
+    };
+  };
+  helpers = lib.mapAttrs (
+    name: metadata:
+    metadata
+    // {
+      inherit name;
+      package = packages.${name};
+    }
+  ) helperDefs;
+  helperList = map (name: helpers.${name}) helperNames;
+in
+packages
+// {
+  __helpers = helpers;
+  __helperList = helperList;
 }

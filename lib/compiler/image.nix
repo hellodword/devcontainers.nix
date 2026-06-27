@@ -1,7 +1,8 @@
 {
   pkgs,
   lib,
-  runtimePackages,
+  runtimeHelpers,
+  runtimeHelperList,
   nix2container,
   lockedNixpkgsSource ? null,
 }:
@@ -134,15 +135,10 @@ let
     ln -sf ${lockedNixpkgsSource} "$out/usr/share/devcontainer/nixpkgs"
   '';
 
-  entrypoint = runtimePackages."devcontainer-entrypoint";
-  runtimeTools = [
-    runtimePackages."devcontainer-task-runner"
-    runtimePackages."devcontainer-gui-env"
-    runtimePackages."vscode-extension-projector"
-    runtimePackages.devpkg
-    runtimePackages."devcontainer-image"
-    entrypoint
-  ];
+  entrypoint = runtimeHelpers."devcontainer-entrypoint".package;
+  runtimeTools = map (helper: helper.package) (
+    builtins.filter (helper: helper.installInImage) runtimeHelperList
+  );
 
   runtimeRoot = mkUsrMergedBuildEnv {
     name = "${config.devcontainer.image.name}-runtime-root";

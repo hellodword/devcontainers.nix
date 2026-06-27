@@ -152,6 +152,9 @@
       imagePackages = lib.mapAttrs' (
         name: image: lib.nameValuePair "devcontainer-${name}" image.oci
       ) images;
+      runtimePublicPackages = lib.mapAttrs' (
+        name: helper: lib.nameValuePair name helper.package
+      ) (lib.filterAttrs (_: helper: helper.publicPackage) compiler.runtimeHelpers);
       smokePlanRunner = pkgs.writeShellApplication {
         name = "run-smoke-plan";
         runtimeInputs = [
@@ -186,13 +189,9 @@
 
       packages.${system} =
         imagePackages
+        // runtimePublicPackages
         // {
           default = images."nix".reports;
-          "devcontainer-image" = compiler.runtimePackages."devcontainer-image";
-          "devcontainer-gui-env" = compiler.runtimePackages."devcontainer-gui-env";
-          "devcontainer-task-runner" = compiler.runtimePackages."devcontainer-task-runner";
-          "vscode-extension-projector" = compiler.runtimePackages."vscode-extension-projector";
-          devpkg = compiler.runtimePackages.devpkg;
           generate-workflows = workflows.generateWorkflows;
           generate-docs = docs.generateDocs;
         };

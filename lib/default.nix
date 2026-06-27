@@ -10,6 +10,8 @@ let
     runtimePackages = import ../runtime {
       inherit pkgs lib;
     };
+    runtimeHelpers = runtimePackages.__helpers;
+    runtimeHelperList = runtimePackages.__helperList;
 
     nix2container = pkgs.nix2container;
 
@@ -83,7 +85,8 @@ let
       inherit
         pkgs
         lib
-        runtimePackages
+        runtimeHelpers
+        runtimeHelperList
         nix2container
         ;
       lockedNixpkgsSource = inputs.nixpkgs.outPath;

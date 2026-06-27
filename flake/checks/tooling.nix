@@ -1,14 +1,21 @@
 {
   pkgs,
+  lib,
   compiler,
   nixpkgs,
   ...
 }:
 
 let
+  checkedHelpers = builtins.filter (
+    helper: helper ? checkName && helper ? checkScript && helper ? checkEnvName
+  ) (builtins.attrValues compiler.runtimeHelpers);
+  checkEnvExports = lib.concatMapStringsSep "\n" (
+    helper: "export ${helper.checkEnvName}=${helper.package}"
+  ) checkedHelpers;
   mkToolCheck =
-    name: script:
-    pkgs.runCommand name
+    helper:
+    pkgs.runCommand "tool-${helper.checkName}"
       {
         nativeBuildInputs = [
           pkgs.bash
@@ -17,21 +24,17 @@ let
         ];
       }
       ''
-        export DEVCONTAINER_PROJECTOR=${compiler.runtimePackages."vscode-extension-projector"}
-        export DEVCONTAINER_RUNNER=${compiler.runtimePackages."devcontainer-task-runner"}
-        export DEVCONTAINER_DEVPKG=${compiler.runtimePackages.devpkg}
-        export DEVCONTAINER_GUI_ENV_TOOL=${compiler.runtimePackages."devcontainer-gui-env"}
+        ${checkEnvExports}
         export DEVPKG_NIXPKGS_REF=path:${nixpkgs.outPath}
-        python3 ${script}
+        python3 ${helper.checkScript}
         touch "$out"
       '';
+  toolChecks = lib.listToAttrs (
+    map (helper: lib.nameValuePair "tool-${helper.checkName}" (mkToolCheck helper)) checkedHelpers
+  );
 in
-{
-  tool-devpkg = mkToolCheck "tool-devpkg" ../../tests/ci/check-devpkg.py;
-  tool-task-runner = mkToolCheck "tool-task-runner" ../../tests/ci/check-task-runner.py;
-  tool-vscode-extension-projector = mkToolCheck "tool-vscode-extension-projector" ../../tests/ci/check-vscode-extension-projector.py;
-  tool-gui-env = mkToolCheck "tool-gui-env" ../../tests/ci/check-gui-env.py;
-
+toolChecks
+// {
   script-quality =
     pkgs.runCommand "script-quality"
       {
