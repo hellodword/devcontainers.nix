@@ -98,6 +98,15 @@ let
     ];
   nonEmptyStringType = types.addCheck types.str (value: value != "");
   nonEmptyStringListType = types.addCheck (types.listOf types.str) (value: value != [ ]);
+  libraryPresetNames = [
+    "autotools"
+    "gtk"
+    "gobject-introspection"
+    "gstreamer"
+    "qt"
+    "cgo"
+    "rust-bindgen"
+  ];
   etcEntryType = types.submodule (
     { name, ... }:
     {
@@ -316,17 +325,7 @@ let
           default = { };
         };
         libraries.presets = mkOption {
-          type = types.listOf (
-            types.enum [
-              "autotools"
-              "gtk"
-              "gobject-introspection"
-              "gstreamer"
-              "qt"
-              "cgo"
-              "rust-bindgen"
-            ]
-          );
+          type = types.listOf (types.enum libraryPresetNames);
           default = [ ];
         };
         lifecycle.tasks = mkOption {
@@ -728,17 +727,7 @@ in
           default = true;
         };
         presets = mkOption {
-          type = types.listOf (
-            types.enum [
-              "autotools"
-              "gtk"
-              "gobject-introspection"
-              "gstreamer"
-              "qt"
-              "cgo"
-              "rust-bindgen"
-            ]
-          );
+          type = types.listOf (types.enum libraryPresetNames);
           default = [ ];
         };
         dynamicRuntimeProfile = mkOption {

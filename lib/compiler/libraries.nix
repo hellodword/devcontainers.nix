@@ -145,50 +145,44 @@ let
     LD_LIBRARY_PATH = colon runtimeLdLibraryPathEntries;
   };
 
-  presetEnv =
-    preset:
-    if preset == "autotools" then
-      {
-        CPPFLAGS = space includeFlags;
-        LDFLAGS = space libraryFlags;
-        ACLOCAL_PATH = colon aclocalEntries;
-      }
-    else if preset == "gtk" then
-      {
-        XDG_DATA_DIRS = colon xdgDataEntries;
-        GIO_EXTRA_MODULES = colon gioModuleEntries;
-      }
-    else if preset == "gobject-introspection" then
-      {
-        GI_TYPELIB_PATH = colon giTypelibEntries;
-        XDG_DATA_DIRS = colon xdgDataEntries;
-      }
-    else if preset == "gstreamer" then
-      {
-        GST_PLUGIN_SYSTEM_PATH_1_0 = colon gstPluginEntries;
-      }
-    else if preset == "qt" then
-      {
-        QT_PLUGIN_PATH = colon qtPluginEntries;
-        QML2_IMPORT_PATH = colon qmlEntries;
-        XDG_DATA_DIRS = colon xdgDataEntries;
-      }
-    else if preset == "cgo" then
-      {
-        CGO_CFLAGS = space includeFlags;
-        CGO_LDFLAGS = space libraryFlags;
-      }
-    else if preset == "rust-bindgen" then
-      {
-        BINDGEN_EXTRA_CLANG_ARGS = space systemIncludeFlags;
-      }
-    else
-      { };
+  presetEnvByName = {
+    autotools = {
+      CPPFLAGS = space includeFlags;
+      LDFLAGS = space libraryFlags;
+      ACLOCAL_PATH = colon aclocalEntries;
+    };
+    gtk = {
+      XDG_DATA_DIRS = colon xdgDataEntries;
+      GIO_EXTRA_MODULES = colon gioModuleEntries;
+    };
+    "gobject-introspection" = {
+      GI_TYPELIB_PATH = colon giTypelibEntries;
+      XDG_DATA_DIRS = colon xdgDataEntries;
+    };
+    gstreamer = {
+      GST_PLUGIN_SYSTEM_PATH_1_0 = colon gstPluginEntries;
+    };
+    qt = {
+      QT_PLUGIN_PATH = colon qtPluginEntries;
+      QML2_IMPORT_PATH = colon qmlEntries;
+      XDG_DATA_DIRS = colon xdgDataEntries;
+    };
+    cgo = {
+      CGO_CFLAGS = space includeFlags;
+      CGO_LDFLAGS = space libraryFlags;
+    };
+    "rust-bindgen" = {
+      BINDGEN_EXTRA_CLANG_ARGS = space systemIncludeFlags;
+    };
+  };
+  missingPresetEnv = builtins.filter (preset: !(builtins.hasAttr preset presetEnvByName)) presets;
 
-  presetEnvEntries = map (preset: {
-    inherit preset;
-    env = presetEnv preset;
-  }) presets;
+  presetEnvEntries =
+    assert missingPresetEnv == [ ];
+    map (preset: {
+      inherit preset;
+      env = presetEnvByName.${preset};
+    }) presets;
   presetsEnv = lib.foldl' (acc: entry: acc // entry.env) { } presetEnvEntries;
 
   envContainer = coreEnv // presetsEnv;
