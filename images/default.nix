@@ -91,6 +91,7 @@ let
       module,
       docs,
       ci ? { },
+      checks ? { },
       extraModules ? [ ],
     }:
     {
@@ -101,6 +102,7 @@ let
         module
         docs
         ci
+        checks
         extraModules
         ;
       modules = [
@@ -152,6 +154,10 @@ let
       tags = [ "latest" ];
       module = ./nix.nix;
       docs.useWhen = "Use for Nix flakes, Nix modules, shell tooling, and general repositories that still benefit from Python and Node.js runtimes.";
+      checks = {
+        required = true;
+        reportCli = true;
+      };
       extraModules = commonLatestRuntimeModules ++ [
         (
           { lib, ... }:
@@ -174,6 +180,7 @@ let
       ];
       module = ./go.nix;
       docs.useWhen = "Use for current Go projects with common Go tools.";
+      checks.required = true;
       extraModules = goLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -194,6 +201,7 @@ let
       module = ./go-web.nix;
       docs.useWhen = "Use for Go services that also need web and data tools.";
       ci.e2eSessions = [ "wayland-sway" ];
+      checks.required = true;
       extraModules = goLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -205,6 +213,7 @@ let
       ];
       module = ./nodejs.nix;
       docs.useWhen = "Use for Node.js, TypeScript, frontend, and package-manager heavy projects.";
+      checks.required = true;
       extraModules = commonLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -227,6 +236,7 @@ let
       ];
       module = ./python.nix;
       docs.useWhen = "Use for Python projects with uv, pipx, formatters, linters, and test tools.";
+      checks.required = true;
       extraModules = commonLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -235,6 +245,7 @@ let
       tags = [ "web" ];
       module = ./python3-web.nix;
       docs.useWhen = "Use for Python services that also need web and data tools.";
+      checks.required = true;
       extraModules = commonLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -243,6 +254,7 @@ let
       tags = [ "latest" ];
       module = ./rust.nix;
       docs.useWhen = "Use for Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers.";
+      checks.required = true;
       extraModules = rustLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -252,6 +264,7 @@ let
       module = ./rust-web.nix;
       docs.useWhen = "Use for Rust services that also need web and data tools.";
       ci.e2eSessions = [ "wayland-sway" ];
+      checks.required = true;
       extraModules = rustLatestRuntimeModules;
     })
     (mkImageTarget {
@@ -260,6 +273,15 @@ let
       tags = [ "latest" ];
       module = ./flutter.nix;
       docs.useWhen = "Use for Flutter, Dart, Android, and Chromium-backed web workflows.";
+      checks = {
+        required = true;
+        rootfsRequires = [
+          "/usr/bin/flutter"
+          "/usr/bin/rust-analyzer"
+          "/usr/bin/node"
+          "/usr/bin/python"
+        ];
+      };
       extraModules = rustLatestRuntimeModules;
     })
   ];

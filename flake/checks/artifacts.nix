@@ -3,6 +3,7 @@
   lib,
   nixpkgs,
   images,
+  targets,
   ...
 }:
 
@@ -26,20 +27,35 @@ let
         ''
     )
   ) images;
+  rootfsRequireTargets = builtins.filter (
+    target: (target.checks.rootfsRequires or [ ]) != [ ]
+  ) targets.imageTargetList;
+  rootfsRequireChecks = lib.listToAttrs (
+    map (
+      target:
+      let
+        checkName =
+          if builtins.length rootfsRequireTargets == 1 then
+            "artifact-rootfs-maximal"
+          else
+            "artifact-rootfs-${target.target}";
+        requireArgs = lib.concatMapStringsSep " " (
+          path: "--require ${lib.escapeShellArg path}"
+        ) target.checks.rootfsRequires;
+      in
+      lib.nameValuePair checkName (
+        pkgs.runCommand checkName
+          {
+            nativeBuildInputs = [ pkgs.python3 ];
+          }
+          ''
+            python3 ${../../tests/ci/check-rootfs-layout.py} ${images.${target.target}.rootfs} ${
+              images.${target.target}.reports
+            } ${target.target} ${requireArgs}
+            touch "$out"
+          ''
+      )
+    ) rootfsRequireTargets
+  );
 in
-artifactImageChecks
-// {
-  artifact-rootfs-maximal =
-    pkgs.runCommand "artifact-rootfs-maximal"
-      {
-        nativeBuildInputs = [ pkgs.python3 ];
-      }
-      ''
-        python3 ${../../tests/ci/check-rootfs-layout.py} ${images.flutter.rootfs} ${images.flutter.reports} flutter \
-          --require /usr/bin/flutter \
-          --require /usr/bin/rust-analyzer \
-          --require /usr/bin/node \
-          --require /usr/bin/python
-        touch "$out"
-      '';
-}
+artifactImageChecks // rootfsRequireChecks

@@ -121,8 +121,11 @@ let
     (lib.hasPrefix "go-" name && name != "go" && name != "go-web")
     || (lib.hasPrefix "nodejs-" name && name != "nodejs")
   ) imageNames;
-  # Publishing policy: these public image targets must remain exposed.
-  requiredImageFamiliesOrTargets = [
+  requiredImageTargetNames = map (target: target.target) (
+    builtins.filter (target: target.checks.required or false) targets.imageTargetList
+  );
+  # Publishing policy guard: metadata must still mark these public targets as required.
+  expectedRequiredImageTargets = [
     "nix"
     "go"
     "go-web"
@@ -515,7 +518,7 @@ reportChecks
     assert lib.all (contract: contract.docsValid) targetRegistryContracts;
     assert lib.all (contract: contract.compiledMatches) targetRegistryContracts;
     assert unknownTargetCiE2eSessions == [ ];
-    assert lib.all (name: builtins.elem name imageNames) requiredImageFamiliesOrTargets;
+    assert requiredImageTargetNames == expectedRequiredImageTargets;
     assert lib.all (
       name:
       (builtins.match "go-[0-9]+_[0-9]+" name != null) || (builtins.match "nodejs-[0-9]+" name != null)
@@ -525,6 +528,7 @@ reportChecks
     pkgs.writeText "contracts-image-targets.json" (
       builtins.toJSON {
         previousTargets = previousTargets;
+        requiredImageTargets = requiredImageTargetNames;
         registry = targetRegistryContracts;
         ciE2eSessions = targetCiE2eSessions;
         images = imageContracts;
