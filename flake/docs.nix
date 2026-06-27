@@ -13,43 +13,32 @@ let
   targetRefs = target: map (tag: imageRef target tag) target.tags;
   codeList = values: lib.concatStringsSep ", " (map code values);
   tableRefs = target: lib.concatStringsSep "<br>" (map code (targetRefs target));
-  docsMetadata = {
-    nix = "Use for Nix flakes, Nix modules, shell tooling, and general repositories that still benefit from Python and Node.js runtimes.";
-    go = "Use for current Go projects with common Go tools.";
-    "go-web" = "Use for Go services that also need web and data tools.";
-    nodejs = "Use for Node.js, TypeScript, frontend, and package-manager heavy projects.";
-    python3 = "Use for Python projects with uv, pipx, formatters, linters, and test tools.";
-    "python3-web" = "Use for Python services that also need web and data tools.";
-    rust = "Use for Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers.";
-    "rust-web" = "Use for Rust services that also need web and data tools.";
-    flutter = "Use for Flutter, Dart, Android, and Chromium-backed web workflows.";
-  };
-  targetUse =
+  hasNonEmptyUseWhen =
     target:
-    docsMetadata.${target.target}
-      or (
-        if target.family == "go" then
-          "Use for the previous Go major/minor line exposed by this repository."
-        else if target.family == "nodejs" then
-          "Use for the previous even Node.js major line exposed by this repository."
-        else
-          "Use when you need the ${target.family} image variant published by this target."
-      );
+    target ? docs && target.docs ? useWhen && builtins.isString target.docs.useWhen && target.docs.useWhen != "";
+  requireTargetDocs =
+    target:
+    if hasNonEmptyUseWhen target then
+      target
+    else
+      builtins.throw "image target ${target.target} must define docs.useWhen";
+  imageTargetList = map requireTargetDocs targets.imageTargetList;
+  targetUse = target: target.docs.useWhen;
   generatedDocs = {
     readmeImageRefs = ''
       ${lib.concatMapStringsSep "\n" (
         target: lib.concatMapStringsSep "\n" (ref: "- ${code ref}") (targetRefs target)
-      ) targets.imageTargetList}
+      ) imageTargetList}
     '';
 
     usageImageRefs = ''
-      The flake builds ${toString (builtins.length targets.imageTargetList)} image targets. Target names are used for local Nix outputs, generated workflow names, and smoke plans. Published image references use the `ghcr.io/hellodword/devcontainers-` prefix plus the target's family and tag.
+      The flake builds ${toString (builtins.length imageTargetList)} image targets. Target names are used for local Nix outputs, generated workflow names, and smoke plans. Published image references use the `ghcr.io/hellodword/devcontainers-` prefix plus the target's family and tag.
 
       | Target | Published references | Use when |
       | --- | --- | --- |
       ${lib.concatMapStringsSep "\n" (
         target: "| ${code target.target} | ${tableRefs target} | ${targetUse target} |"
-      ) targets.imageTargetList}
+      ) imageTargetList}
 
       `go`, `nodejs`, and `python3` also publish version tags for their current language line when the target defines one.
     '';
@@ -60,7 +49,7 @@ let
       ${lib.concatMapStringsSep "\n" (
         target:
         "| ${code target.target} | ${code "devcontainers-${target.family}"} | ${codeList target.tags} | ${code (modulePath target)} |"
-      ) targets.imageTargetList}
+      ) imageTargetList}
     '';
   };
 
