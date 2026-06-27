@@ -43,6 +43,11 @@ The E2E packages are exposed under `e2e.${system}`. Do not add them to
 `packages.${system}` or `checks.${system}` unless the CI policy explicitly
 changes.
 
+Because `e2e` is a custom flake output, `nix flake check` can warn that `images`
+and `e2e` are unknown outputs. That warning is accepted. Keeping E2E under
+`e2e.${system}` avoids making the default check path evaluate or traverse these
+heavy VM tests.
+
 ## Timeout Model
 
 The base timeout values in `tests/e2e/vscode-gui.nix` are tuned for a fast local

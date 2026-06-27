@@ -84,6 +84,13 @@
         inherit pkgs lib;
         imageNames = targets.imageNames;
       };
+      docs = import ./flake/docs.nix {
+        inherit
+          pkgs
+          lib
+          targets
+          ;
+      };
       flakeChecks = import ./flake/checks.nix {
         inherit
           self
@@ -187,6 +194,7 @@
           "vscode-extension-projector" = compiler.runtimePackages."vscode-extension-projector";
           devpkg = compiler.runtimePackages.devpkg;
           generate-workflows = workflows.generateWorkflows;
+          generate-docs = docs.generateDocs;
         };
 
       apps.${system} = imageLoadApps // {
@@ -195,6 +203,11 @@
           type = "app";
           program = "${workflows.generateWorkflows}/bin/generate-workflows";
           meta.description = "Regenerate checked-in image build workflows";
+        };
+        generate-docs = {
+          type = "app";
+          program = "${docs.generateDocs}/bin/generate-docs";
+          meta.description = "Regenerate checked-in documentation snippets";
         };
         run-smoke-plan = {
           type = "app";

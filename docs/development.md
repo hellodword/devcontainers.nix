@@ -66,6 +66,22 @@ Build the generated font root or other compiler outputs through the `images.<nam
 nix build .#images.nix.fonts.root --print-out-paths --no-link
 ```
 
+Inspect reports through the packaged helper:
+
+```sh
+nix build .#images.nix.reports
+report="$(readlink -f result)"
+nix run .#devcontainer-image -- explain layer 0 --report "$report"
+nix run .#devcontainer-image -- explain package bash --report "$report"
+nix run .#devcontainer-image -- explain extension golang.go --report "$report"
+nix run .#devcontainer-image -- explain env PATH --report "$report"
+nix run .#devcontainer-image -- explain filesystem --report "$report"
+nix run .#devcontainer-image -- explain image-plan --report "$report"
+nix run .#devcontainer-image -- explain security --report "$report"
+nix run .#devcontainer-image -- diff old-layer-plan.json "$report/layer-plan.json"
+nix run .#devcontainer-image -- doctor image ghcr.io/hellodword/devcontainers-nix:latest
+```
+
 ## Smoke Tests
 
 After loading an image, run its smoke plan:
@@ -82,6 +98,10 @@ Real VS Code Dev Containers GUI tests are exposed under
 `e2e.${system}.e2e-vscode-<image>-<session>`. They are intentionally not part
 of `nix flake check`.
 
+`e2e` is a custom flake output, so `nix flake check` can warn that `images` and
+`e2e` are unknown outputs. That warning is an accepted tradeoff: the heavy GUI
+E2E derivations remain opt-in and are not traversed by the default check path.
+
 Read [VS Code GUI E2E Testing](e2e-testing.md) before changing
 `tests/e2e/vscode-gui.nix`, desktop sessions, Command Palette automation,
 timeouts, or GUI readiness detection.
@@ -91,11 +111,12 @@ timeouts, or GUI readiness detection.
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
 3. Add the image target in `flake/targets.nix` with target name, family, tags, module, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
-4. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
-5. Run `nix flake check`.
-6. Build the image reports and inspect `graph.json`, `layer-plan.json`, and `metadata-label.json`.
-7. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
-8. Update [Usage](usage.md) if the published image contract changed.
+4. Run `nix run .#generate-docs` when targets, families, tags, or published image references changed.
+5. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
+6. Run `nix flake check`.
+7. Build the image reports and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `metadata-label.json`.
+8. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
+9. Update [Usage](usage.md) if the published image contract changed beyond the generated image-reference snippet.
 
 Use target names for local build outputs and smoke plans, for example `go`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
 
@@ -106,11 +127,11 @@ A toolset is a reusable group of packages that can be enabled by many images.
 1. Add an option under `devcontainer.toolsets` in `lib/modules/core/options.nix`.
 2. Add a module under `lib/modules/toolsets/`.
 3. Load the module from `lib/compiler/eval.nix`.
-4. Add packages to `environment.systemPackages`.
-5. Add a graph node with a stable bucket name.
+4. Define a `devcontainer.profiles."toolset/<name>"` leaf profile with packages, provided commands, environment fragments, VS Code metadata, lifecycle tasks, library presets, and smoke capabilities as needed.
+5. Use a stable layer bucket in the profile `group`.
 6. Add a capability in `lib/tests/smoke-catalog.nix` for important user-visible commands.
-7. Enable the toolset from image modules that need it.
-8. Run report checks and inspect graph/layer reports.
+7. Enable the profile from image modules or bundle profiles that need it.
+8. Run report checks and inspect profile, graph, and layer reports.
 
 Keep toolsets focused. A package belongs in a toolset when it is useful across multiple image families. If it only makes sense for one language, put it in that language module instead.
 
@@ -138,11 +159,12 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 1. Add options in `lib/modules/core/options.nix`.
 2. Add a runtime module under `lib/modules/runtimes/` or a language module under `lib/modules/languages/`.
 3. Load it from `lib/compiler/eval.nix`.
-4. Add packages with `environment.systemPackages`, environment variables with `environment.variables`, path segments, VS Code extensions, settings, aliases, and capability declarations.
-5. Add graph nodes for runtime and language pieces.
+4. Define one or more `devcontainer.profiles` leaf profiles for packages, environment variables, path segments, VS Code extensions, settings, aliases, library presets, lifecycle tasks, and capability declarations.
+5. Define a bundle profile only when a named stack should enable multiple leaf profiles without owning resources itself.
 6. Add a capability in `lib/tests/smoke-catalog.nix` when the module exposes user-visible behavior that should run in a real container.
 7. Add image target wiring in `flake/targets.nix` if the language has version-specific tags.
-8. Update [Usage](usage.md) with the user-facing image reference or `devcontainer.json` examples.
+8. Run `nix run .#generate-docs` if image targets, families, or tags changed.
+9. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed beyond the generated reference table.
 
 Version-specific language packages should be discovered from nixpkgs or the relevant overlay in `flake/targets.nix`, then injected through small override modules following the Go, Node.js, Python, and Rust patterns.
 
@@ -159,6 +181,8 @@ Compiler changes belong under `lib/compiler/`.
 7. Update [Architecture](architecture.md) when the pipeline or ownership model changes.
 
 Avoid hidden side effects. If a behavior changes the image, it should be visible in reports, a compiler contract, or a capability smoke test.
+
+Do not add direct `devcontainer.graph.nodes` entries for ordinary package groups. New language stacks, toolsets, editor integrations, and small reusable tools should define profiles and let `compileProfiles` create graph nodes. Direct graph nodes are for compiler-owned or core generated content such as FHS compatibility, fonts, shell files, filesystem roots, and dynamic library profiles.
 
 ## Adding Runtime Helpers
 
@@ -248,3 +272,13 @@ Keep documentation split by audience:
 - specialized design notes stay in their focused documents.
 
 When changing a feature, update the smallest relevant set of docs. User-visible image behavior belongs in usage docs. Compiler ownership or invariants belong in architecture docs. Maintenance checklists belong in development docs or focused subsystem docs.
+
+Generated snippets are deliberately limited to target-derived image reference tables:
+
+```sh
+nix run .#generate-docs
+```
+
+The generator updates only marked blocks in `README.md`, `docs/usage.md`, and
+`docs/architecture.md`. There is no documentation consistency check; run the
+generator as part of target, family, and tag changes.

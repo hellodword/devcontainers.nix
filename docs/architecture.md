@@ -9,22 +9,23 @@ The main target platform is `x86_64-linux`.
 There are four concepts to understand first:
 
 1. An image target is a named build such as `go`, `python3-web`, or `flutter`.
-2. A module writes typed settings. Project-specific image contract remains under `devcontainer.*`, while maintainer-facing NixOS-like subsets such as `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, `programs.*`, and `nix.*` describe static image content.
-3. A graph node groups related package paths or generated files into a semantic unit such as `language/go`, `toolset/docker-client`, or `runtime/fonts`.
-4. The compiler reads the final module configuration and produces an OCI image plus reports that explain what was built.
+2. Module evaluation produces typed configuration. Project-specific image contract remains under `devcontainer.*`, while maintainer-facing NixOS-like subsets such as `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, `programs.*`, and `nix.*` describe static image content.
+3. `devcontainer.profiles` is the main maintenance surface for reusable image content. Leaf profiles describe packages, environment, VS Code metadata, lifecycle tasks, smoke capabilities, and library presets. Bundle profiles include other profiles.
+4. The compiler expands the enabled profile graph, turns profiles into graph nodes, then produces environment data, layers, an OCI image, smoke plans, and reports that explain what was built.
 
 The high-level flow is:
 
 ```text
 flake/targets.nix image target
   -> Nix module evaluation
-  -> graph, environment, library, metadata, shell, font, filesystem compilers
+  -> profile compiler
+  -> graph, environment, library, metadata, test-plan, shell, font, filesystem compilers
   -> layer plan
   -> nix2container OCI image
   -> reports and CI checks
 ```
 
-The important design choice is that image structure stays declarative. Language modules and toolset modules do not directly create tar files or Docker instructions. They add typed configuration, graph nodes, and capability IDs. The compiler decides how those pieces become image layers, runtime files, reports, and smoke plans.
+The important design choice is that image structure stays declarative. Language, runtime, editor, and toolset modules normally define profiles and enable profiles. The profile compiler decides which packages, graph nodes, VS Code extensions, environment fragments, lifecycle tasks, library presets, and smoke capabilities become effective. Later compilers decide how those pieces become image layers, runtime files, reports, and smoke plans.
 
 ## Inputs And Package Set
 
@@ -53,8 +54,10 @@ Inputs that provide packages are consumed through overlays. That means modules n
 The larger flake internals live under `flake/`:
 
 - `flake/targets.nix` discovers language package versions and defines the image target list.
+- `flake/docs.nix` renders checked-in documentation snippets from the target list and exposes `generate-docs`.
 - `flake/checks.nix` aggregates focused check suites under `flake/checks/`: contracts, tooling, artifacts, report CLI behavior, and generated workflow synchronization.
 - `flake/workflows.nix` renders per-image GitHub Actions workflows, exposes `generate-workflows`, and checks that generated workflow files are synchronized with the template and target list.
+- `flake/e2e.nix` exposes heavy VS Code GUI Dev Containers tests under the custom `e2e.${system}` output.
 
 ## Image Targets
 
@@ -68,19 +71,21 @@ The larger flake internals live under `flake/`:
 
 Examples:
 
+<!-- BEGIN GENERATED:image-targets -->
 | Target | Registry family | Tags | Base module |
 | --- | --- | --- | --- |
 | `nix` | `devcontainers-nix` | `latest` | `images/nix.nix` |
-| `go` | `devcontainers-go` | `latest`, current Go major/minor | `images/go.nix` |
+| `go` | `devcontainers-go` | `latest`, `1.26` | `images/go.nix` |
 | `go-1_25` | `devcontainers-go` | `1.25` | `images/go.nix` |
 | `go-web` | `devcontainers-go` | `web` | `images/go-web.nix` |
-| `nodejs` | `devcontainers-nodejs` | `latest`, current Node.js major | `images/nodejs.nix` |
+| `nodejs` | `devcontainers-nodejs` | `latest`, `26` | `images/nodejs.nix` |
 | `nodejs-24` | `devcontainers-nodejs` | `24` | `images/nodejs.nix` |
-| `python3` | `devcontainers-python3` | `latest`, current Python major/minor | `images/python.nix` |
+| `python3` | `devcontainers-python3` | `latest`, `3.13` | `images/python.nix` |
 | `python3-web` | `devcontainers-python3` | `web` | `images/python3-web.nix` |
 | `rust` | `devcontainers-rust` | `latest` | `images/rust.nix` |
 | `rust-web` | `devcontainers-rust` | `web` | `images/rust-web.nix` |
 | `flutter` | `devcontainers-flutter` | `latest` | `images/flutter.nix` |
+<!-- END GENERATED:image-targets -->
 
 The published reference for a family is:
 
@@ -93,16 +98,19 @@ ghcr.io/hellodword/devcontainers-<family>:<tag>
 Module evaluation starts in `lib/compiler/eval.nix`. It loads these module groups before adding the image-specific modules:
 
 - core modules in `lib/modules/core/`
+- bundle profiles in `lib/modules/profiles/`
+- editor profiles in `lib/modules/editor/`
 - static program modules in `lib/modules/programs/`
 - toolsets in `lib/modules/toolsets/`
+- small tool profiles in `lib/modules/tools/`
 - language runtimes in `lib/modules/runtimes/`
 - language stacks in `lib/modules/languages/`
 
 Core modules define the shared image contract: user, filesystem, environment, shell, fonts, native libraries, FHS compatibility, metadata, lifecycle tasks, VS Code extensions, and options.
 
-Toolset modules add common command groups. For example source control tools, fetch/archive tools, search/navigation tools, inspect/debug tools, workflow/format tools, Docker client tools, agent tools, data/network tools, and nix-index tools.
+Toolset modules add common command groups by declaring profiles. For example source control tools, fetch/archive tools, search/navigation tools, inspect/debug tools, workflow/format tools, Docker client tools, agent tools, data/network tools, and nix-index tools.
 
-Language modules add language-specific tools, environment variables, VS Code extensions, shell aliases, graph nodes, and capability declarations. For example the Go language module adds Go, `gopls`, Delve, `golangci-lint`, `govulncheck`, the Go VS Code extension, Go cache variables, the `gobuild-small` alias, and the `language.go` smoke capability.
+Language modules add language-specific tools, environment variables, VS Code extensions, shell aliases, and capability declarations through profiles. For example the Go language profile adds Go, `gopls`, Delve, `golangci-lint`, `govulncheck`, the Go VS Code extension, Go cache variables, the `gobuild-small` alias, and the `language.go` smoke capability.
 
 ## NixOS-like API Subset
 
@@ -119,9 +127,26 @@ This reuse is scoped to static OCI image generation. The project does not import
 
 Image modules combine these building blocks. For example `images/go.nix` imports the Nix image, enables C, Python, and Node.js runtimes, then enables the Go language module. `images/go-web.nix` imports the Go image and adds data/network tools.
 
+## Profiles
+
+`devcontainer.profiles` is the profile-first compiler input for reusable image content.
+
+A profile has an `id`, `kind`, semantic layer `group`, priority, stability, sharing, and security class. Enabled leaf profiles can contribute packages, provided command IDs, VS Code extensions and settings, environment variables, PATH segments, shell aliases, lifecycle tasks, library presets, and smoke capabilities. Enabled bundle profiles contain only `includes`; they are a named way to activate a set of other profiles.
+
+The profile compiler runs before graph, environment, metadata, lifecycle, VS Code extension, and test-plan compilers. It:
+
+- expands root-enabled profiles and includes
+- rejects unknown includes and include cycles
+- enforces the leaf-vs-bundle split
+- validates layer buckets, PATH buckets, extension buckets, extension ownership, lifecycle task names, and VS Code companion tools
+- creates graph nodes automatically for effective leaf profiles
+- writes `profile-report.json`
+
+Image modules should generally enable existing profiles instead of adding packages or graph nodes directly. New language stacks, reusable toolsets, editor integrations, and small tools should define profiles first. Direct `devcontainer.graph.nodes` writes are reserved for compiler-owned or core generated content such as FHS compatibility roots, fonts, shell files, filesystem roots, and dynamic library profiles.
+
 ## Graph Nodes
 
-Every substantial package group should have a graph node under `devcontainer.graph.nodes`.
+Every substantial package group should have a graph node. Most package groups get one automatically from their enabled profile. Compiler-owned generated content may still define a node directly under `devcontainer.graph.nodes`.
 
 A graph node records:
 
@@ -133,7 +158,7 @@ A graph node records:
 - `priority`, used by reports and planning
 - `securityClass`, such as `trusted` or `networked`
 
-The graph gives maintainers a reviewable model of the image. Instead of seeing only a large closure, maintainers can inspect which semantic units were included and where they landed.
+The graph gives maintainers a reviewable model of the image. Instead of seeing only a large closure, maintainers can inspect which semantic units were included, whether they came from profiles or compiler-generated content, and where they landed.
 
 ## Layer Strategy
 
@@ -164,16 +189,18 @@ Reports and CI checks enforce this design:
 
 `lib/default.nix` is the compiler orchestrator. `mkImage` evaluates modules once and then runs focused compilers:
 
-- `compileGraph` normalizes graph nodes
-- `compileEnvironment` normalizes maintainer-facing packages, variables, shell fragments, `/etc` entries, and buildEnv link settings
-- `compileLibraries` builds dynamic runtime and build library profiles
+- `compileProfiles` expands root-enabled profiles, validates composition rules, creates profile graph nodes, and prepares `profile-report.json`
+- `compileEnvironment` normalizes maintainer-facing packages, variables, shell fragments, `/etc` entries, buildEnv link settings, and package contributions from profiles
+- `compileLibraries` builds dynamic runtime and build library profiles, including presets from profiles
+- `compileGraph` normalizes explicit graph nodes plus automatic graph nodes from profiles
 - `compileFhsRuntime` creates compatibility paths and dynamic loader settings
-- `compileEnv` merges container, remote, and shell environments
-- `compileMetadata` renders Dev Containers metadata
+- `compileEnv` merges container, remote, shell, and profile environment fragments
 - `compileLifecycle` converts lifecycle tasks into runnable metadata commands
 - `compileShell` renders shell startup files
 - `compileFonts` renders fontconfig files and reports
 - `compileVscodeExtensions` prepares preinstalled VS Code extension payloads
+- `compileTestPlan` builds the smoke test plan from configured capabilities and profile capabilities
+- `compileMetadata` renders Dev Containers metadata
 - `compileFilesystem` creates generated root filesystem files
 - `compileLayers` creates the semantic layer plan
 - `compileImage` creates the nix2container image
@@ -304,6 +331,7 @@ Reports are part of the architecture, not just debug output. They make image com
 
 Important reports include:
 
+- profile reports
 - graph reports
 - package reports
 - environment reports
@@ -345,10 +373,10 @@ When a feature needs broader runtime access, the project should document the sec
 
 When adding a feature, decide which layer of the design owns it:
 
-- user-facing image behavior usually belongs in a module
+- user-facing image behavior usually belongs in a profile declared by a module
 - shared generated files usually belong in a focused compiler
 - runtime commands belong under `runtime/`
-- repeated package groups should become graph nodes
+- repeated package groups should become profiles; profile graph nodes are generated automatically
 - user-visible image behavior should declare a smoke capability
 - compiler behavior should have contract or report checks
 - browser, font, or Docker daemon behavior should be documented because those areas have important runtime constraints

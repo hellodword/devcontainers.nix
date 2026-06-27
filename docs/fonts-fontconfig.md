@@ -242,9 +242,8 @@ The report records:
 `tests/ci/check-smoke-plan.py` requires every image family to include the common
 font smoke tests:
 
-- `fontconfig-tools`
-- `fontconfig-cjk`
-- `fontconfig-emoji-symbols`
+- `fontconfig.core`
+- `fontconfig.cjk-emoji`
 
 The image tar fixture check exercises the artifact validator on representative
 layer-plan inputs, and runtime smoke tests validate font behavior after an image
@@ -308,7 +307,7 @@ When changing default fallback order:
 
 1. Update `devcontainer.fonts.fontconfig.defaultFonts`.
 2. Verify `fc-match` results for representative CJK code points.
-3. Update `tests/ci/check-reports.py` and `fontconfig-cjk` smoke expectations.
+3. Update `tests/ci/check-reports.py` and `fontconfig.cjk-emoji` smoke expectations.
 4. Document the rationale, especially if changing regional CJK priority.
 
 When adding system cache generation:

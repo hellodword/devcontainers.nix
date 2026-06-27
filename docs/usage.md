@@ -4,23 +4,25 @@ This guide is for people using the published images from a project `.devcontaine
 
 ## Image References
 
+<!-- BEGIN GENERATED:image-refs -->
 The flake builds 11 image targets. Target names are used for local Nix outputs, generated workflow names, and smoke plans. Published image references use the `ghcr.io/hellodword/devcontainers-` prefix plus the target's family and tag.
 
-| Target | Image reference | Use when |
+| Target | Published references | Use when |
 | --- | --- | --- |
-| `nix` | `ghcr.io/hellodword/devcontainers-nix:latest` | You work on Nix flakes, Nix modules, or general shell tooling, and still want Python tooling plus the Node.js runtime available. |
-| `go` | `ghcr.io/hellodword/devcontainers-go:latest` | You want current Go plus common Go tools. |
-| `go-1_25` | `ghcr.io/hellodword/devcontainers-go:1.25` | You need the previous Go major/minor line exposed by this repository. |
-| `go-web` | `ghcr.io/hellodword/devcontainers-go:web` | You build Go services that also need web and data tools. |
-| `nodejs` | `ghcr.io/hellodword/devcontainers-nodejs:latest` | You work on Node.js, TypeScript, frontend, or package-manager heavy projects. |
-| `nodejs-24` | `ghcr.io/hellodword/devcontainers-nodejs:24` | You need the previous even Node.js major line exposed by this repository. |
-| `python3` | `ghcr.io/hellodword/devcontainers-python3:latest` | You work on Python projects with `uv`, `pipx`, formatters, linters, and test tools. |
-| `python3-web` | `ghcr.io/hellodword/devcontainers-python3:web` | You build Python services that also need web and data tools. |
-| `rust` | `ghcr.io/hellodword/devcontainers-rust:latest` | You work on Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers. |
-| `rust-web` | `ghcr.io/hellodword/devcontainers-rust:web` | You build Rust services that also need web and data tools. |
-| `flutter` | `ghcr.io/hellodword/devcontainers-flutter:latest` | You work on Flutter, Dart, Android, and Chromium-backed web workflows. |
+| `nix` | `ghcr.io/hellodword/devcontainers-nix:latest` | Use for Nix flakes, Nix modules, shell tooling, and general repositories that still benefit from Python and Node.js runtimes. |
+| `go` | `ghcr.io/hellodword/devcontainers-go:latest`<br>`ghcr.io/hellodword/devcontainers-go:1.26` | Use for current Go projects with common Go tools. |
+| `go-1_25` | `ghcr.io/hellodword/devcontainers-go:1.25` | Use for the previous Go major/minor line exposed by this repository. |
+| `go-web` | `ghcr.io/hellodword/devcontainers-go:web` | Use for Go services that also need web and data tools. |
+| `nodejs` | `ghcr.io/hellodword/devcontainers-nodejs:latest`<br>`ghcr.io/hellodword/devcontainers-nodejs:26` | Use for Node.js, TypeScript, frontend, and package-manager heavy projects. |
+| `nodejs-24` | `ghcr.io/hellodword/devcontainers-nodejs:24` | Use for the previous even Node.js major line exposed by this repository. |
+| `python3` | `ghcr.io/hellodword/devcontainers-python3:latest`<br>`ghcr.io/hellodword/devcontainers-python3:3.13` | Use for Python projects with uv, pipx, formatters, linters, and test tools. |
+| `python3-web` | `ghcr.io/hellodword/devcontainers-python3:web` | Use for Python services that also need web and data tools. |
+| `rust` | `ghcr.io/hellodword/devcontainers-rust:latest` | Use for Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers. |
+| `rust-web` | `ghcr.io/hellodword/devcontainers-rust:web` | Use for Rust services that also need web and data tools. |
+| `flutter` | `ghcr.io/hellodword/devcontainers-flutter:latest` | Use for Flutter, Dart, Android, and Chromium-backed web workflows. |
 
 `go`, `nodejs`, and `python3` also publish version tags for their current language line when the target defines one.
+<!-- END GENERATED:image-refs -->
 
 ```shell
 nix eval --json .#images \
@@ -97,7 +99,7 @@ Other important defaults:
 - default locale is `en_US.UTF-8`
 - `/etc/localtime`, `/etc/zoneinfo`, and `TZDIR=/etc/zoneinfo` are present
 - `fontconfig` and Noto Latin, CJK, symbol, and emoji fonts are installed
-- Docker client tools are installed, but no Docker daemon is started inside the container
+- Docker client tools are installed, but no Docker daemon is started inside the container. See [Remote Docker](docker-remote.md) for the expected external-daemon model.
 - Git, OpenSSH client tools, and nix-index are available in the base image set
 - `LD_LIBRARY_PATH` is not exported by default
 
