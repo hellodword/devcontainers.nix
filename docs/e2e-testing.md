@@ -17,12 +17,14 @@ target in `images/default.nix` and every supported GUI session exported by
 
 `tests/e2e/vscode-gui.nix` still knows the supported GUI sessions:
 
+<!-- BEGIN GENERATED:e2e-sessions -->
 | Session | Backend | Desktop |
 | --- | --- | --- |
 | `x11-i3` | X11 | LightDM auto-login with i3 |
 | `x11-xfce` | X11 | LightDM auto-login with Xfce |
 | `wayland-sway` | Wayland | tty auto-login with Sway |
 | `wayland-kde` | Wayland | SDDM auto-login with Plasma |
+<!-- END GENERATED:e2e-sessions -->
 
 The E2E attribute name format is:
 

@@ -13,9 +13,15 @@ let
   targetRefs = target: map (tag: imageRef target tag) target.tags;
   codeList = values: lib.concatStringsSep ", " (map code values);
   tableRefs = target: lib.concatStringsSep "<br>" (map code (targetRefs target));
+  vscodeGuiE2e = import ../tests/e2e/vscode-gui.nix {
+    inherit pkgs lib;
+  };
   hasNonEmptyUseWhen =
     target:
-    target ? docs && target.docs ? useWhen && builtins.isString target.docs.useWhen && target.docs.useWhen != "";
+    target ? docs
+    && target.docs ? useWhen
+    && builtins.isString target.docs.useWhen
+    && target.docs.useWhen != "";
   requireTargetDocs =
     target:
     if hasNonEmptyUseWhen target then
@@ -51,6 +57,14 @@ let
         "| ${code target.target} | ${code "devcontainers-${target.family}"} | ${codeList target.tags} | ${code (modulePath target)} |"
       ) imageTargetList}
     '';
+
+    e2eSessions = ''
+      | Session | Backend | Desktop |
+      | --- | --- | --- |
+      ${lib.concatMapStringsSep "\n" (
+        session: "| ${code session.name} | ${session.backend} | ${session.desktop} |"
+      ) vscodeGuiE2e.sessionDocs}
+    '';
   };
 
   generatedDocsJson = pkgs.writeText "generated-docs.json" (builtins.toJSON generatedDocs);
@@ -64,6 +78,7 @@ let
         ("README.md", "image-refs", "readmeImageRefs"),
         ("docs/usage.md", "image-refs", "usageImageRefs"),
         ("docs/architecture.md", "image-targets", "architectureImageTargets"),
+        ("docs/e2e-testing.md", "e2e-sessions", "e2eSessions"),
     ]
 
 

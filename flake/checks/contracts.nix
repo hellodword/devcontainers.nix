@@ -80,9 +80,18 @@ let
         && indexedTarget.docs.useWhen == target.docs.useWhen;
       docsValid = target ? docs && target.docs ? useWhen && nonEmptyString target.docs.useWhen;
       compiledMatches =
-        imageConfig.name == target.target && imageConfig.family == target.family && imageConfig.tags == target.tags;
+        imageConfig.name == target.target
+        && imageConfig.family == target.family
+        && imageConfig.tags == target.tags;
     }
   ) targets.imageTargetList;
+  vscodeGuiE2e = import ../../tests/e2e/vscode-gui.nix {
+    inherit pkgs lib;
+  };
+  targetCiE2eSessions = lib.concatMap (target: target.ci.e2eSessions or [ ]) targets.imageTargetList;
+  unknownTargetCiE2eSessions = builtins.filter (
+    session: !(builtins.elem session vscodeGuiE2e.sessionNames)
+  ) targetCiE2eSessions;
   smokePlan = image: image.reportData.smokePlan;
   smokeCapabilities = image: (smokePlan image).capabilities;
   smokeCase =
@@ -505,6 +514,7 @@ reportChecks
     assert lib.all (contract: contract.indexedTargetMatches) targetRegistryContracts;
     assert lib.all (contract: contract.docsValid) targetRegistryContracts;
     assert lib.all (contract: contract.compiledMatches) targetRegistryContracts;
+    assert unknownTargetCiE2eSessions == [ ];
     assert lib.all (name: builtins.elem name imageNames) requiredImageFamiliesOrTargets;
     assert lib.all (
       name:
@@ -516,6 +526,7 @@ reportChecks
       builtins.toJSON {
         previousTargets = previousTargets;
         registry = targetRegistryContracts;
+        ciE2eSessions = targetCiE2eSessions;
         images = imageContracts;
       }
     );

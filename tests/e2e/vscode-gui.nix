@@ -17,12 +17,7 @@ let
     timeoutScale;
   scaledTimeout = seconds: seconds * timeoutScaleValue;
 
-  sessionNames = [
-    "x11-i3"
-    "x11-xfce"
-    "wayland-sway"
-    "wayland-kde"
-  ];
+  sessionNames = map (entry: entry.name) sessionEntries;
 
   vscodeWithExtensions = pkgs.vscode-with-extensions.override {
     vscode = pkgs.vscode;
@@ -143,164 +138,197 @@ let
       '';
     };
 
-  sessions = {
-    "x11-i3" = {
-      backend = "x11";
-      codeFlags = [
-        "--disable-gpu"
-      ];
-      waitForSession = ''
-        machine.wait_for_x()
-        machine.wait_for_file("/home/alice/.Xauthority")
-        machine.succeed("xauth merge /home/alice/.Xauthority")
-      '';
-      waitForWindow = ''
-        wait_for_vscode_window(timeout=scaled_timeout(90))
-      '';
-      module =
-        {
-          lib,
-          pkgs,
-          ...
-        }:
-        {
+  sessionEntries = [
+    {
+      name = "x11-i3";
+      value = {
+        backend = "x11";
+        docs = {
+          backend = "X11";
+          desktop = "LightDM auto-login with i3";
+        };
+        codeFlags = [
+          "--disable-gpu"
+        ];
+        waitForSession = ''
+          machine.wait_for_x()
+          machine.wait_for_file("/home/alice/.Xauthority")
+          machine.succeed("xauth merge /home/alice/.Xauthority")
+        '';
+        waitForWindow = ''
+          wait_for_vscode_window(timeout=scaled_timeout(90))
+        '';
+        module =
+          {
+            lib,
+            pkgs,
+            ...
+          }:
+          {
+            services.xserver.enable = true;
+            services.xserver.displayManager.lightdm.enable = true;
+            services.xserver.windowManager.i3.enable = true;
+            services.displayManager = {
+              autoLogin = {
+                enable = true;
+                user = "alice";
+              };
+              defaultSession = lib.mkForce "none+i3";
+            };
+          };
+      };
+    }
+
+    {
+      name = "x11-xfce";
+      value = {
+        backend = "x11";
+        docs = {
+          backend = "X11";
+          desktop = "LightDM auto-login with Xfce";
+        };
+        codeFlags = [
+          "--disable-gpu"
+        ];
+        waitForSession = ''
+          machine.wait_for_x()
+          machine.wait_for_file("/home/alice/.Xauthority")
+          machine.succeed("xauth merge /home/alice/.Xauthority")
+        '';
+        waitForWindow = ''
+          wait_for_vscode_window(timeout=scaled_timeout(90))
+        '';
+        module = { lib, ... }: {
           services.xserver.enable = true;
           services.xserver.displayManager.lightdm.enable = true;
-          services.xserver.windowManager.i3.enable = true;
+          services.xserver.desktopManager.xfce.enable = true;
           services.displayManager = {
             autoLogin = {
               enable = true;
               user = "alice";
             };
-            defaultSession = lib.mkForce "none+i3";
+            defaultSession = lib.mkDefault "xfce";
           };
-        };
-    };
-
-    "x11-xfce" = {
-      backend = "x11";
-      codeFlags = [
-        "--disable-gpu"
-      ];
-      waitForSession = ''
-        machine.wait_for_x()
-        machine.wait_for_file("/home/alice/.Xauthority")
-        machine.succeed("xauth merge /home/alice/.Xauthority")
-      '';
-      waitForWindow = ''
-        wait_for_vscode_window(timeout=scaled_timeout(90))
-      '';
-      module = { lib, ... }: {
-        services.xserver.enable = true;
-        services.xserver.displayManager.lightdm.enable = true;
-        services.xserver.desktopManager.xfce.enable = true;
-        services.displayManager = {
-          autoLogin = {
-            enable = true;
-            user = "alice";
-          };
-          defaultSession = lib.mkDefault "xfce";
         };
       };
-    };
+    }
 
-    "wayland-sway" = {
-      backend = "wayland";
-      codeFlags = [
-        "--enable-features=UseOzonePlatform"
-        "--ozone-platform=wayland"
-        "--disable-gpu"
-      ];
-      waitForSession = ''
-        machine.wait_for_unit("multi-user.target")
-        machine.wait_until_succeeds("test -S /run/user/1000/wayland-0 -o -S /run/user/1000/wayland-1", timeout=scaled_timeout(120))
-        machine.wait_for_file("/tmp/sway-ipc.sock", timeout=scaled_timeout(120))
-      '';
-      waitForWindow = ''
-        machine.wait_until_succeeds(
-            "su - alice -c 'SWAYSOCK=/tmp/sway-ipc.sock swaymsg -t get_tree | jq -e \".. | objects | select((.name? // \\\"\\\") | test(\\\"workspace.*Visual Studio Code|Visual Studio Code.*workspace\\\"; \\\"i\\\"))\" >/dev/null'",
-            timeout=scaled_timeout(180),
-        )
-      '';
-      module = { pkgs, ... }: {
-        services.getty.autologinUser = "alice";
-        programs.sway.enable = true;
-        environment.systemPackages = [
-          pkgs.sway
-          pkgs.wayland-utils
-        ];
-        environment.variables = {
-          SWAYSOCK = "/tmp/sway-ipc.sock";
-          WLR_RENDERER = "pixman";
+    {
+      name = "wayland-sway";
+      value = {
+        backend = "wayland";
+        docs = {
+          backend = "Wayland";
+          desktop = "tty auto-login with Sway";
         };
-        programs.bash.loginShellInit = ''
-          if [ "$(tty)" = "/dev/tty1" ]; then
-            set -e
-            mkdir -p ~/.config/sway
-            sed s/Mod4/Mod1/ /etc/sway/config > ~/.config/sway/config
-            sway --validate
-            exec sway
-          fi
+        codeFlags = [
+          "--enable-features=UseOzonePlatform"
+          "--ozone-platform=wayland"
+          "--disable-gpu"
+        ];
+        waitForSession = ''
+          machine.wait_for_unit("multi-user.target")
+          machine.wait_until_succeeds("test -S /run/user/1000/wayland-0 -o -S /run/user/1000/wayland-1", timeout=scaled_timeout(120))
+          machine.wait_for_file("/tmp/sway-ipc.sock", timeout=scaled_timeout(120))
         '';
-        virtualisation.qemu.options = [
-          "-vga none -device virtio-gpu-pci"
-        ];
-      };
-    };
-
-    "wayland-kde" = {
-      backend = "wayland";
-      codeFlags = [
-        "--enable-features=UseOzonePlatform"
-        "--ozone-platform=wayland"
-        "--disable-gpu"
-      ];
-      waitForSession = ''
-        machine.wait_for_unit("display-manager.service")
-        machine.wait_until_succeeds("test -S /run/user/1000/wayland-0 -o -S /run/user/1000/wayland-1", timeout=scaled_timeout(180))
-        machine.wait_until_succeeds("su -l alice --shell /bin/sh -c 'XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user is-active --quiet plasma-workspace-wayland.target'", timeout=scaled_timeout(180))
-        machine.wait_until_succeeds("su -l alice --shell /bin/sh -c 'XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user is-active --quiet graphical-session.target'", timeout=scaled_timeout(180))
-      '';
-      waitForWindow = ''
-        machine.wait_until_succeeds(
-            as_alice(
-                "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
-                "XDG_RUNTIME_DIR=/run/user/1000 "
-                "kdotool search --name 'Visual Studio Code' "
-                "getwindowname %@ 2>/dev/null "
-                "| grep -E 'workspace.*Visual Studio Code|Visual Studio Code.*workspace'"
-            ),
-            timeout=scaled_timeout(180),
-        )
-      '';
-      module =
-        {
-          lib,
-          pkgs,
-          ...
-        }:
-        {
-          services.displayManager = {
-            sddm = {
-              enable = true;
-              wayland.enable = true;
-            };
-            autoLogin = {
-              enable = true;
-              user = "alice";
-            };
-            defaultSession = lib.mkForce "plasma";
-          };
-          services.desktopManager.plasma6.enable = true;
+        waitForWindow = ''
+          machine.wait_until_succeeds(
+              "su - alice -c 'SWAYSOCK=/tmp/sway-ipc.sock swaymsg -t get_tree | jq -e \".. | objects | select((.name? // \\\"\\\") | test(\\\"workspace.*Visual Studio Code|Visual Studio Code.*workspace\\\"; \\\"i\\\"))\" >/dev/null'",
+              timeout=scaled_timeout(180),
+          )
+        '';
+        module = { pkgs, ... }: {
+          services.getty.autologinUser = "alice";
+          programs.sway.enable = true;
           environment.systemPackages = [
-            pkgs.kdotool
+            pkgs.sway
+            pkgs.wayland-utils
           ];
+          environment.variables = {
+            SWAYSOCK = "/tmp/sway-ipc.sock";
+            WLR_RENDERER = "pixman";
+          };
+          programs.bash.loginShellInit = ''
+            if [ "$(tty)" = "/dev/tty1" ]; then
+              set -e
+              mkdir -p ~/.config/sway
+              sed s/Mod4/Mod1/ /etc/sway/config > ~/.config/sway/config
+              sway --validate
+              exec sway
+            fi
+          '';
           virtualisation.qemu.options = [
             "-vga none -device virtio-gpu-pci"
           ];
         };
-    };
-  };
+      };
+    }
+
+    {
+      name = "wayland-kde";
+      value = {
+        backend = "wayland";
+        docs = {
+          backend = "Wayland";
+          desktop = "SDDM auto-login with Plasma";
+        };
+        codeFlags = [
+          "--enable-features=UseOzonePlatform"
+          "--ozone-platform=wayland"
+          "--disable-gpu"
+        ];
+        waitForSession = ''
+          machine.wait_for_unit("display-manager.service")
+          machine.wait_until_succeeds("test -S /run/user/1000/wayland-0 -o -S /run/user/1000/wayland-1", timeout=scaled_timeout(180))
+          machine.wait_until_succeeds("su -l alice --shell /bin/sh -c 'XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user is-active --quiet plasma-workspace-wayland.target'", timeout=scaled_timeout(180))
+          machine.wait_until_succeeds("su -l alice --shell /bin/sh -c 'XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user is-active --quiet graphical-session.target'", timeout=scaled_timeout(180))
+        '';
+        waitForWindow = ''
+          machine.wait_until_succeeds(
+              as_alice(
+                  "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
+                  "XDG_RUNTIME_DIR=/run/user/1000 "
+                  "kdotool search --name 'Visual Studio Code' "
+                  "getwindowname %@ 2>/dev/null "
+                  "| grep -E 'workspace.*Visual Studio Code|Visual Studio Code.*workspace'"
+              ),
+              timeout=scaled_timeout(180),
+          )
+        '';
+        module =
+          {
+            lib,
+            pkgs,
+            ...
+          }:
+          {
+            services.displayManager = {
+              sddm = {
+                enable = true;
+                wayland.enable = true;
+              };
+              autoLogin = {
+                enable = true;
+                user = "alice";
+              };
+              defaultSession = lib.mkForce "plasma";
+            };
+            services.desktopManager.plasma6.enable = true;
+            environment.systemPackages = [
+              pkgs.kdotool
+            ];
+            virtualisation.qemu.options = [
+              "-vga none -device virtio-gpu-pci"
+            ];
+          };
+      };
+    }
+  ];
+  sessions = lib.listToAttrs (map (entry: lib.nameValuePair entry.name entry.value) sessionEntries);
+  sessionDocs = map (entry: {
+    inherit (entry) name;
+    inherit (entry.value.docs) backend desktop;
+  }) sessionEntries;
 
   mkVscodeGuiTest =
     {
@@ -1307,6 +1335,7 @@ in
   inherit
     mkVscodeGuiTest
     sessionNames
+    sessionDocs
     sessions
     ;
 }
