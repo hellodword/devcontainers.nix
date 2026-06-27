@@ -18,10 +18,11 @@ After two years of these setups, I decided to completely rework everything using
 2. Nix makes Docker images reproducible, which was practically unattainable with traditional `docker build`, or at least very hard to achieve.
 3. The Nix store is hash-based, making it incredibly easy to avoid wasting space with duplicate files.
 4. Tools like `pkgs.dockerTools` and `nix2container.buildImage` allow for flexible layering. I can manually organize which packages and files go into the same layer. More impressively, these layers are fully reproducible and shareable, effectively turning Docker pulls into true incremental updates.
+5. Nix also makes real VS Code GUI E2E tests practical: this project can build NixOS VM tests that open the generated devcontainer in VS Code and verify X11/Wayland GUI forwarding, lifecycle tasks, terminal integration, and smoke probes.
 
-`devcontainers.nix` takes that idea further by using Nix as the source of truth for packages, VS Code metadata, runtime environment variables, lifecycle tasks, semantic layer reports, and capability-driven smoke tests. The image is no longer just a pile of files; it is a reproducible, inspectable build product with reports that explain what went into each layer and why.
+The initial Nix implementation lives on the `v0` branch. This version was refactored from that `v0` base through vibe coding.
 
-The part I like the most is the VS Code GUI E2E test setup. Because Nix can build full NixOS virtual machines as derivations, this project can boot real desktop sessions, start Docker, launch real VS Code with the Dev Containers extension, load the generated image, drive the Command Palette, reopen the workspace inside the container, and then verify GUI forwarding, lifecycle tasks, terminal integration, and smoke probes from inside the running devcontainer. It covers X11 and Wayland sessions, and the whole setup is still expressed as Nix. This is the kind of end-to-end confidence I always wanted for Dev Containers, but it only became practical once the image, VM, VS Code server cache, Docker archive, and verification scripts all came from the same reproducible system.
+## Quick Start
 
 Published images:
 
@@ -39,8 +40,6 @@ Published images:
 - `ghcr.io/hellodword/devcontainers-rust:latest`
 - `ghcr.io/hellodword/devcontainers-rust:web`
 - `ghcr.io/hellodword/devcontainers-flutter:latest`
-
-## Quick Start
 
 Create `.devcontainer/devcontainer.json`:
 
