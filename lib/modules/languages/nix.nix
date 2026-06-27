@@ -58,11 +58,11 @@ in
           "nix.serverSettings" = {
             "nixd" = {
               "formatting" = {
-                "command" = [ "/usr/bin/nixfmt" ];
+                "command" = [ "nixfmt" ];
               };
             };
           };
-          "nix.formatterPath" = "/usr/bin/nixfmt";
+          "nix.formatterPath" = "nixfmt";
         };
       };
       tests.capabilities = [ "language.nix" ];

@@ -6,6 +6,10 @@
     packages = with pkgs; [
       protobuf
       protols
+      buf
+      protolint
+      grpcurl
+      api-linter
     ];
     priority = 80;
     stability = "stable";
@@ -14,15 +18,44 @@
     provides.commands = [
       "protoc"
       "protols"
+      "buf"
+      "protolint"
+      "grpcurl"
+      "api-linter"
     ];
 
     vscode = {
-      extensions."ianandhum.protobuf-support" = {
+      extensions."drblury.protobuf-vsc" = {
         native = false;
         bucket = "80-vscode-extensions-base";
-        companionTools = [ "protols" ];
+        companionTools = [
+          "protoc"
+          "buf"
+          "protolint"
+          "grpcurl"
+          "api-linter"
+        ];
       };
-      settings."protobuf-support.protols.path" = "/usr/bin/protols";
+      settings = {
+        "[proto]" = {
+          "editor.defaultFormatter" = "DrBlury.protobuf-vsc";
+        };
+        "[textproto]" = {
+          "editor.defaultFormatter" = "DrBlury.protobuf-vsc";
+        };
+        "protobuf.formatter.enabled" = true;
+        "protobuf.formatter.preset" = "minimal";
+        "protobuf.protoc.path" = "/usr/bin/protoc";
+        "protobuf.grpcurl.path" = "/usr/bin/grpcurl";
+        "protobuf.externalLinter.protolintPath" = "/usr/bin/protolint";
+        "protobuf.externalLinter.apiLinterPath" = "/usr/bin/api-linter";
+        "protobuf.externalLinter.linter" = "buf";
+        "protobuf.externalLinter.enabled" = true;
+        "protobuf.externalLinter.bufPath" = "/usr/bin/buf";
+        "protobuf.buf.useManaged" = false;
+        "protobuf.buf.path" = "/usr/bin/buf";
+        "protobuf.autoDetection.enabled" = false;
+      };
     };
   };
 }

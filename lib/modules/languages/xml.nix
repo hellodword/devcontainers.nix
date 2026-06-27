@@ -19,7 +19,8 @@
       settings = {
         "xml.format.enabled" = true;
         "xml.server.preferBinary" = true;
-        "xml.server.binary.path" = "/usr/bin/lemminx";
+        # The server binary /usr/bin/lemminx is not trusted. Running the file poses a threat to your system's security. Do you want to add this binary to the list of trusted binaries and run it?
+        # "xml.server.binary.path" = "/usr/bin/lemminx";
       };
     };
   };

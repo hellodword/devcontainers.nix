@@ -19,7 +19,8 @@
       settings = {
         "json.format.enable" = false;
         "prettier.enable" = true;
-        "prettier.prettierPath" = "/usr/bin/prettier";
+        # Failed to load module. If you have prettier or plugins referenced in package.json, ensure you have run `npm install` /usr/bin/package.json
+        # "prettier.prettierPath" = "/usr/bin/prettier";
         "[json]" = {
           "editor.defaultFormatter" = "esbenp.prettier-vscode";
         };

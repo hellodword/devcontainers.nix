@@ -51,6 +51,11 @@
       "chat.disableAIFeatures" = true;
       "inlineChat.enableV2" = false;
       "terminal.integrated.suggest.enabled" = false;
+      "telemetry.feedback.enabled" = false;
+      "telemetry.editStats.details.enabled" = false;
+      "telemetry.editStats.enabled" = false;
+      "telemetry.editStats.showDecorations" = false;
+      "telemetry.editStats.showStatusBar" = false;
     };
   };
 }

@@ -232,7 +232,7 @@ in
     command = [
       "bash"
       "-lc"
-      "yaml-language-server --version && minijinja-cli --version && protoc --version && protols --version"
+      "yaml-language-server --version && minijinja-cli --version && protoc --version && protols --version && buf --version && protolint version && grpcurl -version && api-linter --version"
     ];
   };
   "workflow-format.tools" = mkCase {
