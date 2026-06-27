@@ -45,8 +45,6 @@ let
       ${lib.concatMapStringsSep "\n" (
         target: "| ${code target.target} | ${tableRefs target} | ${targetUse target} |"
       ) imageTargetList}
-
-      `go`, `nodejs`, and `python3` also publish version tags for their current language line when the target defines one.
     '';
 
     architectureImageTargets = ''

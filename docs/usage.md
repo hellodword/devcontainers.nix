@@ -20,8 +20,6 @@ The flake builds 11 image targets. Target names are used for local Nix outputs, 
 | `rust` | `ghcr.io/hellodword/devcontainers-rust:latest` | Use for Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers. |
 | `rust-web` | `ghcr.io/hellodword/devcontainers-rust:web` | Use for Rust services that also need web and data tools. |
 | `flutter` | `ghcr.io/hellodword/devcontainers-flutter:latest` | Use for Flutter, Dart, Android, and Chromium-backed web workflows. |
-
-`go`, `nodejs`, and `python3` also publish version tags for their current language line when the target defines one.
 <!-- END GENERATED:image-refs -->
 
 ```shell
@@ -234,12 +232,11 @@ Do not bake proxy credentials, private keys, tokens, or machine-specific CA bund
 
 ## Image Examples
 
-Nix module or flake work:
-
 ```json
 {
-  "name": "nix",
-  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
+  "image": "ghcr.io/hellodword/devcontainers-go:web",
+  "runArgs": ["--shm-size=1g"],
+  "postCreateCommand": "devpkg add-dev-lib openssl && devpkg add chromium",
   "customizations": {
     "vscode": {
       "settings": {
@@ -247,57 +244,6 @@ Nix module or flake work:
       }
     }
   }
-}
-```
-
-Go service with the web variant:
-
-```json
-{
-  "name": "go-web",
-  "image": "ghcr.io/hellodword/devcontainers-go:web",
-  "postCreateCommand": "go version && node --version && devpkg add-dev-lib openssl"
-}
-```
-
-Node.js project:
-
-```json
-{
-  "name": "nodejs",
-  "image": "ghcr.io/hellodword/devcontainers-nodejs:latest",
-  "postCreateCommand": "pnpm install"
-}
-```
-
-Python service with the web variant:
-
-```json
-{
-  "name": "python3-web",
-  "image": "ghcr.io/hellodword/devcontainers-python3:web",
-  "postCreateCommand": "uv sync"
-}
-```
-
-Rust project:
-
-```json
-{
-  "name": "rust",
-  "image": "ghcr.io/hellodword/devcontainers-rust:latest",
-  "postCreateCommand": "cargo fetch"
-}
-```
-
-Flutter project:
-
-```json
-{
-  "name": "flutter",
-  "image": "ghcr.io/hellodword/devcontainers-flutter:latest",
-  "runArgs": ["--shm-size=1g"],
-  "postCreateCommand": "flutter pub get"
 }
 ```
 
@@ -309,7 +255,6 @@ Use a larger private `/dev/shm` for interactive browser work and browser automat
 
 ```json
 {
-  "name": "browser",
   "image": "ghcr.io/hellodword/devcontainers-flutter:latest",
   "runArgs": ["--shm-size=1g"]
 }
@@ -319,7 +264,6 @@ For Docker Compose based devcontainers:
 
 ```json
 {
-  "name": "browser-compose",
   "dockerComposeFile": "compose.yaml",
   "service": "dev",
   "workspaceFolder": "/workspaces/app"
@@ -331,12 +275,6 @@ services:
   dev:
     image: ghcr.io/hellodword/devcontainers-flutter:latest
     shm_size: "1gb"
-```
-
-If VS Code provides Wayland forwarding but Chromium starts through X11, launch it with:
-
-```sh
-chromium --ozone-platform=wayland
 ```
 
 The images do not add `--no-sandbox`, do not install Chromium SUID sandbox helpers, and do not relax container runtime security settings by default. See [Chromium in Dev Containers](chromium.md) for the detailed browser behavior and tradeoffs.
