@@ -313,7 +313,8 @@ The `devpkg` runtime package also ships Bash completion under `/usr/share/bash-c
 
 Runtime helper metadata lives in `runtime/default.nix`. The helper registry
 defines each helper package plus whether it is exposed as a public flake
-package, installed into images, and covered by a focused tool check.
+package, installed into images, covered by a focused tool check, and where it
+appears in the deterministic image-install order.
 
 `flake.nix`, `lib/compiler/image.nix`, and `flake/checks/tooling.nix` consume
 that metadata. Public packages, image installation, and check wiring should not

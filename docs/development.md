@@ -208,12 +208,12 @@ Do not add direct `devcontainer.graph.nodes` entries for ordinary package groups
 
 Runtime helpers live in `runtime/` and are packaged by `runtime/default.nix`.
 The `helperDefs` registry is the source of truth for public package exposure,
-image installation, and focused helper checks.
+image installation order, and focused helper checks.
 
 When changing a helper:
 
 1. Keep the helper runnable outside the image when possible.
-2. Add or update its `helperDefs` metadata: `publicPackage`, `installInImage`, and optional `checkName`, `checkScript`, and `checkEnvName`.
+2. Add or update its `helperDefs` metadata: `order`, `publicPackage`, `installInImage`, and optional `checkName`, `checkScript`, and `checkEnvName`.
 3. Add or update the focused helper suite in `tests/ci/check-devpkg.py`, `tests/ci/check-task-runner.py`, `tests/ci/check-vscode-extension-projector.py`, or `tests/ci/check-gui-env.py`.
 4. Confirm derived wiring by checking the public flake package, image runtime root, and `tool-*` check when those metadata flags apply.
 5. Document user-visible commands in [Usage](usage.md).

@@ -136,6 +136,45 @@ let
     "rust-web"
     "flutter"
   ];
+  reportCliTargetNames = map (target: target.target) (
+    builtins.filter (target: target.checks.reportCli or false) targets.imageTargetList
+  );
+  # Check policy guard: report CLI coverage must not disappear from the Nix image.
+  expectedReportCliTargetNames = [ "nix" ];
+  rootfsRequireTargetPolicies = map (target: {
+    name = target.target;
+    rootfsRequires = target.checks.rootfsRequires or [ ];
+  }) (builtins.filter (target: (target.checks.rootfsRequires or [ ]) != [ ]) targets.imageTargetList);
+  # Check policy guard: maximal rootfs coverage must keep checking Flutter's tool surface.
+  expectedRootfsRequireTargetPolicies = [
+    {
+      name = "flutter";
+      rootfsRequires = [
+        "/usr/bin/flutter"
+        "/usr/bin/rust-analyzer"
+        "/usr/bin/node"
+        "/usr/bin/python"
+      ];
+    }
+  ];
+  rootfsRequirePathsValid = lib.all (
+    policy: lib.all nonEmptyString policy.rootfsRequires
+  ) rootfsRequireTargetPolicies;
+  runtimeHelperNames = builtins.attrNames compiler.runtimeHelpers;
+  runtimeHelperListNames = map (helper: helper.name) compiler.runtimeHelperList;
+  sortedRuntimeHelperListNames = lib.sort builtins.lessThan runtimeHelperListNames;
+  uniqueRuntimeHelperListNames = lib.unique runtimeHelperListNames;
+  runtimeHelperOrders = map (helper: helper.order) compiler.runtimeHelperList;
+  uniqueRuntimeHelperOrders = lib.unique runtimeHelperOrders;
+  runtimeHelperContracts = map (helper: {
+    inherit (helper)
+      name
+      order
+      publicPackage
+      installInImage
+      ;
+    checked = helper ? checkName && helper ? checkScript && helper ? checkEnvName;
+  }) compiler.runtimeHelperList;
   latestSuffixTargets = builtins.filter (name: lib.hasSuffix "-latest" name) imageNames;
 
   apiEvalImage = compiler.mkImage {
@@ -519,6 +558,9 @@ reportChecks
     assert lib.all (contract: contract.compiledMatches) targetRegistryContracts;
     assert unknownTargetCiE2eSessions == [ ];
     assert requiredImageTargetNames == expectedRequiredImageTargets;
+    assert reportCliTargetNames == expectedReportCliTargetNames;
+    assert rootfsRequireTargetPolicies == expectedRootfsRequireTargetPolicies;
+    assert rootfsRequirePathsValid;
     assert lib.all (
       name:
       (builtins.match "go-[0-9]+_[0-9]+" name != null) || (builtins.match "nodejs-[0-9]+" name != null)
@@ -529,9 +571,24 @@ reportChecks
       builtins.toJSON {
         previousTargets = previousTargets;
         requiredImageTargets = requiredImageTargetNames;
+        reportCliTargets = reportCliTargetNames;
+        rootfsRequireTargets = rootfsRequireTargetPolicies;
         registry = targetRegistryContracts;
         ciE2eSessions = targetCiE2eSessions;
         images = imageContracts;
+      }
+    );
+
+  contracts-runtime-helpers =
+    assert sortedRuntimeHelperListNames == runtimeHelperNames;
+    assert builtins.length uniqueRuntimeHelperListNames == builtins.length runtimeHelperListNames;
+    assert builtins.length uniqueRuntimeHelperOrders == builtins.length runtimeHelperOrders;
+    assert lib.all (
+      helper: helper ? package && helper ? publicPackage && helper ? installInImage
+    ) compiler.runtimeHelperList;
+    pkgs.writeText "contracts-runtime-helpers.json" (
+      builtins.toJSON {
+        helpers = runtimeHelperContracts;
       }
     );
 

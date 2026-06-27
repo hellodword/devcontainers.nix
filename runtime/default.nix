@@ -128,20 +128,14 @@ let
     };
     "devcontainer-image" = writePythonApp "devcontainer-image" [ ] ./devcontainer-image/main.py;
   };
-  helperNames = [
-    "devcontainer-entrypoint"
-    "devcontainer-task-runner"
-    "devcontainer-gui-env"
-    "vscode-extension-projector"
-    "devpkg"
-    "devcontainer-image"
-  ];
   helperDefs = {
     "devcontainer-entrypoint" = {
+      order = 10;
       publicPackage = false;
       installInImage = true;
     };
     "devcontainer-gui-env" = {
+      order = 30;
       publicPackage = true;
       installInImage = true;
       checkName = "gui-env";
@@ -149,6 +143,7 @@ let
       checkEnvName = "DEVCONTAINER_GUI_ENV_TOOL";
     };
     "devcontainer-task-runner" = {
+      order = 20;
       publicPackage = true;
       installInImage = true;
       checkName = "task-runner";
@@ -156,6 +151,7 @@ let
       checkEnvName = "DEVCONTAINER_RUNNER";
     };
     "vscode-extension-projector" = {
+      order = 40;
       publicPackage = true;
       installInImage = true;
       checkName = "vscode-extension-projector";
@@ -163,6 +159,7 @@ let
       checkEnvName = "DEVCONTAINER_PROJECTOR";
     };
     devpkg = {
+      order = 50;
       publicPackage = true;
       installInImage = true;
       checkName = "devpkg";
@@ -170,6 +167,7 @@ let
       checkEnvName = "DEVCONTAINER_DEVPKG";
     };
     "devcontainer-image" = {
+      order = 60;
       publicPackage = true;
       installInImage = true;
     };
@@ -182,7 +180,18 @@ let
       package = packages.${name};
     }
   ) helperDefs;
-  helperList = map (name: helpers.${name}) helperNames;
+  rawHelperList = builtins.attrValues helpers;
+  helperList =
+    assert lib.assertMsg (lib.all (
+      helper: helper ? order && builtins.isInt helper.order
+    ) rawHelperList) "runtime/default.nix: every helperDef must define integer order";
+    let
+      helperOrders = map (helper: helper.order) rawHelperList;
+    in
+    assert lib.assertMsg (
+      builtins.length (lib.unique helperOrders) == builtins.length helperOrders
+    ) "runtime/default.nix: helperDef order values must be unique";
+    lib.sort (a: b: a.order < b.order) rawHelperList;
 in
 packages
 // {
