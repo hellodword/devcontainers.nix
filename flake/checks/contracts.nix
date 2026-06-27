@@ -37,8 +37,8 @@ let
   imageContracts = lib.mapAttrsToList (
     name: image:
     let
-      plan = builtins.fromJSON (builtins.readFile image.image-plan-json);
-      smoke = builtins.fromJSON (builtins.readFile image.smoke);
+      plan = image.reportData.imagePlan;
+      smoke = image.reportData.smokePlan;
     in
     {
       inherit name;
@@ -48,7 +48,7 @@ let
     }
   ) images;
   imageNames = builtins.attrNames images;
-  smokePlan = image: builtins.fromJSON (builtins.readFile image.smoke);
+  smokePlan = image: image.reportData.smokePlan;
   smokeCapabilities = image: (smokePlan image).capabilities;
   smokeCase =
     id: image:

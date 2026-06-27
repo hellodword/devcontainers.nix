@@ -175,9 +175,10 @@
 
       images = images;
 
+      e2e.${system} = e2ePackages;
+
       packages.${system} =
         imagePackages
-        // e2ePackages
         // {
           default = images."nix".reports;
           "devcontainer-image" = compiler.runtimePackages."devcontainer-image";

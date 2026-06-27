@@ -78,9 +78,9 @@ The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths 
 
 ## Heavy VS Code GUI E2E
 
-Real VS Code Dev Containers GUI tests are exposed as package outputs named
-`e2e-vscode-<image>-<session>`. They are intentionally not part of
-`nix flake check`.
+Real VS Code Dev Containers GUI tests are exposed under
+`e2e.${system}.e2e-vscode-<image>-<session>`. They are intentionally not part
+of `nix flake check`.
 
 Read [VS Code GUI E2E Testing](e2e-testing.md) before changing
 `tests/e2e/vscode-gui.nix`, desktop sessions, Command Palette automation,

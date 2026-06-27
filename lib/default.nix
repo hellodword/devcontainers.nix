@@ -244,6 +244,7 @@ let
           tasks-json
           extensions-index-json
           reports
+          reportData
           smoke
           ;
       };

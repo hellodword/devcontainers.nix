@@ -40,16 +40,7 @@ let
   metadata-merged-preview-json = jsonFile "metadata-merged-preview.json" compiledMetadata.mergedPreview;
   metadata-schema-report-json = jsonFile "metadata-schema-report.json" compiledMetadata.schemaReport;
   allSmokeTests = compiledTests.tests;
-  profile-report-json = jsonFile "profile-report.json" (
-    compiledProfiles.report
-    // {
-      tests = (compiledProfiles.report.tests or { }) // {
-        declaredCapabilities = compiledProfiles.testCapabilities or [ ];
-        resolvedCapabilities = compiledTests.capabilities;
-      };
-    }
-  );
-  image-plan-json = jsonFile "image-plan.json" {
+  imagePlan = {
     image = config.devcontainer.image.name;
     family = config.devcontainer.image.family;
     tag = imageTag;
@@ -65,6 +56,24 @@ let
     entrypoint = [ "/usr/bin/devcontainer-entrypoint" ];
     smokeTestCount = builtins.length allSmokeTests;
   };
+  smokePlan = {
+    image = config.devcontainer.image.name;
+    tests = allSmokeTests;
+    capabilities = compiledTests.capabilities;
+  };
+  reportData = {
+    inherit imagePlan smokePlan;
+  };
+  profile-report-json = jsonFile "profile-report.json" (
+    compiledProfiles.report
+    // {
+      tests = (compiledProfiles.report.tests or { }) // {
+        declaredCapabilities = compiledProfiles.testCapabilities or [ ];
+        resolvedCapabilities = compiledTests.capabilities;
+      };
+    }
+  );
+  image-plan-json = jsonFile "image-plan.json" imagePlan;
   imageTag =
     if config.devcontainer.image.tags == [ ] then
       "latest"
@@ -172,11 +181,7 @@ let
     npxAutoRunFromShellInit = false;
     shellInitHasNoSideEffects = true;
   };
-  smoke-test-plan-json = jsonFile "smoke-test-plan.json" {
-    image = config.devcontainer.image.name;
-    tests = allSmokeTests;
-    capabilities = compiledTests.capabilities;
-  };
+  smoke-test-plan-json = jsonFile "smoke-test-plan.json" smokePlan;
   ci-plan-json = jsonFile "ci-plan.json" {
     image = config.devcontainer.image.name;
     family = config.devcontainer.image.family;
@@ -322,6 +327,7 @@ in
     smoke-test-plan-json
     ci-plan-json
     reports
+    reportData
     ;
   smoke = smoke-test-plan-json;
 }

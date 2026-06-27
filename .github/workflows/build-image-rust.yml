@@ -238,7 +238,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          attr=".#e2e-vscode-rust-${{ matrix.session }}"
+          attr=".#e2e.x86_64-linux.e2e-vscode-rust-${{ matrix.session }}"
           drv_path="$(
             nix path-info \
               --accept-flake-config \
