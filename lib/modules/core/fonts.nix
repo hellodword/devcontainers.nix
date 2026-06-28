@@ -116,8 +116,8 @@ in
 
   config = lib.mkMerge [
     {
-      devcontainer.layers.bucketDefinitions."02-fonts-runtime" = {
-        order = 2;
+      devcontainer.layers.bucketDefinitions."fonts-runtime" = {
+        order = 200;
         owner = "core/fonts";
         purpose = "Default fonts, fontconfig tools, and font cache runtime support.";
       };
@@ -132,7 +132,7 @@ in
         (lib.mkIf (fontPackages != [ ]) {
           devcontainer.graph.nodes."runtime/fonts" = {
             kind = "runtime";
-            group = "02-fonts-runtime";
+            group = "fonts-runtime";
             paths = fontPackages;
             stability = "very-stable";
             sharing = "global";

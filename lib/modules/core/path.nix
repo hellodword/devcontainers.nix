@@ -57,7 +57,7 @@ in
         };
       };
       user = {
-        order = 1;
+        order = 10000;
         owner = "core/path";
         purpose = "Per-user package and devcontainer tool paths.";
         segments = [
@@ -72,12 +72,12 @@ in
         };
       };
       language = {
-        order = 2;
+        order = 20000;
         owner = "core/path";
         purpose = "Language profile executable contributions.";
       };
       system = {
-        order = 3;
+        order = 90000;
         owner = "core/path";
         purpose = "System executable paths.";
         segments = [

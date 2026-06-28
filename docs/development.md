@@ -157,6 +157,12 @@ A toolset is a reusable group of packages that can be enabled by many images.
 7. Enable the profile from image modules or bundle profiles that need it.
 8. Run report checks and inspect profile, graph, and layer reports.
 
+Layer bucket names should be semantic names such as `source-control-tools`.
+Pick the bucket `order` from the semantic range documented in
+[Architecture](architecture.md), use `100`-step spacing for new ordinary
+buckets, and use `10`-step spacing only when inserting between adjacent existing
+buckets.
+
 When a composite bundle needs a smoke case for the combined behavior, add a zero-package smoke-only leaf profile such as `toolset/<name>/smoke` and include it from the bundle. Do not inject top-level `devcontainer.tests.cases` from non-core modules.
 
 Keep toolsets focused. A package belongs in a toolset when it is useful across multiple image families. If it only makes sense for one language, put it in that language module instead.
@@ -191,6 +197,13 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 7. Add image target wiring in `images/default.nix` if the language has version-specific tags.
 8. Run `nix run .#generate-docs` if image targets, families, or tags changed.
 9. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed beyond the generated reference table.
+
+Layer bucket names should be semantic names such as `python-language` or
+`vscode-extensions-python`. Choose new bucket `order` values from the semantic
+ranges documented in [Architecture](architecture.md), using `100`-step spacing
+for ordinary additions and `10`-step spacing for deliberate insertions.
+`profile.priority` is a repeatable ordering tier within a bucket and is not a
+global bucket slot.
 
 When a bundle language profile needs a smoke case for the assembled stack, add a zero-package smoke-only leaf profile such as `language/<name>/smoke` and include it from the bundle. Keep top-level `devcontainer.tests.cases` for core-owned behavior only.
 

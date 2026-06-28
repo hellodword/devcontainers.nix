@@ -14,18 +14,18 @@ in
 {
   config.devcontainer = {
     layers.bucketDefinitions = {
-      "10-nix-runtime" = {
-        order = 12;
+      "nix-runtime" = {
+        order = 10900;
         owner = "languages/nix";
         purpose = "Nix CLI runtime.";
       };
-      "11-nix-language" = {
-        order = 13;
+      "nix-language" = {
+        order = 11000;
         owner = "languages/nix";
         purpose = "Nix language servers, formatters, and linters.";
       };
-      "81-vscode-extensions-nix" = {
-        order = 30;
+      "vscode-extensions-nix" = {
+        order = 61000;
         owner = "languages/nix";
         purpose = "Nix VS Code extension.";
       };
@@ -34,7 +34,7 @@ in
     profiles = {
       "runtime/nix" = {
         kind = "runtime";
-        group = "10-nix-runtime";
+        group = "nix-runtime";
         packages = [ pkgs.nix ];
         priority = 92;
         stability = "stable";
@@ -59,7 +59,7 @@ in
 
       "language/nix" = {
         kind = "language";
-        group = "11-nix-language";
+        group = "nix-language";
         packages = languagePackages;
         priority = 90;
         stability = "stable";
@@ -78,7 +78,7 @@ in
         vscode = {
           extensions."jnoortheen.nix-ide" = {
             native = false;
-            bucket = "81-vscode-extensions-nix";
+            bucket = "vscode-extensions-nix";
             companionTools = [
               "nixd"
               "nixfmt"

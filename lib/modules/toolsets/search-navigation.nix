@@ -15,15 +15,15 @@ let
   ];
 in
 {
-  config.devcontainer.layers.bucketDefinitions."05-search-navigation-tools" = {
-    order = 6;
+  config.devcontainer.layers.bucketDefinitions."search-navigation-tools" = {
+    order = 10300;
     owner = "toolsets/search-navigation";
     purpose = "Search, navigation, and JSON/YAML inspection tools.";
   };
 
   config.devcontainer.profiles."toolset/search-navigation" = {
     kind = "toolset";
-    group = "05-search-navigation-tools";
+    group = "search-navigation-tools";
     packages = packages;
     priority = 88;
     stability = "stable";

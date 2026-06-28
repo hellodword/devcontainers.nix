@@ -27,13 +27,13 @@ in
 
   config.devcontainer = {
     layers.bucketDefinitions = {
-      "31-python-language" = {
-        order = 19;
+      "python-language" = {
+        order = 21100;
         owner = "languages/python";
         purpose = "Python language tooling and linters.";
       };
-      "82-vscode-extensions-python" = {
-        order = 31;
+      "vscode-extensions-python" = {
+        order = 62000;
         owner = "languages/python";
         purpose = "Python VS Code extension bundle.";
       };
@@ -41,7 +41,7 @@ in
 
     profiles."language/python" = {
       kind = "language";
-      group = "31-python-language";
+      group = "python-language";
       packages = packages;
       priority = 72;
       stability = "medium";
@@ -61,22 +61,22 @@ in
         extensions = {
           "ms-python.python" = {
             native = false;
-            bucket = "82-vscode-extensions-python";
+            bucket = "vscode-extensions-python";
             companionTools = [ "python" ];
           };
           "ms-python.vscode-pylance" = {
             native = false;
-            bucket = "82-vscode-extensions-python";
+            bucket = "vscode-extensions-python";
             companionTools = [ "python" ];
           };
           "ms-python.debugpy" = {
             native = false;
-            bucket = "82-vscode-extensions-python";
+            bucket = "vscode-extensions-python";
             companionTools = [ "python" ];
           };
           "ms-python.vscode-python-envs" = {
             native = false;
-            bucket = "82-vscode-extensions-python";
+            bucket = "vscode-extensions-python";
             companionTools = [
               "python"
               "uv"
@@ -84,7 +84,7 @@ in
           };
           "charliermarsh.ruff" = {
             native = false;
-            bucket = "82-vscode-extensions-python";
+            bucket = "vscode-extensions-python";
             companionTools = [ "ruff" ];
           };
         };

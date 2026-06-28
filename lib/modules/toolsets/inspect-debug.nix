@@ -20,15 +20,15 @@ let
   ];
 in
 {
-  config.devcontainer.layers.bucketDefinitions."06-inspect-debug-tools" = {
-    order = 7;
+  config.devcontainer.layers.bucketDefinitions."inspect-debug-tools" = {
+    order = 10400;
     owner = "toolsets/inspect-debug";
     purpose = "Process, network, and debugging inspection tools.";
   };
 
   config.devcontainer.profiles."toolset/inspect-debug" = {
     kind = "toolset";
-    group = "06-inspect-debug-tools";
+    group = "inspect-debug-tools";
     packages = packages;
     priority = 84;
     stability = "medium";

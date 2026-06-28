@@ -11,8 +11,8 @@ in
   };
 
   config.devcontainer = {
-    layers.bucketDefinitions."90-lifecycle-runtime" = {
-      order = 36;
+    layers.bucketDefinitions."lifecycle-runtime" = {
+      order = 80000;
       owner = "core/lifecycle";
       purpose = "Lifecycle helper tasks and task metadata runtime.";
     };

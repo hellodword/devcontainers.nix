@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."tool/shell-format" = {
     kind = "tool";
-    group = "07-workflow-format-tools";
+    group = "workflow-format-tools";
     packages = [ pkgs.shfmt ];
     priority = 82;
     stability = "stable";

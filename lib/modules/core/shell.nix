@@ -135,8 +135,8 @@ in
 
   config = lib.mkMerge [
     {
-      devcontainer.layers.bucketDefinitions."14-shell-runtime" = {
-        order = 16;
+      devcontainer.layers.bucketDefinitions."shell-runtime" = {
+        order = 11300;
         owner = "core/shell";
         purpose = "Locale and interactive shell runtime support.";
       };
@@ -184,7 +184,7 @@ in
     (lib.mkIf (shellRuntimePaths != [ ]) {
       devcontainer.graph.nodes."runtime/shell" = {
         kind = "runtime";
-        group = "14-shell-runtime";
+        group = "shell-runtime";
         paths = shellRuntimePaths;
         stability = "very-stable";
         sharing = "global";

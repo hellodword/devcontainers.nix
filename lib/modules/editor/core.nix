@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."editor/core" = {
     kind = "editor";
-    group = "80-vscode-extensions-base";
+    group = "vscode-extensions-base";
     packages = [ ];
     priority = 80;
     stability = "stable";

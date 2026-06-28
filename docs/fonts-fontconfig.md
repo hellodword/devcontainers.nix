@@ -99,11 +99,11 @@ When enabled, the module:
 - adds the configured font packages to `environment.systemPackages`
 - appends the configured fontconfig package when `fontconfig.enable = true`
 - creates graph node `runtime/fonts`
-- assigns the node to bucket `02-fonts-runtime`
+- assigns the node to bucket `fonts-runtime`
 - declares owner-local smoke cases for tool availability, CJK matching, and
   emoji matching
 
-The module declares bucket definition `02-fonts-runtime` with an order
+The module declares bucket definition `fonts-runtime` with order `200`,
 immediately after the base and FHS runtime buckets. That keeps the font runtime
 shared and stable across language image families.
 
@@ -230,7 +230,7 @@ The report records:
 `tests/ci/check-reports.py` rejects regressions in the public contract:
 
 - missing `fontconfig-report.json`
-- missing `02-fonts-runtime` or `runtime/fonts`
+- missing `fonts-runtime` or `runtime/fonts`
 - missing required font packages
 - missing required `fc-*` tools
 - non-SC default font order

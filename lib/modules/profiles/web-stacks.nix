@@ -3,7 +3,7 @@
   config.devcontainer.profiles = {
     "image/python3-web" = {
       kind = "image";
-      group = "99-fallback";
+      group = "fallback";
       packages = [ ];
       priority = 10;
       stability = "medium";
@@ -25,7 +25,7 @@
 
     "image/go-web" = {
       kind = "image";
-      group = "99-fallback";
+      group = "fallback";
       packages = [ ];
       priority = 10;
       stability = "medium";
@@ -47,7 +47,7 @@
 
     "image/rust-web" = {
       kind = "image";
-      group = "99-fallback";
+      group = "fallback";
       packages = [ ];
       priority = 10;
       stability = "medium";

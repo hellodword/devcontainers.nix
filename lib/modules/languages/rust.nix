@@ -32,13 +32,13 @@ in
 
   config.devcontainer = {
     layers.bucketDefinitions = {
-      "51-rust-language" = {
-        order = 23;
+      "rust-language" = {
+        order = 24000;
         owner = "languages/rust";
         purpose = "Rust toolchain, cargo helpers, and analyzer.";
       };
-      "85-vscode-extensions-rust" = {
-        order = 34;
+      "vscode-extensions-rust" = {
+        order = 65000;
         owner = "languages/rust";
         purpose = "Rust Analyzer VS Code extension.";
       };
@@ -46,7 +46,7 @@ in
 
     profiles."language/rust" = {
       kind = "language";
-      group = "51-rust-language";
+      group = "rust-language";
       packages = packages;
       priority = 70;
       stability = "medium";
@@ -69,7 +69,7 @@ in
       vscode = {
         extensions."rust-lang.rust-analyzer" = {
           native = false;
-          bucket = "85-vscode-extensions-rust";
+          bucket = "vscode-extensions-rust";
           companionTools = [
             "rust-analyzer"
             "cargo"

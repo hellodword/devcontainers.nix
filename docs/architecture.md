@@ -179,7 +179,9 @@ The graph gives maintainers a reviewable model of the image. Instead of seeing o
 
 OCI runtimes have practical layer-count limits, and GitHub Container Registry rejects oversized layer blobs. These images accumulate language runtimes, tools, extensions, generated files, and Nix store paths, so layer construction must be deterministic and bounded.
 
-The project uses semantic buckets:
+The project uses semantic layer buckets. Bucket names are semantic identifiers
+such as `base-runtime`, `python-language`, and `vscode-extensions-python`.
+Ordering comes only from each bucket definition's `order` value.
 
 - base and FHS runtime
 - fonts
@@ -192,7 +194,32 @@ The project uses semantic buckets:
 
 `lib/compiler/layers.nix` groups graph nodes by bucket and emits a layer plan. The default budget is 100 semantic buckets with 20 reserved slots. The default maximum layer size is `8GiB`, below the registry's documented 10 GB per-layer limit.
 
-Layer bucket order is derived from owner-local `devcontainer.layers.bucketDefinitions`. PATH order is derived from `devcontainer.path.bucketDefinitions`. This keeps the global ordering stable while letting each owner declare the bucket it needs.
+Layer bucket order is derived from owner-local
+`devcontainer.layers.bucketDefinitions`. PATH order is derived from
+`devcontainer.path.bucketDefinitions`. This keeps the global ordering stable
+while letting each owner declare the bucket it needs.
+
+Layer bucket orders use sparse semantic ranges:
+
+| Range | Purpose |
+| --- | --- |
+| `00000-09999` | Core and bootstrap runtime buckets |
+| `10000-19999` | Common tools, Nix support, and shell runtime |
+| `20000-39999` | Language and runtime stacks |
+| `50000-59999` | Runtime and build libraries |
+| `60000-69999` | VS Code extension buckets |
+| `80000-89999` | Lifecycle and generated runtime buckets |
+| `90000-99999` | Dynamic and fallback buckets |
+
+New layer buckets normally use `100`-step spacing inside the relevant semantic
+range. Insertions between existing adjacent buckets may use `10`-step spacing.
+`contracts-bucket-registry` rejects duplicate order values, negative order
+values, and non-`10`-aligned order values.
+
+Layer order and PATH order are both sorted ascending, but they mean different
+things. A smaller layer order means an earlier, lower-level, more stable image
+construction position. A smaller PATH order means the segment appears earlier in
+`PATH` and has higher command lookup precedence.
 
 `lib/compiler/image.nix` builds each semantic bucket as an explicit nix2container layer with `maxLayers = 1`. The final customization layer uses a small bounded number of layers for runtime helpers, metadata, generated filesystem files, and the Nix database.
 

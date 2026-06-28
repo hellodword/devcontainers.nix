@@ -75,6 +75,7 @@ let
   sortEntries = lib.sort (
     a: b: if a.order != b.order then a.order < b.order else lib.lessThan a.name b.name
   );
+  isOrderMultipleOf10 = order: order - (builtins.div order 10) * 10 == 0;
   definitionEntries =
     definitions:
     lib.mapAttrsToList (
@@ -84,13 +85,27 @@ let
         inherit name;
       }
     ) definitions;
+  definitionSummary = entry: {
+    inherit (entry)
+      name
+      order
+      owner
+      purpose
+      ;
+  };
+  invalidOrderNames =
+    entries: predicate:
+    map (entry: entry.name) (builtins.filter (entry: predicate entry.order) entries);
 
   layerDefinitions = config.devcontainer.layers.bucketDefinitions;
   layerEntries = definitionEntries layerDefinitions;
   layerDefinitionNames = builtins.attrNames layerDefinitions;
   layerDefinitionOrderValues = map (entry: entry.order) layerEntries;
   derivedLayerBuckets = map (entry: entry.name) (sortEntries layerEntries);
+  layerDefinitionSummaries = map definitionSummary (sortEntries layerEntries);
   emptyLayerBucketNames = builtins.filter (name: name == "") layerDefinitionNames;
+  invalidLayerNegativeOrders = invalidOrderNames layerEntries (order: order < 0);
+  invalidLayerOrderGranularity = invalidOrderNames layerEntries (order: !(isOrderMultipleOf10 order));
   duplicateLayerDefinitionOrders = duplicateValues layerDefinitionOrderValues;
 
   pathDefinitions = config.devcontainer.path.bucketDefinitions;
@@ -98,9 +113,12 @@ let
   pathDefinitionNames = builtins.attrNames pathDefinitions;
   pathDefinitionOrderValues = map (entry: entry.order) pathEntries;
   derivedPathOrder = map (entry: entry.name) (sortEntries pathEntries);
+  pathDefinitionSummaries = map definitionSummary (sortEntries pathEntries);
   derivedPathSegments = lib.mapAttrs (_: definition: definition.segments) pathDefinitions;
   derivedPathSegmentOrigins = lib.mapAttrs (_: definition: definition.segmentOrigins) pathDefinitions;
   emptyPathBucketNames = builtins.filter (name: name == "") pathDefinitionNames;
+  invalidPathNegativeOrders = invalidOrderNames pathEntries (order: order < 0);
+  invalidPathOrderGranularity = invalidOrderNames pathEntries (order: !(isOrderMultipleOf10 order));
   duplicatePathDefinitionOrders = duplicateValues pathDefinitionOrderValues;
 
   profiles = builtins.attrValues config.devcontainer.profiles;
@@ -142,6 +160,10 @@ in
   contracts-bucket-registry =
     assert emptyLayerBucketNames == [ ];
     assert emptyPathBucketNames == [ ];
+    assert invalidLayerNegativeOrders == [ ];
+    assert invalidPathNegativeOrders == [ ];
+    assert invalidLayerOrderGranularity == [ ];
+    assert invalidPathOrderGranularity == [ ];
     assert duplicateLayerDefinitionOrders == [ ];
     assert duplicatePathDefinitionOrders == [ ];
     assert config.devcontainer.layers.buckets == derivedLayerBuckets;
@@ -154,15 +176,19 @@ in
     pkgs.writeText "contracts-bucket-registry.json" (
       builtins.toJSON {
         layers = {
-          definitions = layerDefinitionNames;
+          definitions = layerDefinitionSummaries;
           derivedOrder = derivedLayerBuckets;
         };
         path = {
-          definitions = pathDefinitionNames;
+          definitions = pathDefinitionSummaries;
           derivedOrder = derivedPathOrder;
         };
         validation = {
           inherit
+            invalidLayerNegativeOrders
+            invalidPathNegativeOrders
+            invalidLayerOrderGranularity
+            invalidPathOrderGranularity
             missingProfileGroupDefinitions
             missingExtensionBucketDefinitions
             missingPathBucketDefinitions

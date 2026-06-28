@@ -84,8 +84,8 @@ in
 
   config = lib.mkMerge [
     {
-      devcontainer.layers.bucketDefinitions."01-fhs-vscode-runtime" = {
-        order = 1;
+      devcontainer.layers.bucketDefinitions."fhs-vscode-runtime" = {
+        order = 100;
         owner = "core/fhs-runtime";
         purpose = "FHS compatibility tools and runtime symlinks needed by VS Code and native binaries.";
       };
@@ -96,7 +96,7 @@ in
 
       devcontainer.graph.nodes."runtime/fhs-vscode" = {
         kind = "runtime";
-        group = "01-fhs-vscode-runtime";
+        group = "fhs-vscode-runtime";
         paths = packages;
         stability = "stable";
         sharing = "global";

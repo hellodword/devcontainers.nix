@@ -15,15 +15,15 @@ let
   ];
 in
 {
-  config.devcontainer.layers.bucketDefinitions."04-fetch-archive-tools" = {
-    order = 5;
+  config.devcontainer.layers.bucketDefinitions."fetch-archive-tools" = {
+    order = 10200;
     owner = "toolsets/fetch-archive";
     purpose = "Network fetch and archive extraction tools.";
   };
 
   config.devcontainer.profiles."toolset/fetch-archive" = {
     kind = "toolset";
-    group = "04-fetch-archive-tools";
+    group = "fetch-archive-tools";
     packages = packages;
     priority = 88;
     stability = "stable";

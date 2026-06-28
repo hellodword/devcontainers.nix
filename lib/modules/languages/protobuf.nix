@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."language/protobuf" = {
     kind = "language";
-    group = "07-editor-support-tools";
+    group = "editor-support-tools";
     packages = with pkgs; [
       protobuf
       protols
@@ -27,7 +27,7 @@
     vscode = {
       extensions."drblury.protobuf-vsc" = {
         native = false;
-        bucket = "80-vscode-extensions-base";
+        bucket = "vscode-extensions-base";
         companionTools = [
           "protoc"
           "buf"

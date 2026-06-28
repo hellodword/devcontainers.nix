@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."language/toml" = {
     kind = "language";
-    group = "07-editor-support-tools";
+    group = "editor-support-tools";
     packages = [ pkgs.taplo ];
     priority = 80;
     stability = "stable";
@@ -13,7 +13,7 @@
     vscode = {
       extensions."tamasfe.even-better-toml" = {
         native = false;
-        bucket = "80-vscode-extensions-base";
+        bucket = "vscode-extensions-base";
         companionTools = [ "taplo" ];
       };
       settings = {

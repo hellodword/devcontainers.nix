@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."language/just" = {
     kind = "language";
-    group = "07-workflow-format-tools";
+    group = "workflow-format-tools";
     packages = with pkgs; [
       just
       just-lsp
@@ -19,7 +19,7 @@
     vscode = {
       extensions."nefrob.vscode-just-syntax" = {
         native = false;
-        bucket = "80-vscode-extensions-base";
+        bucket = "vscode-extensions-base";
         companionTools = [
           "just"
           "just-lsp"

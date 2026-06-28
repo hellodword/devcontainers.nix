@@ -15,13 +15,13 @@ let
 in
 {
   config.devcontainer.layers.bucketDefinitions = {
-    "41-nodejs-language" = {
-      order = 21;
+    "nodejs-language" = {
+      order = 22100;
       owner = "languages/nodejs";
       purpose = "Node.js language tooling, package manager helpers, and TypeScript support.";
     };
-    "83-vscode-extensions-nodejs" = {
-      order = 32;
+    "vscode-extensions-nodejs" = {
+      order = 63000;
       owner = "languages/nodejs";
       purpose = "Node.js and web framework VS Code extensions.";
     };
@@ -29,7 +29,7 @@ in
 
   config.devcontainer.profiles."language/nodejs" = {
     kind = "language";
-    group = "41-nodejs-language";
+    group = "nodejs-language";
     packages = [ ];
     priority = 72;
     stability = "medium";
@@ -45,7 +45,7 @@ in
 
   config.devcontainer.profiles."language/nodejs/core" = {
     kind = "language";
-    group = "41-nodejs-language";
+    group = "nodejs-language";
     packages = packages;
     priority = 72;
     stability = "medium";
@@ -64,7 +64,7 @@ in
       extensions = {
         "dbaeumer.vscode-eslint" = {
           native = false;
-          bucket = "83-vscode-extensions-nodejs";
+          bucket = "vscode-extensions-nodejs";
           companionTools = [
             "node"
             "eslint"
@@ -72,7 +72,7 @@ in
         };
         "vue.volar" = {
           native = false;
-          bucket = "83-vscode-extensions-nodejs";
+          bucket = "vscode-extensions-nodejs";
           companionTools = [
             "node"
             "typescript-language-server"
@@ -90,7 +90,7 @@ in
 
   config.devcontainer.profiles."language/nodejs/smoke" = {
     kind = "language";
-    group = "41-nodejs-language";
+    group = "nodejs-language";
     packages = [ ];
     priority = 72;
     stability = "medium";

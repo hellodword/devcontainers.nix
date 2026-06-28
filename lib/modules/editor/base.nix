@@ -74,15 +74,15 @@ in
   };
 
   config.devcontainer = {
-    layers.bucketDefinitions."80-vscode-extensions-base" = {
-      order = 29;
+    layers.bucketDefinitions."vscode-extensions-base" = {
+      order = 60000;
       owner = "editor/base";
       purpose = "Shared base VS Code extensions and extension metadata.";
     };
 
     profiles."editor/base" = {
       kind = "editor";
-      group = "80-vscode-extensions-base";
+      group = "vscode-extensions-base";
       packages = [ ];
       priority = 80;
       stability = "stable";

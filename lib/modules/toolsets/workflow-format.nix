@@ -1,14 +1,14 @@
 { ... }:
 {
-  config.devcontainer.layers.bucketDefinitions."07-workflow-format-tools" = {
-    order = 8;
+  config.devcontainer.layers.bucketDefinitions."workflow-format-tools" = {
+    order = 10500;
     owner = "toolsets/workflow-format";
     purpose = "Workflow, formatter, shell linting, and editorconfig tools.";
   };
 
   config.devcontainer.profiles."toolset/workflow-format" = {
     kind = "toolset";
-    group = "07-workflow-format-tools";
+    group = "workflow-format-tools";
     packages = [ ];
     priority = 82;
     stability = "stable";
@@ -26,7 +26,7 @@
 
   config.devcontainer.profiles."toolset/workflow-format/smoke" = {
     kind = "toolset";
-    group = "07-workflow-format-tools";
+    group = "workflow-format-tools";
     packages = [ ];
     priority = 82;
     stability = "stable";

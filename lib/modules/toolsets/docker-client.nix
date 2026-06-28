@@ -11,15 +11,15 @@ let
   ];
 in
 {
-  config.devcontainer.layers.bucketDefinitions."09-docker-client-tools" = {
-    order = 11;
+  config.devcontainer.layers.bucketDefinitions."docker-client-tools" = {
+    order = 10800;
     owner = "toolsets/docker-client";
     purpose = "Docker CLI, Buildx, Compose, and credential helpers.";
   };
 
   config.devcontainer.profiles."toolset/docker-client" = {
     kind = "toolset";
-    group = "09-docker-client-tools";
+    group = "docker-client-tools";
     packages = packages;
     priority = 82;
     stability = "medium";

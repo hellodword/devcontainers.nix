@@ -18,15 +18,15 @@ let
   ];
 in
 {
-  config.devcontainer.layers.bucketDefinitions."20-c-env" = {
-    order = 17;
+  config.devcontainer.layers.bucketDefinitions."c-env" = {
+    order = 20000;
     owner = "runtimes/c-env";
     purpose = "Shared C/C++ build toolchain used by native language profiles.";
   };
 
   config.devcontainer.profiles."runtime/c-env" = {
     kind = "runtime";
-    group = "20-c-env";
+    group = "c-env";
     packages = packages;
     priority = 86;
     stability = "stable";

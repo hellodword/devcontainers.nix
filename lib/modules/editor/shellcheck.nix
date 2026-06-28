@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."editor/shellcheck" = {
     kind = "editor";
-    group = "07-workflow-format-tools";
+    group = "workflow-format-tools";
     packages = [ pkgs.shellcheck ];
     priority = 80;
     stability = "stable";
@@ -13,7 +13,7 @@
     vscode = {
       extensions."timonwong.shellcheck" = {
         native = false;
-        bucket = "80-vscode-extensions-base";
+        bucket = "vscode-extensions-base";
         companionTools = [ "shellcheck" ];
       };
       settings = {

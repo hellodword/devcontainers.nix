@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."language/yaml" = {
     kind = "language";
-    group = "07-editor-support-tools";
+    group = "editor-support-tools";
     packages = [ pkgs.yaml-language-server ];
     priority = 80;
     stability = "stable";
@@ -13,7 +13,7 @@
     vscode = {
       extensions."redhat.vscode-yaml" = {
         native = false;
-        bucket = "80-vscode-extensions-base";
+        bucket = "vscode-extensions-base";
         companionTools = [ "yaml-language-server" ];
       };
       settings = {

@@ -25,23 +25,23 @@ in
 {
   config.devcontainer = {
     layers.bucketDefinitions = {
-      "60-flutter-language" = {
-        order = 24;
+      "flutter-language" = {
+        order = 25000;
         owner = "languages/flutter";
         purpose = "Flutter, Dart, Gradle, and Flutter language tooling.";
       };
-      "61-android-sdk" = {
-        order = 25;
+      "android-sdk" = {
+        order = 25100;
         owner = "languages/flutter";
         purpose = "Android SDK command-line tools used with Flutter.";
       };
-      "62-browser-gui-gpu" = {
-        order = 26;
+      "browser-gui-gpu" = {
+        order = 25200;
         owner = "languages/flutter";
         purpose = "Browser and GPU utilities for Flutter web and GUI checks.";
       };
-      "86-vscode-extensions-flutter" = {
-        order = 35;
+      "vscode-extensions-flutter" = {
+        order = 66000;
         owner = "languages/flutter";
         purpose = "Dart and Flutter VS Code extensions.";
       };
@@ -50,7 +50,7 @@ in
     profiles = {
       "language/flutter" = {
         kind = "language";
-        group = "60-flutter-language";
+        group = "flutter-language";
         packages = flutterCore;
         priority = 60;
         stability = "volatile";
@@ -67,12 +67,12 @@ in
           extensions = {
             "dart-code.dart-code" = {
               native = false;
-              bucket = "86-vscode-extensions-flutter";
+              bucket = "vscode-extensions-flutter";
               companionTools = [ "dart" ];
             };
             "dart-code.flutter" = {
               native = false;
-              bucket = "86-vscode-extensions-flutter";
+              bucket = "vscode-extensions-flutter";
               companionTools = [
                 "flutter"
                 "dart"
@@ -155,7 +155,7 @@ in
 
       "runtime/android-sdk" = {
         kind = "runtime";
-        group = "61-android-sdk";
+        group = "android-sdk";
         packages = android;
         priority = 55;
         stability = "volatile";
@@ -182,7 +182,7 @@ in
 
       "runtime/browser-gui-gpu" = {
         kind = "runtime";
-        group = "62-browser-gui-gpu";
+        group = "browser-gui-gpu";
         packages = browserGpu;
         priority = 50;
         stability = "volatile";
@@ -211,7 +211,7 @@ in
 
       "language/flutter-rust-bridge" = {
         kind = "language";
-        group = "60-flutter-language";
+        group = "flutter-language";
         packages = flutterRustBridge;
         priority = 58;
         stability = "volatile";

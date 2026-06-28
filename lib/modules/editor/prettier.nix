@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."editor/prettier" = {
     kind = "editor";
-    group = "07-workflow-format-tools";
+    group = "workflow-format-tools";
     packages = [ pkgs.prettier ];
     priority = 80;
     stability = "stable";
@@ -13,7 +13,7 @@
     vscode = {
       extensions."esbenp.prettier-vscode" = {
         native = false;
-        bucket = "80-vscode-extensions-base";
+        bucket = "vscode-extensions-base";
         companionTools = [ "prettier" ];
       };
       settings = {

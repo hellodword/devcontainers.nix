@@ -22,7 +22,7 @@ let
     attrs:
     {
       kind = "test";
-      group = "99-fallback";
+      group = "fallback";
       packages = [ ];
       priority = 1;
       stability = "stable";
@@ -232,7 +232,7 @@ let
                   devcontainer.profiles."test/extension" = {
                     enable = true;
                     kind = "test";
-                    group = "80-vscode-extensions-base";
+                    group = "vscode-extensions-base";
                     packages = [ ];
                     priority = 1;
                     stability = "stable";
@@ -240,7 +240,7 @@ let
                     securityClass = "trusted";
                     vscode.extensions."redhat.vscode-yaml" = {
                       native = false;
-                      bucket = "80-vscode-extensions-base";
+                      bucket = "vscode-extensions-base";
                       companionTools = [ "missing-tool" ];
                     };
                   };

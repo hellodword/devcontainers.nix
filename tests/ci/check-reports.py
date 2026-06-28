@@ -202,11 +202,11 @@ def main() -> int:
                 fail(f"layer {layer['group']} missing pathsToLink entry: {required_link}")
         if not isinstance(layer["build"].get("extraOutputsToInstall"), list):
             fail(f"layer {layer['group']} must report extraOutputsToInstall as a list")
-    font_layers = [layer for layer in layer_plan["layers"] if layer["group"] == "02-fonts-runtime"]
+    font_layers = [layer for layer in layer_plan["layers"] if layer["group"] == "fonts-runtime"]
     if len(font_layers) != 1:
-        fail("layer-plan.json must include one 02-fonts-runtime layer")
+        fail("layer-plan.json must include one fonts-runtime layer")
     if "runtime/fonts" not in font_layers[0]["members"]:
-        fail("02-fonts-runtime layer must include runtime/fonts")
+        fail("fonts-runtime layer must include runtime/fonts")
     profile_ids_with_packages = {
         profile["id"]
         for profile in profile_report.get("enabledProfiles") or []

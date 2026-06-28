@@ -6,15 +6,15 @@ let
   codex = pkgs.agents-misc.codex;
 in
 {
-  config.devcontainer.layers.bucketDefinitions."13-agent-tools" = {
-    order = 15;
+  config.devcontainer.layers.bucketDefinitions."agent-tools" = {
+    order = 11200;
     owner = "toolsets/agents";
     purpose = "Agent command-line tooling.";
   };
 
   config.devcontainer.profiles."toolset/agents" = {
     kind = "toolset";
-    group = "13-agent-tools";
+    group = "agent-tools";
     packages = [ codex ];
     priority = 74;
     stability = "medium";

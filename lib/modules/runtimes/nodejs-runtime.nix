@@ -24,15 +24,15 @@ in
   };
 
   config.devcontainer = {
-    layers.bucketDefinitions."40-nodejs-runtime" = {
-      order = 20;
+    layers.bucketDefinitions."nodejs-runtime" = {
+      order = 22000;
       owner = "runtimes/nodejs-runtime";
       purpose = "Node.js runtime, npm, npx, and corepack.";
     };
 
     profiles."runtime/nodejs" = {
       kind = "runtime";
-      group = "40-nodejs-runtime";
+      group = "nodejs-runtime";
       packages = packages;
       priority = 85;
       stability = "stable";

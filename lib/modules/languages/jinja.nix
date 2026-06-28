@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."language/jinja" = {
     kind = "language";
-    group = "07-editor-support-tools";
+    group = "editor-support-tools";
     packages = [ pkgs.minijinja ];
     priority = 80;
     stability = "stable";
@@ -12,7 +12,7 @@
 
     vscode.extensions."samuelcolvin.jinjahtml" = {
       native = false;
-      bucket = "80-vscode-extensions-base";
+      bucket = "vscode-extensions-base";
       companionTools = [ ];
       notes = "Syntax support only; no Jinja LSP is configured.";
     };

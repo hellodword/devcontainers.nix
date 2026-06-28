@@ -29,13 +29,13 @@ in
 
   config.devcontainer = {
     layers.bucketDefinitions = {
-      "50-go-language" = {
-        order = 22;
+      "go-language" = {
+        order = 23000;
         owner = "languages/go";
         purpose = "Go compiler, language server, debugger, and tooling.";
       };
-      "84-vscode-extensions-go" = {
-        order = 33;
+      "vscode-extensions-go" = {
+        order = 64000;
         owner = "languages/go";
         purpose = "Go VS Code extension.";
       };
@@ -43,7 +43,7 @@ in
 
     profiles."language/go" = {
       kind = "language";
-      group = "50-go-language";
+      group = "go-language";
       packages = packages;
       priority = 70;
       stability = "medium";
@@ -64,7 +64,7 @@ in
       vscode = {
         extensions."golang.go" = {
           native = false;
-          bucket = "84-vscode-extensions-go";
+          bucket = "vscode-extensions-go";
           companionTools = [
             "go"
             "gopls"

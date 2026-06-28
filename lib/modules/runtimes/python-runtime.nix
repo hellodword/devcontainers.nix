@@ -21,15 +21,15 @@ in
   };
 
   config.devcontainer = {
-    layers.bucketDefinitions."30-python-runtime" = {
-      order = 18;
+    layers.bucketDefinitions."python-runtime" = {
+      order = 21000;
       owner = "runtimes/python-runtime";
       purpose = "Python interpreter, package installer, and uv runtime tools.";
     };
 
     profiles."runtime/python" = {
       kind = "runtime";
-      group = "30-python-runtime";
+      group = "python-runtime";
       packages = packages;
       priority = 85;
       stability = "stable";

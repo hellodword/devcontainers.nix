@@ -2,7 +2,7 @@
 {
   config.devcontainer.profiles."tool/editorconfig" = {
     kind = "tool";
-    group = "07-workflow-format-tools";
+    group = "workflow-format-tools";
     packages = [ pkgs.editorconfig-core-c ];
     priority = 82;
     stability = "stable";

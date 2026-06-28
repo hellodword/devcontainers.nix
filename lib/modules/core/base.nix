@@ -134,13 +134,13 @@ in
 
   config = {
     devcontainer.layers.bucketDefinitions = {
-      "95-dynamic-package-runtime" = {
-        order = 37;
+      "dynamic-package-runtime" = {
+        order = 90000;
         owner = "core/base";
         purpose = "Dynamic packages and late image package materialization.";
       };
-      "99-fallback" = {
-        order = 38;
+      "fallback" = {
+        order = 99000;
         owner = "core/base";
         purpose = "Fallback bucket for image-specific profiles and test profiles.";
       };

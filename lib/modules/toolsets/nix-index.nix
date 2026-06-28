@@ -15,15 +15,15 @@ in
 
   config = lib.mkMerge [
     {
-      devcontainer.layers.bucketDefinitions."12-nix-index-tools" = {
-        order = 14;
+      devcontainer.layers.bucketDefinitions."nix-index-tools" = {
+        order = 11100;
         owner = "toolsets/nix-index";
         purpose = "nix-index and comma command database tools.";
       };
 
       devcontainer.profiles."toolset/nix-index" = {
         kind = "toolset";
-        group = "12-nix-index-tools";
+        group = "nix-index-tools";
         packages = packages;
         priority = 89;
         stability = "stable";

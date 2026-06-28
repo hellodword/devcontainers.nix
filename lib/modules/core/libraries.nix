@@ -47,13 +47,13 @@ in
   config.devcontainer = lib.mkMerge [
     {
       layers.bucketDefinitions = {
-        "70-runtime-libraries" = {
-          order = 27;
+        "runtime-libraries" = {
+          order = 50000;
           owner = "core/libraries";
           purpose = "Runtime library closures shared across language profiles.";
         };
-        "71-build-libraries" = {
-          order = 28;
+        "build-libraries" = {
+          order = 50100;
           owner = "core/libraries";
           purpose = "Build-time library outputs shared across language profiles.";
         };
@@ -63,7 +63,7 @@ in
     (lib.mkIf (runtimeOutputs != [ ]) {
       graph.nodes."libraries/runtime" = {
         kind = "library-runtime";
-        group = "70-runtime-libraries";
+        group = "runtime-libraries";
         paths = runtimeOutputs;
         stability = "stable";
         sharing = "cross-language";
@@ -74,7 +74,7 @@ in
     (lib.mkIf (buildLayerOutputs != [ ]) {
       graph.nodes."libraries/build" = {
         kind = "library-build";
-        group = "71-build-libraries";
+        group = "build-libraries";
         paths = buildLayerOutputs;
         stability = "stable";
         sharing = "cross-language";
