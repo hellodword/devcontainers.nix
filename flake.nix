@@ -152,9 +152,9 @@
       imagePackages = lib.mapAttrs' (
         name: image: lib.nameValuePair "devcontainer-${name}" image.oci
       ) images;
-      runtimePublicPackages = lib.mapAttrs' (
-        name: helper: lib.nameValuePair name helper.package
-      ) (lib.filterAttrs (_: helper: helper.publicPackage) compiler.runtimeHelpers);
+      runtimePublicPackages = lib.mapAttrs' (name: helper: lib.nameValuePair name helper.package) (
+        lib.filterAttrs (_: helper: helper.publicPackage) compiler.runtimeHelpers
+      );
       smokePlanRunner = pkgs.writeShellApplication {
         name = "run-smoke-plan";
         runtimeInputs = [
