@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""Synthetic self-test for the image artifact validator.
+
+Real generated images mostly exercise the success path. This fixture checks
+that valid OCI image JSON is accepted and that an oversized layer is rejected,
+without changing the artifact checker or depending on a full image build.
+"""
+
 import json
 import subprocess
 import sys

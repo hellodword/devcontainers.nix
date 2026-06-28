@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+"""Guard default checks against host-dependent shortcuts.
+
+The default flake checks must stay hermetic: they should not call the nix CLI
+or nix-store, add pkgs.nix to derivations, or seed PATH from host
+/usr/bin:/bin. Those shortcuts make checks depend on the host environment or a
+running Nix daemon instead of the derivation closure being tested.
+"""
+
 import pathlib
 import re
 import sys
