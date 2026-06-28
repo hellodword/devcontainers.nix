@@ -1,80 +1,25 @@
 # Usage
 
-This guide is for people using the published images from a project `.devcontainer/devcontainer.json`.
+This guide is for project authors using the published images from
+`.devcontainer/devcontainer.json`.
 
-## Image References
-
-<!-- BEGIN GENERATED:image-refs -->
-The flake builds 11 image targets. Target names are used for local Nix outputs, generated workflow names, and smoke plans. Published image references use the `ghcr.io/hellodword/devcontainers-` prefix plus the target's family and tag.
-
-| Target | Published references | Use when |
-| --- | --- | --- |
-| `nix` | `ghcr.io/hellodword/devcontainers-nix:latest` | Use for Nix flakes, Nix modules, shell tooling, and general repositories that still benefit from Python and Node.js runtimes. |
-| `go` | `ghcr.io/hellodword/devcontainers-go:latest`<br>`ghcr.io/hellodword/devcontainers-go:1.26` | Use for current Go projects with common Go tools. |
-| `go-1_25` | `ghcr.io/hellodword/devcontainers-go:1.25` | Use for the previous Go major/minor line exposed by this repository. |
-| `go-web` | `ghcr.io/hellodword/devcontainers-go:web` | Use for Go services that also need web and data tools. |
-| `nodejs` | `ghcr.io/hellodword/devcontainers-nodejs:latest`<br>`ghcr.io/hellodword/devcontainers-nodejs:26` | Use for Node.js, TypeScript, frontend, and package-manager heavy projects. |
-| `nodejs-24` | `ghcr.io/hellodword/devcontainers-nodejs:24` | Use for the previous even Node.js major line exposed by this repository. |
-| `python3` | `ghcr.io/hellodword/devcontainers-python3:latest`<br>`ghcr.io/hellodword/devcontainers-python3:3.13` | Use for Python projects with uv, pipx, formatters, linters, and test tools. |
-| `python3-web` | `ghcr.io/hellodword/devcontainers-python3:web` | Use for Python services that also need web and data tools. |
-| `rust` | `ghcr.io/hellodword/devcontainers-rust:latest` | Use for Rust projects with nightly Rust, rust-analyzer, clippy, and cargo helpers. |
-| `rust-web` | `ghcr.io/hellodword/devcontainers-rust:web` | Use for Rust services that also need web and data tools. |
-| `flutter` | `ghcr.io/hellodword/devcontainers-flutter:latest` | Use for Flutter, Dart, Android, and Chromium-backed web workflows. |
-<!-- END GENERATED:image-refs -->
-
-```shell
-nix eval --json .#images \
-    --apply 'images: builtins.mapAttrs (_: image: "${image.oci.imageName}:${image.oci.imageTag}") images' | jq -r 'to_entries[] | "\(.value)"'
-```
+For the full image list, see [README: Quick Start](../README.md#quick-start).
+For intent-based navigation, see [Documentation Index](index.md).
 
 ## Basic Devcontainer
 
-Minimal Go project:
+Create `.devcontainer/devcontainer.json` with one published image reference:
 
 ```json
 {
-  "name": "go",
   "image": "ghcr.io/hellodword/devcontainers-go:latest"
 }
 ```
 
-Minimal Python project:
+Pick another image tag from the README when the project needs a different
+language or tool stack.
 
-```json
-{
-  "name": "python",
-  "image": "ghcr.io/hellodword/devcontainers-python3:latest"
-}
-```
-
-Minimal Node.js project:
-
-```json
-{
-  "name": "nodejs",
-  "image": "ghcr.io/hellodword/devcontainers-nodejs:latest"
-}
-```
-
-Minimal Rust project:
-
-```json
-{
-  "name": "rust",
-  "image": "ghcr.io/hellodword/devcontainers-rust:latest"
-}
-```
-
-Minimal Flutter project:
-
-```json
-{
-  "name": "flutter",
-  "image": "ghcr.io/hellodword/devcontainers-flutter:latest"
-}
-```
-
-## Constraints
+## Runtime Defaults
 
 All images run as the fixed `vscode` user with uid/gid `1000`.
 
@@ -88,50 +33,56 @@ Do not set these fields in project `devcontainer.json`:
 }
 ```
 
-The image metadata already sets `remoteUser`, `containerUser`, and `updateRemoteUserUID` to the supported values. The image entrypoint refuses to start as a different user, and `devcontainer-image check` reports these overrides as invalid.
+The image metadata already sets `remoteUser`, `containerUser`, and
+`updateRemoteUserUID` to the supported values. The image entrypoint refuses to
+start as a different user, and `devcontainer-image check` reports these
+overrides as invalid.
 
-Other important defaults:
+Important defaults:
 
 - default working directory is `/workspaces`
 - default shell is Bash
 - default locale is `en_US.UTF-8`
 - `/etc/localtime`, `/etc/zoneinfo`, and `TZDIR=/etc/zoneinfo` are present
 - `fontconfig` and Noto Latin, CJK, symbol, and emoji fonts are installed
-- Docker client tools are installed, but no Docker daemon is started inside the container. See [Remote Docker](docker-remote.md) for the expected external-daemon model.
+- Docker client tools are installed, but no Docker daemon is started inside the
+  container; see [Remote Docker](docker-remote.md)
 - Git, OpenSSH client tools, and nix-index are available in the base image set
 - `LD_LIBRARY_PATH` is not exported by default
 
-## Adding Packages
+## VS Code Settings
 
-Use `devpkg` for project-specific tools that do not need to be baked into the image.
-
-Install CLI packages after container creation:
+Project-local VS Code settings belong in Dev Containers metadata:
 
 ```json
 {
-  "name": "nix-tools",
+  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "nix.formatterPath": "nixfmt",
+        "editor.formatOnSave": true
+      }
+    }
+  }
+}
+```
+
+These settings are applied by VS Code after it reads the image and project
+metadata. Put repository-specific editor behavior here instead of baking it into
+the published image.
+
+## Packages
+
+Use `devpkg` for project-specific tools that do not need to be baked into the
+image.
+
+Install packages after container creation:
+
+```json
+{
   "image": "ghcr.io/hellodword/devcontainers-nix:latest",
   "postCreateCommand": "devpkg add jq just"
-}
-```
-
-Install browser packages from nixpkgs:
-
-```json
-{
-  "name": "browser-test",
-  "image": "ghcr.io/hellodword/devcontainers-nodejs:latest",
-  "postCreateCommand": "devpkg add chromium"
-}
-```
-
-`devpkg` uses the image's locked nixpkgs input and nixpkgs policy, including unfree package support and accepted Android SDK license gates. New containers do not need to download nixpkgs before the first `devpkg add`, and packages such as `google-chrome` and `microsoft-edge` evaluate the same way as image builds:
-
-```json
-{
-  "name": "edge-test",
-  "image": "ghcr.io/hellodword/devcontainers-nodejs:latest",
-  "postCreateCommand": "devpkg add microsoft-edge"
 }
 ```
 
@@ -144,29 +95,33 @@ devpkg list
 devpkg remove ripgrep
 ```
 
-Interactive Bash completion is available for `devpkg` commands, common options, installed profile entries, and nixpkgs package attributes:
+Interactive Bash completion is available for `devpkg` commands, common options,
+installed profile entries, and nixpkgs package attributes:
 
 ```sh
 devpkg add div<TAB>
 ```
 
-## Adding Native Libraries
+`devpkg` uses the image's locked nixpkgs input and nixpkgs policy, including
+unfree package support and accepted Android SDK license gates. New containers do
+not need to download nixpkgs before the first `devpkg add`.
+
+## Native Libraries And `LD_LIBRARY_PATH`
 
 Runtime libraries are for programs that need shared objects at execution time:
 
 ```json
 {
-  "name": "ffi-runtime",
   "image": "ghcr.io/hellodword/devcontainers-python3:latest",
   "postCreateCommand": "devpkg add-lib libGL"
 }
 ```
 
-Build libraries are for compiling and linking. They expose headers, `pkg-config`, CMake prefixes, compiler wrapper flags, and runtime outputs:
+Build libraries are for compiling and linking. They expose headers,
+`pkg-config`, CMake prefixes, compiler wrapper flags, and runtime outputs:
 
 ```json
 {
-  "name": "native-build",
   "image": "ghcr.io/hellodword/devcontainers-go:latest",
   "postCreateCommand": "devpkg add-dev-lib openssl zlib"
 }
@@ -176,19 +131,20 @@ Select explicit package outputs when a project needs them:
 
 ```json
 {
-  "name": "static-zlib",
   "image": "ghcr.io/hellodword/devcontainers-rust:latest",
   "postCreateCommand": "devpkg add-dev-lib --outputs out,dev,static zlib"
 }
 ```
 
-Go images enable the `cgo` library preset, so dynamically installed build libraries also feed `CGO_CFLAGS` and `CGO_LDFLAGS`.
+Go images enable the `cgo` library preset, so dynamically installed build
+libraries also feed `CGO_CFLAGS` and `CGO_LDFLAGS`.
 
-Rust and Flutter images enable the `rust-bindgen` preset, so build library include paths feed `BINDGEN_EXTRA_CLANG_ARGS`. Projects that use bindgen still need to install `clang` and `libclang` when their build requires those tools:
+Rust and Flutter images enable the `rust-bindgen` preset, so build library
+include paths feed `BINDGEN_EXTRA_CLANG_ARGS`. Projects that use bindgen still
+need to install `clang` and `libclang` when their build requires those tools:
 
 ```json
 {
-  "name": "rust-bindgen",
   "image": "ghcr.io/hellodword/devcontainers-rust:latest",
   "postCreateCommand": "devpkg add clang && devpkg add-dev-lib llvmPackages.libclang openssl"
 }
@@ -198,7 +154,6 @@ If a non-Nix toolchain or FFI loader needs `LD_LIBRARY_PATH`, opt in explicitly:
 
 ```json
 {
-  "name": "ffi",
   "image": "ghcr.io/hellodword/devcontainers-python3:latest",
   "postCreateCommand": "devpkg add-dev-lib openssl zlib",
   "remoteEnv": {
@@ -207,15 +162,18 @@ If a non-Nix toolchain or FFI loader needs `LD_LIBRARY_PATH`, opt in explicitly:
 }
 ```
 
-## Advanced Runtime Overrides
+Keep `LD_LIBRARY_PATH` scoped to the project because it changes dynamic loader
+search order for every process that receives it.
 
-The image already includes system-level Git, SSH, CA, timezone, and nix-index support. Project-specific overrides should stay in `devcontainer.json` or mounted project files, not in a published image.
+## Environment Variables
 
-Example with project-local Git/SSH/CA/timezone settings:
+Use `containerEnv` for values that should exist for the whole container, and
+`remoteEnv` for VS Code and child processes started by VS Code.
+
+Example with project-local Git, SSH, CA, and timezone settings:
 
 ```json
 {
-  "name": "advanced-runtime",
   "image": "ghcr.io/hellodword/devcontainers-nix:latest",
   "containerEnv": {
     "TZ": "America/New_York",
@@ -228,35 +186,24 @@ Example with project-local Git/SSH/CA/timezone settings:
 }
 ```
 
-Do not bake proxy credentials, private keys, tokens, or machine-specific CA bundles into an image. Use runtime environment, mounts, or local user configuration for those values.
+Do not bake proxy credentials, private keys, tokens, or machine-specific CA
+bundles into an image. Use runtime environment, mounts, or local user
+configuration for those values.
 
-## Image Examples
+## Chromium And Browser Automation
+
+Chromium-family browsers need container runtime settings that cannot be fixed
+inside the image after startup.
+
+Use a larger private `/dev/shm` for interactive browser work and browser
+automation, and install Chromium plus any native build libraries the project
+needs:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-go:web",
+  "image": "ghcr.io/hellodword/devcontainers-nodejs:latest",
   "runArgs": ["--shm-size=1g"],
-  "postCreateCommand": "devpkg add-dev-lib openssl && devpkg add chromium",
-  "customizations": {
-    "vscode": {
-      "settings": {
-        "nix.formatterPath": "nixfmt"
-      }
-    }
-  }
-}
-```
-
-## Browser Configuration
-
-Chromium-family browsers need container runtime settings that cannot be fixed inside the image after startup.
-
-Use a larger private `/dev/shm` for interactive browser work and browser automation:
-
-```json
-{
-  "image": "ghcr.io/hellodword/devcontainers-flutter:latest",
-  "runArgs": ["--shm-size=1g"]
+  "postCreateCommand": "devpkg add chromium && devpkg add-dev-lib openssl"
 }
 ```
 
@@ -273,8 +220,44 @@ For Docker Compose based devcontainers:
 ```yaml
 services:
   dev:
-    image: ghcr.io/hellodword/devcontainers-flutter:latest
+    image: ghcr.io/hellodword/devcontainers-nodejs:latest
     shm_size: "1gb"
 ```
 
-The images do not add `--no-sandbox`, do not install Chromium SUID sandbox helpers, and do not relax container runtime security settings by default. See [Chromium in Dev Containers](chromium.md) for the detailed browser behavior and tradeoffs.
+The images do not add `--no-sandbox`, do not install Chromium SUID sandbox
+helpers, and do not relax container runtime security settings by default. See
+[Chromium in Dev Containers](chromium.md) for browser behavior, `/dev/shm`
+tradeoffs, sandbox failures, and the retained pitfall log.
+
+## gVisor
+
+gVisor is selected as the OCI runtime when the devcontainer is started. This is
+independent from `DOCKER_HOST`; `DOCKER_HOST` only chooses which Docker daemon
+the client talks to.
+
+If the Docker daemon has `runsc` registered as a runtime, opt in from
+`devcontainer.json`:
+
+```json
+{
+  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
+  "runArgs": ["--runtime=runsc"]
+}
+```
+
+For Docker Compose based devcontainers:
+
+```json
+{
+  "dockerComposeFile": "compose.yaml",
+  "service": "dev",
+  "workspaceFolder": "/workspaces/app"
+}
+```
+
+```yaml
+services:
+  dev:
+    image: ghcr.io/hellodword/devcontainers-nix:latest
+    runtime: runsc
+```

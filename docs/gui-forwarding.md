@@ -81,25 +81,25 @@ already mounted or linked but the environment variable has not arrived yet.
 
 When Wayland is available, the generated file exports:
 
-| Variable | Value |
-| --- | --- |
-| `XDG_SESSION_TYPE` | `wayland` |
-| `GDK_BACKEND` | `wayland,x11` |
-| `QT_QPA_PLATFORM` | `wayland;xcb` |
-| `SDL_VIDEODRIVER` | `wayland` |
-| `CLUTTER_BACKEND` | `wayland` |
-| `MOZ_ENABLE_WAYLAND` | `1` |
-| `NIXOS_OZONE_WL` | `1` |
+| Variable             | Value         |
+| -------------------- | ------------- |
+| `XDG_SESSION_TYPE`   | `wayland`     |
+| `GDK_BACKEND`        | `wayland,x11` |
+| `QT_QPA_PLATFORM`    | `wayland;xcb` |
+| `SDL_VIDEODRIVER`    | `wayland`     |
+| `CLUTTER_BACKEND`    | `wayland`     |
+| `MOZ_ENABLE_WAYLAND` | `1`           |
+| `NIXOS_OZONE_WL`     | `1`           |
 
 When X11 is selected, it exports:
 
-| Variable | Value |
-| --- | --- |
+| Variable           | Value |
+| ------------------ | ----- |
 | `XDG_SESSION_TYPE` | `x11` |
-| `GDK_BACKEND` | `x11` |
-| `QT_QPA_PLATFORM` | `xcb` |
-| `SDL_VIDEODRIVER` | `x11` |
-| `CLUTTER_BACKEND` | `x11` |
+| `GDK_BACKEND`      | `x11` |
+| `QT_QPA_PLATFORM`  | `xcb` |
+| `SDL_VIDEODRIVER`  | `x11` |
+| `CLUTTER_BACKEND`  | `x11` |
 
 It also unsets `MOZ_ENABLE_WAYLAND` and `NIXOS_OZONE_WL`. If `DISPLAY` is empty
 and `REMOTE_CONTAINERS_DISPLAY` is present, the generated file fills `DISPLAY`

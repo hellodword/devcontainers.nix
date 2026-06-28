@@ -12,7 +12,6 @@ let
   imageRef = target: tag: "${registryPrefix}${target.family}:${tag}";
   targetRefs = target: map (tag: imageRef target tag) target.tags;
   codeList = values: lib.concatStringsSep ", " (map code values);
-  tableRefs = target: lib.concatStringsSep "<br>" (map code (targetRefs target));
   vscodeGuiE2e = import ../tests/e2e/vscode-gui.nix {
     inherit pkgs lib;
   };
@@ -29,21 +28,10 @@ let
     else
       builtins.throw "image target ${target.target} must define docs.useWhen";
   imageTargetList = map requireTargetDocs targets.imageTargetList;
-  targetUse = target: target.docs.useWhen;
   generatedDocs = {
     readmeImageRefs = ''
       ${lib.concatMapStringsSep "\n" (
         target: lib.concatMapStringsSep "\n" (ref: "- ${code ref}") (targetRefs target)
-      ) imageTargetList}
-    '';
-
-    usageImageRefs = ''
-      The flake builds ${toString (builtins.length imageTargetList)} image targets. Target names are used for local Nix outputs, generated workflow names, and smoke plans. Published image references use the `ghcr.io/hellodword/devcontainers-` prefix plus the target's family and tag.
-
-      | Target | Published references | Use when |
-      | --- | --- | --- |
-      ${lib.concatMapStringsSep "\n" (
-        target: "| ${code target.target} | ${tableRefs target} | ${targetUse target} |"
       ) imageTargetList}
     '';
 
@@ -74,7 +62,6 @@ let
 
     FRAGMENTS = [
         ("README.md", "image-refs", "readmeImageRefs"),
-        ("docs/usage.md", "image-refs", "usageImageRefs"),
         ("docs/architecture.md", "image-targets", "architectureImageTargets"),
         ("docs/e2e-testing.md", "e2e-sessions", "e2eSessions"),
     ]

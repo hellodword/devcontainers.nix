@@ -18,12 +18,14 @@ target in `images/default.nix` and every supported GUI session exported by
 `tests/e2e/vscode-gui.nix` still knows the supported GUI sessions:
 
 <!-- BEGIN GENERATED:e2e-sessions -->
-| Session | Backend | Desktop |
-| --- | --- | --- |
-| `x11-i3` | X11 | LightDM auto-login with i3 |
-| `x11-xfce` | X11 | LightDM auto-login with Xfce |
-| `wayland-sway` | Wayland | tty auto-login with Sway |
-| `wayland-kde` | Wayland | SDDM auto-login with Plasma |
+
+| Session        | Backend | Desktop                      |
+| -------------- | ------- | ---------------------------- |
+| `x11-i3`       | X11     | LightDM auto-login with i3   |
+| `x11-xfce`     | X11     | LightDM auto-login with Xfce |
+| `wayland-sway` | Wayland | tty auto-login with Sway     |
+| `wayland-kde`  | Wayland | SDDM auto-login with Plasma  |
+
 <!-- END GENERATED:e2e-sessions -->
 
 The E2E attribute name format is:
@@ -72,25 +74,25 @@ environment variables. Without `--impure`, the default scale is used.
 
 Important timeout boundaries:
 
-| Step | Base Budget |
-| --- | ---: |
-| Whole VM test script | 375s |
-| Docker daemon readiness | 30s |
-| `docker load` inner timeout | 180s |
-| `docker load` wrapper command | 210s |
-| VS Code launch command | 20s |
-| Dev Containers log discovery | 60s |
-| X11 VS Code window detection | 90s |
-| Sway Wayland socket detection | 120s |
-| Sway VS Code window detection | 180s |
-| KDE Wayland session/window detection | 180s |
-| Command Palette reopen attempt | 60s, two attempts |
-| Container lifecycle wait | 120s |
-| VS Code GUI ready wait | 90s |
-| VS Code terminal probe | 60s |
-| Container verification | 180s |
-| Artifact collection commands | 30s or 60s |
-| Individual smoke command | 30s |
+| Step                                 |       Base Budget |
+| ------------------------------------ | ----------------: |
+| Whole VM test script                 |              375s |
+| Docker daemon readiness              |               30s |
+| `docker load` inner timeout          |              180s |
+| `docker load` wrapper command        |              210s |
+| VS Code launch command               |               20s |
+| Dev Containers log discovery         |               60s |
+| X11 VS Code window detection         |               90s |
+| Sway Wayland socket detection        |              120s |
+| Sway VS Code window detection        |              180s |
+| KDE Wayland session/window detection |              180s |
+| Command Palette reopen attempt       | 60s, two attempts |
+| Container lifecycle wait             |              120s |
+| VS Code GUI ready wait               |               90s |
+| VS Code terminal probe               |               60s |
+| Container verification               |              180s |
+| Artifact collection commands         |        30s or 60s |
+| Individual smoke command             |               30s |
 
 These values are multiplied by `DEVCONTAINERS_NIX_E2E_TIMEOUT_SCALE`. Polling
 intervals such as one- or two-second sleeps stay unscaled; they are cadence, not
@@ -123,7 +125,7 @@ The test does not call the normal `load-*` apps. The E2E path owns its own image
 loading flow:
 
 1. A Nix derivation runs `skopeo --insecure-policy copy nix:<oci-path>
-   docker-archive:<archive>:<image-ref>`.
+docker-archive:<archive>:<image-ref>`.
 2. The VM test receives the resulting Docker archive from the Nix store.
 3. Inside the VM, Docker imports it with `docker load -i <archive>`.
 4. The test checks `docker image inspect <image-ref>`.
@@ -194,12 +196,12 @@ code <common-flags> <session-flags> /home/alice/workspace
 Common flags disable workspace trust, telemetry, updates, release notes, and
 password-store integration. The session-specific behavior is:
 
-| Session | Startup | VS Code Window Detection |
-| --- | --- | --- |
-| `x11-i3` | `machine.wait_for_x()`, merge Alice's Xauthority | `xdotool` visible window titles |
-| `x11-xfce` | `machine.wait_for_x()`, merge Alice's Xauthority | `xdotool` visible window titles |
-| `wayland-sway` | wait for `/run/user/1000/wayland-*` and `/tmp/sway-ipc.sock` | `swaymsg -t get_tree` |
-| `wayland-kde` | wait for SDDM, Wayland socket, Plasma user targets | `kdotool` window titles |
+| Session        | Startup                                                      | VS Code Window Detection        |
+| -------------- | ------------------------------------------------------------ | ------------------------------- |
+| `x11-i3`       | `machine.wait_for_x()`, merge Alice's Xauthority             | `xdotool` visible window titles |
+| `x11-xfce`     | `machine.wait_for_x()`, merge Alice's Xauthority             | `xdotool` visible window titles |
+| `wayland-sway` | wait for `/run/user/1000/wayland-*` and `/tmp/sway-ipc.sock` | `swaymsg -t get_tree`           |
+| `wayland-kde`  | wait for SDDM, Wayland socket, Plasma user targets           | `kdotool` window titles         |
 
 Sway and KDE use `virtio-gpu-pci`. Sway sets `WLR_RENDERER=pixman` for a more
 predictable software-rendered Wayland session inside the VM.
@@ -256,10 +258,10 @@ Command selection follows these rules:
 
 Current calls:
 
-| Purpose | Command Text | Delay |
-| --- | --- | --- |
-| Open devcontainer | `dev containers: rebuild and reopen in container` | 3s open, 3s match |
-| Terminal probe | `terminal: create new terminal in editor area to the side` | default helper delays |
+| Purpose           | Command Text                                               | Delay                 |
+| ----------------- | ---------------------------------------------------------- | --------------------- |
+| Open devcontainer | `dev containers: rebuild and reopen in container`          | 3s open, 3s match     |
+| Terminal probe    | `terminal: create new terminal in editor area to the side` | default helper delays |
 
 The terminal command intentionally opens the terminal in the editor area to the
 side. This gives a more predictable focus target than the panel terminal in the
@@ -342,27 +344,27 @@ refresh state and could hide the state that VS Code actually produced.
 On success and failure, the test tries to copy `/tmp/e2e-artifacts` out of the
 VM. Important artifacts include:
 
-| Artifact | Purpose |
-| --- | --- |
-| `vscode-opened.png` | VS Code opened the local workspace |
-| `command-palette-reopen-attempt-*.png` | Command Palette command selection |
-| `devcontainer-explorer-ready.png` | Explorer after GUI readiness |
-| `devcontainer-terminal-probe.png` | Terminal after typed probe command |
-| `failure-state.png` | Best-effort screenshot on failure |
-| `docker-ps.txt` / `docker-images.txt` | Docker daemon state |
-| `docker-inspect.json` | Created container details |
-| `container-logs.txt` | Container logs |
-| `image-load.log` | Archive size, disk state, `docker load` output |
-| `vscode-launch.log` | VS Code launch output |
-| `vscode-window-titles.txt` | Last window-title probe |
-| `vscode-gui-ready.log` | GUI readiness samples |
-| `vscode-screen-ocr.txt` | Last OCR text |
-| `command-palette.log` | Reopen attempt log |
-| `terminal-probe.log` | Terminal probe attempt log |
-| `container-verification.log` | Final container contract output |
-| `vscode-logs.tar.gz` | VS Code logs |
-| `devcontainers-global-storage.tar.gz` | Dev Containers extension state |
-| `vscode-server-tree.txt` | Remote server directory discovery |
+| Artifact                               | Purpose                                        |
+| -------------------------------------- | ---------------------------------------------- |
+| `vscode-opened.png`                    | VS Code opened the local workspace             |
+| `command-palette-reopen-attempt-*.png` | Command Palette command selection              |
+| `devcontainer-explorer-ready.png`      | Explorer after GUI readiness                   |
+| `devcontainer-terminal-probe.png`      | Terminal after typed probe command             |
+| `failure-state.png`                    | Best-effort screenshot on failure              |
+| `docker-ps.txt` / `docker-images.txt`  | Docker daemon state                            |
+| `docker-inspect.json`                  | Created container details                      |
+| `container-logs.txt`                   | Container logs                                 |
+| `image-load.log`                       | Archive size, disk state, `docker load` output |
+| `vscode-launch.log`                    | VS Code launch output                          |
+| `vscode-window-titles.txt`             | Last window-title probe                        |
+| `vscode-gui-ready.log`                 | GUI readiness samples                          |
+| `vscode-screen-ocr.txt`                | Last OCR text                                  |
+| `command-palette.log`                  | Reopen attempt log                             |
+| `terminal-probe.log`                   | Terminal probe attempt log                     |
+| `container-verification.log`           | Final container contract output                |
+| `vscode-logs.tar.gz`                   | VS Code logs                                   |
+| `devcontainers-global-storage.tar.gz`  | Dev Containers extension state                 |
+| `vscode-server-tree.txt`               | Remote server directory discovery              |
 
 If a run times out, inspect the screenshot and the matching log first. If the
 screenshot looks successful, inspect `vscode-gui-ready.log`,

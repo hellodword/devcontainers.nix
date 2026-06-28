@@ -27,6 +27,7 @@ The initial Nix implementation lives on the `v0` branch. This version was refact
 Published images:
 
 <!-- BEGIN GENERATED:image-refs -->
+
 - `ghcr.io/hellodword/devcontainers-nix:latest`
 - `ghcr.io/hellodword/devcontainers-go:latest`
 - `ghcr.io/hellodword/devcontainers-go:1.26`
@@ -47,7 +48,6 @@ Create `.devcontainer/devcontainer.json`:
 
 ```json
 {
-  "name": "go",
   "image": "ghcr.io/hellodword/devcontainers-go:latest"
 }
 ```
@@ -63,10 +63,7 @@ devpkg remove cowsay
 
 ## Documentation
 
+- [Documentation Index](docs/index.md)
 - [Usage](docs/usage.md)
 - [Architecture](docs/architecture.md)
 - [Development and Maintenance](docs/development.md)
-- [Fonts and Fontconfig](docs/fonts-fontconfig.md)
-- [GUI Forwarding](docs/gui-forwarding.md)
-- [Remote Docker](docs/docker-remote.md)
-- [Chromium in Dev Containers](docs/chromium.md)

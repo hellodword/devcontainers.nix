@@ -22,22 +22,22 @@ This runs contract checks, report CLI checks, selected image artifact checks, fo
 
 Important paths:
 
-| Path | Purpose |
-| --- | --- |
-| `flake.nix` | Pins inputs and assembles image outputs, packages, apps, checks, and library metadata. |
-| `flake/` | Maintainer flake internals: docs, checks, workflow generation, and E2E output wiring. |
-| `images/` | Image target registry plus small image-family modules that combine shared modules. |
-| `lib/modules/core/` | Shared image contract: user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, PATH, and FHS runtime. |
-| `lib/modules/programs/` | Static program integrations such as Git, SSH, and nix-index. |
-| `lib/modules/toolsets/` | Reusable command groups such as source control, Docker client, data/network, and debug tools. |
-| `lib/modules/runtimes/` | Shared language runtimes used by multiple image families. |
-| `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter. |
-| `lib/compiler/` | Pure compiler stages that turn evaluated module config into image artifacts and reports. |
-| `runtime/` | Shell helpers installed into images or exposed as package outputs. |
-| `tests/ci/` | Report, artifact, and helper validation. |
-| `tests/smoke/` | Runtime smoke execution after an image is loaded into Docker. |
-| `tests/e2e/` | Heavy VS Code GUI Dev Containers tests. |
-| `docs/` | User, design, and maintenance documentation. |
+| Path                     | Purpose                                                                                                                    |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `flake.nix`              | Pins inputs and assembles image outputs, packages, apps, checks, and library metadata.                                     |
+| `flake/`                 | Maintainer flake internals: docs, checks, workflow generation, and E2E output wiring.                                      |
+| `images/`                | Image target registry plus small image-family modules that combine shared modules.                                         |
+| `lib/modules/core/`      | Shared image contract: user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, PATH, and FHS runtime. |
+| `lib/modules/programs/`  | Static program integrations such as Git, SSH, and nix-index.                                                               |
+| `lib/modules/toolsets/`  | Reusable command groups such as source control, Docker client, data/network, and debug tools.                              |
+| `lib/modules/runtimes/`  | Shared language runtimes used by multiple image families.                                                                  |
+| `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter.                                                       |
+| `lib/compiler/`          | Pure compiler stages that turn evaluated module config into image artifacts and reports.                                   |
+| `runtime/`               | Shell helpers installed into images or exposed as package outputs.                                                         |
+| `tests/ci/`              | Report, artifact, and helper validation.                                                                                   |
+| `tests/smoke/`           | Runtime smoke execution after an image is loaded into Docker.                                                              |
+| `tests/e2e/`             | Heavy VS Code GUI Dev Containers tests.                                                                                    |
+| `docs/`                  | User, design, and maintenance documentation.                                                                               |
 
 ## Maintenance Registries
 
@@ -129,6 +129,138 @@ logic, and NixOS module data. Then run `nix run .#generate-docs` so the session
 table in [VS Code GUI E2E Testing](e2e-testing.md) stays derived from the
 registry.
 
+## Placement Decision Guide
+
+When adding content, choose the owner by reuse and responsibility:
+
+| Level             | Use when                                                                                                                                                             | Do not use for                                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `image` module    | Assembling a published image from existing profiles, image name/tag policy, version overrides, and image-specific checks.                                            | Owning ordinary packages, VS Code extensions, env vars, or libraries directly.                          |
+| bundle profile    | Naming a stack made from other profiles, such as a web bundle.                                                                                                       | Packages, env vars, VS Code metadata, lifecycle tasks, or smoke cases. Bundles must stay resource-free. |
+| leaf profile      | Owning actual image content: packages, provided commands, VS Code extensions/settings, env vars, PATH entries, lifecycle tasks, library presets, and smoke cases.    | Merely grouping other profiles.                                                                         |
+| `language` module | Developer-facing support for one language: language server, formatter, debugger, language extension, language env, and language smoke.                               | Shared interpreters or generic tools used by many languages.                                            |
+| `runtime` module  | A shared runtime substrate used by multiple language stacks, such as Python, Node.js, C/C++ build environment, or Android runtime pieces.                            | Language-specific linters, formatters, or editor choices.                                               |
+| `toolset` module  | A reusable group of cross-language tools, such as source control, Docker client tools, search/navigation, or network/data tools.                                     | One-off tools that only support one language.                                                           |
+| `tool` module     | A small standalone tool or editor helper that is useful globally and does not justify a larger toolset.                                                              | Tool groups with multiple related commands.                                                             |
+| `program` module  | Static system-style integrations with NixOS-like options, generated `/etc` files, shell hooks, or policy such as Git, SSH, or nix-index.                             | Runtime services, privilege management, Docker daemon setup, or ordinary package bundles.               |
+| `core` module     | Global image invariants and compiler-backed surfaces: fixed user, filesystem layout, environment model, PATH buckets, FHS runtime, libraries, fonts, security roots. | Feature work that can live in a profile, language, runtime, toolset, tool, or program module.           |
+
+Default to an existing leaf profile in the module that already owns the
+behavior. Create a new leaf profile only when the addition has its own enable
+boundary, layer bucket, smoke case, or reuse story. Create a bundle only to
+activate multiple existing leaf profiles together.
+
+## Small Existing Module Edits
+
+For small additions, edit the profile that already owns the behavior and keep
+reports/smoke coverage aligned.
+
+### Add A VS Code Extension
+
+Add the extension under the owning leaf profile's `vscode.extensions`:
+
+```nix
+vscode.extensions."publisher.extension-id" = {
+  native = false;
+  bucket = "vscode-extensions-python";
+  companionTools = [ "python" ];
+};
+```
+
+Use the module's existing VS Code extension bucket. If none exists, add an
+owner-local `devcontainer.layers.bucketDefinitions."vscode-extensions-<owner>"`
+entry in the same module and use that bucket. Set `companionTools` to commands
+the extension expects from the image. Use `notes` when the extension is syntax
+only or intentionally has no companion tool.
+
+### Add An Executable
+
+Add the package to the owning profile's package list and record the command in
+`provides.commands`:
+
+```nix
+packages = packages ++ [ pkgs.example-tool ];
+provides.commands = [
+  "existing-tool"
+  "example-tool"
+];
+```
+
+Add or update a smoke case when the command is user-visible:
+
+```nix
+tests.cases."language.example" = {
+  tags = [
+    "smoke"
+    "language"
+    "example"
+  ];
+  command = [
+    "bash"
+    "-lc"
+    "example-tool --version"
+  ];
+};
+```
+
+If the executable is a generated project helper rather than a nixpkgs package,
+put it under `runtime/`, register it in `runtime/default.nix`, and follow
+[Adding Runtime Helpers](#adding-runtime-helpers).
+
+### Add A Native Library
+
+Use `devcontainer.libraries.runtime` for shared objects needed at execution
+time:
+
+```nix
+devcontainer.libraries.runtime = [ pkgs.libGL ];
+```
+
+Use `devcontainer.libraries.build` for headers, `pkg-config`, CMake prefixes,
+compiler wrapper flags, and runtime outputs needed by builds:
+
+```nix
+devcontainer.libraries.build = [
+  pkgs.openssl
+  pkgs.zlib
+];
+```
+
+Do not put native libraries in `profile.packages` unless users need commands
+from those packages on `PATH`. Use `libraries.presets` only for language-level
+integration behavior such as `cgo` or `rust-bindgen`.
+
+### Add An Environment Variable
+
+Add stable container-wide variables to the owning leaf profile's
+`env.variables`:
+
+```nix
+env.variables = {
+  EXAMPLE_HOME = "$XDG_DATA_HOME/example";
+};
+```
+
+Add VS Code-only variables to `env.remoteVariables`:
+
+```nix
+env.remoteVariables = {
+  EXAMPLE_REMOTE = "1";
+};
+```
+
+Use `env.path` for PATH additions and keep paths expressed with existing XDG or
+tool-specific variables:
+
+```nix
+env = {
+  variables.EXAMPLE_BIN = "$XDG_DATA_HOME/example/bin";
+  path = [ "$EXAMPLE_BIN" ];
+};
+```
+
+Update the profile's smoke case when the variable changes runtime behavior.
+
 ## Adding Or Changing An Image
 
 1. Add or update a module in `images/`.
@@ -140,7 +272,7 @@ registry.
 7. Run `nix flake check`.
 8. Build the image reports and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `metadata-label.json`.
 9. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
-10. Update [Usage](usage.md) if the published image contract changed beyond the generated image-reference snippet.
+10. Update [Usage](usage.md) if the published image contract changed.
 
 Use target names for local build outputs and smoke plans, for example `go`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
 
@@ -196,7 +328,7 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 6. Add a `tests.cases` entry next to the profile or owner module when the module exposes user-visible behavior that should run in a real container.
 7. Add image target wiring in `images/default.nix` if the language has version-specific tags.
 8. Run `nix run .#generate-docs` if image targets, families, or tags changed.
-9. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed beyond the generated reference table.
+9. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed.
 
 Layer bucket names should be semantic names such as `python-language` or
 `vscode-extensions-python`. Choose new bucket `order` values from the semantic
@@ -350,7 +482,7 @@ tables and E2E session metadata:
 nix run .#generate-docs
 ```
 
-The generator updates only marked blocks in `README.md`, `docs/usage.md`,
+The generator updates only marked blocks in `README.md`,
 `docs/architecture.md`, and `docs/e2e-testing.md`. There is no documentation
 consistency check; run the generator as part of target, family, tag, target docs,
 or E2E session changes.

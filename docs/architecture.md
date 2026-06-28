@@ -71,7 +71,8 @@ The larger flake internals live under `flake/`:
 - a family name, used in the registry image name such as `devcontainers-go`
 - tags, used in published image references
 - one image module under `images/`
-- `docs.useWhen`, used by generated README and usage tables
+- `docs.useWhen`, the target's user-facing selection hint validated by
+  contract checks
 - optional `ci.e2eSessions`, used by workflow generation
 - optional `checks`, used by required-target, report CLI, and rootfs checks
 - optional override modules for selected language versions
@@ -79,19 +80,21 @@ The larger flake internals live under `flake/`:
 Examples:
 
 <!-- BEGIN GENERATED:image-targets -->
-| Target | Registry family | Tags | Base module |
-| --- | --- | --- | --- |
-| `nix` | `devcontainers-nix` | `latest` | `images/nix.nix` |
-| `go` | `devcontainers-go` | `latest`, `1.26` | `images/go.nix` |
-| `go-1_25` | `devcontainers-go` | `1.25` | `images/go.nix` |
-| `go-web` | `devcontainers-go` | `web` | `images/go-web.nix` |
-| `nodejs` | `devcontainers-nodejs` | `latest`, `26` | `images/nodejs.nix` |
-| `nodejs-24` | `devcontainers-nodejs` | `24` | `images/nodejs.nix` |
-| `python3` | `devcontainers-python3` | `latest`, `3.13` | `images/python.nix` |
-| `python3-web` | `devcontainers-python3` | `web` | `images/python3-web.nix` |
-| `rust` | `devcontainers-rust` | `latest` | `images/rust.nix` |
-| `rust-web` | `devcontainers-rust` | `web` | `images/rust-web.nix` |
-| `flutter` | `devcontainers-flutter` | `latest` | `images/flutter.nix` |
+
+| Target        | Registry family         | Tags             | Base module              |
+| ------------- | ----------------------- | ---------------- | ------------------------ |
+| `nix`         | `devcontainers-nix`     | `latest`         | `images/nix.nix`         |
+| `go`          | `devcontainers-go`      | `latest`, `1.26` | `images/go.nix`          |
+| `go-1_25`     | `devcontainers-go`      | `1.25`           | `images/go.nix`          |
+| `go-web`      | `devcontainers-go`      | `web`            | `images/go-web.nix`      |
+| `nodejs`      | `devcontainers-nodejs`  | `latest`, `26`   | `images/nodejs.nix`      |
+| `nodejs-24`   | `devcontainers-nodejs`  | `24`             | `images/nodejs.nix`      |
+| `python3`     | `devcontainers-python3` | `latest`, `3.13` | `images/python.nix`      |
+| `python3-web` | `devcontainers-python3` | `web`            | `images/python3-web.nix` |
+| `rust`        | `devcontainers-rust`    | `latest`         | `images/rust.nix`        |
+| `rust-web`    | `devcontainers-rust`    | `web`            | `images/rust-web.nix`    |
+| `flutter`     | `devcontainers-flutter` | `latest`         | `images/flutter.nix`     |
+
 <!-- END GENERATED:image-targets -->
 
 The published reference for a family is:
@@ -201,15 +204,15 @@ while letting each owner declare the bucket it needs.
 
 Layer bucket orders use sparse semantic ranges:
 
-| Range | Purpose |
-| --- | --- |
-| `00000-09999` | Core and bootstrap runtime buckets |
+| Range         | Purpose                                      |
+| ------------- | -------------------------------------------- |
+| `00000-09999` | Core and bootstrap runtime buckets           |
 | `10000-19999` | Common tools, Nix support, and shell runtime |
-| `20000-39999` | Language and runtime stacks |
-| `50000-59999` | Runtime and build libraries |
-| `60000-69999` | VS Code extension buckets |
-| `80000-89999` | Lifecycle and generated runtime buckets |
-| `90000-99999` | Dynamic and fallback buckets |
+| `20000-39999` | Language and runtime stacks                  |
+| `50000-59999` | Runtime and build libraries                  |
+| `60000-69999` | VS Code extension buckets                    |
+| `80000-89999` | Lifecycle and generated runtime buckets      |
+| `90000-99999` | Dynamic and fallback buckets                 |
 
 New layer buckets normally use `100`-step spacing inside the relevant semantic
 range. Insertions between existing adjacent buckets may use `10`-step spacing.
