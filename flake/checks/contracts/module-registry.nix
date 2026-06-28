@@ -10,7 +10,6 @@ let
   moduleRegistry = import moduleRoot { inherit lib; };
   categories = [
     "core"
-    "profiles"
     "editor"
     "programs"
     "toolsets"

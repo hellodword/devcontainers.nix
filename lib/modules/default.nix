@@ -2,7 +2,6 @@
 let
   categories = [
     "core"
-    "profiles"
     "editor"
     "programs"
     "toolsets"

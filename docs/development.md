@@ -28,8 +28,10 @@ Important paths:
 | `flake/`                 | Maintainer flake internals: docs, checks, workflow generation, and E2E output wiring.                                      |
 | `images/`                | Image target registry plus small image-family modules that combine shared modules.                                         |
 | `lib/modules/core/`      | Shared image contract: user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, PATH, and FHS runtime. |
+| `lib/modules/editor/`    | Editor integrations, shared editor bundles, VS Code extension metadata, and editor-focused smoke coverage.                 |
 | `lib/modules/programs/`  | Static program integrations such as Git, SSH, and nix-index.                                                               |
 | `lib/modules/toolsets/`  | Reusable command groups such as source control, Docker client, data/network, and debug tools.                              |
+| `lib/modules/tools/`     | Small standalone tools that are useful globally but do not justify a larger toolset.                                       |
 | `lib/modules/runtimes/`  | Shared language runtimes used by multiple image families.                                                                  |
 | `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter.                                                       |
 | `lib/compiler/`          | Pure compiler stages that turn evaluated module config into image artifacts and reports.                                   |
@@ -149,6 +151,10 @@ Default to an existing leaf profile in the module that already owns the
 behavior. Create a new leaf profile only when the addition has its own enable
 boundary, layer bucket, smoke case, or reuse story. Create a bundle only to
 activate multiple existing leaf profiles together.
+
+Choose a module by behavior ownership first, then define any
+`devcontainer.profiles` entries in that owner module. Do not create a separate
+module location merely because the declaration is a profile.
 
 ## Small Existing Module Edits
 

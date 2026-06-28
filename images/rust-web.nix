@@ -7,7 +7,28 @@
     profiles = {
       "toolset/data-network".enable = lib.mkDefault true;
       "language/nodejs".enable = lib.mkDefault true;
-      "image/rust-web".enable = lib.mkDefault true;
+      "image/rust-web" = {
+        enable = lib.mkDefault true;
+        kind = "image";
+        group = "fallback";
+        packages = [ ];
+        priority = 10;
+        stability = "medium";
+        sharing = "single-image";
+        securityClass = "trusted";
+        tests.cases."web.rust" = {
+          tags = [
+            "smoke"
+            "web"
+            "rust"
+          ];
+          command = [
+            "bash"
+            "-lc"
+            "rustc --version && cargo --version && node --version && npm --version && pnpm --version"
+          ];
+        };
+      };
     };
   };
 }

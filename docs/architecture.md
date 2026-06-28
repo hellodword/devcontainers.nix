@@ -112,7 +112,6 @@ registries.
 Module evaluation starts in `lib/compiler/eval.nix`. It imports the module registry in `lib/modules/default.nix`, which scans ordinary `.nix` files in these module groups before adding the image-specific modules:
 
 - core modules in `lib/modules/core/`
-- bundle profiles in `lib/modules/profiles/`
 - editor profiles in `lib/modules/editor/`
 - static program modules in `lib/modules/programs/`
 - toolsets in `lib/modules/toolsets/`
@@ -122,7 +121,7 @@ Module evaluation starts in `lib/compiler/eval.nix`. It imports the module regis
 
 Core modules define the shared image contract: user, filesystem, environment, shell, fonts, native libraries, FHS compatibility, PATH, metadata, and lifecycle tasks.
 
-Owner modules declare their typed options and bucket definitions next to the behavior they implement. Adding a normal module file under one of the groups above does not require changing the compiler loader.
+Owner modules declare their typed options, profile definitions, and bucket definitions next to the behavior they implement. Adding a normal module file under one of the groups above does not require changing the compiler loader.
 
 Toolset modules add common command groups by declaring profiles. For example source control tools, fetch/archive tools, search/navigation tools, inspect/debug tools, workflow/format tools, Docker client tools, agent tools, data/network tools, and nix-index tools.
 
@@ -150,6 +149,8 @@ Image modules combine these building blocks. For example `images/go.nix` imports
 A profile has an `id`, `kind`, semantic layer `group`, priority, stability, sharing, and security class. Enabled leaf profiles can contribute packages, provided command IDs, VS Code extensions and settings, environment variables, PATH segments, shell aliases, lifecycle tasks, library presets, and smoke cases. Enabled bundle profiles contain only `includes`; they are a named way to activate a set of other profiles.
 
 Bundle profiles must stay resource-free. When a bundle needs smoke coverage for the behavior created by its included profiles, it includes a zero-package smoke-only leaf profile that owns the case. Core modules can still declare top-level smoke cases for shared image behavior.
+
+Profile definitions belong in the module that owns the behavior. For example, editor bundles live in editor modules, language bundles live in language modules, toolset bundles live in toolset modules, and image-specific smoke-only profiles live in image modules.
 
 The profile compiler runs before graph, environment, metadata, lifecycle, VS Code extension, and test-plan compilers. It:
 
