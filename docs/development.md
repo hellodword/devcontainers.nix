@@ -27,7 +27,7 @@ Important paths:
 | `flake.nix` | Pins inputs and assembles image outputs, packages, apps, checks, and library metadata. |
 | `flake/` | Maintainer flake internals: docs, checks, workflow generation, and E2E output wiring. |
 | `images/` | Image target registry plus small image-family modules that combine shared modules. |
-| `lib/modules/core/` | Shared image contract: options, user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, VS Code extensions, FHS runtime. |
+| `lib/modules/core/` | Shared image contract: user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, PATH, and FHS runtime. |
 | `lib/modules/programs/` | Static program integrations such as Git, SSH, and nix-index. |
 | `lib/modules/toolsets/` | Reusable command groups such as source control, Docker client, data/network, and debug tools. |
 | `lib/modules/runtimes/` | Shared language runtimes used by multiple image families. |
@@ -47,6 +47,8 @@ Keep source-of-truth metadata near the owner:
 - Report file entries live in `lib/compiler/reports.nix` as `baseReportEntries` and `reportEntries`; `ci-plan.json` and report checks derive from them.
 - Runtime helper metadata lives in `runtime/default.nix`; public package exposure, image installation, and focused helper checks derive from it.
 - VS Code GUI E2E session metadata lives in `tests/e2e/vscode-gui.nix`; exported E2E attrs and generated docs derive from `sessionEntries`.
+- Module loading derives from `lib/modules/default.nix`. New ordinary `.nix` files under a module category are picked up automatically.
+- Layer and PATH bucket order derives from owner-local `devcontainer.layers.bucketDefinitions` and `devcontainer.path.bucketDefinitions`.
 
 `flake/docs.nix`, `flake/workflows.nix`, and check modules consume these
 registries. Do not add parallel image, report, helper, or session lists there
@@ -146,11 +148,11 @@ Use target names for local build outputs and smoke plans, for example `go`. Use 
 
 A toolset is a reusable group of packages that can be enabled by many images.
 
-1. Add an option under `devcontainer.toolsets` in `lib/modules/core/options.nix`.
-2. Add a module under `lib/modules/toolsets/`.
-3. Load the module from `lib/compiler/eval.nix`.
-4. Define a `devcontainer.profiles."toolset/<name>"` leaf profile with packages, provided commands, environment fragments, VS Code metadata, lifecycle tasks, library presets, and smoke cases as needed.
-5. Use a stable layer bucket in the profile `group`.
+1. Add a module under `lib/modules/toolsets/`.
+2. Define any typed `devcontainer.toolsets.<name>` options in that owner module.
+3. Define a `devcontainer.profiles."toolset/<name>"` leaf profile with packages, provided commands, environment fragments, VS Code metadata, lifecycle tasks, library presets, and smoke cases as needed.
+4. Declare a `devcontainer.layers.bucketDefinitions."<bucket>"` entry in the owning module when the profile needs a new stable layer bucket.
+5. Use that stable layer bucket in the profile `group`.
 6. Declare important user-visible command checks in the same profile's `tests.cases`.
 7. Enable the profile from image modules or bundle profiles that need it.
 8. Run report checks and inspect profile, graph, and layer reports.
@@ -169,8 +171,8 @@ Do not add NixOS APIs that imply runtime service management, privilege elevation
 
 When adding a program module:
 
-1. Add typed options in `lib/modules/core/options.nix`.
-2. Add the renderer under `lib/modules/programs/`.
+1. Add the renderer under `lib/modules/programs/`.
+2. Define typed `programs.<name>` options in that same owner module.
 3. Generate files through `environment.etc`.
 4. Add packages through `environment.systemPackages`.
 5. Add shell integration through `environment.shellInit` or `environment.interactiveShellInit` only when it has no network, installer, or long-running side effects.
@@ -180,10 +182,10 @@ When adding a program module:
 
 Use a runtime module when multiple language stacks need a base runtime. Use a language module when it represents the developer-facing stack for one language.
 
-1. Add options in `lib/modules/core/options.nix`.
-2. Add a runtime module under `lib/modules/runtimes/` or a language module under `lib/modules/languages/`.
-3. Load it from `lib/compiler/eval.nix`.
-4. Define one or more `devcontainer.profiles` leaf profiles for packages, environment variables, path segments, VS Code extensions, settings, aliases, library presets, lifecycle tasks, and smoke cases.
+1. Add a runtime module under `lib/modules/runtimes/` or a language module under `lib/modules/languages/`.
+2. Define any typed package override options in that owner module.
+3. Define one or more `devcontainer.profiles` leaf profiles for packages, environment variables, path segments, VS Code extensions, settings, aliases, library presets, lifecycle tasks, and smoke cases.
+4. Declare owner-local `devcontainer.layers.bucketDefinitions` entries for new profile groups or VS Code extension buckets.
 5. Define a bundle profile only when a named stack should enable multiple leaf profiles without owning resources itself.
 6. Add a `tests.cases` entry next to the profile or owner module when the module exposes user-visible behavior that should run in a real container.
 7. Add image target wiring in `images/default.nix` if the language has version-specific tags.
@@ -264,7 +266,6 @@ Native-library behavior spans modules, compiler code, runtime helper behavior, r
 
 When changing it, check:
 
-- `lib/modules/core/options.nix`
 - `lib/modules/core/libraries.nix`
 - `lib/compiler/libraries.nix`
 - `runtime/devpkg/main.py`

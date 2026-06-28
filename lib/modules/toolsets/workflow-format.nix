@@ -1,5 +1,11 @@
 { ... }:
 {
+  config.devcontainer.layers.bucketDefinitions."07-workflow-format-tools" = {
+    order = 8;
+    owner = "toolsets/workflow-format";
+    purpose = "Workflow, formatter, shell linting, and editorconfig tools.";
+  };
+
   config.devcontainer.profiles."toolset/workflow-format" = {
     kind = "toolset";
     group = "07-workflow-format-tools";

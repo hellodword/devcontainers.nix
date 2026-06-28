@@ -4,9 +4,15 @@
   ...
 }:
 let
+  inherit (lib) mkOption types;
   cfg = config.devcontainer.gui.forwarding;
 in
 {
+  options.devcontainer.gui.forwarding.enable = mkOption {
+    type = types.bool;
+    default = true;
+  };
+
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
       devcontainer.lifecycle.tasks."gui-env-refresh" = {

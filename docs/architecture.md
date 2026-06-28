@@ -106,7 +106,7 @@ registries.
 
 ## Module Layers
 
-Module evaluation starts in `lib/compiler/eval.nix`. It loads these module groups before adding the image-specific modules:
+Module evaluation starts in `lib/compiler/eval.nix`. It imports the module registry in `lib/modules/default.nix`, which scans ordinary `.nix` files in these module groups before adding the image-specific modules:
 
 - core modules in `lib/modules/core/`
 - bundle profiles in `lib/modules/profiles/`
@@ -117,7 +117,9 @@ Module evaluation starts in `lib/compiler/eval.nix`. It loads these module group
 - language runtimes in `lib/modules/runtimes/`
 - language stacks in `lib/modules/languages/`
 
-Core modules define the shared image contract: user, filesystem, environment, shell, fonts, native libraries, FHS compatibility, metadata, lifecycle tasks, VS Code extensions, and options.
+Core modules define the shared image contract: user, filesystem, environment, shell, fonts, native libraries, FHS compatibility, PATH, metadata, and lifecycle tasks.
+
+Owner modules declare their typed options and bucket definitions next to the behavior they implement. Adding a normal module file under one of the groups above does not require changing the compiler loader.
 
 Toolset modules add common command groups by declaring profiles. For example source control tools, fetch/archive tools, search/navigation tools, inspect/debug tools, workflow/format tools, Docker client tools, agent tools, data/network tools, and nix-index tools.
 
@@ -190,6 +192,8 @@ The project uses semantic buckets:
 
 `lib/compiler/layers.nix` groups graph nodes by bucket and emits a layer plan. The default budget is 100 semantic buckets with 20 reserved slots. The default maximum layer size is `8GiB`, below the registry's documented 10 GB per-layer limit.
 
+Layer bucket order is derived from owner-local `devcontainer.layers.bucketDefinitions`. PATH order is derived from `devcontainer.path.bucketDefinitions`. This keeps the global ordering stable while letting each owner declare the bucket it needs.
+
 `lib/compiler/image.nix` builds each semantic bucket as an explicit nix2container layer with `maxLayers = 1`. The final customization layer uses a small bounded number of layers for runtime helpers, metadata, generated filesystem files, and the Nix database.
 
 Reports and CI checks enforce this design:
@@ -197,6 +201,7 @@ Reports and CI checks enforce this design:
 - `layer-plan.json` explains the planned buckets
 - image tar checks inspect the final nix2container image JSON
 - report checks reject missing buckets, over-budget plans, and invalid image metadata
+- `contracts-module-registry` and `contracts-bucket-registry` reject missing module registration and missing or unstable bucket definitions
 
 ## Compiler Pipeline
 

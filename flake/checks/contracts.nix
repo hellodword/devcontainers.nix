@@ -22,3 +22,4 @@ in
 // (import ./contracts/targets.nix commonArgs)
 // (import ./contracts/runtime-helpers.nix commonArgs)
 // (import ./contracts/compiler.nix commonArgs)
+// (import ./contracts/module-registry.nix commonArgs)

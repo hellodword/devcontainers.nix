@@ -1,5 +1,11 @@
 { ... }:
 {
+  config.devcontainer.layers.bucketDefinitions."07-editor-support-tools" = {
+    order = 9;
+    owner = "toolsets/editor-support";
+    purpose = "Reusable editor language support tools for data and markup formats.";
+  };
+
   config.devcontainer.profiles."toolset/editor-support" = {
     kind = "toolset";
     group = "07-editor-support-tools";

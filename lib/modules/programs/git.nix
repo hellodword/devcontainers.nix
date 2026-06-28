@@ -1,5 +1,11 @@
-{ lib, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
+  inherit (lib) mkOption types;
   cfg = config.programs.git;
   renderValue =
     value: if builtins.isBool value then if value then "true" else "false" else toString value;
@@ -55,6 +61,41 @@ let
   '';
 in
 {
+  options.programs.git = {
+    enable = mkOption {
+      type = types.bool;
+      default = false;
+    };
+    package = mkOption {
+      type = types.package;
+      default = pkgs.git;
+    };
+    lfs.enable = mkOption {
+      type = types.bool;
+      default = false;
+    };
+    config = mkOption {
+      type = types.attrs;
+      default = { };
+    };
+    extraConfig = mkOption {
+      type = types.lines;
+      default = "";
+    };
+    attributes = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+    };
+    extraAttributes = mkOption {
+      type = types.lines;
+      default = "";
+    };
+    prompt.enable = mkOption {
+      type = types.bool;
+      default = true;
+    };
+  };
+
   config = lib.mkIf cfg.enable (
     lib.mkMerge [
       {

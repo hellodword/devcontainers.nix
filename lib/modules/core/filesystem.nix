@@ -1,8 +1,46 @@
-{ config, ... }:
+{
+  lib,
+  config,
+  ...
+}:
 let
+  inherit (lib) mkOption types;
   user = config.devcontainer.user;
 in
 {
+  options.devcontainer.filesystem = {
+    osRelease = {
+      name = mkOption {
+        type = types.str;
+        default = "devcontainer-nix";
+      };
+      id = mkOption {
+        type = types.str;
+        default = "devcontainer-nix";
+      };
+      versionId = mkOption {
+        type = types.str;
+        default = "26.05";
+      };
+      prettyName = mkOption {
+        type = types.str;
+        default = "Devcontainer Nix 26.05";
+      };
+    };
+    directories = mkOption {
+      type = types.attrsOf (
+        types.submodule {
+          options = {
+            mode = mkOption { type = types.str; };
+            uid = mkOption { type = types.int; };
+            gid = mkOption { type = types.int; };
+          };
+        }
+      );
+      default = { };
+    };
+  };
+
   config.devcontainer = {
     filesystem.directories = {
       "/home" = {

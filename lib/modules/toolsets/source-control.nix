@@ -17,6 +17,12 @@ in
 {
   config = lib.mkMerge [
     {
+      devcontainer.layers.bucketDefinitions."03-source-control-tools" = {
+        order = 4;
+        owner = "toolsets/source-control";
+        purpose = "Git, SSH, GPG, and source-control support tools.";
+      };
+
       devcontainer.profiles."toolset/source-control" = {
         kind = "toolset";
         group = "03-source-control-tools";

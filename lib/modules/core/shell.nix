@@ -5,6 +5,7 @@
   ...
 }:
 let
+  inherit (lib) mkOption types;
   cfg = config.programs.bash;
   locale = config.i18n;
   user = config.devcontainer.user;
@@ -65,8 +66,81 @@ let
   ];
 in
 {
+  options = {
+    i18n = {
+      defaultLocale = mkOption {
+        type = types.str;
+        default = "en_US.UTF-8";
+      };
+      extraLocaleSettings = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+      };
+      glibcLocales = mkOption {
+        type = types.package;
+        default = pkgs.glibcLocales;
+      };
+      supportedLocales = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+      };
+      language = mkOption {
+        type = types.str;
+        default = "en_US:en";
+      };
+    };
+
+    programs.bash = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      prompt.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      history.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      completion.enable = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      commandNotFound.enable = mkOption {
+        type = types.bool;
+        default = config.programs.nix-index.enable;
+      };
+    };
+
+    environment = {
+      shellAliases = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+      };
+      shellAliasOrigins = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
+      shellInit = mkOption {
+        type = types.lines;
+        default = "";
+      };
+      interactiveShellInit = mkOption {
+        type = types.lines;
+        default = "";
+      };
+    };
+  };
+
   config = lib.mkMerge [
     {
+      devcontainer.layers.bucketDefinitions."14-shell-runtime" = {
+        order = 16;
+        owner = "core/shell";
+        purpose = "Locale and interactive shell runtime support.";
+      };
+
       environment.shellAliases = lib.mapAttrs (_: value: lib.mkDefault value) defaultAliases;
       environment.shellAliasOrigins = lib.mapAttrs (_: value: lib.mkDefault value) defaultAliasOrigins;
 

@@ -1,8 +1,109 @@
-{ config, inputs, ... }:
+{
+  lib,
+  config,
+  inputs,
+  ...
+}:
 let
+  inherit (lib) mkOption types;
+  envValueType =
+    with types;
+    oneOf [
+      str
+      int
+      bool
+      path
+      package
+      (listOf str)
+    ];
+  etcEntryType = types.submodule (
+    { name, ... }:
+    {
+      options = {
+        target = mkOption {
+          type = types.str;
+          default = name;
+        };
+        text = mkOption {
+          type = types.nullOr types.lines;
+          default = null;
+        };
+        source = mkOption {
+          type = types.nullOr (
+            types.oneOf [
+              types.str
+              types.path
+              types.package
+            ]
+          );
+          default = null;
+        };
+        mode = mkOption {
+          type = types.str;
+          default = "0644";
+        };
+        uid = mkOption {
+          type = types.int;
+          default = 0;
+        };
+        gid = mkOption {
+          type = types.int;
+          default = 0;
+        };
+      };
+    }
+  );
   user = config.devcontainer.user;
 in
 {
+  options = {
+    environment = {
+      systemPackages = mkOption {
+        type = types.listOf types.package;
+        default = [ ];
+      };
+      pathsToLink = mkOption {
+        type = types.listOf types.str;
+        default = [
+          "/bin"
+          "/include"
+          "/lib"
+          "/lib64"
+          "/libexec"
+          "/share"
+          "/etc"
+        ];
+      };
+      extraOutputsToInstall = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+      };
+      etc = mkOption {
+        type = types.attrsOf etcEntryType;
+        default = { };
+      };
+      variables = mkOption {
+        type = types.attrsOf envValueType;
+        default = { };
+      };
+      variableOrigins = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
+    };
+
+    devcontainer = {
+      remoteEnv = mkOption {
+        type = types.attrsOf envValueType;
+        default = { };
+      };
+      remoteEnvOrigins = mkOption {
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
+      };
+    };
+  };
+
   config = {
     environment.variables = {
       XDG_CONFIG_HOME = "$HOME/.config";

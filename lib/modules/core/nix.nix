@@ -1,5 +1,19 @@
-{ lib, config, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 let
+  inherit (lib) mkOption types;
+  nixSettingValueType =
+    with types;
+    oneOf [
+      str
+      int
+      bool
+      (listOf str)
+    ];
   cfg = config.nix;
   renderValue =
     value:
@@ -31,6 +45,26 @@ let
   ];
 in
 {
+  options.nix = {
+    package = mkOption {
+      type = types.package;
+      default = pkgs.nix;
+    };
+    settings = mkOption {
+      type = types.attrsOf nixSettingValueType;
+      default = {
+        experimental-features = [
+          "nix-command"
+          "flakes"
+        ];
+      };
+    };
+    extraOptions = mkOption {
+      type = types.lines;
+      default = "";
+    };
+  };
+
   config = {
     environment.etc."nix/nix.conf".text = nixConfText;
 

@@ -14,6 +14,19 @@ let
   ];
 in
 {
+  config.devcontainer.layers.bucketDefinitions = {
+    "41-nodejs-language" = {
+      order = 21;
+      owner = "languages/nodejs";
+      purpose = "Node.js language tooling, package manager helpers, and TypeScript support.";
+    };
+    "83-vscode-extensions-nodejs" = {
+      order = 32;
+      owner = "languages/nodejs";
+      purpose = "Node.js and web framework VS Code extensions.";
+    };
+  };
+
   config.devcontainer.profiles."language/nodejs" = {
     kind = "language";
     group = "41-nodejs-language";

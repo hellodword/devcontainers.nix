@@ -5,9 +5,15 @@
   ...
 }:
 let
+  inherit (lib) mkOption types;
   cfg = config.time;
 in
 {
+  options.time.timeZone = mkOption {
+    type = types.nullOr types.str;
+    default = "Etc/UTC";
+  };
+
   config = lib.mkIf (cfg.timeZone != null) {
     environment.etc."zoneinfo" = {
       source = "${pkgs.tzdata}/share/zoneinfo";

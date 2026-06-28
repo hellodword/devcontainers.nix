@@ -42,7 +42,7 @@ use.
 ## Public API
 
 The options live under `devcontainer.fonts` and are declared in
-`lib/modules/core/options.nix`.
+`lib/modules/core/fonts.nix`.
 
 Default configuration:
 
@@ -91,8 +91,8 @@ Valid `binding` values are `same`, `weak`, and `strong`.
 
 ## Module Layering
 
-`lib/modules/core/fonts.nix` is loaded from the shared core module list in
-`lib/compiler/eval.nix`, so every image target inherits the font baseline.
+`lib/modules/core/fonts.nix` is discovered by the module registry in
+`lib/modules/default.nix`, so every image target inherits the font baseline.
 
 When enabled, the module:
 
@@ -103,9 +103,9 @@ When enabled, the module:
 - declares owner-local smoke cases for tool availability, CJK matching, and
   emoji matching
 
-The bucket is listed in `lib/modules/core/base.nix` immediately after the base
-and FHS runtime buckets. That keeps the font runtime shared and stable across
-language image families.
+The module declares bucket definition `02-fonts-runtime` with an order
+immediately after the base and FHS runtime buckets. That keeps the font runtime
+shared and stable across language image families.
 
 ## Compiler Flow
 
@@ -296,7 +296,7 @@ Expected families are `Noto Sans CJK SC`, `Noto Serif CJK SC`,
 When changing default font packages:
 
 1. Update `devcontainer.fonts.packages` defaults in
-   `lib/modules/core/options.nix`.
+   `lib/modules/core/fonts.nix`.
 2. Update `fontconfig-report.json` assertions in `tests/ci/check-reports.py`.
 3. Update smoke tests in `lib/modules/core/fonts.nix` if coverage expectations
    changed.

@@ -1,5 +1,6 @@
 { lib, config, ... }:
 let
+  inherit (lib) mkOption types;
   cfg = config.programs.nix-index;
   packages = [
     cfg.package
@@ -7,8 +8,19 @@ let
   ++ lib.optional (cfg.comma.enable && cfg.comma.package != null) cfg.comma.package;
 in
 {
+  options.devcontainer.toolsets.nixIndex.comma.enable = mkOption {
+    type = types.bool;
+    default = true;
+  };
+
   config = lib.mkMerge [
     {
+      devcontainer.layers.bucketDefinitions."12-nix-index-tools" = {
+        order = 14;
+        owner = "toolsets/nix-index";
+        purpose = "nix-index and comma command database tools.";
+      };
+
       devcontainer.profiles."toolset/nix-index" = {
         kind = "toolset";
         group = "12-nix-index-tools";

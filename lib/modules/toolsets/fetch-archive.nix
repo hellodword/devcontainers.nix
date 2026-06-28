@@ -15,6 +15,12 @@ let
   ];
 in
 {
+  config.devcontainer.layers.bucketDefinitions."04-fetch-archive-tools" = {
+    order = 5;
+    owner = "toolsets/fetch-archive";
+    purpose = "Network fetch and archive extraction tools.";
+  };
+
   config.devcontainer.profiles."toolset/fetch-archive" = {
     kind = "toolset";
     group = "04-fetch-archive-tools";

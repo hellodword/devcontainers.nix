@@ -24,6 +24,12 @@ let
   ];
 in
 {
+  config.devcontainer.layers.bucketDefinitions."02-foundation-tools" = {
+    order = 3;
+    owner = "toolsets/foundation";
+    purpose = "Foundational command-line tools available in all practical images.";
+  };
+
   config.devcontainer.profiles."toolset/foundation" = {
     kind = "toolset";
     group = "02-foundation-tools";
