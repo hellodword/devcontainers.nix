@@ -103,7 +103,9 @@ After loading an image, run its smoke plan:
 nix run .#run-smoke-plan -- nix
 ```
 
-The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths come from nixpkgs. It still talks to the host Docker daemon and writes logs to `${SMOKE_LOG_DIR:-smoke-logs}`. It never accepts extra Docker run arguments and does not inject Docker daemon configuration into the container. It validates image capabilities that are owned by this repository; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
+The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths come from nixpkgs. It still talks to the host Docker daemon and writes logs to `${SMOKE_LOG_DIR:-smoke-logs}`. It never accepts extra Docker run arguments and does not inject Docker daemon configuration into the container. It validates repository-owned smoke cases; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
+
+`smoke-test-plan.json` publishes case identity through `caseIds` and each `tests[]` entry's `id`. The order of `tests[]` is not a public contract; compare smoke plan contents by sorting entries by `id`.
 
 ## Heavy VS Code GUI E2E
 
@@ -147,11 +149,13 @@ A toolset is a reusable group of packages that can be enabled by many images.
 1. Add an option under `devcontainer.toolsets` in `lib/modules/core/options.nix`.
 2. Add a module under `lib/modules/toolsets/`.
 3. Load the module from `lib/compiler/eval.nix`.
-4. Define a `devcontainer.profiles."toolset/<name>"` leaf profile with packages, provided commands, environment fragments, VS Code metadata, lifecycle tasks, library presets, and smoke capabilities as needed.
+4. Define a `devcontainer.profiles."toolset/<name>"` leaf profile with packages, provided commands, environment fragments, VS Code metadata, lifecycle tasks, library presets, and smoke cases as needed.
 5. Use a stable layer bucket in the profile `group`.
-6. Add a capability in `lib/tests/smoke-catalog.nix` for important user-visible commands.
+6. Declare important user-visible command checks in the same profile's `tests.cases`.
 7. Enable the profile from image modules or bundle profiles that need it.
 8. Run report checks and inspect profile, graph, and layer reports.
+
+When a composite bundle needs a smoke case for the combined behavior, add a zero-package smoke-only leaf profile such as `toolset/<name>/smoke` and include it from the bundle. Do not inject top-level `devcontainer.tests.cases` from non-core modules.
 
 Keep toolsets focused. A package belongs in a toolset when it is useful across multiple image families. If it only makes sense for one language, put it in that language module instead.
 
@@ -179,12 +183,14 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 1. Add options in `lib/modules/core/options.nix`.
 2. Add a runtime module under `lib/modules/runtimes/` or a language module under `lib/modules/languages/`.
 3. Load it from `lib/compiler/eval.nix`.
-4. Define one or more `devcontainer.profiles` leaf profiles for packages, environment variables, path segments, VS Code extensions, settings, aliases, library presets, lifecycle tasks, and capability declarations.
+4. Define one or more `devcontainer.profiles` leaf profiles for packages, environment variables, path segments, VS Code extensions, settings, aliases, library presets, lifecycle tasks, and smoke cases.
 5. Define a bundle profile only when a named stack should enable multiple leaf profiles without owning resources itself.
-6. Add a capability in `lib/tests/smoke-catalog.nix` when the module exposes user-visible behavior that should run in a real container.
+6. Add a `tests.cases` entry next to the profile or owner module when the module exposes user-visible behavior that should run in a real container.
 7. Add image target wiring in `images/default.nix` if the language has version-specific tags.
 8. Run `nix run .#generate-docs` if image targets, families, or tags changed.
 9. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed beyond the generated reference table.
+
+When a bundle language profile needs a smoke case for the assembled stack, add a zero-package smoke-only leaf profile such as `language/<name>/smoke` and include it from the bundle. Keep top-level `devcontainer.tests.cases` for core-owned behavior only.
 
 Version-specific language packages should be discovered from nixpkgs or the relevant overlay in `images/default.nix`, then injected through small override modules following the Go, Node.js, Python, and Rust patterns.
 
@@ -200,7 +206,24 @@ Compiler changes belong under `lib/compiler/`.
 6. Add report validation in `tests/ci/check-reports.py` or an adjacent check; do not add a separate required-file list for reports already declared in `compileReports`.
 7. Update [Architecture](architecture.md) when the pipeline or ownership model changes.
 
-Avoid hidden side effects. If a behavior changes the image, it should be visible in reports, a compiler contract, or a capability smoke test.
+Smoke cases use this shape:
+
+```nix
+tests.cases."language.example" = {
+  tags = [
+    "smoke"
+    "language"
+    "example"
+  ];
+  command = [
+    "bash"
+    "-lc"
+    "example-tool --version"
+  ];
+};
+```
+
+Avoid hidden side effects. If a behavior changes the image, it should be visible in reports, a compiler contract, or a smoke case.
 
 Do not add direct `devcontainer.graph.nodes` entries for ordinary package groups. New language stacks, toolsets, editor integrations, and small reusable tools should define profiles and let `compileProfiles` create graph nodes. Direct graph nodes are for compiler-owned or core generated content such as FHS compatibility, fonts, shell files, filesystem roots, and dynamic library profiles.
 

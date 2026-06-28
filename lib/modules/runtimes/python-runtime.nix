@@ -47,6 +47,17 @@ in
         "$PYTHONUSERBASE/bin"
       ];
     };
-    tests.capabilities = [ "runtime.python" ];
+    tests.cases."runtime.python" = {
+      tags = [
+        "smoke"
+        "runtime"
+        "python"
+      ];
+      command = [
+        "bash"
+        "-lc"
+        "python --version && python3 --version && pip --version && pip3 --version && uv --version && uvx --version && python -c 'import ssl, sqlite3, ctypes'"
+      ];
+    };
   };
 }

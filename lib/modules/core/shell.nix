@@ -44,6 +44,25 @@ let
     locale.glibcLocales
   ]
   ++ lib.optionals (cfg.enable && cfg.completion.enable) [ pkgs.bash-completion ];
+  shellLocaleCommand = lib.concatStringsSep " && " [
+    ''test "$LANG" = ${lib.escapeShellArg config.i18n.defaultLocale}''
+    ''test "$LANGUAGE" = ${lib.escapeShellArg config.i18n.language}''
+    ''test -r "$LOCALE_ARCHIVE"''
+    "test -e /etc/localtime"
+    "test -d /etc/zoneinfo"
+    ''test "$TZDIR" = /etc/zoneinfo''
+  ];
+  shellInteractiveChecks = [
+    "alias ll >/dev/null"
+    "alias sha3-256sum >/dev/null"
+  ]
+  ++ lib.optionals config.programs.bash.completion.enable [
+    "test -r /usr/share/bash-completion/bash_completion"
+    "complete -p -D >/dev/null"
+  ]
+  ++ lib.optionals config.programs.bash.commandNotFound.enable [
+    "type command_not_found_handle >/dev/null"
+  ];
 in
 {
   config = lib.mkMerge [
@@ -101,11 +120,36 @@ in
     })
 
     {
-      devcontainer.tests.capabilities = [ "shell.locale" ];
+      devcontainer.tests.cases."shell.locale" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "shell"
+          "locale"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          shellLocaleCommand
+        ];
+      };
     }
 
     (lib.mkIf cfg.enable {
-      devcontainer.tests.capabilities = [ "shell.interactive" ];
+      devcontainer.tests.cases."shell.interactive" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "shell"
+        ];
+        command = [
+          "bash"
+          "-ic"
+          (lib.concatStringsSep " && " shellInteractiveChecks)
+        ];
+      };
     })
   ];
 }

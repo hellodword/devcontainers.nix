@@ -15,7 +15,29 @@
       "language/toml"
       "language/jinja"
       "language/protobuf"
+      "toolset/editor-support/smoke"
     ];
-    tests.capabilities = [ "editor-support.tools" ];
+  };
+
+  config.devcontainer.profiles."toolset/editor-support/smoke" = {
+    kind = "toolset";
+    group = "07-editor-support-tools";
+    packages = [ ];
+    priority = 82;
+    stability = "medium";
+    sharing = "global";
+    securityClass = "trusted";
+    tests.cases."editor-support.tools" = {
+      tags = [
+        "smoke"
+        "tooling"
+        "editor-support"
+      ];
+      command = [
+        "bash"
+        "-lc"
+        "yaml-language-server --version && minijinja-cli --version && protoc --version && protols --version && buf --version && protolint version && grpcurl -version && api-linter --version"
+      ];
+    };
   };
 }

@@ -69,6 +69,17 @@ in
       };
       path = [ "$CARGO_HOME/bin" ];
     };
-    tests.capabilities = [ "language.rust" ];
+    tests.cases."language.rust" = {
+      tags = [
+        "smoke"
+        "language"
+        "rust"
+      ];
+      command = [
+        "bash"
+        "-lc"
+        "rustc --version && cargo --version && rustfmt --version && cargo clippy --version && rust-analyzer --version && rustup --version"
+      ];
+    };
   };
 }

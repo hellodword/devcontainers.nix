@@ -77,10 +77,49 @@ in
       };
     };
 
-    tests.capabilities = [
-      "base.user"
-      "base.filesystem"
-      "base.nix-store"
-    ];
+    tests.cases = {
+      "base.user" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "base"
+          "user"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          "test \"$(id -un)\" = vscode && test \"$(id -u)\" = 1000 && test \"$(id -gn)\" = vscode && test \"$(id -g)\" = 1000 && test \"$HOME\" = /home/vscode"
+        ];
+      };
+      "base.filesystem" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "base"
+          "filesystem"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          "test -w /tmp && test -w /var/tmp && test -w /workspaces && test \"$XDG_RUNTIME_DIR\" = /run/user/1000 && test -d \"$XDG_RUNTIME_DIR\""
+        ];
+      };
+      "base.nix-store" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "base"
+          "nix"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          "test -d /nix/var/nix && test -w /nix/store && test -w /nix/var/nix/db"
+        ];
+      };
+    };
   };
 }

@@ -40,10 +40,63 @@ in
       securityClass = "trusted";
     };
 
-    devcontainer.tests.capabilities = [
-      "fhs.runtime"
-    ]
-    ++ lib.optionals pki.installCACerts [ "fhs.ca-certificates" ]
-    ++ lib.optionals nixLd.enable [ "fhs.nix-ld" ];
+    devcontainer.tests.cases = {
+      "fhs.runtime" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "fhs"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          "test -x /bin/bash && test -x /bin/sh && test -x /usr/bin/env && test -e /etc/os-release && tar --version && (curl --version || wget --version)"
+        ];
+      };
+    }
+    // lib.optionalAttrs pki.installCACerts {
+      "fhs.ca-certificates" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "fhs"
+          "ca-certificates"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          ''
+            test -r "''${SSL_CERT_FILE:-}"
+            test "''${NIX_SSL_CERT_FILE:-}" = "$SSL_CERT_FILE"
+            curl --fail --silent --show-error --max-time 20 https://google.com >/dev/null
+          ''
+        ];
+        timeoutSeconds = 45;
+      };
+    }
+    // lib.optionalAttrs nixLd.enable {
+      "fhs.nix-ld" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "fhs"
+          "nix-ld"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          ''
+            test -x /lib64/ld-linux-x86-64.so.2
+            test -n "''${NIX_LD:-}"
+            test -n "''${NIX_LD_LIBRARY_PATH:-}"
+            env -i NIX_LD="$NIX_LD" NIX_LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH" PATH=/usr/bin \
+              /lib64/ld-linux-x86-64.so.2 /usr/bin/env true
+          ''
+        ];
+      };
+    };
   };
 }

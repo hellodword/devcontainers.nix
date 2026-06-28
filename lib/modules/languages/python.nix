@@ -77,6 +77,17 @@ in
         "python-envs.alwaysUseUv" = true;
       };
     };
-    tests.capabilities = [ "language.python" ];
+    tests.cases."language.python" = {
+      tags = [
+        "smoke"
+        "language"
+        "python"
+      ];
+      command = [
+        "bash"
+        "-lc"
+        "pipx --version && ruff --version && mypy --version && pytest --version && ipython --version && black --version && pylint --version && bandit --version"
+      ];
+    };
   };
 }

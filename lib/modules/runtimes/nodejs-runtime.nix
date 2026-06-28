@@ -41,6 +41,18 @@ in
       };
       path = [ "$PNPM_HOME" ];
     };
-    tests.capabilities = [ "runtime.nodejs" ];
+    tests.cases."runtime.nodejs" = {
+      tags = [
+        "smoke"
+        "runtime"
+        "nodejs"
+        "node"
+      ];
+      command = [
+        "bash"
+        "-lc"
+        "node --version && npm --version && npx --version && corepack --version"
+      ];
+    };
   };
 }

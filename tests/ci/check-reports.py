@@ -15,6 +15,11 @@ SENSITIVE_VALUE_RE = re.compile(
     r"(?i)(?:token|password|secret|api[_-]?key|access[_-]?key|private[_-]?key)\s*(?:=|:)\s*[\"']?[^\"'\\s]+"
 )
 SIZE_BUDGET_RE = re.compile(r"^\s*\d+(?:\.\d+)?\s*(?:[kmgt]?i?b?|b)?\s*$", re.IGNORECASE)
+CAPABILITY_FIELD_SUFFIX = "Capabilities"
+OLD_PROFILE_TEST_FIELDS = {
+    f"declared{CAPABILITY_FIELD_SUFFIX}",
+    f"resolved{CAPABILITY_FIELD_SUFFIX}",
+}
 
 
 def read_json(path: pathlib.Path):
@@ -25,6 +30,41 @@ def read_json(path: pathlib.Path):
 def fail(message: str):
     print(f"report-check failed: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def validate_profile_test_schema(profile_report):
+    tests = profile_report.get("tests") or {}
+    if OLD_PROFILE_TEST_FIELDS.intersection(tests):
+        fail("profile-report.json tests must not contain capability fields")
+    if "declaredCases" not in tests or "resolvedCases" not in tests:
+        fail("profile-report.json tests must include declaredCases and resolvedCases")
+
+
+def validate_smoke_plan_schema(smoke_plan):
+    if "capabilities" in smoke_plan:
+        fail("smoke-test-plan.json must not contain capabilities")
+
+    smoke_tests = smoke_plan.get("tests")
+    if not isinstance(smoke_tests, list) or not smoke_tests:
+        fail("smoke-test-plan.json must include a non-empty tests array")
+    if not all(isinstance(test, dict) for test in smoke_tests):
+        fail("smoke-test-plan.json tests must contain objects")
+
+    case_ids = smoke_plan.get("caseIds")
+    if not isinstance(case_ids, list) or not case_ids:
+        fail("smoke-test-plan.json must include a non-empty caseIds array")
+    if not all(isinstance(case_id, str) and case_id for case_id in case_ids):
+        fail("smoke-test-plan.json caseIds must contain non-empty strings")
+    if len(case_ids) != len(set(case_ids)):
+        fail("smoke-test-plan.json caseIds must not contain duplicates")
+
+    smoke_ids = [test.get("id") for test in smoke_tests]
+    if not all(isinstance(test_id, str) and test_id for test_id in smoke_ids):
+        fail("smoke-test-plan.json entries must include id")
+    if case_ids != sorted(set(smoke_ids)):
+        fail("smoke-test-plan.json caseIds must equal sorted unique test ids")
+
+    return smoke_tests, smoke_ids
 
 
 def walk_strings(value):
@@ -107,6 +147,8 @@ def main() -> int:
     profile_vscode_settings = (profile_report.get("vscode") or {}).get("settings") or {}
     profile_library_presets = set((profile_report.get("libraries") or {}).get("presets") or [])
 
+    validate_profile_test_schema(profile_report)
+
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
     if effective_enabled_profile_ids != enabled_profile_ids:
@@ -175,12 +217,11 @@ def main() -> int:
     if missing_profile_layers:
         fail(f"layer-plan.json missing enabled package profiles: {', '.join(missing_profile_layers)}")
 
-    if not smoke_plan["tests"]:
-        fail("smoke-test-plan.json must include at least one test")
-    smoke_ids = {test.get("id") for test in smoke_plan["tests"]}
-    if len(smoke_ids) != len(smoke_plan["tests"]):
+    smoke_tests, smoke_id_list = validate_smoke_plan_schema(smoke_plan)
+    smoke_ids = set(smoke_id_list)
+    if len(smoke_ids) != len(smoke_tests):
         fail("smoke-test-plan.json must not contain duplicate ids")
-    for test in smoke_plan["tests"]:
+    for test in smoke_tests:
         test_id = test.get("id")
         if not isinstance(test_id, str) or not test_id:
             fail("smoke-test-plan.json entries must include id")
@@ -198,11 +239,11 @@ def main() -> int:
             fail(f"smoke test {test_id} must include requires")
         if not isinstance(test.get("timeoutSeconds"), int) or test["timeoutSeconds"] < 1:
             fail(f"smoke test {test_id} must include timeoutSeconds")
-    declared_capabilities = set((profile_report.get("tests") or {}).get("declaredCapabilities") or [])
-    missing_declared_capabilities = sorted(declared_capabilities - smoke_ids)
-    if missing_declared_capabilities:
-        fail(f"smoke-test-plan.json missing declared capabilities: {', '.join(missing_declared_capabilities)}")
-    if image_plan.get("smokeTestCount") != len(smoke_plan["tests"]):
+    declared_cases = set((profile_report.get("tests") or {}).get("declaredCases") or [])
+    missing_declared_cases = sorted(declared_cases - smoke_ids)
+    if missing_declared_cases:
+        fail(f"smoke-test-plan.json missing declared smoke cases: {', '.join(missing_declared_cases)}")
+    if image_plan.get("smokeTestCount") != len(smoke_tests):
         fail("image-plan.json smokeTestCount must match smoke-test-plan.json")
     if image_name == "nix":
         required_profiles = {"runtime/python", "language/python", "runtime/nodejs"}

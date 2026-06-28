@@ -1,0 +1,158 @@
+{
+  pkgs,
+  lib,
+  images,
+  targets,
+  ...
+}:
+
+let
+  policy = import ../../../images/contracts.nix;
+  imageNames = builtins.attrNames images;
+  targetNames = map (target: target.target) targets.imageTargetList;
+  sortedTargetNames = lib.sort builtins.lessThan targetNames;
+  uniqueTargetNames = lib.unique targetNames;
+  nonEmptyString = value: builtins.isString value && value != "";
+
+  imageContracts = lib.mapAttrsToList (
+    name: image:
+    let
+      plan = image.reportData.imagePlan;
+      smoke = image.reportData.smokePlan;
+    in
+    {
+      inherit name;
+      family = plan.family;
+      publishRefs = plan.publishRefs;
+      smokeCaseIds = smoke.caseIds;
+    }
+  ) images;
+
+  targetRegistryContracts = map (
+    target:
+    let
+      indexedTarget = targets.imageTargets.${target.target};
+      imageConfig = images.${target.target}.config.devcontainer.image;
+    in
+    {
+      name = target.target;
+      registry = {
+        inherit (target)
+          family
+          tags
+          ;
+        docsUseWhen = target.docs.useWhen or null;
+      };
+      compiled = {
+        name = imageConfig.name;
+        family = imageConfig.family;
+        tags = imageConfig.tags;
+      };
+      indexedTargetMatches =
+        indexedTarget.target == target.target
+        && indexedTarget.family == target.family
+        && indexedTarget.tags == target.tags
+        && indexedTarget.docs.useWhen == target.docs.useWhen;
+      docsValid = target ? docs && target.docs ? useWhen && nonEmptyString target.docs.useWhen;
+      compiledMatches =
+        imageConfig.name == target.target
+        && imageConfig.family == target.family
+        && imageConfig.tags == target.tags;
+    }
+  ) targets.imageTargetList;
+
+  vscodeGuiE2e = import ../../../tests/e2e/vscode-gui.nix {
+    inherit pkgs lib;
+  };
+  targetCiE2eSessions = lib.concatMap (target: target.ci.e2eSessions or [ ]) targets.imageTargetList;
+  unknownTargetCiE2eSessions = builtins.filter (
+    session: !(builtins.elem session vscodeGuiE2e.sessionNames)
+  ) targetCiE2eSessions;
+
+  actualRequiredTargets = map (target: target.target) (
+    builtins.filter (target: target.checks.required or false) targets.imageTargetList
+  );
+  actualReportCliTargets = map (target: target.target) (
+    builtins.filter (target: target.checks.reportCli or false) targets.imageTargetList
+  );
+  actualRootfsRequireTargets = lib.listToAttrs (
+    map (target: {
+      name = target.target;
+      value = target.checks.rootfsRequires or [ ];
+    }) (builtins.filter (target: (target.checks.rootfsRequires or [ ]) != [ ]) targets.imageTargetList)
+  );
+  rootfsRequirePathsValid = lib.all (paths: lib.all nonEmptyString paths) (
+    builtins.attrValues actualRootfsRequireTargets
+  );
+
+  matchesAnyPattern = name: patterns: lib.any (pattern: builtins.match pattern name != null) patterns;
+  previousTargets = builtins.filter (
+    name: matchesAnyPattern name policy.previousTargetPatterns
+  ) imageNames;
+  disallowedSuffixTargets = builtins.filter (
+    name: lib.any (suffix: lib.hasSuffix suffix name) policy.disallowedTargetSuffixes
+  ) imageNames;
+  publishedExtensionOriginViolations = lib.concatMap (
+    name:
+    map
+      (extension: {
+        image = name;
+        extension = extension.id;
+        origins = extension.origins or [ ];
+      })
+      (
+        builtins.filter (
+          extension: builtins.length (extension.origins or [ ]) != 1
+        ) images.${name}.vscodeExtensions.extensions
+      )
+  ) imageNames;
+  prettierOriginViolations = lib.concatMap (
+    name:
+    map
+      (extension: {
+        image = name;
+        origins = extension.origins or [ ];
+      })
+      (
+        builtins.filter (
+          extension:
+          extension.id == "esbenp.prettier-vscode" && (extension.origins or [ ]) != [ "editor/prettier" ]
+        ) images.${name}.vscodeExtensions.extensions
+      )
+  ) imageNames;
+in
+{
+  contracts-image-targets =
+    assert builtins.length previousTargets >= 2;
+    assert disallowedSuffixTargets == [ ];
+    assert targetNames == targets.imageNames;
+    assert sortedTargetNames == imageNames;
+    assert builtins.length uniqueTargetNames == builtins.length targetNames;
+    assert lib.all nonEmptyString targetNames;
+    assert lib.all (contract: contract.indexedTargetMatches) targetRegistryContracts;
+    assert lib.all (contract: contract.docsValid) targetRegistryContracts;
+    assert lib.all (contract: contract.compiledMatches) targetRegistryContracts;
+    assert unknownTargetCiE2eSessions == [ ];
+    assert actualRequiredTargets == policy.requiredTargets;
+    assert actualReportCliTargets == policy.reportCliTargets;
+    assert actualRootfsRequireTargets == policy.rootfsRequireTargets;
+    assert rootfsRequirePathsValid;
+    assert lib.all (name: matchesAnyPattern name policy.previousTargetPatterns) previousTargets;
+    assert lib.all (contract: contract.publishRefs != [ ]) imageContracts;
+    assert lib.all (contract: contract.smokeCaseIds != [ ]) imageContracts;
+    assert publishedExtensionOriginViolations == [ ];
+    assert prettierOriginViolations == [ ];
+    pkgs.writeText "contracts-image-targets.json" (
+      builtins.toJSON {
+        previousTargets = previousTargets;
+        requiredImageTargets = actualRequiredTargets;
+        reportCliTargets = actualReportCliTargets;
+        rootfsRequireTargets = actualRootfsRequireTargets;
+        registry = targetRegistryContracts;
+        ciE2eSessions = targetCiE2eSessions;
+        images = imageContracts;
+        extensionOriginViolations = publishedExtensionOriginViolations;
+        prettierOriginViolations = prettierOriginViolations;
+      }
+    );
+}

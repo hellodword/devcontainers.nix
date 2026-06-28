@@ -53,7 +53,6 @@ let
       };
     };
   };
-  capabilityListType = types.listOf nonEmptyStringType;
   fontAliasType = types.submodule {
     options = {
       binding = mkOption {
@@ -97,7 +96,26 @@ let
       (listOf str)
     ];
   nonEmptyStringType = types.addCheck types.str (value: value != "");
-  nonEmptyStringListType = types.addCheck (types.listOf types.str) (value: value != [ ]);
+  nonEmptyStringListType = types.nonEmptyListOf nonEmptyStringType;
+  positiveIntType = types.addCheck types.int (value: value > 0);
+  smokeCaseType = types.submodule {
+    options = {
+      tags = mkOption {
+        type = nonEmptyStringListType;
+      };
+      command = mkOption {
+        type = nonEmptyStringListType;
+      };
+      requires = mkOption {
+        type = types.listOf nonEmptyStringType;
+        default = [ ];
+      };
+      timeoutSeconds = mkOption {
+        type = positiveIntType;
+        default = 30;
+      };
+    };
+  };
   libraryPresetNames = [
     "autotools"
     "gtk"
@@ -332,9 +350,9 @@ let
           type = types.attrsOf lifecycleTaskType;
           default = { };
         };
-        tests.capabilities = mkOption {
-          type = capabilityListType;
-          default = [ ];
+        tests.cases = mkOption {
+          type = types.attrsOf smokeCaseType;
+          default = { };
         };
       };
     }
@@ -981,9 +999,9 @@ in
         default = { };
       };
 
-      tests.capabilities = mkOption {
-        type = capabilityListType;
-        default = [ ];
+      tests.cases = mkOption {
+        type = types.attrsOf smokeCaseType;
+        default = { };
       };
 
       toolsets = {

@@ -72,6 +72,17 @@ in
         go-build = ''go build -trimpath -ldflags "-s -w -buildid="'';
       };
     };
-    tests.capabilities = [ "language.go" ];
+    tests.cases."language.go" = {
+      tags = [
+        "smoke"
+        "language"
+        "go"
+      ];
+      command = [
+        "bash"
+        "-lc"
+        "go version && test \"$GOTOOLCHAIN\" = local && gopls version && dlv version && golangci-lint version && (govulncheck -version || govulncheck --version) && command -v gotests gomodifytags impl protoc-gen-go >/dev/null"
+      ];
+    };
   };
 }

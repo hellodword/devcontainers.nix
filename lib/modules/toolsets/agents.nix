@@ -15,6 +15,16 @@ in
     sharing = "global";
     securityClass = "networked";
     provides.commands = [ "codex" ];
-    tests.capabilities = [ "codex.cli" ];
+    tests.cases."codex.cli" = {
+      tags = [
+        "smoke"
+        "tooling"
+        "codex"
+      ];
+      command = [
+        "codex"
+        "--version"
+      ];
+    };
   };
 }

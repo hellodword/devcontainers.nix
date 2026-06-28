@@ -26,8 +26,8 @@ in
     includes = [
       "language/nodejs/core"
       "editor/prettier"
+      "language/nodejs/smoke"
     ];
-    tests.capabilities = [ "language.nodejs" ];
   };
 
   config.devcontainer.profiles."language/nodejs/core" = {
@@ -72,6 +72,29 @@ in
         "eslint.runtime" = "/usr/bin/node";
         "vue.server.path" = "/usr/bin/vue-language-server";
       };
+    };
+  };
+
+  config.devcontainer.profiles."language/nodejs/smoke" = {
+    kind = "language";
+    group = "41-nodejs-language";
+    packages = [ ];
+    priority = 72;
+    stability = "medium";
+    sharing = "image-family";
+    securityClass = "trusted";
+    tests.cases."language.nodejs" = {
+      tags = [
+        "smoke"
+        "language"
+        "nodejs"
+        "node"
+      ];
+      command = [
+        "bash"
+        "-lc"
+        "node --version && npm --version && npx --version && pnpm --version && yarn --version && corepack --version && node-gyp --version && python --version && cc --version"
+      ];
     };
   };
 }

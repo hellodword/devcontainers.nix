@@ -100,8 +100,8 @@ When enabled, the module:
 - appends the configured fontconfig package when `fontconfig.enable = true`
 - creates graph node `runtime/fonts`
 - assigns the node to bucket `02-fonts-runtime`
-- registers common smoke tests for tool availability, CJK matching, emoji
-  matching, and symbol matching
+- declares owner-local smoke cases for tool availability, CJK matching, and
+  emoji matching
 
 The bucket is listed in `lib/modules/core/base.nix` immediately after the base
 and FHS runtime buckets. That keeps the font runtime shared and stable across

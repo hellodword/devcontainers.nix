@@ -3,6 +3,12 @@ import json
 import pathlib
 import sys
 
+CAPABILITY_FIELD_SUFFIX = "Capabilities"
+OLD_PROFILE_TEST_FIELDS = {
+    f"declared{CAPABILITY_FIELD_SUFFIX}",
+    f"resolved{CAPABILITY_FIELD_SUFFIX}",
+}
+
 
 def fail(message: str):
     print(f"smoke-plan-check failed: {message}", file=sys.stderr)
@@ -12,6 +18,40 @@ def fail(message: str):
 def read_json(path: pathlib.Path):
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def validate_smoke_plan_schema(plan):
+    if "capabilities" in plan:
+        fail("smoke-test-plan.json must not contain capabilities")
+
+    tests = plan.get("tests")
+    if not isinstance(tests, list) or not tests:
+        fail("smoke-test-plan.json must include a non-empty tests array")
+    if not all(isinstance(test, dict) for test in tests):
+        fail("smoke-test-plan.json tests must contain objects")
+
+    case_ids = plan.get("caseIds")
+    if not isinstance(case_ids, list) or not case_ids:
+        fail("smoke-test-plan.json must include a non-empty caseIds array")
+    if not all(isinstance(case_id, str) and case_id for case_id in case_ids):
+        fail("smoke-test-plan.json caseIds must contain non-empty strings")
+    if len(case_ids) != len(set(case_ids)):
+        fail("smoke-test-plan.json caseIds must not contain duplicates")
+
+    ids = [test.get("id") for test in tests]
+    if not all(isinstance(test_id, str) and test_id for test_id in ids):
+        fail("each smoke test must include a non-empty id")
+    expected_case_ids = sorted(set(ids))
+    if case_ids != expected_case_ids:
+        fail("smoke-test-plan.json caseIds must equal sorted unique test ids")
+
+    return tests, ids
+
+
+def validate_profile_report_schema(profile_report):
+    tests = profile_report.get("tests") or {}
+    if OLD_PROFILE_TEST_FIELDS.intersection(tests):
+        fail("profile-report.json tests must not contain capability fields")
 
 
 def main() -> int:
@@ -29,8 +69,8 @@ def main() -> int:
     plan = read_json(plan_path)
     profile_report = read_json(profile_report_path)
 
-    tests = plan.get("tests") or []
-    ids = [test.get("id") for test in tests]
+    validate_profile_report_schema(profile_report)
+    tests, ids = validate_smoke_plan_schema(plan)
     if len(ids) != len(set(ids)):
         fail("smoke-test-plan.json must not contain duplicate test ids")
     for test in tests:
@@ -50,15 +90,11 @@ def main() -> int:
         if not isinstance(test.get("timeoutSeconds"), int) or test["timeoutSeconds"] < 1:
             fail(f"{test_id} must include a positive timeoutSeconds value")
 
-    required = {
-        capability
-        for capability in (profile_report.get("tests") or {}).get("declaredCapabilities") or []
-        if capability
-    }
+    required = {case for case in (profile_report.get("tests") or {}).get("declaredCases") or [] if case}
     missing = sorted(required - set(ids))
     if missing:
         target = f"{image_name} " if image_name else ""
-        fail(f"{target}missing declared capability smoke tests: {', '.join(missing)}")
+        fail(f"{target}missing declared smoke cases: {', '.join(missing)}")
 
     print(f"smoke-plan-check ok: {image_name or plan_path.name}")
     return 0

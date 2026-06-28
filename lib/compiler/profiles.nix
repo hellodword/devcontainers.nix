@@ -71,7 +71,8 @@ let
     || profile.vscode.settings != { }
     || !(profileEnvIsEmpty profile)
     || profile.libraries.presets != [ ]
-    || profile.lifecycle.tasks != { };
+    || profile.lifecycle.tasks != { }
+    || profile.tests.cases != { };
   leafProfilesWithIncludes = map (profile: profile.id) (
     builtins.filter (profile: profile.composition.role == "leaf" && profile.includes != [ ]) allProfiles
   );
@@ -238,7 +239,28 @@ let
   duplicateTaskNames = duplicateValues (map (entry: entry.name) taskEntries);
   tasks = lib.listToAttrs (map (entry: lib.nameValuePair entry.name entry.task) taskEntries);
 
-  testCapabilities = lib.concatMap (profile: profile.tests.capabilities) sortedProfiles;
+  profileCaseEntries = lib.concatMap (
+    profile:
+    lib.mapAttrsToList (caseId: case: {
+      id = caseId;
+      inherit case;
+      profileId = profile.id;
+    }) profile.tests.cases
+  ) sortedProfiles;
+  groupedCaseEntries = lib.groupBy (entry: entry.id) profileCaseEntries;
+  conflictingCaseEntries =
+    lib.mapAttrsToList
+      (caseId: entries: {
+        inherit caseId;
+        profileIds = map (entry: entry.profileId) entries;
+      })
+      (
+        lib.filterAttrs (
+          _: entries: builtins.length (lib.unique (map (entry: entry.case) entries)) > 1
+        ) groupedCaseEntries
+      );
+  testCases = lib.mapAttrs (_: entries: (builtins.head entries).case) groupedCaseEntries;
+  testCaseIds = lib.sort lib.lessThan (builtins.attrNames testCases);
   packages = lib.concatMap (profile: profile.packages) sortedProfiles;
   packageNames = map packageName packages;
   providedCommands = lib.unique (lib.concatMap (profile: profile.provides.commands) sortedProfiles);
@@ -312,7 +334,7 @@ let
       tasks = lib.sort lib.lessThan (builtins.attrNames profile.lifecycle.tasks);
     };
     tests = {
-      capabilities = profile.tests.capabilities;
+      cases = lib.sort lib.lessThan (builtins.attrNames profile.tests.cases);
     };
   };
   rootProfileReports = map mkProfileReport rootProfiles;
@@ -347,7 +369,7 @@ let
       tasks = lib.sort lib.lessThan (builtins.attrNames tasks);
     };
     tests = {
-      capabilities = testCapabilities;
+      cases = testCaseIds;
     };
     graph = {
       nodes = builtins.attrNames graphNodes;
@@ -363,7 +385,7 @@ if duplicateProfileIds != [ ] then
 else if leafProfilesWithIncludes != [ ] then
   builtins.throw "devcontainer.profiles leaf profiles cannot declare includes: ${lib.concatStringsSep ", " leafProfilesWithIncludes}"
 else if bundleProfilesWithResources != [ ] then
-  builtins.throw "devcontainer.profiles bundle profiles cannot declare packages, commands, VS Code extensions/settings, env, library presets, or lifecycle tasks: ${lib.concatStringsSep ", " bundleProfilesWithResources}"
+  builtins.throw "devcontainer.profiles bundle profiles cannot declare packages, commands, VS Code extensions/settings, env, library presets, lifecycle tasks, or smoke cases: ${lib.concatStringsSep ", " bundleProfilesWithResources}"
 else if unknownProfileGroups != [ ] then
   builtins.throw "devcontainer.profiles contains groups not present in devcontainer.layers.buckets: ${lib.concatStringsSep ", " unknownProfileGroups}"
 else if unknownPathBuckets != [ ] then
@@ -374,6 +396,8 @@ else if duplicateExtensionOwners != [ ] then
   builtins.throw "devcontainer.profiles declares duplicate VS Code extension owners: ${builtins.toJSON duplicateExtensionOwners}"
 else if duplicateTaskNames != [ ] then
   builtins.throw "devcontainer.profiles declares duplicate lifecycle task names: ${lib.concatStringsSep ", " duplicateTaskNames}"
+else if conflictingCaseEntries != [ ] then
+  builtins.throw "devcontainer.profiles declares conflicting smoke cases: ${builtins.toJSON conflictingCaseEntries}"
 else if extensionCompanionMisses != [ ] then
   builtins.throw "devcontainer.profiles has VS Code companion tools that are not provided by enabled profile packages: ${builtins.toJSON extensionCompanionMisses}"
 else
@@ -388,7 +412,8 @@ else
       extensionIds
       settings
       tasks
-      testCapabilities
+      testCases
+      testCaseIds
       libraryPresets
       providedCommands
       report

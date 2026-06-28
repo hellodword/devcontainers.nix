@@ -15,15 +15,15 @@
   compiledFonts,
   compiledProfiles ? {
     report = { };
-    testCapabilities = [ ];
+    testCaseIds = [ ];
     extensionIds = [ ];
     settings = { };
   },
   compiledTests ? {
     report = { };
     tests = [ ];
-    capabilities = [ ];
-    declaredCapabilities = [ ];
+    caseIds = [ ];
+    declaredCaseIds = [ ];
   },
   compiledVscodeExtensions,
   compiledFhsRuntime,
@@ -59,7 +59,7 @@ let
   smokePlan = {
     image = config.devcontainer.image.name;
     tests = allSmokeTests;
-    capabilities = compiledTests.capabilities;
+    caseIds = compiledTests.caseIds;
   };
   reportData = {
     inherit imagePlan smokePlan;
@@ -68,8 +68,8 @@ let
     compiledProfiles.report
     // {
       tests = (compiledProfiles.report.tests or { }) // {
-        declaredCapabilities = compiledProfiles.testCapabilities or [ ];
-        resolvedCapabilities = compiledTests.capabilities;
+        declaredCases = compiledTests.declaredCaseIds;
+        resolvedCases = compiledTests.caseIds;
       };
     }
   );

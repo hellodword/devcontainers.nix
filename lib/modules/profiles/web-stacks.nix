@@ -9,7 +9,18 @@
       stability = "medium";
       sharing = "single-image";
       securityClass = "trusted";
-      tests.capabilities = [ "web.python" ];
+      tests.cases."web.python" = {
+        tags = [
+          "smoke"
+          "web"
+          "python"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          "python --version && uv --version && node --version && npm --version && pnpm --version && ruff --version && eslint --version && prettier --version"
+        ];
+      };
     };
 
     "image/go-web" = {
@@ -20,7 +31,18 @@
       stability = "medium";
       sharing = "single-image";
       securityClass = "trusted";
-      tests.capabilities = [ "web.go" ];
+      tests.cases."web.go" = {
+        tags = [
+          "smoke"
+          "web"
+          "go"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          "go version && gopls version && node --version && npm --version && pnpm --version"
+        ];
+      };
     };
 
     "image/rust-web" = {
@@ -31,7 +53,18 @@
       stability = "medium";
       sharing = "single-image";
       securityClass = "trusted";
-      tests.capabilities = [ "web.rust" ];
+      tests.cases."web.rust" = {
+        tags = [
+          "smoke"
+          "web"
+          "rust"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          "rustc --version && cargo --version && node --version && npm --version && pnpm --version"
+        ];
+      };
     };
   };
 }

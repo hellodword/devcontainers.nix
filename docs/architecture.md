@@ -10,7 +10,7 @@ There are four concepts to understand first:
 
 1. An image target is a named build such as `go`, `python3-web`, or `flutter`.
 2. Module evaluation produces typed configuration. Project-specific image contract remains under `devcontainer.*`, while maintainer-facing NixOS-like subsets such as `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, `programs.*`, and `nix.*` describe static image content.
-3. `devcontainer.profiles` is the main maintenance surface for reusable image content. Leaf profiles describe packages, environment, VS Code metadata, lifecycle tasks, smoke capabilities, and library presets. Bundle profiles include other profiles.
+3. `devcontainer.profiles` is the main maintenance surface for reusable image content. Leaf profiles describe packages, environment, VS Code metadata, lifecycle tasks, smoke cases, and library presets. Bundle profiles include other profiles.
 4. The compiler expands the enabled profile graph, turns profiles into graph nodes, then produces environment data, layers, an OCI image, smoke plans, and reports that explain what was built.
 
 The high-level flow is:
@@ -25,7 +25,7 @@ images/default.nix image target
   -> reports and CI checks
 ```
 
-The important design choice is that image structure stays declarative. Language, runtime, editor, and toolset modules normally define profiles and enable profiles. The profile compiler decides which packages, graph nodes, VS Code extensions, environment fragments, lifecycle tasks, library presets, and smoke capabilities become effective. Later compilers decide how those pieces become image layers, runtime files, reports, and smoke plans.
+The important design choice is that image structure stays declarative. Language, runtime, editor, and toolset modules normally define profiles and enable profiles. The profile compiler decides which packages, graph nodes, VS Code extensions, environment fragments, lifecycle tasks, library presets, and smoke cases become effective. Later compilers decide how those pieces become image layers, runtime files, reports, and smoke plans.
 
 ## Inputs And Package Set
 
@@ -121,7 +121,7 @@ Core modules define the shared image contract: user, filesystem, environment, sh
 
 Toolset modules add common command groups by declaring profiles. For example source control tools, fetch/archive tools, search/navigation tools, inspect/debug tools, workflow/format tools, Docker client tools, agent tools, data/network tools, and nix-index tools.
 
-Language modules add language-specific tools, environment variables, VS Code extensions, shell aliases, and capability declarations through profiles. For example the Go language profile adds Go, `gopls`, Delve, `golangci-lint`, `govulncheck`, the Go VS Code extension, Go cache variables, the `gobuild-small` alias, and the `language.go` smoke capability.
+Language modules add language-specific tools, environment variables, VS Code extensions, shell aliases, and smoke cases through profiles. For example the Go language profile adds Go, `gopls`, Delve, `golangci-lint`, `govulncheck`, the Go VS Code extension, Go cache variables, the `gobuild-small` alias, and the `language.go` smoke case.
 
 ## NixOS-like API Subset
 
@@ -142,7 +142,9 @@ Image modules combine these building blocks. For example `images/go.nix` imports
 
 `devcontainer.profiles` is the profile-first compiler input for reusable image content.
 
-A profile has an `id`, `kind`, semantic layer `group`, priority, stability, sharing, and security class. Enabled leaf profiles can contribute packages, provided command IDs, VS Code extensions and settings, environment variables, PATH segments, shell aliases, lifecycle tasks, library presets, and smoke capabilities. Enabled bundle profiles contain only `includes`; they are a named way to activate a set of other profiles.
+A profile has an `id`, `kind`, semantic layer `group`, priority, stability, sharing, and security class. Enabled leaf profiles can contribute packages, provided command IDs, VS Code extensions and settings, environment variables, PATH segments, shell aliases, lifecycle tasks, library presets, and smoke cases. Enabled bundle profiles contain only `includes`; they are a named way to activate a set of other profiles.
+
+Bundle profiles must stay resource-free. When a bundle needs smoke coverage for the behavior created by its included profiles, it includes a zero-package smoke-only leaf profile that owns the case. Core modules can still declare top-level smoke cases for shared image behavior.
 
 The profile compiler runs before graph, environment, metadata, lifecycle, VS Code extension, and test-plan compilers. It:
 
@@ -210,7 +212,7 @@ Reports and CI checks enforce this design:
 - `compileShell` renders shell startup files
 - `compileFonts` renders fontconfig files and reports
 - `compileVscodeExtensions` prepares preinstalled VS Code extension payloads
-- `compileTestPlan` builds the smoke test plan from configured capabilities and profile capabilities
+- `compileTestPlan` builds the smoke test plan from top-level and enabled profile smoke cases
 - `compileMetadata` renders Dev Containers metadata
 - `compileFilesystem` creates generated root filesystem files
 - `compileLayers` creates the semantic layer plan
@@ -218,6 +220,8 @@ Reports and CI checks enforce this design:
 - `compileReports` writes machine-readable build reports and owns the report entry registry
 
 Each compiler returns both build artifacts and structured data. Later compilers receive the outputs they need rather than recomputing state. This keeps the flow inspectable and makes reports match the actual image.
+
+Smoke plans expose stable case identity through `caseIds` and each test entry's `id`. Consumers should not treat the `tests[]` array order as a public contract.
 
 `compileReports` defines `baseReportEntries`, derives `ci-plan.json`
 `reportFiles`, and links the reports directory from those same entries. Report
@@ -372,7 +376,7 @@ Important reports include:
 - smoke test plans
 - CI plans
 
-Checks use those reports to reject regressions before an image is published. Smoke tests then validate user-visible runtime capabilities after an image is loaded into Docker.
+Checks use those reports to reject regressions before an image is published. Smoke tests then validate user-visible runtime behavior after an image is loaded into Docker.
 
 `flake/checks.nix` owns the Nix check set by aggregating:
 
@@ -414,7 +418,7 @@ When adding a feature, decide which layer of the design owns it:
 - shared generated files usually belong in a focused compiler
 - runtime commands belong under `runtime/`
 - repeated package groups should become profiles; profile graph nodes are generated automatically
-- user-visible image behavior should declare a smoke capability
+- user-visible image behavior should declare an owner-local smoke case
 - compiler behavior should have contract or report checks
 - browser, font, or Docker daemon behavior should be documented because those areas have important runtime constraints
 

@@ -33,7 +33,21 @@ in
           "pinentry-curses"
           "delta"
         ];
-        tests.capabilities = [ "source-control.git-ssh" ];
+        tests.cases."source-control.git-ssh" = {
+          tags = [
+            "smoke"
+            "baseline"
+            "e2e-baseline"
+            "source-control"
+            "git"
+            "ssh"
+          ];
+          command = [
+            "bash"
+            "-ic"
+            "test -r /etc/gitconfig && git config --system --list >/dev/null && complete -p git >/dev/null && test -r /etc/ssh/ssh_config && ssh -G example.com >/dev/null"
+          ];
+        };
       };
     }
 

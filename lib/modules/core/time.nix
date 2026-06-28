@@ -16,7 +16,5 @@ in
     environment.etc."localtime".source = "${pkgs.tzdata}/share/zoneinfo/${cfg.timeZone}";
     environment.variables.TZDIR = "/etc/zoneinfo";
     environment.variableOrigins.TZDIR = [ "core.time" ];
-
-    devcontainer.tests.capabilities = [ "shell.locale" ];
   };
 }

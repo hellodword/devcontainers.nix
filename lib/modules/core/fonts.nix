@@ -42,10 +42,36 @@ in
       })
 
       (lib.mkIf fontconfig.enable {
-        devcontainer.tests.capabilities = [
-          "fontconfig.core"
-          "fontconfig.cjk-emoji"
-        ];
+        devcontainer.tests.cases = {
+          "fontconfig.core" = {
+            tags = [
+              "smoke"
+              "baseline"
+              "e2e-baseline"
+              "fontconfig"
+            ];
+            command = [
+              "bash"
+              "-lc"
+              toolSmokeCommand
+            ];
+          };
+          "fontconfig.cjk-emoji" = {
+            tags = [
+              "smoke"
+              "baseline"
+              "e2e-baseline"
+              "fontconfig"
+              "cjk"
+              "emoji"
+            ];
+            command = [
+              "bash"
+              "-lc"
+              "fc-match 'sans-serif:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Sans CJK SC' >/dev/null && fc-match 'serif:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Serif CJK SC' >/dev/null && fc-match 'monospace:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Sans Mono CJK SC' >/dev/null && fc-match 'emoji:charset=0x1f600' | grep -F 'Noto Color Emoji' >/dev/null"
+            ];
+          };
+        };
       })
     ]
   );
