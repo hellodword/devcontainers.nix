@@ -179,6 +179,14 @@ entry in the same module and use that bucket. Set `companionTools` to commands
 the extension expects from the image. Use `notes` when the extension is syntax
 only or intentionally has no companion tool.
 
+Update a focused compiler contract or report assertion when the extension
+changes ownership, bucket placement, companion-tool policy, or published image
+extension metadata.
+Run `nix flake check` so duplicate extension ownership, companion-tool
+validation, extension artifact locking, and generated report checks run.
+For affected images, inspect `profile-report.json`, `extensions-report.json`,
+and `extensions-index.json`.
+
 ### Add An Executable
 
 Add the package to the owning profile's package list and record the command in
@@ -213,6 +221,11 @@ If the executable is a generated project helper rather than a nixpkgs package,
 put it under `runtime/`, register it in `runtime/default.nix`, and follow
 [Adding Runtime Helpers](#adding-runtime-helpers).
 
+Update report assertions or compiler contracts when the executable changes
+profile ownership, provided command metadata, layer membership, PATH behavior,
+or smoke case identity. Run `nix flake check`; load an affected image and run
+`nix run .#run-smoke-plan -- <target>` when command behavior changed.
+
 ### Add A Native Library
 
 Use `devcontainer.libraries.runtime` for shared objects needed at execution
@@ -235,6 +248,12 @@ devcontainer.libraries.build = [
 Do not put native libraries in `profile.packages` unless users need commands
 from those packages on `PATH`. Use `libraries.presets` only for language-level
 integration behavior such as `cgo` or `rust-bindgen`.
+
+Add or update a smoke case when the library affects a user-visible runtime or
+build path. Update report assertions when library buckets, dynamic-linker
+inputs, or library presets change.
+Run `nix flake check`; for affected images, inspect `libraries-report.json`,
+`env-report.json`, `fhs-runtime-report.json`, and `closure-report.json`.
 
 ### Add An Environment Variable
 
@@ -266,6 +285,11 @@ env = {
 ```
 
 Update the profile's smoke case when the variable changes runtime behavior.
+Update report assertions when the variable is part of a public image contract
+or changes environment merge behavior.
+Run `nix flake check`; for affected images, inspect `env-report.json`,
+`metadata-label.json`, `metadata-merged-preview.json`, and shell reports when
+shell initialization changed.
 
 ## Adding Or Changing An Image
 
@@ -274,11 +298,12 @@ Update the profile's smoke case when the variable changes runtime behavior.
 3. Add the image target in `images/default.nix` with target name, family, tags, module, `docs.useWhen`, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
 4. Set target metadata for policy that belongs to the image: `ci.e2eSessions` for workflow GUI E2E coverage and `checks` for required public targets, report CLI sample coverage, or rootfs path requirements.
 5. Run `nix run .#generate-docs` when targets, families, tags, generated docs text, or published image references changed.
-6. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
-7. Run `nix flake check`.
-8. Build the image reports and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `metadata-label.json`.
-9. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
-10. Update [Usage](usage.md) if the published image contract changed.
+6. Run `nix run .#generate-workflows` when image targets, target names, `ci.e2eSessions`, or workflow templates changed.
+7. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
+8. Run `nix flake check`, including the generated workflow synchronization check.
+9. Build the image reports and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `metadata-label.json`.
+10. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
+11. Update [Usage](usage.md) if the published image contract changed.
 
 Use target names for local build outputs and smoke plans, for example `go`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
 
@@ -293,7 +318,9 @@ A toolset is a reusable group of packages that can be enabled by many images.
 5. Use that stable layer bucket in the profile `group`.
 6. Declare important user-visible command checks in the same profile's `tests.cases`.
 7. Enable the profile from image modules or bundle profiles that need it.
-8. Run report checks and inspect profile, graph, and layer reports.
+8. Update report assertions or compiler contracts when the toolset changes profile ownership, layer buckets, VS Code metadata, env, lifecycle tasks, or smoke case identity.
+9. Run `nix flake check`, then build reports for an affected image and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `smoke-test-plan.json`.
+10. Load an affected image and run `nix run .#run-smoke-plan -- <target>` when command behavior changed.
 
 Layer bucket names should be semantic names such as `source-control-tools`.
 Pick the bucket `order` from the semantic range documented in
@@ -321,6 +348,9 @@ When adding a program module:
 4. Add packages through `environment.systemPackages`.
 5. Add shell integration through `environment.shellInit` or `environment.interactiveShellInit` only when it has no network, installer, or long-running side effects.
 6. Add focused report assertions in `tests/ci/check-reports.py` or a contract check under `flake/checks/` when the generated report schema changes.
+7. Add or update a smoke case when the module exposes user-visible commands, shell behavior, generated files, or environment behavior.
+8. Update [Architecture](architecture.md) when the supported NixOS-like API subset or program ownership model changes.
+9. Run `nix flake check`; load an affected image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
 
 ## Adding A Language Or Runtime
 
@@ -333,8 +363,11 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 5. Define a bundle profile only when a named stack should enable multiple leaf profiles without owning resources itself.
 6. Add a `tests.cases` entry next to the profile or owner module when the module exposes user-visible behavior that should run in a real container.
 7. Add image target wiring in `images/default.nix` if the language has version-specific tags.
-8. Run `nix run .#generate-docs` if image targets, families, or tags changed.
-9. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed.
+8. Run `nix run .#generate-docs` if image targets, families, tags, generated target docs, or published image references changed.
+9. Run `nix run .#generate-workflows` if image targets, target names, target `ci.e2eSessions`, or workflow templates changed.
+10. Update report assertions or compiler contracts when profile ownership, layer buckets, extension metadata, companion tools, PATH/env behavior, lifecycle tasks, or smoke case identity changes.
+11. Run `nix flake check`; load an affected image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
+12. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed.
 
 Layer bucket names should be semantic names such as `python-language` or
 `vscode-extensions-python`. Choose new bucket `order` values from the semantic
@@ -357,7 +390,10 @@ Compiler changes belong under `lib/compiler/`.
 4. Include generated files in `compileFilesystem` or `compileImage` only at the stage that owns them.
 5. Add report output in `compileReports`, including a `baseReportEntries` or `reportEntries` entry when it should appear in the reports link farm.
 6. Add report validation in `tests/ci/check-reports.py` or an adjacent check; do not add a separate required-file list for reports already declared in `compileReports`.
-7. Update [Architecture](architecture.md) when the pipeline or ownership model changes.
+7. Add or update focused compiler contract checks under `flake/checks/contracts/` when evaluation rules, validation errors, generated metadata, graph nodes, filesystem entries, lifecycle wiring, or public report shape changes.
+8. Update report CLI tests or examples when `devcontainer-image explain`, `diff`, or `doctor` behavior changes.
+9. Update [Architecture](architecture.md) when the pipeline or ownership model changes.
+10. Run `nix flake check`.
 
 Smoke cases use this shape:
 
@@ -392,7 +428,10 @@ When changing a helper:
 2. Add or update its `helperDefs` metadata: `order`, `publicPackage`, `installInImage`, and optional `checkName`, `checkScript`, and `checkEnvName`.
 3. Add or update the focused helper suite in `tests/ci/check-devpkg.py`, `tests/ci/check-task-runner.py`, `tests/ci/check-vscode-extension-projector.py`, or `tests/ci/check-gui-env.py`.
 4. Confirm derived wiring by checking the public flake package, image runtime root, and `tool-*` check when those metadata flags apply.
-5. Document user-visible commands in [Usage](usage.md).
+5. Add or update report assertions when helper installation, runtime root layout, lifecycle behavior, or helper metadata appears in reports.
+6. Add or update smoke coverage when the helper changes in-image user-visible behavior.
+7. Run `nix flake check`; run the focused `tool-*` check directly when iterating on one helper.
+8. Document user-visible commands in [Usage](usage.md).
 
 Examples:
 
@@ -409,7 +448,9 @@ Reports are declared in `lib/compiler/reports.nix`.
 2. Add it to `baseReportEntries` when it should be part of the report directory and `ci-plan.json` `reportFiles`.
 3. Set `includeInCiPlan = false` only for internal or compatibility files that should be linked but not required by CI report validation.
 4. Update `tests/ci/check-reports.py` for schema/content assertions. It reads the report file list from `ci-plan.json`.
-5. Update [Architecture](architecture.md) or a focused subsystem document when the report changes maintainer-visible workflow.
+5. Update report CLI tests or examples when the new report should be accepted by `devcontainer-image explain`, `diff`, or `doctor`.
+6. Update [Architecture](architecture.md) or a focused subsystem document when the report changes maintainer-visible workflow.
+7. Run `nix flake check`.
 
 ## Native Libraries
 
