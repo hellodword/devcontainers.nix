@@ -4,6 +4,7 @@
 }:
 let
   codex = pkgs.agents-misc.codex;
+  opencode = pkgs.llm-agents.opencode;
 in
 {
   config.devcontainer.layers.bucketDefinitions."agent-tools" = {
@@ -15,7 +16,10 @@ in
   config.devcontainer.profiles."toolset/agents" = {
     kind = "toolset";
     group = "agent-tools";
-    packages = [ codex ];
+    packages = [
+      codex
+      opencode
+    ];
     priority = 74;
     stability = "medium";
     sharing = "global";
@@ -29,6 +33,17 @@ in
       ];
       command = [
         "codex"
+        "--version"
+      ];
+    };
+    tests.cases."opencode.cli" = {
+      tags = [
+        "smoke"
+        "tooling"
+        "opencode"
+      ];
+      command = [
+        "opencode"
         "--version"
       ];
     };

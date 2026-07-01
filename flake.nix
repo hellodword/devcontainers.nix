@@ -20,6 +20,7 @@
     };
 
     agents-misc.url = "github:hellodword/agents-misc";
+    llm-agents.url = "github:numtide/llm-agents.nix";
 
     nix2container = {
       url = "github:nlewo/nix2container";
@@ -35,6 +36,7 @@
       nix-vscode-extensions,
       nix-index-database,
       agents-misc,
+      llm-agents,
       nix2container,
       ...
     }:
@@ -58,6 +60,7 @@
         rust-overlay.overlays.default
         nix-index-database.overlays.nix-index
         agents-misc.overlays.default
+        llm-agents.overlays.default
       ]
       ++ projectOverlays;
       pkgs = import nixpkgs {
