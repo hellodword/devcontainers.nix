@@ -56,6 +56,15 @@
       "telemetry.editStats.enabled" = false;
       "telemetry.editStats.showDecorations" = false;
       "telemetry.editStats.showStatusBar" = false;
+
+      "json.schemaDownload.trustedDomains" = {
+        "https://developer.microsoft.com/json-schemas/" = true;
+        "https://json-schema.org/" = true;
+        "https://json.schemastore.org/" = true;
+        "https://raw.githubusercontent.com/" = true;
+        "https://schemastore.azurewebsites.net/" = true;
+        "https://www.schemastore.org/" = true;
+      };
     };
   };
 }
