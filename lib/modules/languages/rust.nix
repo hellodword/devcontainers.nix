@@ -7,14 +7,17 @@
 let
   inherit (lib) mkOption types;
   cfg = config.devcontainer.languages.rust;
-  defaultRustToolchain = pkgs.rust-bin.nightly.latest.default.override {
-    extensions = [
-      "rust-src"
-      "rustfmt"
-      "clippy"
-      "rust-analyzer"
-    ];
-  };
+  defaultRustToolchain = pkgs.rust-bin.selectLatestNightlyWith (
+    toolchain:
+    toolchain.default.override {
+      extensions = [
+        "rust-src"
+        "rustfmt"
+        "clippy"
+        "rust-analyzer"
+      ];
+    }
+  );
   rustToolchain = if cfg.toolchain == null then defaultRustToolchain else cfg.toolchain;
   packages = [
     rustToolchain

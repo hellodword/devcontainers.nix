@@ -74,14 +74,17 @@ let
   pythonLatestPackageSet = pkgs.python3Packages;
   pythonLatestVersion = majorMinor pythonLatestPackage.version;
 
-  rustNightlyToolchain = pkgs.rust-bin.nightly.latest.default.override {
-    extensions = [
-      "rust-src"
-      "rustfmt"
-      "clippy"
-      "rust-analyzer"
-    ];
-  };
+  rustNightlyToolchain = pkgs.rust-bin.selectLatestNightlyWith (
+    toolchain:
+    toolchain.default.override {
+      extensions = [
+        "rust-src"
+        "rustfmt"
+        "clippy"
+        "rust-analyzer"
+      ];
+    }
+  );
 
   mkImageTarget =
     {
