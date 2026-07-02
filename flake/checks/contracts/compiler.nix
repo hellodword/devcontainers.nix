@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  nixpkgs,
   compiler,
   ...
 }:
@@ -379,6 +380,12 @@ in
   contracts-compiler-env =
     assert apiEvalImage.env.containerEnv.API_BOOL == "1";
     assert apiEvalImage.env.containerEnv.TZDIR == "/etc/zoneinfo";
+    assert
+      apiEvalImage.env.containerEnv.DEVCONTAINER_FLAKE_INPUTS
+      == "/usr/share/devcontainer/flake-inputs.json";
+    assert apiEvalImage.flakeInputs.manifest.schemaVersion == 1;
+    assert apiEvalImage.flakeInputs.manifest.inputs.nixpkgs.rev == nixpkgs.rev;
+    assert apiEvalImage.flakeInputs.manifest.inputs.nixpkgs.outPath == toString nixpkgs.outPath;
     assert builtins.elem "/etc/api/example.conf" (map (entry: entry.path) apiEvalImage.environment.etc);
     assert builtins.elem "man" apiEvalImage.environment.report.extraOutputsToInstall;
     assert lib.hasInfix "complete -p git" apiEvalImage.shell.bashrcText;

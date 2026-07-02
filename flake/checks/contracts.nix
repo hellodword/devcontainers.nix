@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  nixpkgs,
   compiler,
   images,
   targets,
@@ -12,6 +13,7 @@ let
     inherit
       pkgs
       lib
+      nixpkgs
       compiler
       images
       targets

@@ -8,6 +8,7 @@
   },
   compiledGraph,
   compiledEnv,
+  compiledFlakeInputs,
   compiledLibraries,
   compiledMetadata,
   compiledLifecycle,
@@ -39,6 +40,7 @@ let
   metadata-label-json = jsonFile "metadata-label.json" compiledMetadata.label;
   metadata-merged-preview-json = jsonFile "metadata-merged-preview.json" compiledMetadata.mergedPreview;
   metadata-schema-report-json = jsonFile "metadata-schema-report.json" compiledMetadata.schemaReport;
+  flake-inputs-json = pkgs.writeText "flake-inputs.json" compiledFlakeInputs.json;
   allSmokeTests = compiledTests.tests;
   imagePlan = {
     image = config.devcontainer.image.name;
@@ -204,6 +206,10 @@ let
       path = image-plan-json;
     }
     {
+      name = "flake-inputs.json";
+      path = flake-inputs-json;
+    }
+    {
       name = "layer-plan.json";
       path = layer-plan-json;
     }
@@ -303,6 +309,7 @@ in
     metadata-merged-preview-json
     metadata-schema-report-json
     profile-report-json
+    flake-inputs-json
     image-plan-json
     tasks-json
     extensions-index-json

@@ -73,6 +73,10 @@ let
       inherit lib pkgs system;
     };
 
+    compileFlakeInputs = import ./compiler/flake-inputs.nix {
+      inherit inputs;
+    };
+
     compileFilesystem = import ./compiler/filesystem.nix {
       inherit pkgs lib;
     };
@@ -167,10 +171,12 @@ let
           compiledEnvironment = environment;
           compiledGraph = graph;
         };
+        flakeInputs = compileFlakeInputs;
         image = compileImage {
           config = evaluated.config;
           compiledEnvironment = environment;
           compiledEnv = env;
+          compiledFlakeInputs = flakeInputs;
           compiledLibraries = libraries;
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
@@ -187,6 +193,7 @@ let
           compiledEnvironment = environment;
           compiledGraph = graph;
           compiledEnv = env;
+          compiledFlakeInputs = flakeInputs;
           compiledLibraries = libraries;
           compiledMetadata = metadata;
           compiledLifecycle = lifecycle;
@@ -215,6 +222,7 @@ let
           filesystem
           shell
           fonts
+          flakeInputs
           ;
         inherit lifecycle vscodeExtensions;
         profileReport = profiles.report;
@@ -231,6 +239,7 @@ let
           metadata-merged-preview-json
           metadata-schema-report-json
           profile-report-json
+          flake-inputs-json
           image-plan-json
           layer-plan-json
           env-report-json

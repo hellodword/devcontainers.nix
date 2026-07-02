@@ -22,6 +22,7 @@
     extraOutputsToInstall = [ ];
   },
   compiledEnv,
+  compiledFlakeInputs,
   compiledLibraries ? {
     imagePaths = [ ];
   },
@@ -41,6 +42,7 @@ let
   renderJson = value: builtins.toFile "payload.json" (builtins.toJSON value);
 
   tasksFile = renderJson { tasks = compiledLifecycle.tasks; };
+  flakeInputsFile = builtins.toFile "flake-inputs.json" compiledFlakeInputs.json;
   extensionsFile = renderJson {
     extensions = compiledVscodeExtensions.extensions;
     projectionTargets = compiledVscodeExtensions.projectionTargets;
@@ -152,6 +154,7 @@ let
   metadataRoot = pkgs.runCommand "${config.devcontainer.image.name}-metadata-root" { } ''
     mkdir -p "$out/usr/share/devcontainer/vscode" "$out/usr/share/devcontainer"
     cp ${tasksFile} "$out/usr/share/devcontainer/tasks.json"
+    cp ${flakeInputsFile} "$out/usr/share/devcontainer/flake-inputs.json"
     cp ${extensionsFile} "$out/usr/share/devcontainer/vscode/extensions-index.json"
     mkdir -p "$out/usr/share/devcontainer/vscode/vsix"
     ${mkDirCommands}
