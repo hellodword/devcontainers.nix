@@ -33,6 +33,36 @@ let
       securityClass = "trusted";
     }
     // attrs;
+  testGraphNode = paths: {
+    kind = "test";
+    group = "fallback";
+    target = "host";
+    stability = "stable";
+    sharing = "single-image";
+    priority = 1;
+    securityClass = "trusted";
+    inherit paths;
+    files = { };
+  };
+  graphDuplicateSharedPath = "/nix/store/test-shared";
+  graphDuplicateRepeatedPath = "/nix/store/test-repeated";
+  graphDuplicateLeftPath = "/nix/store/test-left";
+  graphDuplicateRightPath = "/nix/store/test-right";
+  graphDuplicateEval = compiler.compileGraph {
+    config.devcontainer.graph.nodes = {
+      "duplicate/first" = testGraphNode [ graphDuplicateSharedPath ];
+      "duplicate/second" = testGraphNode [ graphDuplicateSharedPath ];
+      "duplicate/repeated-in-node" = testGraphNode [
+        graphDuplicateRepeatedPath
+        graphDuplicateRepeatedPath
+      ];
+      "duplicate/multiple-paths" = testGraphNode [
+        graphDuplicateLeftPath
+        graphDuplicateRightPath
+      ];
+    };
+  };
+  graphDuplicateReport = graphDuplicateEval.duplicates;
 
   apiEvalImage = compiler.mkImage {
     modules = [
@@ -417,6 +447,18 @@ let
   );
 in
 {
+  contracts-compiler-graph =
+    assert builtins.attrNames graphDuplicateReport == [ graphDuplicateSharedPath ];
+    assert
+      graphDuplicateReport.${graphDuplicateSharedPath} == [
+        "duplicate/first"
+        "duplicate/second"
+      ];
+    assert !(builtins.hasAttr graphDuplicateRepeatedPath graphDuplicateReport);
+    assert !(builtins.hasAttr graphDuplicateLeftPath graphDuplicateReport);
+    assert !(builtins.hasAttr graphDuplicateRightPath graphDuplicateReport);
+    pkgs.writeText "contracts-compiler-graph.json" (builtins.toJSON graphDuplicateReport);
+
   contracts-compiler-env =
     assert apiEvalImage.env.containerEnv.API_BOOL == "1";
     assert apiEvalImage.env.containerEnv.TZDIR == "/etc/zoneinfo";

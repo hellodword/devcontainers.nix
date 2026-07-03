@@ -82,6 +82,20 @@ def validate_smoke_scripts(test_id, test):
             fail(f"smoke test {test_id} script {index} must include an interactive boolean")
 
 
+def validate_graph_duplicates_report(graph_duplicates_report):
+    if not isinstance(graph_duplicates_report, dict):
+        fail("graph-duplicates-report.json must be an object")
+    for store_path, node_ids in graph_duplicates_report.items():
+        if not isinstance(store_path, str) or not store_path.startswith("/nix/store/"):
+            fail("graph-duplicates-report.json keys must be Nix store paths")
+        if (
+            not isinstance(node_ids, list)
+            or len(node_ids) < 2
+            or not all(isinstance(node_id, str) and node_id for node_id in node_ids)
+        ):
+            fail("graph-duplicates-report.json values must be lists of duplicate graph node ids")
+
+
 def walk_strings(value):
     if isinstance(value, str):
         yield value
@@ -147,6 +161,7 @@ def main() -> int:
     env_report = read_json(reports_dir / "env-report.json")
     libraries_report = read_json(reports_dir / "libraries-report.json")
     shell_report = read_json(reports_dir / "shell-report.json")
+    graph_duplicates_report = read_json(reports_dir / "graph-duplicates-report.json")
     preview_container_env = metadata_preview.get("containerEnv") or {}
     environment_report = env_report.get("environment") or {}
     enabled_profile_ids = {profile["id"] for profile in profile_report.get("enabledProfiles") or []}
@@ -163,6 +178,7 @@ def main() -> int:
     profile_library_presets = set((profile_report.get("libraries") or {}).get("presets") or [])
 
     validate_profile_test_schema(profile_report)
+    validate_graph_duplicates_report(graph_duplicates_report)
 
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
