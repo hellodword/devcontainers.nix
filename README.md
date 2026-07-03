@@ -52,6 +52,27 @@ Create `.devcontainer/devcontainer.json`:
 }
 ```
 
+<details><summary>Working with agents:</summary>
+```json
+{
+  "image": "ghcr.io/hellodword/devcontainers-go:web",
+  "mounts": [
+    "source=${localEnv:HOME}/dev/workspace/agents-misc/.agents,target=${containerWorkspaceFolder}/.agents,type=bind,readonly",
+    "source=${localEnv:HOME}/dev/workspace/agents-misc/AGENTS.md,target=${containerWorkspaceFolder}/AGENTS.md,type=bind,readonly",
+    "source=${localEnv:HOME}/dev/workspace/agents-misc/codex/config/codex_hook_forwarder.py,target=/etc/codex/codex_hook_forwarder.py,type=bind,readonly",
+    {
+      "source": "${localEnv:HOME}/.codex",
+      "target": "/home/vscode/.codex",
+      "type": "bind"
+    }
+  ],
+  "containerEnv": {
+    "AI_COMMIT_COAUTHOR": "Codex <noreply@openai.com>"
+  }
+}
+```
+</details>
+
 Inside the container, add ad-hoc packages with `devpkg`:
 
 ```sh
