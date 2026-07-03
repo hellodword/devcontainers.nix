@@ -308,19 +308,19 @@ segments, rather than replacing `PATH`.
 
 ## FHS Runtime
 
-VS Code server components and many extension helpers expect conventional Linux paths that a pure Nix image does not naturally provide. The FHS runtime adds only the compatibility surface needed for those tools:
+VS Code server components and many extension helpers expect conventional Linux paths that a pure Nix image does not naturally provide. When `devcontainer.compat.fhsRuntime.enable` is true, the FHS runtime adds a fixed compatibility surface needed for those tools:
 
 - `/bin/bash`
 - `/bin/sh`
 - `/usr/bin/env`
-- common archive and network tools through conventional paths
+- common archive and network tools through conventional `/usr/bin` paths
 - architecture dynamic loader path such as `/lib64/ld-linux-x86-64.so.2`
 - `NIX_LD` and `NIX_LD_LIBRARY_PATH` from `programs.nix-ld`
 - `/usr/lib/libc.so.6`
 - `/usr/lib/libstdc++.so.6`
 - CA certificate files and environment variables from `security.pki`
 
-The FHS runtime is compatibility glue. It does not turn the image into a general FHS distribution, and modules should not treat it as a reason to bypass Nix store paths when a Nix-native path is available.
+The FHS runtime is compatibility glue. It does not expose per-path toggles, does not turn the image into a general FHS distribution, and modules should not treat it as a reason to bypass Nix store paths when a Nix-native path is available. `/etc/os-release` belongs to the generated filesystem contract and is present independently of the FHS runtime symlink set.
 
 ## Native Libraries
 

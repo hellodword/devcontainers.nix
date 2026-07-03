@@ -4,7 +4,6 @@
   compiledEnvironment ? {
     etc = [ ];
   },
-  compiledFhsRuntime,
   compiledShell ? {
     profileText = "";
     bashrcText = "";
@@ -269,5 +268,4 @@ in
       if spec.uid == user.uid && spec.gid == user.gid then "${user.name}:${user.group}" else "root:root";
   }) directories;
   inherit symlinks;
-  fhsOsRelease = compiledFhsRuntime.osReleaseText;
 }

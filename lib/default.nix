@@ -162,7 +162,6 @@ let
         filesystem = compileFilesystem {
           config = evaluated.config;
           compiledEnvironment = environment;
-          compiledFhsRuntime = fhsRuntime;
           compiledShell = shell;
           compiledFonts = fonts;
           compiledProfiles = profiles;

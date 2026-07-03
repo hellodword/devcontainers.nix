@@ -17,13 +17,6 @@ let
   cfg = config.devcontainer.compat.fhsRuntime;
   nixLdCfg = config.programs.nix-ld;
   pkiCfg = config.security.pki;
-  osRelease = config.devcontainer.filesystem.osRelease;
-  osReleaseText = ''
-    NAME="${osRelease.name}"
-    ID=${osRelease.id}
-    VERSION_ID="${osRelease.versionId}"
-    PRETTY_NAME="${osRelease.prettyName}"
-  '';
   currentDynamicLoader =
     if system == "x86_64-linux" then
       nixLdCfg.dynamicLoader.x86_64.path
@@ -122,7 +115,6 @@ in
     remote = { };
     shell = { };
   };
-  osReleaseText = osReleaseText;
   symlinks = [
     {
       target = "/bin/bash";

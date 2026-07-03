@@ -59,26 +59,6 @@ in
         type = types.bool;
         default = true;
       };
-      binSh = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      binBash = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      usrBinEnv = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      usrBinCoreTools = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      etcOsRelease = mkOption {
-        type = types.bool;
-        default = true;
-      };
     };
   };
 
