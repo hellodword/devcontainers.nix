@@ -114,10 +114,6 @@ let
           ];
           default = "marketplace-first";
         };
-        required = mkOption {
-          type = types.bool;
-          default = true;
-        };
         notes = mkOption {
           type = types.nullOr types.str;
           default = null;

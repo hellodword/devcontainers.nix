@@ -146,7 +146,6 @@ let
         vsixPath = "${config.devcontainer.vscode.preinstall.store.vsixPath}/${vsixName}";
         companionTools = metadata.companionTools;
         sourcePreference = metadata.sourcePreference;
-        required = metadata.required;
         origins = metadata.origins;
         notes = metadata.notes;
         sourceLock = sourceLock;

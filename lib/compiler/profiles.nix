@@ -163,7 +163,6 @@ let
       companionTools = lib.unique (lib.concatMap (entry: entry.companionTools) entries);
       projectionOverride = nullableValue "projectionOverride" extensionId entries;
       sourcePreference = singleValue "sourcePreference" extensionId entries;
-      required = builtins.all (entry: entry.required) entries;
       notes = lib.unique (builtins.filter (note: note != null) (map (entry: entry.notes) entries));
       origins = lib.unique (map (entry: entry.profileId) entries);
     };
