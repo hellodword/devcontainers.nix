@@ -412,7 +412,7 @@ Important reports include:
 - smoke test plans
 - CI plans
 
-Checks use those reports to reject regressions before an image is published. Smoke tests then validate user-visible runtime behavior after an image is loaded into Docker.
+Checks use those reports to reject regressions before an image is published. Smoke tests then validate user-visible runtime behavior after an image is loaded into Docker. Standalone smoke execution creates containers with Docker `--network none`, so smoke cases should verify local image behavior without requiring internet access.
 
 `flake/checks.nix` owns the Nix check set by aggregating:
 

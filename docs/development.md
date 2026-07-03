@@ -107,9 +107,11 @@ After loading an image, run its smoke plan:
 nix run .#run-smoke-plan -- nix
 ```
 
-The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths come from nixpkgs. It still talks to the host Docker daemon and writes logs to `${SMOKE_LOG_DIR:-smoke-logs}`. It never accepts extra Docker run arguments and does not inject Docker daemon configuration into the container. It validates repository-owned smoke cases; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
+The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths come from nixpkgs. It still talks to the host Docker daemon and writes logs to `${SMOKE_LOG_DIR:-smoke-logs}`. It creates each smoke container with Docker `--network none`, never accepts extra Docker run arguments, and does not inject Docker daemon configuration into the container. It validates repository-owned smoke cases; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
 
-`smoke-test-plan.json` publishes case identity through `caseIds` and each `tests[]` entry's `id`. Each test has a non-empty ordered `scripts` array with `command`, `shell`, and `interactive` fields. The smoke runner creates one temporary container per case and runs that case's scripts sequentially in the same container, using `timeoutSeconds` as the whole-case budget. The order of `tests[]` is not a public contract; compare smoke plan contents by sorting entries by `id`.
+`smoke-test-plan.json` publishes case identity through `caseIds` and each `tests[]` entry's `id`. Each test has a non-empty ordered `scripts` array with `command`, `shell`, and `interactive` fields. Smoke cases should be offline safe. The smoke runner creates one temporary container per case and runs that case's scripts sequentially in the same container, using `timeoutSeconds` as the whole-case budget. The order of `tests[]` is not a public contract; compare smoke plan contents by sorting entries by `id`.
+
+The `fhs.ca-certificates` smoke case verifies the local CA bundle path, CA-related environment variables, and PEM bundle contents. It does not verify external TLS connectivity.
 
 ## Heavy VS Code GUI E2E
 

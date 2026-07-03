@@ -142,9 +142,15 @@ in
               shell = "bash";
               interactive = false;
               command = ''
+                set -e
+                bundle=/etc/ssl/certs/ca-certificates.crt
+                for env_name in SSL_CERT_FILE NIX_SSL_CERT_FILE CURL_CA_BUNDLE GIT_SSL_CAINFO; do
+                  test "''${!env_name:-}" = "$bundle"
+                done
                 test -r "''${SSL_CERT_FILE:-}"
-                test "''${NIX_SSL_CERT_FILE:-}" = "$SSL_CERT_FILE"
-                curl --fail --silent --show-error --max-time 20 https://google.com >/dev/null
+                test -s "$bundle"
+                grep -q "BEGIN CERTIFICATE" "$bundle"
+                grep -q "END CERTIFICATE" "$bundle"
               '';
             }
           ];

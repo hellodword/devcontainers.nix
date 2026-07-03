@@ -158,12 +158,13 @@ def run_test(image_ref: str, test: dict, smoke_log_dir: Path) -> int:
         f"tags={json.dumps(test.get('tags'))}\n"
         f"requires={json.dumps(test.get('requires'))}\n"
         f"timeoutSeconds={timeout_seconds}\n"
+        "network=none\n"
     )
     output = header
     container_id = ""
     try:
         deadline = time.monotonic() + timeout_seconds
-        create_result = run_with_deadline(["docker", "create", image_ref], deadline)
+        create_result = run_with_deadline(["docker", "create", "--network", "none", image_ref], deadline)
         if create_result.returncode != 0:
             output += decode_process_output(create_result.stdout)
             log_file.write_text(output, encoding="utf-8")
