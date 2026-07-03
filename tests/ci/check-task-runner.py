@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -13,8 +14,22 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
-def run(command: list[str], *, env: dict[str, str], check: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(command, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=check)
+def run(
+    command: list[str],
+    *,
+    env: dict[str, str],
+    check: bool = True,
+    timeout: int = 30,
+) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        command,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=check,
+        timeout=timeout,
+    )
 
 
 def write_json(path: Path, value) -> None:
@@ -88,6 +103,58 @@ def main() -> int:
         failed_log_text = failed_log.read_text(encoding="utf-8")
         if "[REDACTED]" not in failed_log_text or "PASSWORD=bad" in failed_log_text:
             fail("failing task log redaction failed")
+
+        timeout_tasks = tmpdir / "timeout-tasks.json"
+        timeout_state = tmpdir / "timeout-state"
+        sentinel = tmpdir / "timeout-child-finished"
+        write_json(
+            timeout_tasks,
+            {
+                "tasks": [
+                    {
+                        "name": "timeout-test",
+                        "phase": "postAttach",
+                        "once": False,
+                        "user": "vscode",
+                        "command": [
+                            bash,
+                            "-lc",
+                            'echo API_TOKEN=timeout-secret; (sleep 2; touch "$SENTINEL") & wait',
+                        ],
+                        "timeoutSeconds": 1,
+                        "needs": [],
+                    }
+                ]
+            },
+        )
+        timeout_env = env.copy()
+        timeout_env.update(
+            {
+                "DEVCONTAINER_TASKS_FILE": str(timeout_tasks),
+                "XDG_STATE_HOME": str(timeout_state),
+                "SENTINEL": str(sentinel),
+            }
+        )
+        timed_out = run([str(runner), "run", "postAttach"], env=timeout_env, check=False, timeout=5)
+        if timed_out.returncode != 124:
+            fail(f"expected timeout task exit 124, got {timed_out.returncode}")
+        if "timed out after 1 seconds" not in timed_out.stderr:
+            fail(f"timeout diagnostic missing from stderr:\n{timed_out.stderr}")
+        timeout_status = timeout_state / "devcontainer" / "tasks" / "status" / "timeout-test.status"
+        timeout_rc = timeout_state / "devcontainer" / "tasks" / "status" / "timeout-test.exit"
+        timeout_log = timeout_state / "devcontainer" / "tasks" / "logs" / "timeout-test.log"
+        if timeout_status.read_text(encoding="utf-8").strip() != "failed":
+            fail("timeout task did not write failed status")
+        if timeout_rc.read_text(encoding="utf-8").strip() != "124":
+            fail("timeout task did not write timeout exit code")
+        timeout_log_text = timeout_log.read_text(encoding="utf-8")
+        if "timed out after 1 seconds" not in timeout_log_text:
+            fail("timeout task log did not include timeout diagnostic")
+        if "[REDACTED]" not in timeout_log_text or "timeout-secret" in timeout_log_text:
+            fail("timeout task log redaction failed")
+        time.sleep(2.5)
+        if sentinel.exists():
+            fail("timeout task left child process running")
 
         invalid_tasks = tmpdir / "invalid-tasks.json"
         invalid_state = tmpdir / "invalid-state"

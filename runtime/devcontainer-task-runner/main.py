@@ -3,6 +3,7 @@ import json
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,8 @@ SENSITIVE_RE = re.compile(
     r"([A-Za-z0-9_]*(?:TOKEN|PASSWORD|SECRET|KEY)[A-Za-z0-9_]*=)[^\s]+|"
     r"(Authorization: )[\x21-\x7e]+"
 )
+TIMEOUT_EXIT_CODE = 124
+TERMINATION_GRACE_SECONDS = 2
 
 USAGE = """devcontainer-task-runner run <phase>
 devcontainer-task-runner list
@@ -168,6 +171,37 @@ def shell_command_line(command: list[str]) -> str:
     return "".join(f"{shlex.quote(part)} " for part in command)
 
 
+def terminate_process_group(proc: subprocess.Popen) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        proc.wait(timeout=TERMINATION_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def run_command(command: list[str], timeout_seconds: int) -> tuple[str, int, bool]:
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, _ = proc.communicate(timeout=timeout_seconds)
+        return stdout or "", proc.returncode, False
+    except subprocess.TimeoutExpired:
+        terminate_process_group(proc)
+        stdout, _ = proc.communicate()
+        return stdout or "", TIMEOUT_EXIT_CODE, True
+
+
 def run_task(name: str, tasks: dict[str, dict], active: set[str] | None = None) -> int:
     if active is None:
         active = set()
@@ -197,18 +231,25 @@ def run_task(name: str, tasks: dict[str, dict], active: set[str] | None = None) 
         active.remove(name)
         return 0
 
+    timeout = task.get("timeoutSeconds", 60)
     log_text = f"task={name} phase={task['phase']}\ncommand={shell_command_line(command)}\n"
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    log_text += result.stdout or ""
+    output, returncode, timed_out = run_command(command, timeout)
+    log_text += output
+    if timed_out:
+        diagnostic = f"task {name} timed out after {timeout} seconds\n"
+        print(diagnostic, end="", file=sys.stderr)
+        if not log_text.endswith("\n"):
+            log_text += "\n"
+        log_text += diagnostic
     atomic_write(logfile, redact(log_text))
-    if result.returncode == 0:
+    if returncode == 0:
         atomic_write(statusfile, "done\n")
         atomic_write(rcfile, "0\n")
     else:
         atomic_write(statusfile, "failed\n")
-        atomic_write(rcfile, f"{result.returncode}\n")
+        atomic_write(rcfile, f"{returncode}\n")
     active.remove(name)
-    return result.returncode
+    return returncode
 
 
 def ensure_xdg() -> None:

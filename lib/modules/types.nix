@@ -83,7 +83,7 @@ let
         default = [ ];
       };
       timeoutSeconds = mkOption {
-        type = types.int;
+        type = positiveIntType;
         default = 60;
       };
       needs = mkOption {
