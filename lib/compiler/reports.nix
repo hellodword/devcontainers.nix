@@ -191,7 +191,6 @@ let
         extension:
         extension ? sourceLock
         && extension.sourceLock ? sha256
-        && extension.sourceLock ? manifestSha256
         && extension.sourceLock ? vsixSha256
       ) compiledVscodeExtensions.extensions;
       companionToolsProvidedByNix =

@@ -62,7 +62,7 @@ def main() -> int:
         if extension.get("version") == "pinned" or not str(extension.get("source", "")).startswith("nix-vscode-extensions."):
             fail("extension source metadata is incomplete")
         source_lock = extension.get("sourceLock") or {}
-        if not all(source_lock.get(key) for key in ["ref", "sha256", "manifestSha256", "vsixSha256"]):
+        if not all(source_lock.get(key) for key in ["ref", "sha256", "manifestFingerprint", "vsixSha256"]):
             fail("extension source lock metadata is incomplete")
         if not (extension.get("validation") or {}).get("strategy"):
             fail("extension validation strategy missing")

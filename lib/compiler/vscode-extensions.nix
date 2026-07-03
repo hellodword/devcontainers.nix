@@ -119,7 +119,7 @@ let
       sourceLock = {
         ref = sourceRef;
         sha256 = sourceHash;
-        manifestSha256 = hashString "${uniqueId}:${extensionVersion}:${sourceHash}:manifest";
+        manifestFingerprint = hashString "${uniqueId}:${extensionVersion}:${sourceHash}:manifest";
         vsixSha256 = sourceHash;
         archiveName = sourceArchiveNameFor extensionPackage;
       };
