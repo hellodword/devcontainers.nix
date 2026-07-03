@@ -603,9 +603,6 @@ def main() -> int:
             "extensions-index.json must match profile-report.json; "
             f"missing={missing_extension_ids}, extra={extra_extension_ids}"
         )
-    vscode_settings = ((metadata_preview.get("customizations") or {}).get("vscode") or {}).get("settings") or {}
-    if vscode_settings != profile_vscode_settings:
-        fail("metadata VS Code settings must match profile-report.json")
     machine_settings = filesystem_report.get("vscodeMachineSettings") or {}
     if machine_settings.get("settings") != profile_vscode_settings:
         fail("filesystem-report.json VS Code machine settings must match profile-report.json")

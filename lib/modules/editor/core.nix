@@ -56,6 +56,7 @@
       "telemetry.editStats.enabled" = false;
       "telemetry.editStats.showDecorations" = false;
       "telemetry.editStats.showStatusBar" = false;
+      "telemetry.telemetryLevel" = "off";
 
       "json.schemaDownload.trustedDomains" = {
         "https://developer.microsoft.com/json-schemas/" = true;

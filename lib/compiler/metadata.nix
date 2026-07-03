@@ -29,14 +29,11 @@ let
     in
     lib.foldl' lib.recursiveUpdate { } (map mkCommand enabledPhases);
 
-  vscodeCustomization =
-    lib.optionalAttrs ((compiledProfiles.extensionIds != [ ]) || (compiledProfiles.settings != { }))
-      {
-        customizations.vscode = {
-          extensions = compiledProfiles.extensionIds;
-          settings = compiledProfiles.settings;
-        };
-      };
+  vscodeCustomization = lib.optionalAttrs (compiledProfiles.extensionIds != [ ]) {
+    customizations.vscode = {
+      extensions = compiledProfiles.extensionIds;
+    };
+  };
 
   computedSnippet = {
     remoteUser = config.devcontainer.user.remoteUser;
