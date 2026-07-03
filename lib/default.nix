@@ -165,6 +165,7 @@ let
           compiledFhsRuntime = fhsRuntime;
           compiledShell = shell;
           compiledFonts = fonts;
+          compiledProfiles = profiles;
         };
         layers = compileLayers {
           config = evaluated.config;

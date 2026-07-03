@@ -162,6 +162,7 @@ let
     osRelease = compiledFilesystem.osRelease;
     nixpkgsConfig = compiledFilesystem.nixpkgsConfig;
     etcFiles = compiledFilesystem.etcFiles;
+    vscodeMachineSettings = compiledFilesystem.vscodeMachineSettings;
     symlinks = compiledFilesystem.symlinks;
     shellFiles = compiledFilesystem.shellFiles;
     commandNotFoundHook = {

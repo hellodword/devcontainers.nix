@@ -821,6 +821,8 @@ let
                 "ms-vscode-remote.remote-containers 2>/dev/null || true",
                 timeout=scaled_timeout(60),
             )
+            # docker cp preserves root-owned 0600 task files; normalize before exporting artifacts.
+            machine.execute("chmod -R u+rwX,go+rX /tmp/e2e-artifacts 2>/dev/null || true", timeout=scaled_timeout(30))
             machine.copy_from_machine("/tmp/e2e-artifacts")
 
 

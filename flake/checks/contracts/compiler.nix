@@ -118,6 +118,19 @@ let
     ];
   };
   customLocaleCommand = lib.concatStringsSep " " (smokeCase "shell.locale" customLocaleImage).command;
+  vscodeProjectionSuffix = "/extensions";
+  vscodeMachineSettingsPathForProjectionTarget =
+    target:
+    assert lib.assertMsg (lib.hasSuffix vscodeProjectionSuffix target)
+      "VS Code projection target must end with /extensions: ${target}";
+    "${
+      builtins.substring 0 (
+        (builtins.stringLength target) - (builtins.stringLength vscodeProjectionSuffix)
+      ) target
+    }/data/Machine/settings.json";
+  apiVscodeMachineSettings = apiEvalImage.filesystem.vscodeMachineSettings;
+  apiVscodeMachineSettingsPaths = map (entry: entry.settingsPath) apiVscodeMachineSettings.paths;
+  expectedVscodeMachineSettingsPaths = map vscodeMachineSettingsPathForProjectionTarget apiEvalImage.vscodeExtensions.projectionTargets;
 
   shellFeatureEvalImage = compiler.mkImage {
     modules = [
@@ -390,6 +403,16 @@ in
     assert builtins.elem "man" apiEvalImage.environment.report.extraOutputsToInstall;
     assert lib.hasInfix "complete -p git" apiEvalImage.shell.bashrcText;
     assert lib.hasInfix "share/bash-completion/completions/git" apiEvalImage.shell.bashrcText;
+    assert apiVscodeMachineSettings.settings == apiEvalImage.profiles.settings;
+    assert apiVscodeMachineSettingsPaths == expectedVscodeMachineSettingsPaths;
+    assert lib.all (
+      entry:
+      entry.rootMode == "1777"
+      && entry.dataMode == "1777"
+      && entry.machineMode == "1777"
+      && entry.settingsMode == "0444"
+      && entry.owner == "root:root"
+    ) apiVscodeMachineSettings.paths;
     pkgs.writeText "contracts-compiler-env.json" (builtins.toJSON apiEvalImage.environment.report);
 
   contracts-compiler-profiles =

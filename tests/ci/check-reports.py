@@ -606,6 +606,28 @@ def main() -> int:
     vscode_settings = ((metadata_preview.get("customizations") or {}).get("vscode") or {}).get("settings") or {}
     if vscode_settings != profile_vscode_settings:
         fail("metadata VS Code settings must match profile-report.json")
+    machine_settings = filesystem_report.get("vscodeMachineSettings") or {}
+    if machine_settings.get("settings") != profile_vscode_settings:
+        fail("filesystem-report.json VS Code machine settings must match profile-report.json")
+    projection_suffix = "/extensions"
+    expected_machine_settings = set()
+    for target in projection_targets:
+        if not isinstance(target, str) or not target.endswith(projection_suffix):
+            fail(f"VS Code extension projection target must end with {projection_suffix}: {target}")
+        expected_machine_settings.add(f"{target[:-len(projection_suffix)]}/data/Machine/settings.json")
+    machine_settings_paths = machine_settings.get("paths") or []
+    seen_machine_settings = {entry.get("settingsPath") for entry in machine_settings_paths}
+    if seen_machine_settings != expected_machine_settings:
+        fail("filesystem-report.json must declare all VS Code machine settings paths")
+    for entry in machine_settings_paths:
+        if entry.get("owner") != "root:root":
+            fail("VS Code machine settings must be owned by root:root")
+        if entry.get("rootMode") != "1777" or entry.get("dataMode") != "1777":
+            fail("VS Code server roots and data dirs must be sticky writable")
+        if entry.get("machineMode") != "1777":
+            fail("VS Code Machine dir must be sticky writable")
+        if entry.get("settingsMode") != "0444":
+            fail("VS Code Machine settings file must be read-only")
 
     user_report = filesystem_report["user"]
     if user_report["name"] != "vscode" or user_report["uid"] != 1000:

@@ -75,6 +75,44 @@ def require_declared_commands(rootfs: pathlib.Path, reports_dir: pathlib.Path):
         fail(f"profile-report.json declares commands missing from rootfs PATH: {', '.join(missing)}")
 
 
+def require_vscode_machine_settings(rootfs: pathlib.Path, reports_dir: pathlib.Path, projection_targets):
+    profile_report = read_json(reports_dir / "profile-report.json")
+    filesystem_report = read_json(reports_dir / "filesystem-report.json")
+    profile_settings = (profile_report.get("vscode") or {}).get("settings") or {}
+    machine_settings = filesystem_report.get("vscodeMachineSettings") or {}
+
+    if machine_settings.get("settings") != profile_settings:
+        fail("filesystem report VS Code machine settings must match profile report")
+
+    projection_suffix = "/extensions"
+    expected_paths = set()
+    for target in projection_targets:
+        if not isinstance(target, str) or not target.endswith(projection_suffix):
+            fail(f"VS Code extension projection target must end with {projection_suffix}: {target}")
+        expected_paths.add(f"{target[:-len(projection_suffix)]}/data/Machine/settings.json")
+    entries = machine_settings.get("paths") or []
+    seen_paths = {entry.get("settingsPath") for entry in entries}
+    if seen_paths != expected_paths:
+        fail("filesystem report missing VS Code machine settings paths")
+
+    for entry in entries:
+        if entry.get("owner") != "root:root":
+            fail("VS Code machine settings must be owned by root:root")
+        if entry.get("rootMode") != "1777" or entry.get("dataMode") != "1777":
+            fail("VS Code server roots and data dirs must be sticky writable")
+        if entry.get("machineMode") != "1777":
+            fail("VS Code Machine dir must be sticky writable")
+        if entry.get("settingsMode") != "0444":
+            fail("VS Code Machine settings file must be read-only")
+        require_exists(rootfs, entry.get("root"))
+        require_exists(rootfs, entry.get("dataDir"))
+        require_exists(rootfs, entry.get("machineDir"))
+        settings_path = entry.get("settingsPath")
+        require_exists(rootfs, settings_path)
+        if read_json(root_path(rootfs, settings_path)) != profile_settings:
+            fail(f"VS Code machine settings content mismatch: {settings_path}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("rootfs", type=pathlib.Path)
@@ -159,10 +197,11 @@ def main() -> int:
     if runtime_report.get("mode") != "0700":
         fail("filesystem report must declare /run/user/1000 mode as 0700")
 
-    require_declared_commands(args.rootfs, args.reports_dir)
-
     extensions_index = read_json(root_path(args.rootfs, "/usr/share/devcontainer/vscode/extensions-index.json"))
     projection_targets = set(extensions_index.get("projectionTargets") or [])
+    require_declared_commands(args.rootfs, args.reports_dir)
+    require_vscode_machine_settings(args.rootfs, args.reports_dir, projection_targets)
+
     expected_projection_targets = {
         "/home/vscode/.vscode-server/extensions",
         "/home/vscode/.vscode-server-insiders/extensions",

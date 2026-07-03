@@ -99,7 +99,41 @@ in
         "language/jinja"
         "language/protobuf"
         "editor/shellcheck"
+        "editor/vscode-machine-settings-smoke"
       ];
+    };
+
+    profiles."editor/vscode-machine-settings-smoke" = {
+      kind = "editor";
+      group = "vscode-extensions-base";
+      packages = [ ];
+      priority = 79;
+      stability = "stable";
+      sharing = "global";
+      securityClass = "trusted";
+      composition.role = "leaf";
+      tests.cases."editor.vscode-machine-settings-readonly" = {
+        tags = [
+          "smoke"
+          "baseline"
+          "e2e-baseline"
+          "editor"
+          "vscode"
+        ];
+        command = [
+          "bash"
+          "-lc"
+          (lib.concatStringsSep " " [
+            ''for root in "$HOME/.vscode-server" "$HOME/.vscode-server-insiders" "$HOME/.vscode-remote"; do''
+            ''settings="$root/data/Machine/settings.json";''
+            ''test -f "$settings" || exit 1;''
+            ''test -r "$settings" || exit 1;''
+            ''test ! -w "$settings" || exit 1;''
+            ''if printf '%s\n' '{}' >"$settings" 2>/dev/null; then exit 1; fi;''
+            "done"
+          ])
+        ];
+      };
     };
   };
 }

@@ -15,11 +15,46 @@
   compiledFonts ? {
     root = null;
   },
+  compiledProfiles ? {
+    settings = { };
+  },
 }:
 let
   user = config.devcontainer.user;
   osRelease = config.devcontainer.filesystem.osRelease;
   directories = config.devcontainer.filesystem.directories;
+  vscodeProjectionSuffix = "/extensions";
+  vscodeProjectionSuffixLength = builtins.stringLength vscodeProjectionSuffix;
+  vscodeServerRoots = lib.unique (
+    map
+      (
+        target: builtins.substring 0 ((builtins.stringLength target) - vscodeProjectionSuffixLength) target
+      )
+      (
+        builtins.filter (
+          target: lib.hasSuffix vscodeProjectionSuffix target
+        ) config.devcontainer.vscode.preinstall.projection.targets
+      )
+  );
+  vscodeSettingsText = builtins.toJSON compiledProfiles.settings;
+  vscodeMachineSettingsPaths = map (
+    root:
+    let
+      dataDir = "${root}/data";
+      machineDir = "${dataDir}/Machine";
+    in
+    {
+      inherit root dataDir machineDir;
+      settingsPath = "${machineDir}/settings.json";
+      rootMode = "1777";
+      dataMode = "1777";
+      machineMode = "1777";
+      settingsMode = "0444";
+      uid = 0;
+      gid = 0;
+      owner = "root:root";
+    }
+  ) vscodeServerRoots;
   dirCommands = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (path: spec: ''
       mkdir -p "$out${path}"
@@ -52,6 +87,16 @@ let
           chmod ${entry.mode} "$out${entry.path}"
         ''
     ) compiledEnvironment.etc
+  );
+  vscodeMachineSettingsCommands = lib.concatStringsSep "\n" (
+    map (entry: ''
+      mkdir -p "$out${entry.root}" "$out${entry.dataDir}" "$out${entry.machineDir}"
+      chmod ${entry.rootMode} "$out${entry.root}"
+      chmod ${entry.dataMode} "$out${entry.dataDir}"
+      printf '%s' ${lib.escapeShellArg vscodeSettingsText} >"$out${entry.settingsPath}"
+      chmod ${entry.machineMode} "$out${entry.machineDir}"
+      chmod ${entry.settingsMode} "$out${entry.settingsPath}"
+    '') vscodeMachineSettingsPaths
   );
   passwdText = lib.concatStringsSep "\n" [
     "root:x:0:0:root:/root:/bin/bash"
@@ -106,6 +151,7 @@ let
     printf '%s' ${lib.escapeShellArg nixpkgsConfigText} >"$out${nixpkgsConfigPath}"
     printf '%s' ${lib.escapeShellArg userBashrcText} >"$out${userBashrcPath}"
     ${etcCommands}
+    ${vscodeMachineSettingsCommands}
     ${lib.optionalString (compiledFonts.root != null) ''
       cp -a ${compiledFonts.root}/. "$out/"
     ''}
@@ -149,6 +195,44 @@ let
     uname = userPermName entry;
     gname = groupPermName entry;
   }) compiledEnvironment.etc;
+  vscodeMachineSettingsPerms = lib.concatMap (entry: [
+    {
+      path = root;
+      regex = "^${root}${entry.root}$";
+      mode = entry.rootMode;
+      uid = entry.uid;
+      gid = entry.gid;
+      uname = "root";
+      gname = "root";
+    }
+    {
+      path = root;
+      regex = "^${root}${entry.dataDir}$";
+      mode = entry.dataMode;
+      uid = entry.uid;
+      gid = entry.gid;
+      uname = "root";
+      gname = "root";
+    }
+    {
+      path = root;
+      regex = "^${root}${entry.machineDir}$";
+      mode = entry.machineMode;
+      uid = entry.uid;
+      gid = entry.gid;
+      uname = "root";
+      gname = "root";
+    }
+    {
+      path = root;
+      regex = "^${root}${entry.settingsPath}$";
+      mode = entry.settingsMode;
+      uid = entry.uid;
+      gid = entry.gid;
+      uname = "root";
+      gname = "root";
+    }
+  ]) vscodeMachineSettingsPaths;
 in
 {
   inherit root;
@@ -173,7 +257,11 @@ in
       ;
     hasText = entry.text != null;
   }) compiledEnvironment.etc;
-  perms = directoryPerms ++ filePerms;
+  vscodeMachineSettings = {
+    settings = compiledProfiles.settings;
+    paths = vscodeMachineSettingsPaths;
+  };
+  perms = directoryPerms ++ filePerms ++ vscodeMachineSettingsPerms;
   directories = lib.mapAttrsToList (path: spec: {
     inherit path;
     inherit (spec) mode uid gid;
