@@ -47,6 +47,11 @@
         android_sdk.accept_license = true;
         oraclejdk.accept_license = true;
         allowUnsupportedSystem = true;
+        permittedInsecurePackages =
+          [ ]
+          ++ (nixpkgs.lib.optionals (llm-agents.rev == "76b9956a4e357732178b3c9c471c259d4e7d5b63") [
+            "pnpm-10.34.0"
+          ]);
       };
       projectOverlays = [ ];
       nixpkgsOverlays = [
