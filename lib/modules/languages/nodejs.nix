@@ -103,10 +103,23 @@ in
         "nodejs"
         "node"
       ];
-      command = [
-        "bash"
-        "-lc"
-        "node --version && npm --version && npx --version && pnpm --version && yarn --version && corepack --version && node-gyp --version && python --version && cc --version"
+      scripts = [
+        {
+          shell = "bash";
+          interactive = false;
+          command = ''
+            set -e
+            node --version
+            npm --version
+            npx --version
+            pnpm --version
+            yarn --version
+            corepack --version
+            node-gyp --version
+            python --version
+            cc --version
+          '';
+        }
       ];
     };
   };

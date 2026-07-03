@@ -112,10 +112,20 @@ in
             "e2e-baseline"
             "fhs"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "test -x /bin/bash && test -x /bin/sh && test -x /usr/bin/env && test -e /etc/os-release && tar --version && (curl --version || wget --version)"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                set -e
+                test -x /bin/bash
+                test -x /bin/sh
+                test -x /usr/bin/env
+                test -e /etc/os-release
+                tar --version
+                (curl --version || wget --version)
+              '';
+            }
           ];
         };
       }
@@ -124,18 +134,19 @@ in
           tags = [
             "smoke"
             "baseline"
-            "e2e-baseline"
             "fhs"
             "ca-certificates"
           ];
-          command = [
-            "bash"
-            "-lc"
-            ''
-              test -r "''${SSL_CERT_FILE:-}"
-              test "''${NIX_SSL_CERT_FILE:-}" = "$SSL_CERT_FILE"
-              curl --fail --silent --show-error --max-time 20 https://google.com >/dev/null
-            ''
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                test -r "''${SSL_CERT_FILE:-}"
+                test "''${NIX_SSL_CERT_FILE:-}" = "$SSL_CERT_FILE"
+                curl --fail --silent --show-error --max-time 20 https://google.com >/dev/null
+              '';
+            }
           ];
           timeoutSeconds = 45;
         };
@@ -149,16 +160,18 @@ in
             "fhs"
             "nix-ld"
           ];
-          command = [
-            "bash"
-            "-lc"
-            ''
-              test -x /lib64/ld-linux-x86-64.so.2
-              test -n "''${NIX_LD:-}"
-              test -n "''${NIX_LD_LIBRARY_PATH:-}"
-              env -i NIX_LD="$NIX_LD" NIX_LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH" PATH=/usr/bin \
-                /lib64/ld-linux-x86-64.so.2 /usr/bin/env true
-            ''
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                test -x /lib64/ld-linux-x86-64.so.2
+                test -n "''${NIX_LD:-}"
+                test -n "''${NIX_LD_LIBRARY_PATH:-}"
+                env -i NIX_LD="$NIX_LD" NIX_LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH" PATH=/usr/bin \
+                  /lib64/ld-linux-x86-64.so.2 /usr/bin/env true
+              '';
+            }
           ];
         };
       };

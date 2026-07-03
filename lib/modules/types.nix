@@ -14,6 +14,25 @@ let
   nonEmptyStringType = types.addCheck types.str (value: value != "");
   nonEmptyStringListType = types.nonEmptyListOf nonEmptyStringType;
   positiveIntType = types.addCheck types.int (value: value > 0);
+  smokeScriptCommandType = types.oneOf [
+    nonEmptyStringType
+    types.path
+  ];
+  smokeScriptType = types.submodule {
+    options = {
+      command = mkOption {
+        type = smokeScriptCommandType;
+      };
+      shell = mkOption {
+        type = nonEmptyStringType;
+        default = "bash";
+      };
+      interactive = mkOption {
+        type = types.bool;
+        default = false;
+      };
+    };
+  };
   libraryPresetNames = [
     "autotools"
     "gtk"
@@ -28,8 +47,8 @@ let
       tags = mkOption {
         type = nonEmptyStringListType;
       };
-      command = mkOption {
-        type = nonEmptyStringListType;
+      scripts = mkOption {
+        type = types.nonEmptyListOf smokeScriptType;
       };
       requires = mkOption {
         type = types.listOf nonEmptyStringType;

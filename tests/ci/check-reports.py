@@ -67,6 +67,21 @@ def validate_smoke_plan_schema(smoke_plan):
     return smoke_tests, smoke_ids
 
 
+def validate_smoke_scripts(test_id, test):
+    scripts = test.get("scripts")
+    if not isinstance(scripts, list) or not scripts:
+        fail(f"smoke test {test_id} must include a non-empty scripts array")
+    for index, script in enumerate(scripts):
+        if not isinstance(script, dict):
+            fail(f"smoke test {test_id} script {index} must be an object")
+        if not isinstance(script.get("command"), str) or not script["command"]:
+            fail(f"smoke test {test_id} script {index} must include a non-empty command")
+        if not isinstance(script.get("shell"), str) or not script["shell"]:
+            fail(f"smoke test {test_id} script {index} must include a non-empty shell")
+        if not isinstance(script.get("interactive"), bool):
+            fail(f"smoke test {test_id} script {index} must include an interactive boolean")
+
+
 def walk_strings(value):
     if isinstance(value, str):
         yield value
@@ -229,10 +244,7 @@ def main() -> int:
             fail(f"smoke test {test_id} must include string tags")
         if "smoke" not in test["tags"]:
             fail(f"smoke test {test_id} must include the smoke tag")
-        if not isinstance(test.get("command"), list) or not all(
-            isinstance(part, str) and part for part in test["command"]
-        ):
-            fail(f"smoke test {test_id} must include a command array")
+        validate_smoke_scripts(test_id, test)
         if not isinstance(test.get("requires"), list) or not all(
             isinstance(requirement, str) and requirement for requirement in test["requires"]
         ):

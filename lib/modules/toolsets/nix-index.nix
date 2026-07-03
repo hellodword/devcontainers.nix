@@ -40,10 +40,16 @@ in
             "tooling"
             "nix-index"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "command -v nix-index >/dev/null && command -v nix-locate >/dev/null"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                set -e
+                command -v nix-index >/dev/null
+                command -v nix-locate >/dev/null
+              '';
+            }
           ];
         };
       };

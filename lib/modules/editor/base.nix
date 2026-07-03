@@ -120,18 +120,23 @@ in
           "editor"
           "vscode"
         ];
-        command = [
-          "bash"
-          "-lc"
-          (lib.concatStringsSep " " [
-            ''for root in "$HOME/.vscode-server" "$HOME/.vscode-server-insiders" "$HOME/.vscode-remote"; do''
-            ''settings="$root/data/Machine/settings.json";''
-            ''test -f "$settings" || exit 1;''
-            ''test -r "$settings" || exit 1;''
-            ''test ! -w "$settings" || exit 1;''
-            ''if printf '%s\n' '{}' >"$settings" 2>/dev/null; then exit 1; fi;''
-            "done"
-          ])
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              for root in "$HOME/.vscode-server" "$HOME/.vscode-server-insiders" "$HOME/.vscode-remote"; do
+                settings="$root/data/Machine/settings.json"
+                test -f "$settings"
+                test -r "$settings"
+                test ! -w "$settings"
+                if printf '%s\n' '{}' >"$settings" 2>/dev/null; then
+                  exit 1
+                fi
+              done
+            '';
+          }
         ];
       };
     };

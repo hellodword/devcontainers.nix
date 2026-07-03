@@ -257,7 +257,7 @@ Reports and CI checks enforce this design:
 
 Each compiler returns both build artifacts and structured data. Later compilers receive the outputs they need rather than recomputing state. This keeps the flow inspectable and makes reports match the actual image.
 
-Smoke plans expose stable case identity through `caseIds` and each test entry's `id`. Consumers should not treat the `tests[]` array order as a public contract.
+Smoke plans expose stable case identity through `caseIds` and each test entry's `id`. Each test entry contains ordered `scripts`; each script has a shell command string, shell name, and interactive flag. Consumers should run scripts in order for a case and should not treat the `tests[]` array order as a public contract.
 
 `compileReports` defines `baseReportEntries`, derives `ci-plan.json`
 `reportFiles`, and links the reports directory from those same entries. Report

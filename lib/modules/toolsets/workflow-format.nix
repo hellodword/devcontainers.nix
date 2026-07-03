@@ -38,10 +38,17 @@
         "tooling"
         "workflow-format"
       ];
-      command = [
-        "bash"
-        "-lc"
-        "just --version && just-lsp --version && shfmt --version"
+      scripts = [
+        {
+          shell = "bash";
+          interactive = false;
+          command = ''
+            set -e
+            just --version
+            just-lsp --version
+            shfmt --version
+          '';
+        }
       ];
     };
   };

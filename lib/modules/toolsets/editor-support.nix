@@ -39,10 +39,22 @@
         "tooling"
         "editor-support"
       ];
-      command = [
-        "bash"
-        "-lc"
-        "yaml-language-server --version && minijinja-cli --version && protoc --version && protols --version && buf --version && protolint version && grpcurl -version && api-linter --version"
+      scripts = [
+        {
+          shell = "bash";
+          interactive = false;
+          command = ''
+            set -e
+            yaml-language-server --version
+            minijinja-cli --version
+            protoc --version
+            protols --version
+            buf --version
+            protolint version
+            grpcurl -version
+            api-linter --version
+          '';
+        }
       ];
     };
   };

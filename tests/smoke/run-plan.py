@@ -4,6 +4,7 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -78,6 +79,31 @@ def command_line(parts: list[str]) -> str:
     return "".join(f"{shlex.quote(part)} " for part in parts)
 
 
+def shell_argv(script: dict) -> list[str]:
+    shell = script["shell"]
+    command = script["command"]
+    if script["interactive"]:
+        return [shell, "-ic", command]
+    if os.path.basename(shell) == "bash":
+        return [shell, "-lc", command]
+    return [shell, "-c", command]
+
+
+def validate_scripts(test_id: str, scripts) -> str | None:
+    if not isinstance(scripts, list) or not scripts:
+        return f"{test_id} must include a non-empty scripts array"
+    for index, script in enumerate(scripts):
+        if not isinstance(script, dict):
+            return f"{test_id} script {index} must be an object"
+        if not isinstance(script.get("command"), str) or not script["command"]:
+            return f"{test_id} script {index} must include a non-empty command"
+        if not isinstance(script.get("shell"), str) or not script["shell"]:
+            return f"{test_id} script {index} must include a non-empty shell"
+        if not isinstance(script.get("interactive"), bool):
+            return f"{test_id} script {index} must include an interactive boolean"
+    return None
+
+
 def write_and_print(log_file: Path, text: str, *, stderr: bool = False) -> None:
     log_file.write_text(text, encoding="utf-8")
     print(text, end="", file=sys.stderr if stderr else sys.stdout)
@@ -91,17 +117,34 @@ def decode_process_output(output: bytes | str | None) -> str:
     return output
 
 
+def remaining_timeout(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise subprocess.TimeoutExpired(["smoke case"], 0)
+    return remaining
+
+
+def run_with_deadline(command: list[str], deadline: float) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=remaining_timeout(deadline),
+    )
+
+
 def run_test(image_ref: str, test: dict, smoke_log_dir: Path) -> int:
     test_id = test.get("id")
     timeout_seconds = int(test.get("timeoutSeconds", 30))
-    command = test.get("command") or []
+    scripts = test.get("scripts") or []
     requires = test.get("requires") or []
     log_file = smoke_log_dir / f"{str(test_id).replace('/', '_')}.log"
 
-    if not command:
-        print(f"skip {test_id}")
-        log_file.write_text(f"skip {test_id}\nreason=empty command\n", encoding="utf-8")
-        return 0
+    script_error = validate_scripts(str(test_id), scripts)
+    if script_error is not None:
+        text = f"fail {test_id}\nreason={script_error}\n"
+        write_and_print(log_file, text, stderr=True)
+        return 1
 
     for requirement in requires:
         text = f"fail {test_id}\nunsupported requirement={requirement}\n"
@@ -115,26 +158,56 @@ def run_test(image_ref: str, test: dict, smoke_log_dir: Path) -> int:
         f"tags={json.dumps(test.get('tags'))}\n"
         f"requires={json.dumps(test.get('requires'))}\n"
         f"timeoutSeconds={timeout_seconds}\n"
-        f"command={command_line(command)}\n"
     )
-    docker_command = ["docker", "run", "--rm", "--entrypoint", command[0], image_ref, *command[1:]]
+    output = header
+    container_id = ""
     try:
-        result = subprocess.run(
-            docker_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=timeout_seconds,
-        )
-        output = header + decode_process_output(result.stdout)
+        deadline = time.monotonic() + timeout_seconds
+        create_result = run_with_deadline(["docker", "create", image_ref], deadline)
+        if create_result.returncode != 0:
+            output += decode_process_output(create_result.stdout)
+            log_file.write_text(output, encoding="utf-8")
+            print(output, end="")
+            return create_result.returncode
+
+        container_id = decode_process_output(create_result.stdout).strip().splitlines()[-1]
+        start_result = run_with_deadline(["docker", "start", container_id], deadline)
+        if start_result.returncode != 0:
+            output += decode_process_output(start_result.stdout)
+            log_file.write_text(output, encoding="utf-8")
+            print(output, end="")
+            return start_result.returncode
+
+        for index, script in enumerate(scripts):
+            script_argv = shell_argv(script)
+            output += f"script[{index}]={command_line(script_argv)}\n"
+            result = run_with_deadline(["docker", "exec", container_id, *script_argv], deadline)
+            output += decode_process_output(result.stdout)
+            if result.returncode != 0:
+                log_file.write_text(output, encoding="utf-8")
+                print(output, end="")
+                return result.returncode
+
         log_file.write_text(output, encoding="utf-8")
         print(output, end="")
-        return result.returncode
+        return 0
     except subprocess.TimeoutExpired as exc:
         partial = decode_process_output(exc.stdout)
-        output = header + partial + f"timeout after {timeout_seconds}s\n"
+        output += partial + f"timeout after {timeout_seconds}s\n"
         log_file.write_text(output, encoding="utf-8")
         print(output, end="")
         return 124
+    finally:
+        if container_id:
+            try:
+                subprocess.run(
+                    ["docker", "rm", "-f", container_id],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    timeout=30,
+                )
+            except subprocess.SubprocessError:
+                pass
 
 
 def main(argv: list[str]) -> int:

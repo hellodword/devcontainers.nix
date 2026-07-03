@@ -31,9 +31,12 @@ in
         "tooling"
         "codex"
       ];
-      command = [
-        "codex"
-        "--version"
+      scripts = [
+        {
+          shell = "bash";
+          interactive = false;
+          command = "codex --version";
+        }
       ];
     };
     tests.cases."opencode.cli" = {
@@ -42,9 +45,12 @@ in
         "tooling"
         "opencode"
       ];
-      command = [
-        "opencode"
-        "--version"
+      scripts = [
+        {
+          shell = "bash";
+          interactive = false;
+          command = "opencode --version";
+        }
       ];
     };
   };

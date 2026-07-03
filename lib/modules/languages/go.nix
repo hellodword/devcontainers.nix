@@ -99,10 +99,21 @@ in
           "language"
           "go"
         ];
-        command = [
-          "bash"
-          "-lc"
-          "go version && test \"$GOTOOLCHAIN\" = local && gopls version && dlv version && golangci-lint version && (govulncheck -version || govulncheck --version) && command -v gotests gomodifytags impl protoc-gen-go >/dev/null"
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              go version
+              test "$GOTOOLCHAIN" = local
+              gopls version
+              dlv version
+              golangci-lint version
+              (govulncheck -version || govulncheck --version)
+              command -v gotests gomodifytags impl protoc-gen-go >/dev/null
+            '';
+          }
         ];
       };
     };

@@ -12,6 +12,8 @@ let
   smokeCase =
     id: image:
     lib.findFirst (test: test.id == id) (throw "missing smoke case ${id}") (smokePlan image).tests;
+  smokeCaseCommandText =
+    id: image: lib.concatStringsSep " " (map (script: script.command) (smokeCase id image).scripts);
   extensionById =
     image: id:
     lib.findFirst (
@@ -64,6 +66,26 @@ let
             programs.ssh.knownHosts.localhost.publicKey =
               "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICodexCodexCodexCodexCodexCodexCodexCodexCodex";
             programs.nix-index.enable = true;
+            devcontainer.tests.cases = {
+              "smoke.path-command" = {
+                tags = [ "smoke" ];
+                scripts = [
+                  {
+                    shell = "bash";
+                    interactive = false;
+                    command = ../../../runtime/devcontainer-gui-env/main.sh;
+                  }
+                ];
+              };
+              "smoke.default-script-fields" = {
+                tags = [ "smoke" ];
+                scripts = [
+                  {
+                    command = "true";
+                  }
+                ];
+              };
+            };
           };
         }
       )
@@ -117,7 +139,9 @@ let
       )
     ];
   };
-  customLocaleCommand = lib.concatStringsSep " " (smokeCase "shell.locale" customLocaleImage).command;
+  pathCommandScript = builtins.head (smokeCase "smoke.path-command" apiEvalImage).scripts;
+  defaultFieldsScript = builtins.head (smokeCase "smoke.default-script-fields" apiEvalImage).scripts;
+  customLocaleCommand = smokeCaseCommandText "shell.locale" customLocaleImage;
   vscodeProjectionSuffix = "/extensions";
   vscodeMachineSettingsPathForProjectionTarget =
     target:
@@ -152,10 +176,8 @@ let
     ];
   };
   shellFeatureCaseIds = smokeCaseIds shellFeatureEvalImage;
-  shellFeatureInteractiveCommand = lib.concatStringsSep " " (smokeCase "shell.interactive" shellFeatureEvalImage)
-  .command;
-  shellFeatureDevpkgCommand = lib.concatStringsSep " " (smokeCase "devpkg.core" shellFeatureEvalImage)
-  .command;
+  shellFeatureInteractiveCommand = smokeCaseCommandText "shell.interactive" shellFeatureEvalImage;
+  shellFeatureDevpkgCommand = smokeCaseCommandText "devpkg.core" shellFeatureEvalImage;
 
   flutterCoreEvalImage = compiler.mkImage {
     modules = [
@@ -265,7 +287,6 @@ let
         }).profileReport
         null
     )).success;
-
   profileIncludeEvalImage = compiler.mkImage {
     modules = [
       (
@@ -366,7 +387,13 @@ let
           env.variables.TEST_BUNDLE = "1";
           tests.cases."test.bundle" = {
             tags = [ "smoke" ];
-            command = [ "true" ];
+            scripts = [
+              {
+                shell = "bash";
+                interactive = false;
+                command = "true";
+              }
+            ];
           };
         };
       };
@@ -404,6 +431,12 @@ in
     assert lib.hasInfix "complete -p git" apiEvalImage.shell.bashrcText;
     assert lib.hasInfix "share/bash-completion/completions/git" apiEvalImage.shell.bashrcText;
     assert apiVscodeMachineSettings.settings == apiEvalImage.profiles.settings;
+    assert pathCommandScript.command == builtins.readFile ../../../runtime/devcontainer-gui-env/main.sh;
+    assert pathCommandScript.shell == "bash";
+    assert !(pathCommandScript.interactive);
+    assert defaultFieldsScript.command == "true";
+    assert defaultFieldsScript.shell == "bash";
+    assert !(defaultFieldsScript.interactive);
     assert apiVscodeMachineSettingsPaths == expectedVscodeMachineSettingsPaths;
     assert lib.all (
       entry:

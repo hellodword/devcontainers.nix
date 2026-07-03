@@ -124,10 +124,19 @@ in
           "base"
           "user"
         ];
-        command = [
-          "bash"
-          "-lc"
-          "test \"$(id -un)\" = vscode && test \"$(id -u)\" = 1000 && test \"$(id -gn)\" = vscode && test \"$(id -g)\" = 1000 && test \"$HOME\" = /home/vscode"
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              test "$(id -un)" = vscode
+              test "$(id -u)" = 1000
+              test "$(id -gn)" = vscode
+              test "$(id -g)" = 1000
+              test "$HOME" = /home/vscode
+            '';
+          }
         ];
       };
       "base.filesystem" = {
@@ -138,10 +147,19 @@ in
           "base"
           "filesystem"
         ];
-        command = [
-          "bash"
-          "-lc"
-          "test -w /tmp && test -w /var/tmp && test -w /workspaces && test \"$XDG_RUNTIME_DIR\" = /run/user/1000 && test -d \"$XDG_RUNTIME_DIR\""
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              test -w /tmp
+              test -w /var/tmp
+              test -w /workspaces
+              test "$XDG_RUNTIME_DIR" = /run/user/1000
+              test -d "$XDG_RUNTIME_DIR"
+            '';
+          }
         ];
       };
       "base.nix-store" = {
@@ -152,10 +170,17 @@ in
           "base"
           "nix"
         ];
-        command = [
-          "bash"
-          "-lc"
-          "test -d /nix/var/nix && test -w /nix/store && test -w /nix/var/nix/db"
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              test -d /nix/var/nix
+              test -w /nix/store
+              test -w /nix/var/nix/db
+            '';
+          }
         ];
       };
     };

@@ -44,9 +44,9 @@ let
     "fc-pattern"
   ];
   fontPackages = cfg.packages ++ lib.optional fontconfig.enable fontconfig.package;
-  toolSmokeCommand = lib.concatMapStringsSep " && " (
-    tool: "command -v ${tool} >/dev/null"
-  ) fontconfigTools;
+  toolSmokeCommand = lib.concatStringsSep "\n" (
+    [ "set -e" ] ++ map (tool: "command -v ${tool} >/dev/null") fontconfigTools
+  );
 in
 {
   options.devcontainer.fonts = {
@@ -150,10 +150,12 @@ in
                 "e2e-baseline"
                 "fontconfig"
               ];
-              command = [
-                "bash"
-                "-lc"
-                toolSmokeCommand
+              scripts = [
+                {
+                  shell = "bash";
+                  interactive = false;
+                  command = toolSmokeCommand;
+                }
               ];
             };
             "fontconfig.cjk-emoji" = {
@@ -165,10 +167,18 @@ in
                 "cjk"
                 "emoji"
               ];
-              command = [
-                "bash"
-                "-lc"
-                "fc-match 'sans-serif:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Sans CJK SC' >/dev/null && fc-match 'serif:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Serif CJK SC' >/dev/null && fc-match 'monospace:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Sans Mono CJK SC' >/dev/null && fc-match 'emoji:charset=0x1f600' | grep -F 'Noto Color Emoji' >/dev/null"
+              scripts = [
+                {
+                  shell = "bash";
+                  interactive = false;
+                  command = ''
+                    set -e
+                    fc-match 'sans-serif:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Sans CJK SC' >/dev/null
+                    fc-match 'serif:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Serif CJK SC' >/dev/null
+                    fc-match 'monospace:lang=zh-cn:charset=0x95e8' | grep -F 'Noto Sans Mono CJK SC' >/dev/null
+                    fc-match 'emoji:charset=0x1f600' | grep -F 'Noto Color Emoji' >/dev/null
+                  '';
+                }
               ];
             };
           };

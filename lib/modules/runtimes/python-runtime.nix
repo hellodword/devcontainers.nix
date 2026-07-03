@@ -67,10 +67,21 @@ in
           "runtime"
           "python"
         ];
-        command = [
-          "bash"
-          "-lc"
-          "python --version && python3 --version && pip --version && pip3 --version && uv --version && uvx --version && python -c 'import ssl, sqlite3, ctypes'"
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              python --version
+              python3 --version
+              pip --version
+              pip3 --version
+              uv --version
+              uvx --version
+              python -c 'import ssl, sqlite3, ctypes'
+            '';
+          }
         ];
       };
     };

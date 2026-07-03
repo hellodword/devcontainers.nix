@@ -22,10 +22,19 @@
             "web"
             "rust"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "rustc --version && cargo --version && node --version && npm --version && pnpm --version"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                set -e
+                rustc --version
+                cargo --version
+                node --version
+                npm --version
+                pnpm --version
+              '';
+            }
           ];
         };
       };

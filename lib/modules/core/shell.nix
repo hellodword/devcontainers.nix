@@ -45,14 +45,17 @@ let
     locale.glibcLocales
   ]
   ++ lib.optionals (cfg.enable && cfg.completion.enable) [ pkgs.bash-completion ];
-  shellLocaleCommand = lib.concatStringsSep " && " [
-    ''test "$LANG" = ${lib.escapeShellArg config.i18n.defaultLocale}''
-    ''test "$LANGUAGE" = ${lib.escapeShellArg config.i18n.language}''
-    ''test -r "$LOCALE_ARCHIVE"''
-    "test -e /etc/localtime"
-    "test -d /etc/zoneinfo"
-    ''test "$TZDIR" = /etc/zoneinfo''
-  ];
+  shellLocaleCommand = lib.concatStringsSep "\n" (
+    [ "set -e" ]
+    ++ [
+      ''test "$LANG" = ${lib.escapeShellArg config.i18n.defaultLocale}''
+      ''test "$LANGUAGE" = ${lib.escapeShellArg config.i18n.language}''
+      ''test -r "$LOCALE_ARCHIVE"''
+      "test -e /etc/localtime"
+      "test -d /etc/zoneinfo"
+      ''test "$TZDIR" = /etc/zoneinfo''
+    ]
+  );
   shellInteractiveChecks = [
     "alias ll >/dev/null"
     "alias sha3-256sum >/dev/null"
@@ -202,10 +205,12 @@ in
           "shell"
           "locale"
         ];
-        command = [
-          "bash"
-          "-lc"
-          shellLocaleCommand
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = shellLocaleCommand;
+          }
         ];
       };
     }
@@ -218,10 +223,12 @@ in
           "e2e-baseline"
           "shell"
         ];
-        command = [
-          "bash"
-          "-ic"
-          (lib.concatStringsSep " && " shellInteractiveChecks)
+        scripts = [
+          {
+            shell = "bash";
+            interactive = true;
+            command = lib.concatStringsSep "\n" ([ "set -e" ] ++ shellInteractiveChecks);
+          }
         ];
       };
     })

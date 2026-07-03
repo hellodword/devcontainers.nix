@@ -75,10 +75,12 @@ in
         "e2e-baseline"
         "devpkg"
       ];
-      command = [
-        "bash"
-        (if config.programs.bash.enable && config.programs.bash.completion.enable then "-ic" else "-lc")
-        (lib.concatStringsSep " && " devpkgCoreChecks)
+      scripts = [
+        {
+          shell = "bash";
+          interactive = config.programs.bash.enable && config.programs.bash.completion.enable;
+          command = lib.concatStringsSep "\n" ([ "set -e" ] ++ devpkgCoreChecks);
+        }
       ];
     };
   };

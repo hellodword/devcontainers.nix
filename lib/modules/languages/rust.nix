@@ -99,10 +99,20 @@ in
           "language"
           "rust"
         ];
-        command = [
-          "bash"
-          "-lc"
-          "rustc --version && cargo --version && rustfmt --version && cargo clippy --version && rust-analyzer --version && rustup --version"
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              rustc --version
+              cargo --version
+              rustfmt --version
+              cargo clippy --version
+              rust-analyzer --version
+              rustup --version
+            '';
+          }
         ];
       };
     };

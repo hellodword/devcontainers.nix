@@ -22,10 +22,19 @@
             "web"
             "go"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "go version && gopls version && node --version && npm --version && pnpm --version"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                set -e
+                go version
+                gopls version
+                node --version
+                npm --version
+                pnpm --version
+              '';
+            }
           ];
         };
       };

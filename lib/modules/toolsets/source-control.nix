@@ -48,10 +48,19 @@ in
             "git"
             "ssh"
           ];
-          command = [
-            "bash"
-            "-ic"
-            "test -r /etc/gitconfig && git config --system --list >/dev/null && complete -p git >/dev/null && test -r /etc/ssh/ssh_config && ssh -G example.com >/dev/null"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = true;
+              command = ''
+                set -e
+                test -r /etc/gitconfig
+                git config --system --list >/dev/null
+                complete -p git >/dev/null
+                test -r /etc/ssh/ssh_config
+                ssh -G example.com >/dev/null
+              '';
+            }
           ];
         };
       };

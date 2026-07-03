@@ -10,6 +10,20 @@ let
   profileCaseIds =
     compiledProfiles.testCaseIds or (lib.sort lib.lessThan (builtins.attrNames profileCases));
   declaredCaseIds = topLevelCaseIds ++ profileCaseIds;
+  normalizeCommand =
+    caseId: command:
+    let
+      normalized = if builtins.typeOf command == "path" then builtins.readFile command else command;
+    in
+    assert lib.assertMsg (normalized != "") "smoke case ${caseId} script command must not be empty";
+    normalized;
+  normalizeScript = caseId: script: {
+    command = normalizeCommand caseId script.command;
+    inherit (script)
+      shell
+      interactive
+      ;
+  };
   groupedCaseEntries = lib.groupBy (entry: entry.id) (
     (lib.mapAttrsToList (caseId: case: {
       id = caseId;
@@ -44,10 +58,10 @@ let
       id = caseId;
       inherit (case)
         tags
-        command
         requires
         timeoutSeconds
         ;
+      scripts = map (normalizeScript caseId) case.scripts;
     }
   ) caseIds;
 in

@@ -500,18 +500,36 @@ let
         require test -f "$smoke_plan"
         jq -c '.tests[] | select(.tags | index("e2e-baseline"))' "$smoke_plan" | while IFS= read -r test_case; do
           id="$(printf '%s' "$test_case" | jq -r '.id')"
-          mapfile -t command_parts < <(printf '%s' "$test_case" | jq -r '.command[]')
+          script_count="$(printf '%s' "$test_case" | jq -r '.scripts | length')"
           timeout_seconds="$(printf '%s' "$test_case" | jq -r '(.timeoutSeconds // 30) * ${toString timeoutScaleValue}')"
-          if [ "''${#command_parts[@]}" -eq 0 ]; then
+          if [ "$script_count" -eq 0 ]; then
             echo "skip smoke $id"
             continue
           fi
 
           echo "==> smoke $id"
-          printf 'command='
-          printf '%q ' "''${command_parts[@]}"
+          timeout "$timeout_seconds" bash -s -- "$test_case" <<'SMOKE_CASE'
+        set -euo pipefail
+        test_case="$1"
+        script_index=0
+        while IFS= read -r script; do
+          shell="$(printf '%s' "$script" | jq -r '.shell')"
+          interactive="$(printf '%s' "$script" | jq -r '.interactive')"
+          command="$(printf '%s' "$script" | jq -r '.command')"
+          if [ "$interactive" = true ]; then
+            argv=("$shell" "-ic" "$command")
+          elif [ "$(basename "$shell")" = bash ]; then
+            argv=("$shell" "-lc" "$command")
+          else
+            argv=("$shell" "-c" "$command")
+          fi
+          printf 'script[%s]=' "$script_index"
+          printf '%q ' "''${argv[@]}"
           printf '\n'
-          timeout "$timeout_seconds" "''${command_parts[@]}"
+          "''${argv[@]}"
+          script_index=$((script_index + 1))
+        done < <(printf '%s' "$test_case" | jq -c '.scripts[]')
+        SMOKE_CASE
         done
       '';
     in

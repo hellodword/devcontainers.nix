@@ -144,10 +144,19 @@ in
             "language"
             "flutter"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "flutter --version && dart --version && java -version && gradle --version && protoc-gen-dart --version"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                set -e
+                flutter --version
+                dart --version
+                java -version
+                gradle --version
+                protoc-gen-dart --version
+              '';
+            }
           ];
           timeoutSeconds = 60;
         };
@@ -172,10 +181,12 @@ in
             "android"
             "flutter"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "command -v adb fastboot >/dev/null"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = "command -v adb fastboot >/dev/null";
+            }
           ];
         };
       };
@@ -201,10 +212,12 @@ in
             "gpu"
             "flutter"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "command -v chromium glxinfo >/dev/null"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = "command -v chromium glxinfo >/dev/null";
+            }
           ];
         };
       };
@@ -230,10 +243,18 @@ in
             "flutter"
             "rust-bridge"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "flutter_rust_bridge_codegen --version && sqlx --version && sqlite3 --version && command -v sqlitebrowser >/dev/null"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                set -e
+                flutter_rust_bridge_codegen --version
+                sqlx --version
+                sqlite3 --version
+                command -v sqlitebrowser >/dev/null
+              '';
+            }
           ];
         };
       };

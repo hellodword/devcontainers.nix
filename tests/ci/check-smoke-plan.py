@@ -54,6 +54,21 @@ def validate_profile_report_schema(profile_report):
         fail("profile-report.json tests must not contain capability fields")
 
 
+def validate_smoke_scripts(test_id, test):
+    scripts = test.get("scripts")
+    if not isinstance(scripts, list) or not scripts:
+        fail(f"{test_id} must include a non-empty scripts array")
+    for index, script in enumerate(scripts):
+        if not isinstance(script, dict):
+            fail(f"{test_id} script {index} must be an object")
+        if not isinstance(script.get("command"), str) or not script["command"]:
+            fail(f"{test_id} script {index} must include a non-empty command")
+        if not isinstance(script.get("shell"), str) or not script["shell"]:
+            fail(f"{test_id} script {index} must include a non-empty shell")
+        if not isinstance(script.get("interactive"), bool):
+            fail(f"{test_id} script {index} must include an interactive boolean")
+
+
 def main() -> int:
     if len(sys.argv) not in {3, 4}:
         print(
@@ -79,10 +94,7 @@ def main() -> int:
             fail("each smoke test must include a non-empty id")
         if not isinstance(test.get("tags"), list) or not all(isinstance(tag, str) and tag for tag in test["tags"]):
             fail(f"{test_id} must include string tags")
-        if not isinstance(test.get("command"), list) or not all(
-            isinstance(part, str) and part for part in test["command"]
-        ):
-            fail(f"{test_id} must include a non-empty command array")
+        validate_smoke_scripts(test_id, test)
         if not isinstance(test.get("requires"), list) or not all(
             isinstance(requirement, str) and requirement for requirement in test["requires"]
         ):

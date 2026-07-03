@@ -104,10 +104,22 @@ in
           "language"
           "python"
         ];
-        command = [
-          "bash"
-          "-lc"
-          "pipx --version && ruff --version && mypy --version && pytest --version && ipython --version && black --version && pylint --version && bandit --version"
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              pipx --version
+              ruff --version
+              mypy --version
+              pytest --version
+              ipython --version
+              black --version
+              pylint --version
+              bandit --version
+            '';
+          }
         ];
       };
     };

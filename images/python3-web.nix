@@ -22,10 +22,22 @@
             "web"
             "python"
           ];
-          command = [
-            "bash"
-            "-lc"
-            "python --version && uv --version && node --version && npm --version && pnpm --version && ruff --version && eslint --version && prettier --version"
+          scripts = [
+            {
+              shell = "bash";
+              interactive = false;
+              command = ''
+                set -e
+                python --version
+                uv --version
+                node --version
+                npm --version
+                pnpm --version
+                ruff --version
+                eslint --version
+                prettier --version
+              '';
+            }
           ];
         };
       };

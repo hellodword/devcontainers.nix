@@ -62,10 +62,18 @@ in
           "nodejs"
           "node"
         ];
-        command = [
-          "bash"
-          "-lc"
-          "node --version && npm --version && npx --version && corepack --version"
+        scripts = [
+          {
+            shell = "bash";
+            interactive = false;
+            command = ''
+              set -e
+              node --version
+              npm --version
+              npx --version
+              corepack --version
+            '';
+          }
         ];
       };
     };
