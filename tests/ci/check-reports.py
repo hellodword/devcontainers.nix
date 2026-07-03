@@ -6,6 +6,8 @@ import re
 import subprocess
 import sys
 
+from layer_budget import BudgetError, parse_budget, planned_layer_groups as get_planned_layer_groups
+
 ALLOWED_NON_CI_REPORT_FILES = {
     "graph-duplicates-report.json",
     "graph-normalized.json",
@@ -150,6 +152,7 @@ def main() -> int:
     metadata_schema = read_json(reports_dir / "metadata-schema-report.json")
     profile_report = read_json(reports_dir / "profile-report.json")
     layer_plan = read_json(reports_dir / "layer-plan.json")
+    layer_closure_report = read_json(reports_dir / "layer-closure-report.json")
     extensions_report = read_json(reports_dir / "extensions-report.json")
     extensions_index = read_json(reports_dir / "extensions-index.json")
     filesystem_report = read_json(reports_dir / "filesystem-report.json")
@@ -216,12 +219,38 @@ def main() -> int:
                 fail(f"{report_name} appears to contain sensitive material")
 
     layer_count = len(layer_plan["layers"])
-    layer_max = int(layer_plan["budget"]["max"])
     max_layer_size = layer_plan["budget"].get("maxLayerSize")
     if not isinstance(max_layer_size, str) or not SIZE_BUDGET_RE.match(max_layer_size):
         fail("layer-plan.json budget must include maxLayerSize, for example 8GiB")
-    if layer_count > layer_max:
-        fail(f"layer count {layer_count} exceeds budget {layer_max}")
+    try:
+        layer_budget = parse_budget(layer_plan)
+        planned_layer_groups = get_planned_layer_groups(layer_plan)
+    except BudgetError as exc:
+        fail(str(exc))
+    if layer_plan["budget"].get("semanticMax") != layer_budget["semanticMax"]:
+        fail("layer-plan.json budget must include semanticMax")
+    if layer_count > layer_budget["semanticMax"]:
+        fail(f"semantic layer count {layer_count} exceeds budget {layer_budget['semanticMax']}")
+    if layer_closure_report.get("budget") != layer_plan.get("budget"):
+        fail("layer-closure-report.json budget must match layer-plan.json")
+    if layer_closure_report.get("order") != planned_layer_groups:
+        fail("layer-closure-report.json order must match layer-plan.json")
+    closure_layers = layer_closure_report.get("layers")
+    if not isinstance(closure_layers, list):
+        fail("layer-closure-report.json layers must be an array")
+    closure_groups = [layer.get("group") for layer in closure_layers if isinstance(layer, dict)]
+    if closure_groups != planned_layer_groups:
+        fail("layer-closure-report.json layer groups must match layer-plan.json")
+    for closure_layer in closure_layers:
+        for field in ["rootPathCount", "closurePathCount", "closureSizeBytes"]:
+            value = closure_layer.get(field)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                fail(f"layer-closure-report.json {closure_layer.get('group')} {field} must be non-negative")
+        closure_store_paths = closure_layer.get("closureStorePaths")
+        if not isinstance(closure_store_paths, list) or not all(
+            isinstance(path, str) and path for path in closure_store_paths
+        ):
+            fail(f"layer-closure-report.json {closure_layer.get('group')} closureStorePaths must contain strings")
     for layer in layer_plan["layers"]:
         if not layer["build"]["copyToRoot"]:
             fail(f"layer {layer['group']} must be buildable as a copyToRoot layer")

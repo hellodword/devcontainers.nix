@@ -22,19 +22,60 @@ def write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
-def write_layer_plan(reports_dir: Path, max_layer_size: str) -> None:
+def layer_budget(max_layer_size: str = "8GiB", max_layers: int = 100, reserve: int = 20) -> dict:
+    return {
+        "strategy": "balanced",
+        "max": max_layers,
+        "reserve": reserve,
+        "semanticMax": max_layers - reserve,
+        "maxLayerSize": max_layer_size,
+    }
+
+
+def write_layer_reports(
+    reports_dir: Path,
+    max_layer_size: str = "8GiB",
+    groups: list[str] | None = None,
+    max_layers: int = 100,
+    reserve: int = 20,
+) -> None:
+    groups = groups or []
+    budget = layer_budget(max_layer_size, max_layers, reserve)
     write_json(
         reports_dir / "layer-plan.json",
         {
-            "budget": {
-                "strategy": "balanced",
-                "max": 100,
-                "reserve": 20,
-                "maxLayerSize": max_layer_size,
-            },
-            "layers": [],
+            "budget": budget,
+            "order": groups,
+            "layers": [{"group": group} for group in groups],
         },
     )
+    write_json(
+        reports_dir / "layer-closure-report.json",
+        {
+            "budget": budget,
+            "order": groups,
+            "layers": [
+                {
+                    "group": group,
+                    "rootPathCount": 0,
+                    "closurePathCount": 0,
+                    "closureSizeBytes": 0,
+                    "closureStorePaths": [],
+                }
+                for group in groups
+            ],
+        },
+    )
+
+
+def semantic_layer(group: str, size: int = 2048) -> dict:
+    return {
+        "digest": f"sha256:{group}",
+        "size": size,
+        "diff_ids": f"sha256:{group}",
+        "mediatype": "application/vnd.oci.image.layer.v1.tar",
+        "History": {"created_by": f"devcontainers.nix semantic layer {group}"},
+    }
 
 
 def main() -> int:
@@ -91,7 +132,8 @@ def main() -> int:
         )
 
         checker = repo_root / "tests" / "ci" / "check-image-tar.py"
-        write_layer_plan(reports_dir, "8GiB")
+        budget_checker = repo_root / "tests" / "ci" / "check-layer-budget.py"
+        write_layer_reports(reports_dir, "8GiB")
         passing = subprocess.run(
             [
                 sys.executable,
@@ -109,7 +151,7 @@ def main() -> int:
         if "image-artifact-check ok: fixture" not in passing.stdout:
             fail("expected image artifact checker to pass fixture")
 
-        write_layer_plan(reports_dir, "1KiB")
+        write_layer_reports(reports_dir, "1KiB")
         failing = subprocess.run(
             [
                 sys.executable,
@@ -125,6 +167,45 @@ def main() -> int:
         )
         if failing.returncode == 0 or "exceeds max layer size 1024 B" not in failing.stderr:
             fail("expected oversized layer validation to fail")
+
+        write_json(image_path, {"layers": [{"size": 1}, {"size": 1}]})
+        write_layer_reports(reports_dir, "8GiB", max_layers=1, reserve=0)
+        too_many_layers = subprocess.run(
+            [sys.executable, str(budget_checker), str(image_path), str(reports_dir), "fixture"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if too_many_layers.returncode == 0 or "image layer count 2 exceeds budget 1" not in too_many_layers.stderr:
+            fail("expected total layer count validation to fail")
+
+        write_json(image_path, {"layers": [semantic_layer("one"), semantic_layer("two")]})
+        write_layer_reports(reports_dir, "8GiB", groups=["one", "two"], max_layers=2, reserve=1)
+        too_many_semantic_layers = subprocess.run(
+            [sys.executable, str(budget_checker), str(image_path), str(reports_dir), "fixture"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if (
+            too_many_semantic_layers.returncode == 0
+            or "semantic layer count 2 exceeds budget 1" not in too_many_semantic_layers.stderr
+        ):
+            fail("expected semantic layer count validation to fail")
+
+        write_json(image_path, {"layers": [semantic_layer("two")]})
+        write_layer_reports(reports_dir, "8GiB", groups=["one"], max_layers=10, reserve=0)
+        mismatched_groups = subprocess.run(
+            [sys.executable, str(budget_checker), str(image_path), str(reports_dir), "fixture"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if (
+            mismatched_groups.returncode == 0
+            or "image semantic layer groups do not match layer-plan.json order" not in mismatched_groups.stderr
+        ):
+            fail("expected semantic layer group validation to fail")
 
     print("image-tar-fixture ok")
     return 0

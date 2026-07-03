@@ -173,22 +173,6 @@ let
           compiledGraph = graph;
         };
         flakeInputs = compileFlakeInputs;
-        image = compileImage {
-          config = evaluated.config;
-          compiledEnvironment = environment;
-          compiledEnv = env;
-          compiledFlakeInputs = flakeInputs;
-          compiledLibraries = libraries;
-          compiledMetadata = metadata;
-          compiledLifecycle = lifecycle;
-          compiledShell = shell;
-          compiledFonts = fonts;
-          compiledVscodeExtensions = vscodeExtensions;
-          compiledFhsRuntime = fhsRuntime;
-          compiledFilesystem = filesystem;
-          compiledGraph = graph;
-          compiledLayers = layers;
-        };
         reports = compileReports {
           config = evaluated.config;
           compiledEnvironment = environment;
@@ -206,6 +190,23 @@ let
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
           compiledLayers = layers;
+        };
+        image = compileImage {
+          config = evaluated.config;
+          compiledEnvironment = environment;
+          compiledEnv = env;
+          compiledFlakeInputs = flakeInputs;
+          compiledLibraries = libraries;
+          compiledMetadata = metadata;
+          compiledLifecycle = lifecycle;
+          compiledShell = shell;
+          compiledFonts = fonts;
+          compiledVscodeExtensions = vscodeExtensions;
+          compiledFhsRuntime = fhsRuntime;
+          compiledFilesystem = filesystem;
+          compiledGraph = graph;
+          compiledLayers = layers;
+          compiledReports = reports;
         };
       in
       {
@@ -228,8 +229,11 @@ let
         inherit lifecycle vscodeExtensions;
         profileReport = profiles.report;
         inherit (image)
+          rawOci
           rootfs
           oci
+          validatedOci
+          budgetCheck
           copyToDockerDaemon
           ;
         inherit (reports)

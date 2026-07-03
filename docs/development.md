@@ -64,11 +64,16 @@ Build reports for one image:
 nix build .#images.nix.reports
 ```
 
-Build the nix2container image artifact:
+Build the checked nix2container image artifact:
 
 ```sh
 nix build .#images.nix.oci
 ```
+
+This output depends on the layer budget gate. Inspect `layer-plan.json` for
+planned semantic buckets and `layer-closure-report.json` for real NAR closure
+sizes. The hard registry-facing limit is checked against final OCI layer sizes
+from the nix2container image JSON.
 
 Load an image into the local Docker daemon:
 
@@ -257,7 +262,8 @@ Add or update a smoke case when the library affects a user-visible runtime or
 build path. Update report assertions when library buckets, dynamic-linker
 inputs, or library presets change.
 Run `nix flake check`; for affected images, inspect `libraries-report.json`,
-`env-report.json`, `fhs-runtime-report.json`, and `closure-report.json`.
+`env-report.json`, `fhs-runtime-report.json`, `closure-report.json`, and
+`layer-closure-report.json`.
 
 ### Add An Environment Variable
 

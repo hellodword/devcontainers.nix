@@ -37,6 +37,7 @@
   compiledFonts,
   compiledGraph,
   compiledLayers,
+  compiledReports,
 }:
 let
   renderJson = value: builtins.toFile "payload.json" (builtins.toJSON value);
@@ -267,9 +268,49 @@ let
       semanticLayerCount = builtins.length semanticLayerState.layers;
     };
   };
+
+  budgetCheck =
+    pkgs.runCommand "${config.devcontainer.image.name}-layer-budget-check"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+        preferLocalBuild = true;
+      }
+      ''
+        export PYTHONPATH=${../../tests/ci}
+        python3 ${../../tests/ci/check-layer-budget.py} ${image} ${compiledReports.reports} ${lib.escapeShellArg config.devcontainer.image.name}
+        touch "$out"
+      '';
+
+  checkedCopyToDockerDaemon = pkgs.writeShellApplication {
+    name = image.copyToDockerDaemon.name or "copy-to-docker-daemon";
+    text = ''
+      test -e ${budgetCheck}
+      exec ${lib.getExe image.copyToDockerDaemon} "$@"
+    '';
+  };
+
+  validatedOci =
+    pkgs.runCommand "${image.name}-budget-checked"
+      {
+        passthru = (image.passthru or { }) // {
+          rawOci = image;
+          inherit budgetCheck checkedCopyToDockerDaemon;
+          copyToDockerDaemon = checkedCopyToDockerDaemon;
+          imageName = image.imageName;
+          imageTag = image.imageTag;
+          imageRefUnsafe = image.imageRefUnsafe;
+        };
+        meta = image.meta or { };
+      }
+      ''
+        test -e ${budgetCheck}
+        cp ${image} "$out"
+      '';
 in
 {
   inherit rootfs;
-  oci = image;
-  copyToDockerDaemon = image.copyToDockerDaemon;
+  rawOci = image;
+  oci = validatedOci;
+  inherit budgetCheck validatedOci;
+  copyToDockerDaemon = checkedCopyToDockerDaemon;
 }

@@ -196,7 +196,7 @@ Ordering comes only from each bucket definition's `order` value.
 - dynamic runtime and build libraries
 - VS Code extensions and generated metadata
 
-`lib/compiler/layers.nix` groups graph nodes by bucket and emits a layer plan. The default budget is 100 semantic buckets with 20 reserved slots. The default maximum layer size is `8GiB`, below the registry's documented 10 GB per-layer limit.
+`lib/compiler/layers.nix` groups graph nodes by bucket and emits a layer plan. The default final layer budget is 100 layers with 20 slots reserved for non-semantic image construction, leaving 80 semantic buckets by default. The default maximum layer size is `8GiB`, below the registry's documented 10 GB per-layer limit.
 
 Layer bucket order is derived from owner-local
 `devcontainer.layers.bucketDefinitions`. PATH order is derived from
@@ -225,12 +225,13 @@ things. A smaller layer order means an earlier, lower-level, more stable image
 construction position. A smaller PATH order means the segment appears earlier in
 `PATH` and has higher command lookup precedence.
 
-`lib/compiler/image.nix` builds each semantic bucket as an explicit nix2container layer with `maxLayers = 1`. The final customization layer uses a small bounded number of layers for runtime helpers, metadata, generated filesystem files, and the Nix database.
+`lib/compiler/image.nix` builds each semantic bucket as an explicit nix2container layer with `maxLayers = 1`. The final customization layer uses a small bounded number of layers for runtime helpers, metadata, generated filesystem files, and the Nix database. `devcontainer.layers.max` is the final OCI layer budget, `reserve` is held back for non-semantic layers, and `semanticMax` is computed as `max - reserve`.
 
 Reports and CI checks enforce this design:
 
-- `layer-plan.json` explains the planned buckets
-- image tar checks inspect the final nix2container image JSON
+- `layer-plan.json` explains the planned buckets and semantic layer budget
+- `layer-closure-report.json` records real NAR closure sizes for each semantic bucket
+- image tar and package checks inspect the final nix2container image JSON and fail when layer count or actual OCI layer size exceeds budget
 - report checks reject missing buckets, over-budget plans, and invalid image metadata
 - `contracts-module-registry` and `contracts-bucket-registry` reject missing module registration and missing or unstable bucket definitions
 
@@ -409,6 +410,7 @@ Important reports include:
 - VS Code extension reports
 - FHS runtime reports
 - layer plans
+- layer closure reports
 - smoke test plans
 - CI plans
 

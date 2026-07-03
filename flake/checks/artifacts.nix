@@ -16,6 +16,7 @@ let
           nativeBuildInputs = [ pkgs.python3 ];
         }
         ''
+          export PYTHONPATH=${../../tests/ci}
           ${lib.optionalString (name == "nix") ''
             python3 ${../../tests/ci/check-rootfs-layout.py} ${image.rootfs} ${image.reports} ${name}
           ''}

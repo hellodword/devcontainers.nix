@@ -33,6 +33,9 @@
 }:
 let
   jsonFile = name: value: pkgs.writeText name (builtins.toJSON value);
+  pathString = path: builtins.unsafeDiscardStringContext (toString path);
+  pathsForMembers =
+    members: lib.unique (lib.concatMap (name: compiledGraph.rawNodes.${name}.paths) members);
 
   graph-json = jsonFile "graph.json" { inherit (compiledGraph) nodes groups; };
   graph-normalized-json = jsonFile "graph-normalized.json" (removeAttrs compiledGraph [ "rawNodes" ]);
@@ -91,6 +94,73 @@ let
     projectionTargets = compiledVscodeExtensions.projectionTargets;
   };
   layer-plan-json = jsonFile "layer-plan.json" compiledLayers;
+  layerClosureInputs = map (
+    layer:
+    let
+      rootPaths = pathsForMembers layer.members;
+      closureInfo = pkgs.closureInfo { inherit rootPaths; };
+    in
+    {
+      inherit closureInfo;
+      data = {
+        inherit (layer)
+          group
+          members
+          priority
+          pathCount
+          storePaths
+          packages
+          ;
+        rootPathCount = builtins.length rootPaths;
+        rootPaths = map pathString rootPaths;
+        closureInfoPath = "${closureInfo}";
+      };
+    }
+  ) compiledLayers.layers;
+  layer-closure-report-input-json = jsonFile "layer-closure-report-input.json" {
+    image = config.devcontainer.image.name;
+    family = config.devcontainer.image.family;
+    tag = imageTag;
+    budget = compiledLayers.budget;
+    order = compiledLayers.order;
+    layerCount = builtins.length compiledLayers.layers;
+    layers = map (entry: entry.data) layerClosureInputs;
+  };
+  layerClosureDeps = lib.concatMapStringsSep "\n" (
+    entry: "test -f ${entry.closureInfo}/total-nar-size"
+  ) layerClosureInputs;
+  layer-closure-report-json =
+    pkgs.runCommand "layer-closure-report.json"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+        preferLocalBuild = true;
+      }
+      ''
+        ${layerClosureDeps}
+        python3 - ${layer-closure-report-input-json} "$out" <<'PY'
+        import json
+        import pathlib
+        import sys
+
+        source = pathlib.Path(sys.argv[1])
+        output = pathlib.Path(sys.argv[2])
+        data = json.loads(source.read_text(encoding="utf-8"))
+
+        for layer in data["layers"]:
+            closure_path = pathlib.Path(layer.pop("closureInfoPath"))
+            total_nar_size = (closure_path / "total-nar-size").read_text(encoding="utf-8").strip()
+            store_paths = [
+                line
+                for line in (closure_path / "store-paths").read_text(encoding="utf-8").splitlines()
+                if line
+            ]
+            layer["closureSizeBytes"] = int(total_nar_size or "0")
+            layer["closurePathCount"] = len(store_paths)
+            layer["closureStorePaths"] = store_paths
+
+        output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        PY
+      '';
   env-report-json = jsonFile "env-report.json" (
     compiledEnv
     // {
@@ -215,6 +285,10 @@ let
       path = layer-plan-json;
     }
     {
+      name = "layer-closure-report.json";
+      path = layer-closure-report-json;
+    }
+    {
       name = "metadata-label.json";
       path = metadata-label-json;
     }
@@ -315,6 +389,7 @@ in
     tasks-json
     extensions-index-json
     layer-plan-json
+    layer-closure-report-json
     env-report-json
     libraries-report-json
     closure-report-json

@@ -24,6 +24,7 @@ let
           nativeBuildInputs = [ pkgs.python3 ];
         }
         ''
+          export PYTHONPATH=${../../../tests/ci}
           export CHECK_SMOKE_PLAN=${checkSmokePlan}
           python3 ${checkReports} ${image.reports} ${name}
           touch "$out"
@@ -42,6 +43,7 @@ reportChecks
   contracts-reports-all =
     pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pkgs.python3 ]; }
       ''
+        export PYTHONPATH=${../../../tests/ci}
         export CHECK_SMOKE_PLAN=${checkSmokePlan}
         ${reportLines}
         touch "$out"
