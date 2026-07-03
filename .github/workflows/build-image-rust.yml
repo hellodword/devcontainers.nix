@@ -48,48 +48,108 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Nix with official installer
+      - name: Install and configure Nix
         shell: bash
+        env:
+          GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NIX_EXTRA_SUBSTITUTERS: |
+            https://${{ env.CACHIX_CACHE_NAME }}.cachix.org
+            https://cache.numtide.com
+          NIX_EXTRA_TRUSTED_PUBLIC_KEYS: |
+            ${{ env.CACHIX_PUBLIC_KEY }}
+            niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
         run: |
-          set -euxo pipefail
+          set -euo pipefail
 
           sudo apt-get update
-          sudo apt-get install -y xz-utils
+          sudo apt-get install -y curl ca-certificates xz-utils
 
-          curl -L https://nixos.org/nix/install | sh -s -- --daemon
+          curl -fsSL https://nixos.org/nix/install | sh -s -- --daemon
 
           echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
           echo "NIX_REMOTE=daemon" >> "$GITHUB_ENV"
 
+          export NIX_REMOTE=daemon
           . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 
-          nix --version
+          normalize_list() {
+            local s="${1:-}"
+            s="${s//$'\n'/ }"
+            s="${s//$'\t'/ }"
+            printf '%s\n' "$s" | awk '{$1=$1; print}'
+          }
 
-      - name: Configure Nix
-        shell: bash
-        run: |
-          set -euxo pipefail
+          current_user="$(id -un)"
+
+          nix_experimental_features="$(
+            normalize_list "${NIX_EXPERIMENTAL_FEATURES:-nix-command flakes}"
+          )"
+
+          nix_trusted_users="$(
+            normalize_list "${NIX_TRUSTED_USERS:-root ${current_user}}"
+          )"
+
+          nix_max_jobs="$(
+            normalize_list "${NIX_MAX_JOBS:-auto}"
+          )"
+
+          nix_access_tokens="$(
+            normalize_list "${NIX_ACCESS_TOKENS:-}"
+          )"
+
+          if [[ -z "$nix_access_tokens" && -n "${GITHUB_ACCESS_TOKEN:-}" ]]; then
+            nix_access_tokens="github.com=${GITHUB_ACCESS_TOKEN}"
+          fi
+
+          nix_extra_substituters="$(
+            normalize_list "${NIX_EXTRA_SUBSTITUTERS:-}"
+          )"
+
+          nix_extra_trusted_public_keys="$(
+            normalize_list "${NIX_EXTRA_TRUSTED_PUBLIC_KEYS:-}"
+          )"
+
+          sudo mkdir -p /etc/nix
+          sudo touch /etc/nix/nix.conf
 
           sudo sed -i \
-            -e '/^experimental-features[[:space:]]*=/d' \
-            -e '/^max-jobs[[:space:]]*=/d' \
-            -e '/^substituters[[:space:]]*=/d' \
-            -e '/^trusted-public-keys[[:space:]]*=/d' \
-            -e '/^trusted-users[[:space:]]*=/d' \
+            -e '/^[[:space:]]*experimental-features[[:space:]]*=/d' \
+            -e '/^[[:space:]]*max-jobs[[:space:]]*=/d' \
+            -e '/^[[:space:]]*trusted-users[[:space:]]*=/d' \
+            -e '/^[[:space:]]*access-tokens[[:space:]]*=/d' \
+            -e '/^[[:space:]]*substituters[[:space:]]*=/d' \
+            -e '/^[[:space:]]*trusted-public-keys[[:space:]]*=/d' \
+            -e '/^[[:space:]]*extra-substituters[[:space:]]*=/d' \
+            -e '/^[[:space:]]*extra-trusted-public-keys[[:space:]]*=/d' \
             /etc/nix/nix.conf
 
-          printf '%s\n' \
-            "experimental-features = nix-command flakes" \
-            "max-jobs = auto" \
-            "trusted-users = root ${USER}" \
-            "extra-substituters = https://${CACHIX_CACHE_NAME}.cachix.org" \
-            "extra-trusted-public-keys = ${CACHIX_PUBLIC_KEY}" \
-            | sudo tee -a /etc/nix/nix.conf
+          {
+            printf '\n'
+            printf '%s\n' '# CI Nix settings'
+            printf '%s\n' "experimental-features = ${nix_experimental_features}"
+            printf '%s\n' "max-jobs = ${nix_max_jobs}"
+            printf '%s\n' "trusted-users = ${nix_trusted_users}"
 
-          sudo systemctl restart nix-daemon
+            if [[ -n "$nix_access_tokens" ]]; then
+              printf '%s\n' "access-tokens = ${nix_access_tokens}"
+            fi
 
+            if [[ -n "$nix_extra_substituters" ]]; then
+              printf '%s\n' "extra-substituters = ${nix_extra_substituters}"
+            fi
+
+            if [[ -n "$nix_extra_trusted_public_keys" ]]; then
+              printf '%s\n' "extra-trusted-public-keys = ${nix_extra_trusted_public_keys}"
+            fi
+          } | sudo tee -a /etc/nix/nix.conf >/dev/null
+
+          sudo systemctl restart nix-daemon.service
+
+          nix --version
           nix config show experimental-features
           nix config show substituters
+          nix config show trusted-public-keys
+          nix config show trusted-users
 
       - name: Build reports
         run: |
