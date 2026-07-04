@@ -324,10 +324,10 @@ let
   };
   pythonLanguageProfile = lib.findFirst (
     profile: profile.id == "language/python"
-  ) (throw "language/python profile missing") pythonProfileEvalImage.profileReport.enabledProfiles;
+  ) (throw "language/python profile missing") pythonProfileEvalImage.profileReport.effectiveEnabledProfiles;
   pythonRuntimeProfile = lib.findFirst (
     profile: profile.id == "runtime/python"
-  ) (throw "runtime/python profile missing") pythonProfileEvalImage.profileReport.enabledProfiles;
+  ) (throw "runtime/python profile missing") pythonProfileEvalImage.profileReport.effectiveEnabledProfiles;
   pythonExtension = lib.findFirst (
     extension: extension.id == "ms-python.python"
   ) (throw "ms-python.python extension missing") pythonProfileEvalImage.vscodeExtensions.extensions;
@@ -540,10 +540,10 @@ let
       )
     ];
   };
-  profileIncludeIds = map (profile: profile.id) profileIncludeEvalImage.profileReport.enabledProfiles;
+  profileIncludeIds = map (profile: profile.id) profileIncludeEvalImage.profileReport.effectiveEnabledProfiles;
   profileIncludeLeafA = lib.findFirst (
     profile: profile.id == "test/leaf-a"
-  ) (throw "test/leaf-a missing") profileIncludeEvalImage.profileReport.enabledProfiles;
+  ) (throw "test/leaf-a missing") profileIncludeEvalImage.profileReport.effectiveEnabledProfiles;
   profileEvalRejected =
     module:
     !(builtins.tryEval (
@@ -906,7 +906,6 @@ in
     assert
       apiEvalImage.env.containerEnv.DEVCONTAINER_FLAKE_INPUTS
       == "/usr/share/devcontainer/flake-inputs.json";
-    assert apiEvalImage.flakeInputs.manifest.schemaVersion == 1;
     assert apiEvalImage.flakeInputs.manifest.inputs.nixpkgs.rev == nixpkgs.rev;
     assert apiEvalImage.flakeInputs.manifest.inputs.nixpkgs.outPath == toString nixpkgs.outPath;
     assert builtins.elem "/etc/api/example.conf" (map (entry: entry.path) apiEvalImage.environment.etc);

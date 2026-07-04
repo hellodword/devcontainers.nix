@@ -3,12 +3,6 @@ import json
 import pathlib
 import sys
 
-CAPABILITY_FIELD_SUFFIX = "Capabilities"
-OLD_PROFILE_TEST_FIELDS = {
-    f"declared{CAPABILITY_FIELD_SUFFIX}",
-    f"resolved{CAPABILITY_FIELD_SUFFIX}",
-}
-
 
 def fail(message: str):
     print(f"smoke-plan-check failed: {message}", file=sys.stderr)
@@ -21,9 +15,6 @@ def read_json(path: pathlib.Path):
 
 
 def validate_smoke_plan_schema(plan):
-    if "capabilities" in plan:
-        fail("smoke-test-plan.json must not contain capabilities")
-
     tests = plan.get("tests")
     if not isinstance(tests, list) or not tests:
         fail("smoke-test-plan.json must include a non-empty tests array")
@@ -50,8 +41,8 @@ def validate_smoke_plan_schema(plan):
 
 def validate_profile_report_schema(profile_report):
     tests = profile_report.get("tests") or {}
-    if OLD_PROFILE_TEST_FIELDS.intersection(tests):
-        fail("profile-report.json tests must not contain capability fields")
+    if "declaredCases" not in tests or "resolvedCases" not in tests:
+        fail("profile-report.json tests must include declaredCases and resolvedCases")
 
 
 def validate_smoke_scripts(test_id, test):

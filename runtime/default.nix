@@ -41,18 +41,13 @@ let
         prev="''${COMP_WORDS[COMP_CWORD - 1]}"
       fi
 
-      local commands="add install remove rm uninstall list ls search add-lib remove-lib list-lib add-dev-lib remove-dev-lib list-dev-lib help -h --help"
+      local commands="add remove list search add-lib remove-lib list-lib add-dev-lib remove-dev-lib list-dev-lib help -h --help"
       if (( cword == 1 )); then
         COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
         return
       fi
 
       local cmd="''${words[1]}"
-      case "$cmd" in
-        install) cmd="add" ;;
-        rm | uninstall) cmd="remove" ;;
-        ls) cmd="list" ;;
-      esac
 
       case "$cur" in
         --outputs=*)

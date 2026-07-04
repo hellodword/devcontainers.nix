@@ -125,8 +125,6 @@ let
       sourceLock = {
         ref = sourceRef;
         sha256 = sourceHash;
-        manifestFingerprint = hashString "${uniqueId}:${extensionVersion}:${sourceHash}:manifest";
-        vsixSha256 = sourceHash;
         archiveName = sourceArchiveNameFor extensionPackage;
       };
       projection =

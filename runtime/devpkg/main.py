@@ -17,7 +17,6 @@ NIX_EXPERIMENTAL_FLAGS = [
     "flakes",
 ]
 CURRENT_SYSTEM = None
-CACHE_SCHEMA_VERSION = 1
 
 
 USAGE = """devpkg add <package>...
@@ -47,12 +46,8 @@ examples:
 
 COMMANDS = [
     "add",
-    "install",
     "remove",
-    "rm",
-    "uninstall",
     "list",
-    "ls",
     "search",
     "add-lib",
     "remove-lib",
@@ -425,7 +420,7 @@ def complete_outputs(prefix: str) -> None:
 
 
 def package_cache_path(parent: str) -> Path:
-    cache_id = "\0".join([str(CACHE_SCHEMA_VERSION), NIXPKGS_CACHE_KEY, current_system(), parent])
+    cache_id = "\0".join([NIXPKGS_CACHE_KEY, current_system(), parent])
     digest = hashlib.sha256(cache_id.encode("utf-8")).hexdigest()
     return devpkg_cache_home() / "packages" / f"{digest}.json"
 
@@ -438,8 +433,6 @@ def read_package_cache(parent: str) -> list[str] | None:
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
-        return None
-    if data.get("schemaVersion") != CACHE_SCHEMA_VERSION:
         return None
     if data.get("nixpkgsCacheKey") != NIXPKGS_CACHE_KEY:
         return None
@@ -454,7 +447,6 @@ def read_package_cache(parent: str) -> list[str] | None:
 def write_package_cache(parent: str, attr_names: list[str]) -> None:
     path = package_cache_path(parent)
     data = {
-        "schemaVersion": CACHE_SCHEMA_VERSION,
         "nixpkgsCacheKey": NIXPKGS_CACHE_KEY,
         "system": current_system(),
         "parent": parent,
@@ -565,11 +557,11 @@ def cmd_complete(args: list[str]) -> int:
 def main(argv: list[str]) -> int:
     cmd = argv[0] if argv else ""
     args = argv[1:]
-    if cmd in {"add", "install"}:
+    if cmd == "add":
         return cmd_add_packages(args)
-    if cmd in {"remove", "rm", "uninstall"}:
+    if cmd == "remove":
         return cmd_remove_packages(args)
-    if cmd in {"list", "ls"}:
+    if cmd == "list":
         return cmd_list_packages(args)
     if cmd == "search":
         if not args or not args[0]:

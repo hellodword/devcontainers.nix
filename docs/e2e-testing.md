@@ -370,10 +370,11 @@ screenshot looks successful, inspect `vscode-gui-ready.log`,
 `vscode-screen-ocr.txt`, `terminal-probe.log`, and
 `container-verification.log` to identify which explicit readiness gate failed.
 
-## Debugging History
+## Debugging Pitfalls
 
-The current design came from several failed approaches. Keep these notes when
-changing the tests; they are practical constraints, not theoretical concerns.
+These notes record pitfalls that have caused real E2E failures. They are
+debugging context for the current test design, not compatibility obligations for
+old implementations.
 
 ### Missing CA Bundle During Image Build
 

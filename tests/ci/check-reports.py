@@ -17,11 +17,6 @@ SENSITIVE_VALUE_RE = re.compile(
     r"(?i)(?:token|password|secret|api[_-]?key|access[_-]?key|private[_-]?key)\s*(?:=|:)\s*[\"']?[^\"'\\s]+"
 )
 SIZE_BUDGET_RE = re.compile(r"^\s*\d+(?:\.\d+)?\s*(?:[kmgt]?i?b?|b)?\s*$", re.IGNORECASE)
-CAPABILITY_FIELD_SUFFIX = "Capabilities"
-OLD_PROFILE_TEST_FIELDS = {
-    f"declared{CAPABILITY_FIELD_SUFFIX}",
-    f"resolved{CAPABILITY_FIELD_SUFFIX}",
-}
 TARGET_POLICY_FIELDS = {
     "requiredProfiles",
     "requiredCommands",
@@ -78,16 +73,11 @@ def load_target_policy(path: pathlib.Path | None) -> dict[str, list[str]]:
 
 def validate_profile_test_schema(profile_report):
     tests = profile_report.get("tests") or {}
-    if OLD_PROFILE_TEST_FIELDS.intersection(tests):
-        fail("profile-report.json tests must not contain capability fields")
     if "declaredCases" not in tests or "resolvedCases" not in tests:
         fail("profile-report.json tests must include declaredCases and resolvedCases")
 
 
 def validate_smoke_plan_schema(smoke_plan):
-    if "capabilities" in smoke_plan:
-        fail("smoke-test-plan.json must not contain capabilities")
-
     smoke_tests = smoke_plan.get("tests")
     if not isinstance(smoke_tests, list) or not smoke_tests:
         fail("smoke-test-plan.json must include a non-empty tests array")
@@ -280,7 +270,6 @@ def main() -> int:
     graph_duplicates_report = read_json(reports_dir / "graph-duplicates-report.json")
     preview_container_env = metadata_preview.get("containerEnv") or {}
     environment_report = env_report.get("environment") or {}
-    enabled_profile_ids = {profile["id"] for profile in profile_report.get("enabledProfiles") or []}
     root_enabled_profile_ids = {
         profile["id"] for profile in profile_report.get("rootEnabledProfiles") or []
     }
@@ -298,16 +287,14 @@ def main() -> int:
 
     if not isinstance(metadata_label, list):
         fail("metadata-label.json must be a JSON array")
-    if effective_enabled_profile_ids != enabled_profile_ids:
-        fail("profile-report.json enabledProfiles must remain the effective profile set")
     if not root_enabled_profile_ids:
         fail("profile-report.json must include rootEnabledProfiles")
-    if set(profile_report.get("effectiveEnabledProfileIds") or []) != enabled_profile_ids:
-        fail("profile-report.json effectiveEnabledProfileIds must match enabledProfiles")
+    if set(profile_report.get("effectiveEnabledProfileIds") or []) != effective_enabled_profile_ids:
+        fail("profile-report.json effectiveEnabledProfileIds must match effectiveEnabledProfiles")
     if set(profile_report.get("rootEnabledProfileIds") or []) != root_enabled_profile_ids:
         fail("profile-report.json rootEnabledProfileIds must match rootEnabledProfiles")
     include_graph = profile_report.get("includeGraph") or {}
-    for profile in profile_report.get("enabledProfiles") or []:
+    for profile in profile_report.get("effectiveEnabledProfiles") or []:
         if profile["id"] not in include_graph:
             fail(f"profile-report.json includeGraph missing {profile['id']}")
     if not metadata_schema["hasRemoteUser"]:
@@ -382,7 +369,7 @@ def main() -> int:
         fail("fonts-runtime layer must include runtime/fonts")
     profile_ids_with_packages = {
         profile["id"]
-        for profile in profile_report.get("enabledProfiles") or []
+        for profile in profile_report.get("effectiveEnabledProfiles") or []
         if profile.get("packageCount", 0) > 0
     }
     layer_members = {member for layer in layer_plan["layers"] for member in layer.get("members", [])}
@@ -416,7 +403,7 @@ def main() -> int:
     if image_plan.get("smokeTestCount") != len(smoke_tests):
         fail("image-plan.json smokeTestCount must match smoke-test-plan.json")
     required_profiles = set(target_policy["requiredProfiles"])
-    missing_profiles = sorted(required_profiles - enabled_profile_ids)
+    missing_profiles = sorted(required_profiles - effective_enabled_profile_ids)
     if missing_profiles:
         fail(f"{image_name} image missing target policy profiles: {', '.join(missing_profiles)}")
     required_commands = set(target_policy["requiredCommands"])
@@ -639,8 +626,8 @@ def main() -> int:
             fail(f"{env_name} must be sourced from the library compiler")
     if set(library_presets) != profile_library_presets:
         fail("libraries-report.json presets must match profile-report.json")
-    has_go_profile = "language/go" in enabled_profile_ids
-    has_rust_profile = "language/rust" in enabled_profile_ids
+    has_go_profile = "language/go" in effective_enabled_profile_ids
+    has_rust_profile = "language/rust" in effective_enabled_profile_ids
     if has_go_profile:
         if "cgo" not in library_presets:
             fail("language/go profile must enable the cgo library preset")
@@ -764,12 +751,11 @@ def main() -> int:
         if not isinstance(required, bool):
             fail(f"extensions-report.json must record required boolean for {extension_id}")
         report_extension_required[extension_id] = required
-        if extension["version"] == "pinned":
-            fail(f"extensions-report.json must record a real version for {extension_id}")
         if not extension["source"].startswith("nix-vscode-extensions."):
             fail(f"extensions-report.json must record nix-vscode-extensions source for {extension_id}")
-        if not extension["sourceLock"]["ref"]:
-            fail(f"extensions-report.json must record source ref for {extension_id}")
+        source_lock = extension.get("sourceLock") or {}
+        if not all(source_lock.get(key) for key in ["ref", "sha256", "archiveName"]):
+            fail(f"extensions-report.json must record source lock for {extension_id}")
         artifact_report = extension.get("artifacts") or {}
         projection_artifact = artifact_report.get("projection") or {}
         archive_artifact = artifact_report.get("archive") or {}

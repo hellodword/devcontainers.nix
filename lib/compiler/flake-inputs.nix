@@ -34,7 +34,6 @@ let
 in
 let
   manifest = {
-    schemaVersion = 1;
     inputs = {
       nixpkgs = mkInput (inputs.nixpkgs);
     };

@@ -194,7 +194,10 @@ let
         config.devcontainer.vscode.preinstall.validation.noNetworkDuringProjection;
       allArtifactsLocked = builtins.all (
         extension:
-        extension ? sourceLock && extension.sourceLock ? sha256 && extension.sourceLock ? vsixSha256
+        extension ? sourceLock
+        && extension.sourceLock ? ref
+        && extension.sourceLock ? sha256
+        && extension.sourceLock ? archiveName
       ) compiledVscodeExtensions.extensions;
       companionToolsProvidedByNix =
         (compiledProfiles.report.validation or { }).companionToolsProvidedByNix or false;

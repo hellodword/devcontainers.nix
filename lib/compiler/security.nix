@@ -161,8 +161,7 @@ let
   requiredExtensionLockKeys = [
     "ref"
     "sha256"
-    "vsixSha256"
-    "manifestFingerprint"
+    "archiveName"
   ];
   extensionLockFindings = lib.concatMap (
     extension:

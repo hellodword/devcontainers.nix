@@ -511,7 +511,7 @@ nix run .#generate-workflows
 
 The generator renders `.github/workflows/_build-image.yml.j2` with minijinja and writes complete `build-image-*.yml` workflows.
 
-One workflow per image is intentional. Image builds do not use a matrix workflow because matrix jobs and GitHub Actions concurrency have an observed failure mode where unfinished matrix jobs can be canceled before the image set completes. Separate workflows give each image target its own concurrency group and limit cancellation to that target.
+One workflow per image is intentional. Image builds do not use a matrix workflow because matrix jobs and GitHub Actions concurrency have an observed workflow pitfall: unfinished matrix jobs can be canceled before the image set completes. Separate workflows give each image target its own concurrency group and limit cancellation to that target.
 
 `flake/workflows.nix` also defines the generated workflow sync check:
 

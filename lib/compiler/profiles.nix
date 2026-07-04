@@ -369,7 +369,6 @@ let
     rootEnabledProfileIds = rootEnabledIds;
     effectiveEnabledProfiles = profileReports;
     effectiveEnabledProfileIds = enabledIds;
-    enabledProfiles = profileReports;
     includeGraph = includeGraph;
     packages = packageNames;
     provides = {

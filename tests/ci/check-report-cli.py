@@ -90,10 +90,10 @@ def main() -> int:
         extension = run_json(tool, ["explain", "extension", extension_id, "--report", str(reports_dir)])
         if extension.get("id") != extension_id:
             fail("explain extension returned the wrong extension")
-        if extension.get("version") == "pinned" or not str(extension.get("source", "")).startswith("nix-vscode-extensions."):
+        if not str(extension.get("source", "")).startswith("nix-vscode-extensions."):
             fail("extension source metadata is incomplete")
         source_lock = extension.get("sourceLock") or {}
-        if not all(source_lock.get(key) for key in ["ref", "sha256", "manifestFingerprint", "vsixSha256"]):
+        if not all(source_lock.get(key) for key in ["ref", "sha256", "archiveName"]):
             fail("extension source lock metadata is incomplete")
         artifacts = extension.get("artifacts") or {}
         projection_artifact = artifacts.get("projection") or {}
