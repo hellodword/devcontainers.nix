@@ -15,8 +15,15 @@ let
   smokeCase =
     id: image:
     lib.findFirst (test: test.id == id) (throw "missing smoke case ${id}") (smokePlan image).tests;
+  hasSmokeCase = id: image: builtins.elem id (smokeCaseIds image);
   smokeCaseCommandText =
     id: image: lib.concatStringsSep " " (map (script: script.command) (smokeCase id image).scripts);
+  symlinkSource =
+    target: image:
+    (lib.findFirst (
+      link: link.target == target
+    ) (throw "missing FHS symlink ${target}") image.fhsRuntime.symlinks).source;
+  hasAnyAttr = names: attrs: lib.any (name: builtins.hasAttr name attrs) names;
   extensionById =
     image: id:
     lib.findFirst (
@@ -623,8 +630,241 @@ let
       };
     }
   );
+
+  fhsEnvNames = [
+    "NIX_LD"
+    "NIX_LD_LIBRARY_PATH"
+    "SSL_CERT_FILE"
+    "NIX_SSL_CERT_FILE"
+    "CURL_CA_BUNDLE"
+    "GIT_SSL_CAINFO"
+  ];
+  caEnvNames = [
+    "SSL_CERT_FILE"
+    "NIX_SSL_CERT_FILE"
+    "CURL_CA_BUNDLE"
+    "GIT_SSL_CAINFO"
+  ];
+  nixLdEnvNames = [
+    "NIX_LD"
+    "NIX_LD_LIBRARY_PATH"
+  ];
+  fhsDisabledImage = compiler.mkImage {
+    modules = [
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "fhs-disabled-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            devcontainer.compat.fhsRuntime.enable = false;
+          };
+        }
+      )
+    ];
+  };
+  nixLdDisabledImage = compiler.mkImage {
+    modules = [
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "nix-ld-disabled-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            programs.nix-ld.enable = false;
+          };
+        }
+      )
+    ];
+  };
+  caDisabledImage = compiler.mkImage {
+    modules = [
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "ca-disabled-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            security.pki.installCACerts = false;
+          };
+        }
+      )
+    ];
+  };
+  customDynamicLoader = "/custom/lib64/ld-linux-x86-64.so.2";
+  customLoaderImage = compiler.mkImage {
+    modules = [
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "custom-loader-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            programs.nix-ld.dynamicLoader.x86_64.path = customDynamicLoader;
+          };
+        }
+      )
+    ];
+  };
+  customLoaderReport = builtins.fromJSON (
+    builtins.unsafeDiscardStringContext (builtins.readFile customLoaderImage.fhs-runtime-report-json)
+  );
+  extraNixLdLibrariesImage = compiler.mkImage {
+    modules = [
+      (
+        { lib, pkgs, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "extra-nix-ld-libraries-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            programs.nix-ld.libraries = [ pkgs.zlib ];
+          };
+        }
+      )
+    ];
+  };
+  lifecycleTimeoutImage = compiler.mkImage {
+    modules = [
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "lifecycle-timeout-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            devcontainer.lifecycle.tasks."contract-timeout" = {
+              phase = "postCreate";
+              command = [ "true" ];
+              timeoutSeconds = 123;
+            };
+          };
+        }
+      )
+    ];
+  };
+  lifecycleTimeoutTask = lib.findFirst (
+    task: task.name == "contract-timeout"
+  ) (throw "missing contract-timeout lifecycle task") lifecycleTimeoutImage.lifecycle.tasks;
+  lifecycleTasksJson = builtins.fromJSON (
+    builtins.unsafeDiscardStringContext (builtins.readFile lifecycleTimeoutImage.tasks-json)
+  );
+  lifecycleTasksJsonTask = lib.findFirst (
+    task: task.name == "contract-timeout"
+  ) (throw "missing contract-timeout tasks.json task") lifecycleTasksJson.tasks;
+  fontAliasExpected = {
+    binding = "strong";
+    prefer = [ "Noto Sans" ];
+    accept = [ "Noto Sans CJK SC" ];
+    default = [ "sans-serif" ];
+  };
+  fontAliasImage = compiler.mkImage {
+    modules = [
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "font-alias-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            devcontainer.fonts.fontconfig.aliases.Helvetica = fontAliasExpected;
+          };
+        }
+      )
+    ];
+  };
+  fontAliasReport = builtins.fromJSON (
+    builtins.unsafeDiscardStringContext (builtins.readFile fontAliasImage.fontconfig-report-json)
+  );
+  fhsOptionsSummary = pkgs.writeText "contracts-compiler-fhs-options.json" (
+    builtins.toJSON {
+      fhsDisabled = {
+        symlinkCount = builtins.length fhsDisabledImage.fhsRuntime.symlinks;
+        smokeCaseIds = smokeCaseIds fhsDisabledImage;
+      };
+      nixLdDisabled = {
+        dynamicLoaderMode = nixLdDisabledImage.fhsRuntime.dynamicLoaderMode;
+        dynamicLoaderSource = symlinkSource "/lib64/ld-linux-x86-64.so.2" nixLdDisabledImage;
+      };
+      caDisabledSmokeCases = smokeCaseIds caDisabledImage;
+      customLoader = customLoaderReport.dynamicLoader;
+      extraNixLdLibraryPath = extraNixLdLibrariesImage.fhsRuntime.nixLdEnv.NIX_LD_LIBRARY_PATH;
+      lifecycleTimeout = lifecycleTimeoutTask.timeoutSeconds;
+      fontAlias = fontAliasReport.fontconfig.aliases.Helvetica;
+    }
+  );
 in
 {
+  contracts-compiler-fhs-options =
+    assert !(builtins.hasAttr "runtime/fhs-vscode" fhsDisabledImage.graph.nodes);
+    assert builtins.filter (id: lib.hasPrefix "fhs." id) (smokeCaseIds fhsDisabledImage) == [ ];
+    assert fhsDisabledImage.fhsRuntime.symlinks == [ ];
+    assert
+      fhsDisabledImage.fhsRuntime.env == {
+        container = { };
+        remote = { };
+        shell = { };
+      };
+    assert
+      fhsDisabledImage.fhsRuntime.envOrigins == {
+        container = { };
+        remote = { };
+        shell = { };
+      };
+    assert fhsDisabledImage.fhsRuntime.caCertificates == { };
+    assert !(hasAnyAttr fhsEnvNames fhsDisabledImage.env.containerEnv);
+    assert nixLdDisabledImage.fhsRuntime.dynamicLoaderMode == "glibc";
+    assert !(hasAnyAttr nixLdEnvNames nixLdDisabledImage.fhsRuntime.env.container);
+    assert !(hasAnyAttr nixLdEnvNames nixLdDisabledImage.env.containerEnv);
+    assert
+      symlinkSource "/lib64/ld-linux-x86-64.so.2" nixLdDisabledImage
+      == nixLdDisabledImage.fhsRuntime.realGlibcLoader;
+    assert hasSmokeCase "fhs.runtime" nixLdDisabledImage;
+    assert !(hasSmokeCase "fhs.nix-ld" nixLdDisabledImage);
+    assert caDisabledImage.fhsRuntime.caCertificates == { };
+    assert !(hasAnyAttr caEnvNames caDisabledImage.fhsRuntime.env.container);
+    assert !(hasAnyAttr caEnvNames caDisabledImage.env.containerEnv);
+    assert !(hasSmokeCase "fhs.ca-certificates" caDisabledImage);
+    assert hasSmokeCase "fhs.runtime" caDisabledImage;
+    assert hasSmokeCase "fhs.nix-ld" caDisabledImage;
+    assert customLoaderReport.dynamicLoader.target == customDynamicLoader;
+    assert
+      symlinkSource customDynamicLoader customLoaderImage
+      == "${customLoaderImage.config.programs."nix-ld".package}/bin/nix-ld";
+    assert lib.hasInfix customDynamicLoader (smokeCaseCommandText "fhs.nix-ld" customLoaderImage);
+    assert customLoaderImage.fhsRuntime.nixLdEnv.NIX_LD == customLoaderImage.fhsRuntime.realGlibcLoader;
+    assert lib.hasInfix "zlib" extraNixLdLibrariesImage.fhsRuntime.nixLdEnv.NIX_LD_LIBRARY_PATH;
+    assert lifecycleTimeoutTask.timeoutSeconds == 123;
+    assert lifecycleTasksJsonTask.timeoutSeconds == 123;
+    assert fontAliasImage.fonts.report.fontconfig.aliases.Helvetica == fontAliasExpected;
+    assert fontAliasReport.fontconfig.aliases.Helvetica == fontAliasExpected;
+    pkgs.runCommand "contracts-compiler-fhs-options"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+      }
+      ''
+        python3 ${../../../tests/ci/check-fontconfig-root.py} ${fontAliasImage.fonts.root} ${fontAliasImage.fontconfig-report-json} font-alias-eval
+        cp ${fhsOptionsSummary} "$out"
+      '';
+
   contracts-compiler-graph =
     assert builtins.attrNames graphDuplicateReport == [ graphDuplicateSharedPath ];
     assert

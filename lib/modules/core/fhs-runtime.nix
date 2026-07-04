@@ -9,6 +9,13 @@ let
   cfg = config.devcontainer.compat.fhsRuntime;
   nixLd = config.programs.nix-ld;
   pki = config.security.pki;
+  currentDynamicLoader =
+    if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
+      nixLd.dynamicLoader.x86_64.path
+    else if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then
+      nixLd.dynamicLoader.aarch64.path
+    else
+      null;
   packages =
     with pkgs;
     [
@@ -136,7 +143,7 @@ in
           timeoutSeconds = 45;
         };
       }
-      // lib.optionalAttrs nixLd.enable {
+      // lib.optionalAttrs (nixLd.enable && currentDynamicLoader != null) {
         "fhs.nix-ld" = {
           tags = [
             "smoke"
@@ -149,11 +156,11 @@ in
               shell = "bash";
               interactive = false;
               command = ''
-                test -x /lib64/ld-linux-x86-64.so.2
+                test -x ${currentDynamicLoader}
                 test -n "''${NIX_LD:-}"
                 test -n "''${NIX_LD_LIBRARY_PATH:-}"
                 env -i NIX_LD="$NIX_LD" NIX_LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH" PATH=/usr/bin \
-                  /lib64/ld-linux-x86-64.so.2 /usr/bin/env true
+                  ${currentDynamicLoader} /usr/bin/env true
               '';
             }
           ];

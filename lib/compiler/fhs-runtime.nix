@@ -83,39 +83,12 @@ let
       exit 1
     fi
   '';
-in
-{
-  enabled = cfg.enable;
-  dynamicLoaderMode = if nixLdCfg.enable then "nix-ld" else "glibc";
-  realGlibcLoader = realGlibcLoader;
-  nixLdEnv = nixLdEnv;
-  caCertificates = lib.optionalAttrs caCertificatesEnabled {
-    bundle = certBundleTarget;
-    root = "${caCertificatesRoot}";
-    source = certBundleSource;
-  };
-  env = {
-    container = nixLdEnv // caCertificatesEnv;
-  };
-  envOrigins = {
-    container =
-      lib.mapAttrs (
-        name: _:
-        if
-          name == "NIX_LD_LIBRARY_PATH" && (compiledLibraries.runtime.dynamicLibraryPathEntries or [ ]) != [ ]
-        then
-          [
-            "compiler.fhs-runtime.nix-ld"
-            "compiler.libraries.runtime"
-          ]
-        else
-          [ "compiler.fhs-runtime.nix-ld" ]
-      ) nixLdEnv
-      // lib.mapAttrs (_: _: [ "compiler.fhs-runtime.ca-certificates" ]) caCertificatesEnv;
+  emptyScopedAttrs = {
+    container = { };
     remote = { };
     shell = { };
   };
-  symlinks = [
+  baseSymlinks = [
     {
       target = "/bin/bash";
       source = "${pkgs.bashInteractive}/bin/bash";
@@ -164,8 +137,8 @@ in
       target = "/usr/bin/git";
       source = "${pkgs.git}/bin/git";
     }
-  ]
-  ++ lib.optionals (currentDynamicLoader != null) [
+  ];
+  dynamicLoaderSymlinks = lib.optionals (currentDynamicLoader != null) [
     {
       target = currentDynamicLoader;
       source = dynamicLoaderSource;
@@ -179,4 +152,52 @@ in
       source = "${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6";
     }
   ];
+in
+{
+  enabled = cfg.enable;
+  dynamicLoaderMode =
+    if !cfg.enable then
+      null
+    else if nixLdCfg.enable then
+      "nix-ld"
+    else
+      "glibc";
+  realGlibcLoader = if cfg.enable then realGlibcLoader else null;
+  nixLdEnv = nixLdEnv;
+  caCertificates = lib.optionalAttrs caCertificatesEnabled {
+    bundle = certBundleTarget;
+    root = "${caCertificatesRoot}";
+    source = certBundleSource;
+  };
+  env =
+    if cfg.enable then
+      emptyScopedAttrs
+      // {
+        container = nixLdEnv // caCertificatesEnv;
+      }
+    else
+      emptyScopedAttrs;
+  envOrigins =
+    if cfg.enable then
+      {
+        container =
+          lib.mapAttrs (
+            name: _:
+            if
+              name == "NIX_LD_LIBRARY_PATH" && (compiledLibraries.runtime.dynamicLibraryPathEntries or [ ]) != [ ]
+            then
+              [
+                "compiler.fhs-runtime.nix-ld"
+                "compiler.libraries.runtime"
+              ]
+            else
+              [ "compiler.fhs-runtime.nix-ld" ]
+          ) nixLdEnv
+          // lib.mapAttrs (_: _: [ "compiler.fhs-runtime.ca-certificates" ]) caCertificatesEnv;
+        remote = { };
+        shell = { };
+      }
+    else
+      emptyScopedAttrs;
+  symlinks = lib.optionals cfg.enable (baseSymlinks ++ dynamicLoaderSymlinks);
 }

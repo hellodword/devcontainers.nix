@@ -11,6 +11,15 @@ let
   checkReports = ../../../tests/ci/check-reports.py;
   checkSmokePlan = ../../../tests/ci/check-smoke-plan.py;
   checkHermeticDefaults = ../../../tests/ci/check-hermetic-default-checks.py;
+  checkMetadataSchema = ../../../tests/ci/check-devcontainer-metadata-schema.py;
+  pythonWithJsonschema = pkgs.python3.withPackages (ps: [ ps.jsonschema ]);
+  devcontainersSpec = pkgs.fetchFromGitHub {
+    owner = "devcontainers";
+    repo = "spec";
+    rev = "c95ffeed1d059abfe9ffbe79762dc2fa4e7c2421";
+    hash = "sha256-NYaeKpbRy+pRbPCuyZ7t6KiOmBerCCFBG2jAKrfgEMI=";
+  };
+  devcontainersSchemaDir = "${devcontainersSpec}/schemas";
   targetPolicyPath =
     name:
     let
@@ -26,6 +35,7 @@ let
     lib.mapAttrsToList (name: image: ''
       echo "checking reports for ${name}"
       python3 ${checkReports} ${image.reports} ${name} ${targetPolicyPath name}
+      python3 ${checkMetadataSchema} ${image.metadata-label-json} ${image.metadata-merged-preview-json} ${devcontainersSchemaDir} ${name}
     '') images
   );
   reportChecks = lib.mapAttrs' (
@@ -33,12 +43,13 @@ let
     lib.nameValuePair "reports-${name}" (
       pkgs.runCommand "reports-${name}"
         {
-          nativeBuildInputs = [ pkgs.python3 ];
+          nativeBuildInputs = [ pythonWithJsonschema ];
         }
         ''
           export PYTHONPATH=${../../../tests/ci}
           export CHECK_SMOKE_PLAN=${checkSmokePlan}
           python3 ${checkReports} ${image.reports} ${name} ${targetPolicyPath name}
+          python3 ${checkMetadataSchema} ${image.metadata-label-json} ${image.metadata-merged-preview-json} ${devcontainersSchemaDir} ${name}
           touch "$out"
         ''
     )
@@ -53,7 +64,7 @@ in
 reportChecks
 // {
   contracts-reports-all =
-    pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pkgs.python3 ]; }
+    pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pythonWithJsonschema ]; }
       ''
         export PYTHONPATH=${../../../tests/ci}
         export CHECK_SMOKE_PLAN=${checkSmokePlan}

@@ -61,18 +61,26 @@ def require_declared_commands(rootfs: pathlib.Path, reports_dir: pathlib.Path):
     ]
     missing = []
     invalid = []
+    not_executable = []
 
     for command in sorted(set(provided_commands)):
         if not command or "/" in command:
             invalid.append(command)
             continue
-        if not any(root_path(rootfs, f"{directory}/{command}").exists() for directory in search_dirs):
+        candidates = [root_path(rootfs, f"{directory}/{command}") for directory in search_dirs]
+        existing = [path for path in candidates if path.exists()]
+        if not existing:
             missing.append(command)
+            continue
+        if not any(os.access(path, os.X_OK) for path in existing):
+            not_executable.append(command)
 
     if invalid:
         fail(f"profile-report.json declares invalid command names: {', '.join(invalid)}")
     if missing:
         fail(f"profile-report.json declares commands missing from rootfs PATH: {', '.join(missing)}")
+    if not_executable:
+        fail(f"profile-report.json declares commands that are not executable in rootfs PATH: {', '.join(not_executable)}")
 
 
 def require_vscode_machine_settings(rootfs: pathlib.Path, reports_dir: pathlib.Path, projection_targets):
