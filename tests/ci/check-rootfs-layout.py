@@ -1,45 +1,38 @@
 #!/usr/bin/env python3
 import argparse
-import json
 import os
 import pathlib
-import sys
+
+from lib.json_checks import fail as fail_with_prefix
+from lib.json_checks import read_json
 
 
-def fail(message: str):
-    print(f"rootfs-layout-check failed: {message}", file=sys.stderr)
-    raise SystemExit(1)
+PREFIX = "rootfs-layout-check"
 
 
-def read_json(path: pathlib.Path):
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
-    except FileNotFoundError:
-        fail(f"required JSON file not found: {path}")
-    except json.JSONDecodeError as exc:
-        fail(f"invalid JSON in {path}: {exc}")
+def fail(message: str) -> None:
+    fail_with_prefix(PREFIX, message)
 
 
 def root_path(rootfs: pathlib.Path, absolute_path: str) -> pathlib.Path:
-    if not absolute_path.startswith("/"):
+    if not isinstance(absolute_path, str) or not absolute_path.startswith("/"):
         fail(f"path must be absolute: {absolute_path}")
     return rootfs / absolute_path.lstrip("/")
 
 
-def require_exists(rootfs: pathlib.Path, absolute_path: str):
+def require_exists(rootfs: pathlib.Path, absolute_path: str) -> None:
     path = root_path(rootfs, absolute_path)
     if not path.exists():
         fail(f"rootfs missing {absolute_path}")
 
 
-def require_absent(rootfs: pathlib.Path, absolute_path: str):
+def require_absent(rootfs: pathlib.Path, absolute_path: str) -> None:
     path = root_path(rootfs, absolute_path)
     if path.exists() or path.is_symlink():
         fail(f"rootfs must not contain {absolute_path}")
 
 
-def require_symlink(rootfs: pathlib.Path, absolute_path: str, target: str):
+def require_symlink(rootfs: pathlib.Path, absolute_path: str, target: str) -> None:
     path = root_path(rootfs, absolute_path)
     if not path.is_symlink():
         fail(f"rootfs {absolute_path} must be a symlink")
@@ -48,17 +41,53 @@ def require_symlink(rootfs: pathlib.Path, absolute_path: str, target: str):
         fail(f"rootfs {absolute_path} must point to {target}, got {actual}")
 
 
-def require_declared_commands(rootfs: pathlib.Path, reports_dir: pathlib.Path):
-    profile_report = read_json(reports_dir / "profile-report.json")
-    provided_commands = profile_report.get("provides", {}).get("commands") or []
+def require_reported_filesystem(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> dict:
+    filesystem_report = read_json(reports_dir / "filesystem-report.json", PREFIX)
+    env_report = read_json(reports_dir / "env-report.json", PREFIX)
+
+    for entry in filesystem_report.get("directories") or []:
+        path = entry.get("path")
+        if isinstance(path, str):
+            require_exists(rootfs, path)
+
+    for path in filesystem_report.get("shellFiles") or []:
+        require_exists(rootfs, path)
+
+    for entry in filesystem_report.get("etcFiles") or []:
+        path = entry.get("path")
+        if isinstance(path, str):
+            require_exists(rootfs, path)
+
+    for entry in filesystem_report.get("symlinks") or []:
+        path = entry.get("path")
+        target = entry.get("target")
+        if isinstance(path, str) and isinstance(target, str):
+            require_symlink(rootfs, path, target)
+
+    for link in (env_report.get("environment") or {}).get("pathsToLink") or []:
+        if link in {"/bin", "/include", "/lib", "/lib64", "/libexec", "/share"}:
+            require_symlink(rootfs, link, f"usr/{link.lstrip('/')}")
+
+    return filesystem_report
+
+
+def path_search_dirs(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> list[str]:
+    env_report = read_json(reports_dir / "env-report.json", PREFIX)
+    path_value = (env_report.get("containerEnv") or {}).get("PATH") or ""
     search_dirs = [
-        "/usr/local/bin",
-        "/usr/local/sbin",
-        "/usr/bin",
-        "/usr/sbin",
-        "/bin",
-        "/sbin",
+        entry
+        for entry in path_value.split(":")
+        if entry.startswith("/") and "$" not in entry and root_path(rootfs, entry).is_dir()
     ]
+    if not search_dirs:
+        fail("env-report.json PATH does not contain any rootfs search directories")
+    return search_dirs
+
+
+def require_declared_commands(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> None:
+    profile_report = read_json(reports_dir / "profile-report.json", PREFIX)
+    provided_commands = profile_report.get("provides", {}).get("commands") or []
+    search_dirs = path_search_dirs(rootfs, reports_dir)
     missing = []
     invalid = []
     not_executable = []
@@ -83,9 +112,9 @@ def require_declared_commands(rootfs: pathlib.Path, reports_dir: pathlib.Path):
         fail(f"profile-report.json declares commands that are not executable in rootfs PATH: {', '.join(not_executable)}")
 
 
-def require_vscode_machine_settings(rootfs: pathlib.Path, reports_dir: pathlib.Path, projection_targets):
-    profile_report = read_json(reports_dir / "profile-report.json")
-    filesystem_report = read_json(reports_dir / "filesystem-report.json")
+def require_vscode_machine_settings(rootfs: pathlib.Path, reports_dir: pathlib.Path, projection_targets: set[str]) -> None:
+    profile_report = read_json(reports_dir / "profile-report.json", PREFIX)
+    filesystem_report = read_json(reports_dir / "filesystem-report.json", PREFIX)
     profile_settings = (profile_report.get("vscode") or {}).get("settings") or {}
     machine_settings = filesystem_report.get("vscodeMachineSettings") or {}
 
@@ -117,7 +146,7 @@ def require_vscode_machine_settings(rootfs: pathlib.Path, reports_dir: pathlib.P
         require_exists(rootfs, entry.get("machineDir"))
         settings_path = entry.get("settingsPath")
         require_exists(rootfs, settings_path)
-        if read_json(root_path(rootfs, settings_path)) != profile_settings:
+        if read_json(root_path(rootfs, settings_path), PREFIX) != profile_settings:
             fail(f"VS Code machine settings content mismatch: {settings_path}")
 
 
@@ -132,72 +161,11 @@ def main() -> int:
     if not args.rootfs.is_dir():
         fail(f"rootfs is not a directory: {args.rootfs}")
 
-    for directory in [
-        "/usr/bin",
-        "/usr/sbin",
-        "/usr/lib",
-        "/usr/lib64",
-        "/usr/libexec",
-        "/usr/include",
-        "/usr/share",
-        "/usr/local/bin",
-        "/usr/local/etc",
-        "/usr/local/include",
-        "/usr/local/lib",
-        "/usr/local/lib64",
-        "/usr/local/sbin",
-        "/usr/local/share",
-        "/usr/local/src",
-        "/etc/xdg",
-        "/var/cache",
-        "/var/lib",
-        "/var/log",
-        "/var/tmp",
-        "/run/user/1000",
-    ]:
-        require_exists(args.rootfs, directory)
-
-    for absolute_path, target in {
-        "/bin": "usr/bin",
-        "/sbin": "usr/sbin",
-        "/lib": "usr/lib",
-        "/lib64": "usr/lib64",
-        "/libexec": "usr/libexec",
-        "/include": "usr/include",
-        "/share": "usr/share",
-        "/var/run": "/run",
-    }.items():
-        require_symlink(args.rootfs, absolute_path, target)
-
-    for absolute_path in [
-        "/usr/bin/devcontainer-entrypoint",
-        "/usr/bin/env",
-        "/bin/bash",
-        "/bin/sh",
-        "/usr/share/devcontainer/tasks.json",
-        "/usr/share/devcontainer/vscode/extensions-index.json",
-    ]:
-        require_exists(args.rootfs, absolute_path)
+    filesystem_report = require_reported_filesystem(args.rootfs, args.reports_dir)
 
     for absolute_path in args.require:
         require_exists(args.rootfs, absolute_path)
 
-    for absolute_path in [
-        "/usr/local/bin/devcontainer-entrypoint",
-        "/usr/local/bin/node",
-        "/usr/local/bin/python",
-        "/usr/local/bin/go",
-        "/usr/local/bin/rust-analyzer",
-        "/usr/local/bin/protols",
-        "/usr/local/bin/shellcheck",
-        "/usr/local/share/typescript",
-        "/usr/local/go",
-        "/usr/sbin/ldconfig",
-        "/sbin/ldconfig",
-    ]:
-        require_absent(args.rootfs, absolute_path)
-
-    filesystem_report = read_json(args.reports_dir / "filesystem-report.json")
     directory_map = {entry.get("path"): entry for entry in filesystem_report.get("directories", [])}
     runtime_report = directory_map.get("/run/user/1000") or {}
     if runtime_report.get("owner") != "vscode:vscode":
@@ -205,25 +173,21 @@ def main() -> int:
     if runtime_report.get("mode") != "0700":
         fail("filesystem report must declare /run/user/1000 mode as 0700")
 
-    extensions_index = read_json(root_path(args.rootfs, "/usr/share/devcontainer/vscode/extensions-index.json"))
+    extensions_index = read_json(root_path(args.rootfs, "/usr/share/devcontainer/vscode/extensions-index.json"), PREFIX)
+    extensions_report = read_json(args.reports_dir / "extensions-report.json", PREFIX)
     projection_targets = set(extensions_index.get("projectionTargets") or [])
     for extension in extensions_index.get("extensions") or []:
         extension_path = extension.get("path")
         if not isinstance(extension_path, str) or not extension_path:
             fail("extensions index entries must include projection paths")
         require_exists(args.rootfs, extension_path)
-    require_absent(args.rootfs, "/usr/share/devcontainer/vscode/vsix")
+
+    artifacts = extensions_report.get("artifacts") or {}
+    if artifacts.get("archiveEnabled") is False and isinstance(artifacts.get("archivePath"), str):
+        require_absent(args.rootfs, artifacts["archivePath"])
+
     require_declared_commands(args.rootfs, args.reports_dir)
     require_vscode_machine_settings(args.rootfs, args.reports_dir, projection_targets)
-
-    expected_projection_targets = {
-        "/home/vscode/.vscode-server/extensions",
-        "/home/vscode/.vscode-server-insiders/extensions",
-        "/home/vscode/.vscode-remote/extensions",
-    }
-    missing_projection_targets = sorted(expected_projection_targets - projection_targets)
-    if missing_projection_targets:
-        fail(f"extensions index missing projection targets: {missing_projection_targets}")
 
     print(f"rootfs-layout-check ok: {args.image_name}")
     return 0

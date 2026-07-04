@@ -37,6 +37,7 @@ let
             nativeBuildInputs = [ pkgs.python3 ];
           }
           ''
+            export PYTHONPATH=${../../tests/ci}
             python3 ${../../tests/ci/check-rootfs-layout.py} ${images.${target.target}.rootfs} ${
               images.${target.target}.reports
             } ${target.target} ${requireArgs}

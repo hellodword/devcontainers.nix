@@ -22,6 +22,32 @@ def write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, indent=2), encoding="utf-8")
 
 
+def env_map(entries: list[str]) -> dict[str, str]:
+    return dict(entry.split("=", 1) for entry in entries)
+
+
+def write_expected_reports(reports_dir: Path, env_entries: list[str]) -> None:
+    write_json(
+        reports_dir / "image-plan.json",
+        {
+            "image": "fixture",
+            "user": "vscode",
+            "workingDir": "/workspaces",
+            "entrypoint": ["/usr/bin/devcontainer-entrypoint"],
+        },
+    )
+    write_json(
+        reports_dir / "ci-plan.json",
+        {
+            "image": "fixture",
+            "architectures": ["linux/amd64"],
+            "reportFiles": [],
+        },
+    )
+    write_json(reports_dir / "env-report.json", {"containerEnv": env_map(env_entries)})
+    write_json(reports_dir / "metadata-label.json", [])
+
+
 def layer_budget(max_layer_size: str = "8GiB", max_layers: int = 100, reserve: int = 20) -> dict:
     return {
         "strategy": "balanced",
@@ -85,6 +111,31 @@ def main() -> int:
         reports_dir = tmpdir / "reports"
         reports_dir.mkdir()
         image_path = tmpdir / "image.json"
+        env_entries = [
+            "HOME=/home/vscode",
+            "XDG_CONFIG_HOME=/home/vscode/.config",
+            "XDG_CACHE_HOME=/home/vscode/.cache",
+            "XDG_DATA_HOME=/home/vscode/.local/share",
+            "XDG_STATE_HOME=/home/vscode/.local/state",
+            "XDG_RUNTIME_DIR=/run/user/1000",
+            "LANG=en_US.UTF-8",
+            "LANGUAGE=en_US:en",
+            "LOCALE_ARCHIVE=/nix/store/fixture-glibc-locales/lib/locale/locale-archive",
+            "XDG_CONFIG_DIRS=/etc/xdg",
+            "XDG_DATA_DIRS=/usr/local/share:/usr/share",
+            "NIXPKGS_CONFIG=/etc/nixpkgs/config.nix",
+            "NIXPKGS_ALLOW_UNFREE=1",
+            "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1",
+            "NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE=1",
+            "DEVPKG_NIXPKGS_REF=path:/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source",
+            "DEVPKG_NIXPKGS_CACHE_KEY=fixture-rev",
+            "DEVPKG_SYSTEM=x86_64-linux",
+            "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+            "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+            "CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
+            "GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt",
+            "TZDIR=/etc/zoneinfo",
+        ]
         write_json(
             image_path,
             {
@@ -94,31 +145,7 @@ def main() -> int:
                     "User": "vscode",
                     "WorkingDir": "/workspaces",
                     "Entrypoint": ["/usr/bin/devcontainer-entrypoint"],
-                    "Env": [
-                        "HOME=/home/vscode",
-                        "XDG_CONFIG_HOME=/home/vscode/.config",
-                        "XDG_CACHE_HOME=/home/vscode/.cache",
-                        "XDG_DATA_HOME=/home/vscode/.local/share",
-                        "XDG_STATE_HOME=/home/vscode/.local/state",
-                        "XDG_RUNTIME_DIR=/run/user/1000",
-                        "LANG=en_US.UTF-8",
-                        "LANGUAGE=en_US:en",
-                        "LOCALE_ARCHIVE=/nix/store/fixture-glibc-locales/lib/locale/locale-archive",
-                        "XDG_CONFIG_DIRS=/etc/xdg",
-                        "XDG_DATA_DIRS=/usr/local/share:/usr/share",
-                        "NIXPKGS_CONFIG=/etc/nixpkgs/config.nix",
-                        "NIXPKGS_ALLOW_UNFREE=1",
-                        "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1",
-                        "NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE=1",
-                        "DEVPKG_NIXPKGS_REF=path:/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source",
-                        "DEVPKG_NIXPKGS_CACHE_KEY=fixture-rev",
-                        "DEVPKG_SYSTEM=x86_64-linux",
-                        "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
-                        "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
-                        "CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
-                        "GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt",
-                        "TZDIR=/etc/zoneinfo",
-                    ],
+                    "Env": env_entries,
                     "Labels": {"devcontainer.metadata": "[]"},
                 },
                 "layers": [
@@ -135,6 +162,7 @@ def main() -> int:
 
         checker = repo_root / "tests" / "ci" / "check-image-tar.py"
         budget_checker = repo_root / "tests" / "ci" / "check-layer-budget.py"
+        write_expected_reports(reports_dir, env_entries)
         write_layer_reports(reports_dir, "8GiB")
         passing = subprocess.run(
             [

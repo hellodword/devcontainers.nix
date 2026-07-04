@@ -32,7 +32,7 @@ let
   nixReportContractLines = lib.concatMapStringsSep "\n" (drv: "test -e ${drv}") (
     builtins.attrValues nixReportContracts
   );
-  checkReports = ../../../tests/ci/check-reports.py;
+  checkReports = ../../../tests/ci/check-report-bundle.py;
   checkSmokePlan = ../../../tests/ci/check-smoke-plan.py;
   checkHermeticDefaults = ../../../tests/ci/check-hermetic-default-checks.py;
   checkMetadataSchema = ../../../tests/ci/check-devcontainer-metadata-schema.py;
