@@ -24,6 +24,7 @@ let
     ./reports/metadata.nix
     ./reports/layers.nix
     ./reports/extensions.nix
+    ./reports/fhs.nix
     ./reports/filesystem.nix
     ./reports/fonts.nix
     ./reports/security.nix

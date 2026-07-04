@@ -74,11 +74,20 @@ def require_reported_filesystem(rootfs: pathlib.Path, reports_dir: pathlib.Path)
 def path_search_dirs(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> list[str]:
     env_report = read_json(reports_dir / "env-report.json", PREFIX)
     path_value = (env_report.get("containerEnv") or {}).get("PATH") or ""
-    search_dirs = [
+    concrete_dirs = [
         entry
         for entry in path_value.split(":")
-        if entry.startswith("/") and "$" not in entry and root_path(rootfs, entry).is_dir()
+        if entry.startswith("/") and "$" not in entry
     ]
+    rootfs_dirs = [
+        entry
+        for entry in concrete_dirs
+        if not entry.startswith("/home/") and not entry.startswith("/workspaces/")
+    ]
+    missing_dirs = [entry for entry in rootfs_dirs if not root_path(rootfs, entry).is_dir()]
+    if missing_dirs:
+        fail(f"env-report.json PATH contains directories missing from rootfs: {', '.join(missing_dirs)}")
+    search_dirs = [entry for entry in concrete_dirs if root_path(rootfs, entry).is_dir()]
     if not search_dirs:
         fail("env-report.json PATH does not contain any rootfs search directories")
     return search_dirs

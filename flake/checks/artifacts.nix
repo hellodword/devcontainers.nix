@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  nixpkgs,
   images,
   targets,
   ...
@@ -16,7 +17,7 @@ let
         }
         ''
           export PYTHONPATH=${../../tests/ci}
-          python3 ${../../tests/ci/check-image-tar.py} ${image.oci} ${image.reports} ${name}
+          python3 ${../../tests/ci/check-image-tar.py} ${image.oci} ${image.reports} ${name} path:${nixpkgs.outPath}
           touch "$out"
         ''
     )
@@ -45,7 +46,7 @@ let
       )
     ) targets.imageTargetList
   );
-  imageTarFixtureCheck = {
+  artifactFixtureChecks = {
     artifact-image-fixture =
       pkgs.runCommand "artifact-image-fixture"
         {
@@ -55,6 +56,16 @@ let
           python3 ${../../tests/ci/check-image-tar-fixture.py} ${../..}
           touch "$out"
         '';
+    artifact-rootfs-fixture =
+      pkgs.runCommand "artifact-rootfs-fixture"
+        {
+          nativeBuildInputs = [ pkgs.python3 ];
+        }
+        ''
+          export PYTHONPATH=${../../tests/ci}
+          python3 ${../../tests/ci/check-rootfs-layout-fixture.py} ${../..}
+          touch "$out"
+        '';
   };
 in
-artifactImageChecks // rootfsChecks // imageTarFixtureCheck
+artifactImageChecks // rootfsChecks // artifactFixtureChecks
