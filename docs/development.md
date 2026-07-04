@@ -492,7 +492,7 @@ When changing it, check:
 - `lib/compiler/libraries.nix`
 - `runtime/devpkg/main.py`
 - the focused helper suite under `tests/ci/check-*.py`
-- `tests/ci/check-reports.py`
+- report contracts under `flake/checks/contracts/reports/`
 - `docs/usage.md`
 - `docs/architecture.md`
 

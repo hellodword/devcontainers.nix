@@ -227,7 +227,8 @@ The report records:
 - global `FONTCONFIG_FILE` policy
 - cache policy
 
-`tests/ci/check-reports.py` rejects regressions in the public contract:
+`flake/checks/contracts/reports/fonts.nix` rejects regressions in the public
+font report contract:
 
 - missing `fontconfig-report.json`
 - missing `fonts-runtime` or `runtime/fonts`
@@ -239,8 +240,9 @@ The report records:
 - global `FONTCONFIG_FILE`
 - pre-generated cache
 
-`tests/ci/check-smoke-plan.py` requires every image family to include the common
-font smoke tests:
+`flake/checks/contracts/reports/smoke.nix` verifies declared smoke cases are
+present in generated smoke plans. Font smoke cases live with the owning font
+module:
 
 - `fontconfig.core`
 - `fontconfig.cjk-emoji`
@@ -297,7 +299,7 @@ When changing default font packages:
 
 1. Update `devcontainer.fonts.packages` defaults in
    `lib/modules/core/fonts.nix`.
-2. Update `fontconfig-report.json` assertions in `tests/ci/check-reports.py`.
+2. Update `fontconfig-report.json` assertions in `flake/checks/contracts/reports/fonts.nix`.
 3. Update smoke tests in `lib/modules/core/fonts.nix` if coverage expectations
    changed.
 4. Update `README.md`, `docs/usage.md`, and this document.
@@ -307,7 +309,7 @@ When changing default fallback order:
 
 1. Update `devcontainer.fonts.fontconfig.defaultFonts`.
 2. Verify `fc-match` results for representative CJK code points.
-3. Update `tests/ci/check-reports.py` and `fontconfig.cjk-emoji` smoke expectations.
+3. Update `flake/checks/contracts/reports/fonts.nix` and `fontconfig.cjk-emoji` smoke expectations.
 4. Document the rationale, especially if changing regional CJK priority.
 
 When adding system cache generation:
