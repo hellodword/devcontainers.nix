@@ -346,9 +346,9 @@ Images use nix2container's `initializeNixDatabase` support. The generated Nix da
 
 This is required for `devpkg`, which installs ad-hoc packages with `nix profile add`. Without the database, Nix could see store paths on disk that are not registered in `/nix/var/nix/db`, causing profile installs to fail or reference missing paths.
 
-The generated filesystem includes `/etc/nix/nix.conf` from `nix.settings` and `/etc/nixpkgs/config.nix` with the same nixpkgs policy used by the image build. Container environment variables also set nixpkgs policy defaults and `DEVPKG_NIXPKGS_REF=path:<locked-nixpkgs-source>`, so runtime package installs follow the flake-locked nixpkgs input without fetching nixpkgs on first use. The image keeps that source reachable through `/usr/share/devcontainer/nixpkgs` and its `/nix/store/...-source` target. `devpkg` runs flake evaluation and installation commands with `--impure` so packages such as Google Chrome and Microsoft Edge can read those defaults.
+The generated filesystem includes `/etc/nix/nix.conf` from `nix.settings` and `/etc/nixpkgs/config.nix` with the same nixpkgs policy used by the image build. Container environment variables also set nixpkgs policy defaults and `DEVPKG_NIXPKGS_REF=path:<locked-nixpkgs-source>`, so runtime package installs follow the flake-locked nixpkgs input without fetching nixpkgs on first use. `DEVPKG_SYSTEM` and `DEVPKG_NIXPKGS_CACHE_KEY` give runtime helpers a stable completion-cache key without evaluating the system first. The image keeps that source reachable through `/usr/share/devcontainer/nixpkgs` and its `/nix/store/...-source` target. `devpkg` runs flake evaluation and installation commands with `--impure` so packages such as Google Chrome and Microsoft Edge can read those defaults.
 
-The `devpkg` runtime package also ships Bash completion under `/usr/share/bash-completion/completions/devpkg` in the generated image. It completes subcommands, common options, installed profile entries, and nixpkgs package attributes from the same locked nixpkgs source.
+The `devpkg` runtime package also ships Bash completion under `/usr/share/bash-completion/completions/devpkg` in the generated image. It completes subcommands, common options, installed profile entries, and nixpkgs package attributes from the same locked nixpkgs source. Package-attribute completion caches scope attrnames under `$XDG_CACHE_HOME/devpkg/packages`, keyed by nixpkgs cache key, system, and parent scope. Interactive shell startup only defines the completion function; nixpkgs evaluation happens on completion use and is skipped on cache hits.
 
 ## Runtime Helpers
 
@@ -372,7 +372,7 @@ The default locale contract is:
 
 `LC_ALL` is intentionally unset because it overrides every locale category. Image modules can set specific `LC_*` variables through `i18n.extraLocaleSettings`.
 
-Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`. Interactive Bash gets aliases, a lightweight prompt, history settings, bash completion, and a command-not-found handler. The handler only queries the local nix-index database and returns 127. It does not install software, call the network, or execute project commands.
+Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`. Interactive Bash gets aliases, a lightweight prompt, history settings, bash completion, and a command-not-found handler. The handler only queries the local nix-index database after an unknown command is entered and returns 127. It does not install software, call the network, execute project commands, or perform nix-index work during shell startup.
 
 XDG defaults are explicit and absolute in the container environment: `XDG_CONFIG_HOME=/home/vscode/.config`, `XDG_CACHE_HOME=/home/vscode/.cache`, `XDG_DATA_HOME=/home/vscode/.local/share`, `XDG_STATE_HOME=/home/vscode/.local/state`, `XDG_RUNTIME_DIR=/run/user/1000`, `XDG_CONFIG_DIRS=/etc/xdg`, and `XDG_DATA_DIRS=/usr/local/share:/usr/share`. `PATH` prefers project and user tools, then `/usr/local/bin:/usr/bin`; it does not include `/bin` because `/bin` is only the usr-merge compatibility symlink.
 
@@ -386,6 +386,10 @@ VS Code extension support has two parts:
 
 - modules declare extension identifiers and settings
 - the extension compiler prepares extension payloads and metadata for projection into VS Code server extension directories
+
+VS Code extension artifacts are split by use. The default image includes only unpacked extension directories under `/usr/share/devcontainer/vscode/extensions`, which are the inputs needed by the projection lifecycle task. `.vsix` archives are omitted by default and can be added with the `"archive"` artifact mode when an image needs audit or reinstall payloads. When enabled, archives live under `/usr/share/devcontainer/vscode/vsix` and are placed in their own image layer.
+
+`extensions-index.json` is the projector input and contains only projection targets plus extension `id`, `path`, and projection strategy. `extensions-report.json` is the audit surface and records source locks, artifact modes, projection/archive paths, and validation metadata.
 
 VS Code keeps two deliberate home-directory exceptions because the Remote Server looks there. Preinstalled extensions are projected into `/home/vscode/.vscode-server/extensions`, `/home/vscode/.vscode-server-insiders/extensions`, and `/home/vscode/.vscode-remote/extensions`. The same server roots also contain root-owned, read-only `data/Machine/settings.json` files generated from the compiled VS Code settings. Their server root, `data`, and `data/Machine` directories stay sticky-writable so VS Code can create its normal runtime content, while `settings.json` is not writable by the `vscode` user. Other shared image data lives under `/usr/share/devcontainer`. VS Code Remote Server logs show temporary socket handling as `VSC_TMP="${XDG_RUNTIME_DIR:-/tmp}"`; with `XDG_RUNTIME_DIR=/run/user/1000`, VS Code IPC sockets can use `/run/user/1000/vscode-ipc-*.sock` and only fall back to `/tmp` when the runtime directory is unset.
 

@@ -118,6 +118,20 @@ def main(argv: list[str]) -> int:
         if joined == "--impure --expr builtins.currentSystem --raw":
             print(SYSTEM)
             return 0
+        if "builtins.attrNames scope" in joined:
+            if os.environ.get("FAKE_NIX_DISABLE_PACKAGE_COMPLETION") == "1":
+                print("fake nix package completion disabled", file=sys.stderr)
+                return 1
+            eval_log = os.environ.get("FAKE_NIX_EVAL_LOG")
+            if eval_log:
+                Path(eval_log).parent.mkdir(parents=True, exist_ok=True)
+                with Path(eval_log).open("a", encoding="utf-8") as handle:
+                    handle.write(joined + "\n")
+            if 'parent = "python3Packages";' in joined:
+                print(json.dumps(["black", "debugpy"]))
+            else:
+                print(json.dumps(["cowsay", "curl", "python3Packages", "zlib"]))
+            return 0
         if ".zlib.outputs" in joined:
             print('["out","dev"]')
             return 0
@@ -217,16 +231,41 @@ def main() -> int:
             {
                 "HOME": str(project_root / "home"),
                 "XDG_CONFIG_HOME": str(project_root / "config"),
+                "XDG_CACHE_HOME": str(project_root / "cache"),
                 "XDG_DATA_HOME": str(project_root / "data"),
                 "XDG_STATE_HOME": str(project_root / "state"),
                 "DEVPKG_RUNTIME_LIBRARY_PROFILE": str(project_root / "runtime-libraries" / "profile"),
                 "DEVPKG_BUILD_LIBRARY_PROFILE": str(project_root / "build-libraries" / "profile"),
                 "DEVPKG_NIX_BIN": str(fake_nix),
+                "DEVPKG_NIXPKGS_CACHE_KEY": "fake-nixpkgs-rev",
+                "DEVPKG_SYSTEM": "x86_64-linux",
+                "FAKE_NIX_EVAL_LOG": str(project_root / "fake-nix-eval.log"),
             }
         )
-        for key in ["HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"]:
+        for key in ["HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"]:
             Path(env[key]).mkdir(parents=True, exist_ok=True)
         env["PATH"] = f"{env['HOME']}/.nix-profile/bin:{env['XDG_DATA_HOME']}/nix-profile/bin:{env.get('PATH', '')}"
+
+        require_regex("^cowsay$", run_stdout([str(devpkg), "complete", "packages", "cow"], env=env), "package completion")
+        require_regex(
+            "^python3Packages.black$",
+            run_stdout([str(devpkg), "complete", "packages", "python3Packages.bl"], env=env),
+            "package scope completion",
+        )
+        package_cache_dir = Path(env["XDG_CACHE_HOME"]) / "devpkg" / "packages"
+        if len(list(package_cache_dir.glob("*.json"))) < 2:
+            fail("expected package completion cache files")
+        cached_env = env.copy()
+        cached_env["FAKE_NIX_DISABLE_PACKAGE_COMPLETION"] = "1"
+        require_regex(
+            "^cowsay$",
+            run_stdout([str(devpkg), "complete", "packages", "cow"], env=cached_env),
+            "cached package completion",
+        )
+        invalidated_env = cached_env.copy()
+        invalidated_env["DEVPKG_NIXPKGS_CACHE_KEY"] = "fake-nixpkgs-other-rev"
+        if run_stdout([str(devpkg), "complete", "packages", "cow"], env=invalidated_env):
+            fail("package completion cache must be invalidated by nixpkgs cache key")
 
         run([str(devpkg), "add", "cowsay"], env=env)
         package_list = run_stdout([str(devpkg), "list"], env=env)

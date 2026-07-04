@@ -94,7 +94,7 @@ let
   ) config.devcontainer.image.tags;
   tasks-json = jsonFile "tasks.json" { tasks = compiledLifecycle.tasks; };
   extensions-index-json = jsonFile "extensions-index.json" {
-    extensions = compiledVscodeExtensions.extensions;
+    extensions = compiledVscodeExtensions.projectionExtensions;
     projectionTargets = compiledVscodeExtensions.projectionTargets;
   };
   layer-plan-json = jsonFile "layer-plan.json" compiledLayers;
@@ -183,6 +183,7 @@ let
     image = config.devcontainer.image.name;
     extensionCount = builtins.length compiledVscodeExtensions.extensions;
     extensions = compiledVscodeExtensions.extensions;
+    artifacts = compiledVscodeExtensions.artifacts;
     projection = config.devcontainer.vscode.preinstall.projection;
     validation = {
       nativeExtensions = map (extension: extension.id) (

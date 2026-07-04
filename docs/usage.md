@@ -105,6 +105,8 @@ devpkg add div<TAB>
 `devpkg` uses the image's locked nixpkgs input and nixpkgs policy, including
 unfree package support and accepted Android SDK license gates. New containers do
 not need to download nixpkgs before the first `devpkg add`.
+Package-attribute completion caches nixpkgs attrnames in
+`$XDG_CACHE_HOME/devpkg`, keyed by the image's locked nixpkgs input.
 
 ## Native Libraries And `LD_LIBRARY_PATH`
 

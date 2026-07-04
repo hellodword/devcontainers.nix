@@ -95,6 +95,13 @@ def main() -> int:
         source_lock = extension.get("sourceLock") or {}
         if not all(source_lock.get(key) for key in ["ref", "sha256", "manifestFingerprint", "vsixSha256"]):
             fail("extension source lock metadata is incomplete")
+        artifacts = extension.get("artifacts") or {}
+        projection_artifact = artifacts.get("projection") or {}
+        archive_artifact = artifacts.get("archive") or {}
+        if projection_artifact.get("enabled") is not True or not projection_artifact.get("path"):
+            fail("extension projection artifact metadata is incomplete")
+        if archive_artifact.get("enabled") is not False:
+            fail("extension archive artifact should be disabled by default")
         if not (extension.get("validation") or {}).get("strategy"):
             fail("extension validation strategy missing")
 

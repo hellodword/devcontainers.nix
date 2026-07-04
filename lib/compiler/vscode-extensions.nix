@@ -12,6 +12,11 @@
 let
   hashString = value: builtins.hashString "sha256" value;
   pathString = path: builtins.unsafeDiscardStringContext (toString path);
+  preinstall = config.devcontainer.vscode.preinstall;
+  artifactModes = if preinstall.enable then preinstall.artifacts.modes else [ ];
+  includeProjection = builtins.elem "projection" artifactModes;
+  includeArchive = builtins.elem "archive" artifactModes;
+  projectionEnabled = includeProjection && preinstall.projection.enable;
   extensionSets = {
     vscode-marketplace-release = pkgs.vscode-marketplace-release;
     open-vsx-release = pkgs.open-vsx-release;
@@ -130,6 +135,8 @@ let
           "copy-if-needed-with-fhs"
         else
           "symlink";
+      projectionPath = "${preinstall.artifacts.projectionPath}/${pathSegment}";
+      archivePath = "${preinstall.artifacts.archivePath}/${vsixName}";
       public = {
         inherit
           id
@@ -142,8 +149,21 @@ let
           ;
         version = extensionVersion;
         source = resolved.source;
-        path = "${config.devcontainer.vscode.preinstall.store.extensionsPath}/${pathSegment}";
-        vsixPath = "${config.devcontainer.vscode.preinstall.store.vsixPath}/${vsixName}";
+        path = if includeProjection then projectionPath else null;
+        archivePath = if includeArchive then archivePath else null;
+        artifacts = {
+          modes = artifactModes;
+          projection = {
+            enabled = includeProjection;
+            path = if includeProjection then projectionPath else null;
+          };
+          archive = {
+            enabled = includeArchive;
+            path = if includeArchive then archivePath else null;
+            name = vsixName;
+            sourcePath = pathString (extensionPackage.src or extensionPackage);
+          };
+        };
         companionTools = metadata.companionTools;
         sourcePreference = metadata.sourcePreference;
         origins = metadata.origins;
@@ -160,10 +180,19 @@ let
     in
     {
       inherit public;
-      image = {
-        inherit (public) id path vsixPath;
+      projectionImage = {
+        inherit id projection;
+        path = projectionPath;
         sourcePath = "${extensionPackage}/share/vscode/extensions/${uniqueId}";
-        archivePath = extensionPackage.src or extensionPackage;
+      };
+      archiveImage = {
+        inherit id;
+        path = archivePath;
+        sourcePath = extensionPackage.src or extensionPackage;
+      };
+      index = {
+        inherit id projection;
+        path = projectionPath;
       };
     };
   compiledExtensions = map (
@@ -172,6 +201,18 @@ let
 in
 {
   extensions = map (extension: extension.public) compiledExtensions;
-  imageExtensions = map (extension: extension.image) compiledExtensions;
-  projectionTargets = config.devcontainer.vscode.preinstall.projection.targets;
+  projectionExtensions =
+    if projectionEnabled then map (extension: extension.index) compiledExtensions else [ ];
+  projectionArtifacts =
+    if includeProjection then map (extension: extension.projectionImage) compiledExtensions else [ ];
+  archiveArtifacts =
+    if includeArchive then map (extension: extension.archiveImage) compiledExtensions else [ ];
+  projectionTargets = if projectionEnabled then preinstall.projection.targets else [ ];
+  artifacts = {
+    modes = artifactModes;
+    projectionEnabled = projectionEnabled;
+    archiveEnabled = includeArchive;
+    projectionPath = preinstall.artifacts.projectionPath;
+    archivePath = preinstall.artifacts.archivePath;
+  };
 }

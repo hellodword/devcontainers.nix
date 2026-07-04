@@ -111,6 +111,8 @@ def main() -> int:
                         "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1",
                         "NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE=1",
                         "DEVPKG_NIXPKGS_REF=path:/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source",
+                        "DEVPKG_NIXPKGS_CACHE_KEY=fixture-rev",
+                        "DEVPKG_SYSTEM=x86_64-linux",
                         "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
                         "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
                         "CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",

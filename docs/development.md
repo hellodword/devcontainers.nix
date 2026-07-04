@@ -192,7 +192,7 @@ extension metadata.
 Run `nix flake check` so duplicate extension ownership, companion-tool
 validation, extension artifact locking, and generated report checks run.
 For affected images, inspect `profile-report.json`, `extensions-report.json`,
-and `extensions-index.json`.
+and the projector-only `extensions-index.json`.
 
 ### Add An Executable
 

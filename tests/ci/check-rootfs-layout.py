@@ -199,6 +199,12 @@ def main() -> int:
 
     extensions_index = read_json(root_path(args.rootfs, "/usr/share/devcontainer/vscode/extensions-index.json"))
     projection_targets = set(extensions_index.get("projectionTargets") or [])
+    for extension in extensions_index.get("extensions") or []:
+        extension_path = extension.get("path")
+        if not isinstance(extension_path, str) or not extension_path:
+            fail("extensions index entries must include projection paths")
+        require_exists(args.rootfs, extension_path)
+    require_absent(args.rootfs, "/usr/share/devcontainer/vscode/vsix")
     require_declared_commands(args.rootfs, args.reports_dir)
     require_vscode_machine_settings(args.rootfs, args.reports_dir, projection_targets)
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import os
 import subprocess
@@ -7,6 +8,7 @@ from pathlib import Path
 
 
 NIXPKGS_REF = os.environ.get("DEVPKG_NIXPKGS_REF", "nixpkgs")
+NIXPKGS_CACHE_KEY = os.environ.get("DEVPKG_NIXPKGS_CACHE_KEY", NIXPKGS_REF)
 NIX_BIN = os.environ.get("DEVPKG_NIX_BIN", "nix")
 NIX_EXPERIMENTAL_FLAGS = [
     "--extra-experimental-features",
@@ -15,6 +17,7 @@ NIX_EXPERIMENTAL_FLAGS = [
     "flakes",
 ]
 CURRENT_SYSTEM = None
+CACHE_SCHEMA_VERSION = 1
 
 
 USAGE = """devpkg add <package>...
@@ -112,8 +115,22 @@ def nix_capture(args: list[str], *, stderr=None) -> str:
 def current_system() -> str:
     global CURRENT_SYSTEM
     if CURRENT_SYSTEM is None:
-        CURRENT_SYSTEM = nix_capture(["eval", "--impure", "--expr", "builtins.currentSystem", "--raw"]).strip()
+        configured = os.environ.get("DEVPKG_SYSTEM")
+        if configured:
+            CURRENT_SYSTEM = configured
+        else:
+            CURRENT_SYSTEM = nix_capture(["eval", "--impure", "--expr", "builtins.currentSystem", "--raw"]).strip()
     return CURRENT_SYSTEM
+
+
+def default_xdg_cache_home() -> Path:
+    xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+    if xdg_cache_home:
+        return Path(xdg_cache_home)
+    home = os.environ.get("HOME")
+    if not home:
+        die("HOME or XDG_CACHE_HOME is required")
+    return Path(home) / ".cache"
 
 
 def default_xdg_data_home() -> Path:
@@ -124,6 +141,13 @@ def default_xdg_data_home() -> Path:
     if not home:
         die("HOME or XDG_DATA_HOME is required")
     return Path(home) / ".local" / "share"
+
+
+def devpkg_cache_home() -> Path:
+    configured = os.environ.get("DEVPKG_CACHE_HOME")
+    if configured:
+        return Path(configured)
+    return default_xdg_cache_home() / "devpkg"
 
 
 def runtime_library_profile() -> Path:
@@ -400,18 +424,62 @@ def complete_outputs(prefix: str) -> None:
             print(output)
 
 
-def complete_packages(prefix: str) -> None:
-    parent = ""
-    leaf = prefix
-    if "." in prefix:
-        parent, leaf = prefix.rsplit(".", 1)
+def package_cache_path(parent: str) -> Path:
+    cache_id = "\0".join([str(CACHE_SCHEMA_VERSION), NIXPKGS_CACHE_KEY, current_system(), parent])
+    digest = hashlib.sha256(cache_id.encode("utf-8")).hexdigest()
+    return devpkg_cache_home() / "packages" / f"{digest}.json"
+
+
+def read_package_cache(parent: str) -> list[str] | None:
+    path = package_cache_path(parent)
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("schemaVersion") != CACHE_SCHEMA_VERSION:
+        return None
+    if data.get("nixpkgsCacheKey") != NIXPKGS_CACHE_KEY:
+        return None
+    if data.get("system") != current_system() or data.get("parent") != parent:
+        return None
+    attr_names = data.get("attrNames")
+    if not isinstance(attr_names, list) or not all(isinstance(name, str) for name in attr_names):
+        return None
+    return attr_names
+
+
+def write_package_cache(parent: str, attr_names: list[str]) -> None:
+    path = package_cache_path(parent)
+    data = {
+        "schemaVersion": CACHE_SCHEMA_VERSION,
+        "nixpkgsCacheKey": NIXPKGS_CACHE_KEY,
+        "system": current_system(),
+        "parent": parent,
+        "attrNames": attr_names,
+    }
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_text(json.dumps(data, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp_path, path)
+    except OSError:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+
+
+def eval_package_scope(parent: str) -> list[str] | None:
+    system = current_system()
     expr = f"""
     let
       ref = {json.dumps(NIXPKGS_REF)};
       parent = {json.dumps(parent)};
-      leaf = {json.dumps(leaf)};
+      system = {json.dumps(system)};
       flake = builtins.getFlake ref;
-      system = builtins.currentSystem;
       pkgs =
         if flake ? legacyPackages && builtins.hasAttr system flake.legacyPackages then
           flake.legacyPackages.${{system}}
@@ -426,23 +494,42 @@ def complete_packages(prefix: str) -> None:
             {{ }})
         pkgs
         parts;
-      matches = builtins.filter
-        (name: builtins.substring 0 (builtins.stringLength leaf) name == leaf)
-        (if builtins.isAttrs scope then builtins.attrNames scope else [ ]);
     in
-      map (name: if parent == "" then name else parent + "." + name) matches
+      if builtins.isAttrs scope then builtins.attrNames scope else [ ]
     """
     result = nix_run(["eval", "--impure", "--json", "--expr", expr], capture=True, stderr=subprocess.DEVNULL)
     if result.returncode != 0:
-        return
+        return None
     try:
-        matches = json.loads(result.stdout or "[]")
+        attr_names = json.loads(result.stdout or "[]")
     except json.JSONDecodeError:
+        return None
+    if isinstance(attr_names, list) and all(isinstance(name, str) for name in attr_names):
+        return sorted(set(attr_names))
+    return None
+
+
+def package_scope_names(parent: str) -> list[str] | None:
+    cached = read_package_cache(parent)
+    if cached is not None:
+        return cached
+    attr_names = eval_package_scope(parent)
+    if attr_names is not None:
+        write_package_cache(parent, attr_names)
+    return attr_names
+
+
+def complete_packages(prefix: str) -> None:
+    parent = ""
+    leaf = prefix
+    if "." in prefix:
+        parent, leaf = prefix.rsplit(".", 1)
+    attr_names = package_scope_names(parent)
+    if attr_names is None:
         return
-    if isinstance(matches, list):
-        for match in matches:
-            if isinstance(match, str):
-                print(match)
+    for name in attr_names:
+        if name.startswith(leaf):
+            print(name if parent == "" else f"{parent}.{name}")
 
 
 def complete_installed(mode: str, prefix: str) -> None:

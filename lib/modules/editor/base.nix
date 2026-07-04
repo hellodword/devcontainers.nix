@@ -5,6 +5,10 @@
 }:
 let
   inherit (lib) mkOption types;
+  artifactModeType = types.enum [
+    "projection"
+    "archive"
+  ];
 in
 {
   options.devcontainer.vscode.preinstall = {
@@ -16,18 +20,18 @@ in
       type = types.str;
       default = "nix-vscode-extensions";
     };
-    store = {
-      extensionsPath = mkOption {
+    artifacts = {
+      modes = mkOption {
+        type = types.listOf artifactModeType;
+        default = [ "projection" ];
+      };
+      projectionPath = mkOption {
         type = types.str;
         default = "/usr/share/devcontainer/vscode/extensions";
       };
-      vsixPath = mkOption {
+      archivePath = mkOption {
         type = types.str;
         default = "/usr/share/devcontainer/vscode/vsix";
-      };
-      indexPath = mkOption {
-        type = types.str;
-        default = "/usr/share/devcontainer/vscode/extensions-index.json";
       };
     };
     projection = {

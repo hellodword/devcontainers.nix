@@ -568,6 +568,16 @@ def main() -> int:
         fail("container env must set DEVPKG_NIXPKGS_REF to the locked nixpkgs store source")
     if "core.env" not in env_report["containerEnvSources"].get("DEVPKG_NIXPKGS_REF", {}).get("sources", []):
         fail("DEVPKG_NIXPKGS_REF must be sourced from core.env")
+    devpkg_system = env_report["containerEnv"].get("DEVPKG_SYSTEM")
+    if not isinstance(devpkg_system, str) or not devpkg_system:
+        fail("container env must set DEVPKG_SYSTEM")
+    if "core.env" not in env_report["containerEnvSources"].get("DEVPKG_SYSTEM", {}).get("sources", []):
+        fail("DEVPKG_SYSTEM must be sourced from core.env")
+    devpkg_cache_key = env_report["containerEnv"].get("DEVPKG_NIXPKGS_CACHE_KEY")
+    if not isinstance(devpkg_cache_key, str) or not devpkg_cache_key:
+        fail("container env must set DEVPKG_NIXPKGS_CACHE_KEY")
+    if "core.env" not in env_report["containerEnvSources"].get("DEVPKG_NIXPKGS_CACHE_KEY", {}).get("sources", []):
+        fail("DEVPKG_NIXPKGS_CACHE_KEY must be sourced from core.env")
     for env_name, env_value in env_report["containerEnv"].items():
         if isinstance(env_value, str) and ("$HOME" in env_value or "$XDG_" in env_value):
             fail(f"container env must not retain unexpanded HOME/XDG references in {env_name}")
@@ -733,6 +743,48 @@ def main() -> int:
         fail("extensions-report.json must confirm companion tools come from Nix")
     if extensions_report["validation"].get("missingCompanionTools"):
         fail("extensions-report.json must not report missing companion tools")
+    extension_artifacts = extensions_report.get("artifacts") or {}
+    if extension_artifacts.get("modes") != ["projection"]:
+        fail("extensions-report.json must default to projection artifacts only")
+    if extension_artifacts.get("projectionEnabled") is not True:
+        fail("extensions-report.json must report projection artifacts as enabled")
+    if extension_artifacts.get("archiveEnabled") is not False:
+        fail("extensions-report.json must report VS Code archives as disabled by default")
+    if extension_artifacts.get("projectionPath") != "/usr/share/devcontainer/vscode/extensions":
+        fail("extensions-report.json must report the projection artifact path")
+    if extension_artifacts.get("archivePath") != "/usr/share/devcontainer/vscode/vsix":
+        fail("extensions-report.json must report the archive artifact path")
+
+    report_extension_ids = set()
+    for extension in extensions_report["extensions"]:
+        extension_id = extension["id"]
+        report_extension_ids.add(extension_id)
+        if extension["version"] == "pinned":
+            fail(f"extensions-report.json must record a real version for {extension_id}")
+        if not extension["source"].startswith("nix-vscode-extensions."):
+            fail(f"extensions-report.json must record nix-vscode-extensions source for {extension_id}")
+        if not extension["sourceLock"]["ref"]:
+            fail(f"extensions-report.json must record source ref for {extension_id}")
+        artifact_report = extension.get("artifacts") or {}
+        projection_artifact = artifact_report.get("projection") or {}
+        archive_artifact = artifact_report.get("archive") or {}
+        if projection_artifact.get("enabled") is not True or not projection_artifact.get("path"):
+            fail(f"extensions-report.json must record projection artifact path for {extension_id}")
+        if archive_artifact.get("enabled") is not False:
+            fail(f"extensions-report.json must report archive artifact disabled for {extension_id}")
+        origins = extension.get("origins") or []
+        if len(origins) != 1:
+            fail(f"extension {extension_id} must have exactly one profile origin")
+        if extension_id == "esbenp.prettier-vscode" and origins != ["editor/prettier"]:
+            fail("Prettier extension must be owned only by editor/prettier")
+    if report_extension_ids != profile_extension_ids:
+        missing_extension_ids = sorted(profile_extension_ids - report_extension_ids)
+        extra_extension_ids = sorted(report_extension_ids - profile_extension_ids)
+        fail(
+            "extensions-report.json must match profile-report.json; "
+            f"missing={missing_extension_ids}, extra={extra_extension_ids}"
+        )
+
     projection_targets = extensions_index.get("projectionTargets") or []
     if any("$HOME" in target for target in projection_targets):
         fail("VS Code extension projection targets must not retain unexpanded HOME references")
@@ -748,23 +800,19 @@ def main() -> int:
     for extension in extensions_index["extensions"]:
         extension_id = extension["id"]
         extension_path = extension["path"]
+        projection = extension.get("projection")
         if extension_id in seen_extension_ids:
             fail(f"extensions-index.json must not duplicate extension id: {extension_id}")
         if extension_path in seen_extension_paths:
             fail(f"extensions-index.json must not duplicate extension path: {extension_path}")
         seen_extension_ids.add(extension_id)
         seen_extension_paths.add(extension_path)
-        if extension["version"] == "pinned":
-            fail(f"extensions-index.json must record a real version for {extension_id}")
-        if not extension["source"].startswith("nix-vscode-extensions."):
-            fail(f"extensions-index.json must record nix-vscode-extensions source for {extension_id}")
-        if not extension["sourceLock"]["ref"]:
-            fail(f"extensions-index.json must record source ref for {extension_id}")
-        origins = extension.get("origins") or []
-        if len(origins) != 1:
-            fail(f"extension {extension_id} must have exactly one profile origin")
-        if extension_id == "esbenp.prettier-vscode" and origins != ["editor/prettier"]:
-            fail("Prettier extension must be owned only by editor/prettier")
+        if extension_id not in report_extension_ids:
+            fail(f"extensions-index.json contains unknown extension id: {extension_id}")
+        if not isinstance(extension_path, str) or not extension_path.startswith("/usr/share/devcontainer/vscode/extensions/"):
+            fail(f"extensions-index.json must point at projection artifact path for {extension_id}")
+        if not isinstance(projection, str) or not projection:
+            fail(f"extensions-index.json must record projection strategy for {extension_id}")
     if seen_extension_ids != profile_extension_ids:
         missing_extension_ids = sorted(profile_extension_ids - seen_extension_ids)
         extra_extension_ids = sorted(seen_extension_ids - profile_extension_ids)

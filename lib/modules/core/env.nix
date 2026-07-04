@@ -2,10 +2,18 @@
   lib,
   config,
   inputs,
+  pkgs,
   ...
 }:
 let
   inherit (lib) mkOption types;
+  nixpkgsCacheKey =
+    if inputs.nixpkgs ? rev then
+      inputs.nixpkgs.rev
+    else if inputs.nixpkgs ? narHash then
+      inputs.nixpkgs.narHash
+    else
+      toString inputs.nixpkgs.outPath;
   envValueType =
     with types;
     oneOf [
@@ -123,6 +131,8 @@ in
       NIX_PATH = "nixpkgs=/usr/share/devcontainer/nixpkgs";
       DEVCONTAINER_FLAKE_INPUTS = "/usr/share/devcontainer/flake-inputs.json";
       DEVPKG_NIXPKGS_REF = "path:${inputs.nixpkgs.outPath}";
+      DEVPKG_NIXPKGS_CACHE_KEY = nixpkgsCacheKey;
+      DEVPKG_SYSTEM = pkgs.stdenv.hostPlatform.system;
       WORKSPACE = "/workspaces/$DEVCONTAINER_WORKSPACE";
     };
     environment.variableOrigins = {
@@ -143,6 +153,8 @@ in
       NIX_PATH = [ "core.env" ];
       DEVCONTAINER_FLAKE_INPUTS = [ "core.env" ];
       DEVPKG_NIXPKGS_REF = [ "core.env" ];
+      DEVPKG_NIXPKGS_CACHE_KEY = [ "core.env" ];
+      DEVPKG_SYSTEM = [ "core.env" ];
       WORKSPACE = [ "core.env" ];
     };
 

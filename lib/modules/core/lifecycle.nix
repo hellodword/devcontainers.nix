@@ -1,8 +1,13 @@
-{ lib, ... }:
+{ lib, config, ... }:
 let
   inherit (lib) mkOption types;
   moduleTypes = import ../types.nix { inherit lib; };
   inherit (moduleTypes) lifecycleTaskType;
+  vscodePreinstall = config.devcontainer.vscode.preinstall;
+  enableVscodeProjection =
+    vscodePreinstall.enable
+    && vscodePreinstall.projection.enable
+    && builtins.elem "projection" vscodePreinstall.artifacts.modes;
 in
 {
   options.devcontainer.lifecycle.tasks = mkOption {
@@ -28,7 +33,8 @@ in
         ];
         timeoutSeconds = 10;
       };
-
+    }
+    // lib.optionalAttrs enableVscodeProjection {
       "vscode-extension-projection" = {
         phase = "postCreate";
         once = true;

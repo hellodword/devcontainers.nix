@@ -45,21 +45,29 @@ let
   tasksFile = renderJson { tasks = compiledLifecycle.tasks; };
   flakeInputsFile = builtins.toFile "flake-inputs.json" compiledFlakeInputs.json;
   extensionsFile = renderJson {
-    extensions = compiledVscodeExtensions.extensions;
+    extensions = compiledVscodeExtensions.projectionExtensions;
     projectionTargets = compiledVscodeExtensions.projectionTargets;
   };
 
-  mkDirCommands = builtins.concatStringsSep "\n" (
+  mkProjectionDirCommands = builtins.concatStringsSep "\n" (
     map (extension: ''
       mkdir -p "$out$(dirname ${extension.path})"
-      mkdir -p "$out$(dirname ${extension.vsixPath})"
-    '') compiledVscodeExtensions.imageExtensions
+    '') compiledVscodeExtensions.projectionArtifacts
   );
-  mkExtensionCommands = builtins.concatStringsSep "\n" (
+  mkProjectionCommands = builtins.concatStringsSep "\n" (
     map (extension: ''
       cp -a ${extension.sourcePath} "$out${extension.path}"
-      cp ${extension.archivePath} "$out${extension.vsixPath}"
-    '') compiledVscodeExtensions.imageExtensions
+    '') compiledVscodeExtensions.projectionArtifacts
+  );
+  mkArchiveDirCommands = builtins.concatStringsSep "\n" (
+    map (extension: ''
+      mkdir -p "$out$(dirname ${extension.path})"
+    '') compiledVscodeExtensions.archiveArtifacts
+  );
+  mkArchiveCommands = builtins.concatStringsSep "\n" (
+    map (extension: ''
+      cp ${extension.sourcePath} "$out${extension.path}"
+    '') compiledVscodeExtensions.archiveArtifacts
   );
   mkSymlinkCommands = builtins.concatStringsSep "\n" (
     map (
@@ -142,6 +150,8 @@ let
   runtimeTools = map (helper: helper.package) (
     builtins.filter (helper: helper.installInImage) runtimeHelperList
   );
+  includeProjectionRoot = compiledVscodeExtensions.projectionArtifacts != [ ];
+  includeArchiveRoot = compiledVscodeExtensions.archiveArtifacts != [ ];
 
   runtimeRoot = mkUsrMergedBuildEnv {
     name = "${config.devcontainer.image.name}-runtime-root";
@@ -157,13 +167,28 @@ let
     cp ${tasksFile} "$out/usr/share/devcontainer/tasks.json"
     cp ${flakeInputsFile} "$out/usr/share/devcontainer/flake-inputs.json"
     cp ${extensionsFile} "$out/usr/share/devcontainer/vscode/extensions-index.json"
-    mkdir -p "$out/usr/share/devcontainer/vscode/vsix"
-    ${mkDirCommands}
-    ${mkExtensionCommands}
     ${mkSymlinkCommands}
     ${lockedNixpkgsCommands}
     ${usrMergePostBuild}
   '';
+
+  extensionProjectionRoot =
+    pkgs.runCommand "${config.devcontainer.image.name}-vscode-extension-projection-root" { }
+      ''
+        mkdir -p "$out"
+        ${mkProjectionDirCommands}
+        ${mkProjectionCommands}
+        ${usrMergePostBuild}
+      '';
+
+  extensionArchiveRoot =
+    pkgs.runCommand "${config.devcontainer.image.name}-vscode-extension-archive-root" { }
+      ''
+        mkdir -p "$out"
+        ${mkArchiveDirCommands}
+        ${mkArchiveCommands}
+        ${usrMergePostBuild}
+      '';
 
   pathsForMembers =
     members: lib.unique (lib.concatMap (name: compiledGraph.rawNodes.${name}.paths) members);
@@ -204,6 +229,27 @@ let
     roots = [ ];
   } compiledLayers.layers;
 
+  extensionArchiveLayer =
+    let
+      rawLayer = nix2container.buildLayer {
+        copyToRoot = extensionArchiveRoot;
+        layers = semanticLayerState.layers;
+        maxLayers = 1;
+        metadata = {
+          created_by = "devcontainers.nix VS Code extension archives";
+          comment = builtins.concatStringsSep "," (
+            map (extension: extension.id) compiledVscodeExtensions.archiveArtifacts
+          );
+        };
+      };
+    in
+    rawLayer
+    // {
+      nestedLayers = [ ];
+    };
+
+  imageLayers = semanticLayerState.layers ++ lib.optional includeArchiveRoot extensionArchiveLayer;
+
   packageRoot = mkUsrMergedBuildEnv {
     name = "${config.devcontainer.image.name}-package-root";
     paths =
@@ -221,6 +267,8 @@ let
     mkdir -p "$out"
     ${copyRoot packageRoot}
     ${copyRoot metadataRoot}
+    ${lib.optionalString includeProjectionRoot (copyRoot extensionProjectionRoot)}
+    ${lib.optionalString includeArchiveRoot (copyRoot extensionArchiveRoot)}
     ${copyRoot compiledFilesystem.root}
     ${usrMergePostBuild}
   '';
@@ -254,12 +302,13 @@ let
     initializeNixDatabase = true;
     nixUid = config.devcontainer.user.uid;
     nixGid = config.devcontainer.user.gid;
-    layers = semanticLayerState.layers;
+    layers = imageLayers;
     copyToRoot = [
       runtimeRoot
       metadataRoot
-      compiledFilesystem.root
-    ];
+    ]
+    ++ lib.optional includeProjectionRoot extensionProjectionRoot
+    ++ [ compiledFilesystem.root ];
     perms = compiledFilesystem.perms;
     maxLayers = 4;
     config = containerConfig;

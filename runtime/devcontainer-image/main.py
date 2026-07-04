@@ -95,8 +95,8 @@ def explain(report_dir: Path, args: list[str]) -> int:
                 return 0
         fail(f"package not found: {target}")
     if topic == "extension":
-        extensions_index = read_json(report_dir / "extensions-index.json")
-        for extension in extensions_index.get("extensions") or []:
+        extensions_report = read_json(report_dir / "extensions-report.json")
+        for extension in extensions_report.get("extensions") or []:
             if isinstance(extension, dict) and extension.get("id") == target:
                 write_json(extension)
                 return 0

@@ -110,6 +110,10 @@ def main() -> int:
         fail("expected DEVPKG_NIXPKGS_REF must be a locked nixpkgs store source")
     if devpkg_ref_entries[0] != f"DEVPKG_NIXPKGS_REF={expected_devpkg_nixpkgs_ref}":
         fail("image artifact must pin DEVPKG_NIXPKGS_REF to the locked nixpkgs store source")
+    if not any(entry.startswith("DEVPKG_SYSTEM=") and entry.split("=", 1)[1] for entry in env):
+        fail("image artifact must set DEVPKG_SYSTEM")
+    if not any(entry.startswith("DEVPKG_NIXPKGS_CACHE_KEY=") and entry.split("=", 1)[1] for entry in env):
+        fail("image artifact must set DEVPKG_NIXPKGS_CACHE_KEY")
     locale_archive_entries = [entry for entry in env if entry.startswith("LOCALE_ARCHIVE=")]
     if len(locale_archive_entries) != 1:
         fail("image artifact must set exactly one LOCALE_ARCHIVE entry")
