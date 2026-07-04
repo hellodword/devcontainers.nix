@@ -8,6 +8,30 @@
 
 let
   repoRoot = ../../..;
+  contractLib = import ./lib.nix { inherit lib pkgs; };
+  contractArgs = {
+    inherit
+      pkgs
+      lib
+      images
+      targets
+      contractLib
+      ;
+  };
+  nixReportContracts = lib.foldl' (acc: path: acc // (import path contractArgs)) { } [
+    ./reports/env.nix
+    ./reports/profiles.nix
+    ./reports/metadata.nix
+    ./reports/layers.nix
+    ./reports/extensions.nix
+    ./reports/filesystem.nix
+    ./reports/fonts.nix
+    ./reports/security.nix
+    ./reports/smoke.nix
+  ];
+  nixReportContractLines = lib.concatMapStringsSep "\n" (drv: "test -e ${drv}") (
+    builtins.attrValues nixReportContracts
+  );
   checkReports = ../../../tests/ci/check-reports.py;
   checkSmokePlan = ../../../tests/ci/check-smoke-plan.py;
   checkHermeticDefaults = ../../../tests/ci/check-hermetic-default-checks.py;
@@ -62,6 +86,7 @@ let
   );
 in
 reportChecks
+// nixReportContracts
 // {
   contracts-reports-all =
     pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pythonWithJsonschema ]; }
@@ -69,6 +94,7 @@ reportChecks
         export PYTHONPATH=${../../../tests/ci}
         export CHECK_SMOKE_PLAN=${checkSmokePlan}
         ${reportLines}
+        ${nixReportContractLines}
         touch "$out"
       '';
 
