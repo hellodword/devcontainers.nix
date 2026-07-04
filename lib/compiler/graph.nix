@@ -6,7 +6,7 @@
   },
 }:
 let
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
   normalizeNode = node: {
     kind = node.kind;
     group = node.group;
@@ -15,7 +15,7 @@ let
     sharing = node.sharing;
     priority = node.priority;
     securityClass = node.securityClass;
-    paths = map pathString node.paths;
+    paths = map displayPathString node.paths;
     files = node.files;
   };
   rawNodes = config.devcontainer.graph.nodes // compiledProfiles.graphNodes;

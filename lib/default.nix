@@ -6,7 +6,10 @@
   inputs,
 }:
 let
+  moduleRegistry = import ./modules { inherit lib; };
   compiler = rec {
+    inherit moduleRegistry;
+
     runtimePackages = import ../runtime {
       inherit pkgs lib;
     };
@@ -22,6 +25,7 @@ let
         lib
         system
         inputs
+        moduleRegistry
         ;
     };
 

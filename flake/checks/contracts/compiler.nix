@@ -7,6 +7,9 @@
 }:
 
 let
+  envUtils = import ../../../lib/compiler/env-utils.nix { inherit lib; };
+  libraryUtils = import ../../../lib/library-utils.nix { inherit lib; };
+  displayDrv = drv: libraryUtils.displayPathString drv;
   smokePlan = image: image.reportData.smokePlan;
   smokeCaseIds = image: (smokePlan image).caseIds;
   smokeCase =
@@ -44,6 +47,181 @@ let
     inherit paths;
     files = { };
   };
+  envExpansion = envUtils.expandEnv {
+    scope = "contracts.env-utils";
+    env = {
+      HOME = "/home/vscode";
+      XDG_DATA_HOME = "$HOME/.local/share";
+      NAME = "tool";
+      BIN = "${"$"}{XDG_DATA_HOME}/bin";
+      PATH_LIST = [
+        "$BIN"
+        "/usr/bin"
+      ];
+      BRACED_SUFFIX = "${"$"}{NAME}-suffix";
+      TAIL = "/opt/$NAME";
+      EXTERNAL = "$DEVCONTAINER_WORKSPACE";
+    };
+  };
+  remoteEnvExpansion = envUtils.expandEnvWithContext {
+    scope = "contracts.env-utils.remote";
+    context = {
+      BASE = "/base";
+      PATH = "/bin:/usr/bin";
+    };
+    env = {
+      CHILD = "$BASE/child";
+      KEEP = "$UNDEFINED_REMOTE";
+    };
+  };
+  envCycleRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq (envUtils.expandEnv {
+        scope = "contracts.env-utils.cycle";
+        env = {
+          A = "$B";
+          B = "$A";
+        };
+      }) null
+    )).success;
+  envMaxDepthRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq (envUtils.expandEnv {
+        scope = "contracts.env-utils.max-depth";
+        maxDepth = 1;
+        env = {
+          A = "$B";
+          B = "$C";
+          C = "done";
+        };
+      }) null
+    )).success;
+  uniqueDrvPaths = map displayDrv (
+    libraryUtils.uniqueDrvs [
+      pkgs.hello
+      pkgs.git
+      pkgs.hello
+    ]
+  );
+  withoutDrvPaths = map displayDrv (
+    libraryUtils.withoutDrvs
+      [ pkgs.hello ]
+      [
+        pkgs.hello
+        pkgs.git
+      ]
+  );
+  missingPresetEnvRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.compileLibraries {
+          config.devcontainer.libraries = {
+            runtime = [ ];
+            build = [ ];
+            exportLdLibraryPath = false;
+            ccWrapperFlags = true;
+            presets = [ "missing-preset" ];
+            dynamicRuntimeProfile = "$XDG_DATA_HOME/devpkg/runtime-libraries/profile";
+            dynamicBuildProfile = "$XDG_DATA_HOME/devpkg/build-libraries/profile";
+          };
+          compiledEnvironment.variables.XDG_DATA_HOME = "/home/vscode/.local/share";
+          compiledProfiles.libraryPresets = [ ];
+        }).env
+        null
+    )).success;
+  environmentEtcRejected =
+    module:
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [ module ];
+        }).environment.etc
+        null
+    )).success;
+  filesystemRejected =
+    module:
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [ module ];
+        }).filesystem.directories
+        null
+    )).success;
+  invalidEtcModeRejected = environmentEtcRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "invalid-etc-mode";
+        environment.etc.bad = {
+          text = "bad\n";
+          mode = "0999";
+        };
+      };
+    }
+  );
+  invalidEtcOwnerRejected = environmentEtcRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "invalid-etc-owner";
+        environment.etc.bad = {
+          text = "bad\n";
+          uid = -1;
+        };
+      };
+    }
+  );
+  invalidEtcTargetRejected = environmentEtcRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "invalid-etc-target";
+        environment.etc.bad = {
+          target = "/tmp/bad";
+          text = "bad\n";
+        };
+      };
+    }
+  );
+  invalidFilesystemPathRejected = filesystemRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "invalid-filesystem-path";
+        devcontainer.filesystem.directories."relative/path" = {
+          mode = "0755";
+          uid = 0;
+          gid = 0;
+        };
+      };
+    }
+  );
+  invalidFilesystemModeRejected = filesystemRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "invalid-filesystem-mode";
+        devcontainer.filesystem.directories."/invalid-mode" = {
+          mode = "8888";
+          uid = 0;
+          gid = 0;
+        };
+      };
+    }
+  );
+  invalidFilesystemOwnerRejected = filesystemRejected (
+    { lib, ... }:
+    {
+      config = {
+        devcontainer.image.name = lib.mkForce "invalid-filesystem-owner";
+        devcontainer.filesystem.directories."/invalid-owner" = {
+          mode = "0755";
+          uid = 0;
+          gid = -1;
+        };
+      };
+    }
+  );
   graphDuplicateSharedPath = "/nix/store/test-shared";
   graphDuplicateRepeatedPath = "/nix/store/test-repeated";
   graphDuplicateLeftPath = "/nix/store/test-left";
@@ -460,6 +638,29 @@ in
     pkgs.writeText "contracts-compiler-graph.json" (builtins.toJSON graphDuplicateReport);
 
   contracts-compiler-env =
+    assert envExpansion.XDG_DATA_HOME == "/home/vscode/.local/share";
+    assert envExpansion.BIN == "/home/vscode/.local/share/bin";
+    assert envExpansion.PATH_LIST == "/home/vscode/.local/share/bin:/usr/bin";
+    assert envExpansion.BRACED_SUFFIX == "tool-suffix";
+    assert envExpansion.TAIL == "/opt/tool";
+    assert envExpansion.EXTERNAL == "$DEVCONTAINER_WORKSPACE";
+    assert remoteEnvExpansion.CHILD == "/base/child";
+    assert remoteEnvExpansion.KEEP == "$UNDEFINED_REMOTE";
+    assert envCycleRejected;
+    assert envMaxDepthRejected;
+    assert
+      uniqueDrvPaths == [
+        (displayDrv pkgs.hello)
+        (displayDrv pkgs.git)
+      ];
+    assert withoutDrvPaths == [ (displayDrv pkgs.git) ];
+    assert missingPresetEnvRejected;
+    assert invalidEtcModeRejected;
+    assert invalidEtcOwnerRejected;
+    assert invalidEtcTargetRejected;
+    assert invalidFilesystemPathRejected;
+    assert invalidFilesystemModeRejected;
+    assert invalidFilesystemOwnerRejected;
     assert apiEvalImage.env.containerEnv.API_BOOL == "1";
     assert apiEvalImage.env.containerEnv.TZDIR == "/etc/zoneinfo";
     assert
@@ -551,20 +752,18 @@ in
     assert !(builtins.hasAttr "PATH" (apiEvalImage.metadata.mergedPreview.containerEnv or { }));
     assert builtins.hasAttr "postStartCommand" apiEvalImage.metadata.mergedPreview;
     assert apiEvalImage.security.report.image == "api-eval";
-    assert builtins.attrNames apiEvalImage.security.report.checks == [
-      "dockerDaemon"
-      "dockerSocket"
-      "extensionArtifacts"
-      "extensionProjectionLogRedaction"
-      "lifecycleLogRedaction"
-      "secretScan"
-      "shellInitSideEffects"
-    ];
+    assert
+      builtins.attrNames apiEvalImage.security.report.checks == [
+        "dockerDaemon"
+        "dockerSocket"
+        "extensionArtifacts"
+        "extensionProjectionLogRedaction"
+        "lifecycleLogRedaction"
+        "secretScan"
+        "shellInitSideEffects"
+      ];
     assert lib.all (
-      check:
-      check.status == "pass"
-      && check.evidence.findingCount == 0
-      && check.evidence.findings == [ ]
+      check: check.status == "pass" && check.evidence.findingCount == 0 && check.evidence.findings == [ ]
     ) (builtins.attrValues apiEvalImage.security.report.checks);
     assert apiEvalImage.security.report.findings == [ ];
     assert invalidKnownHostsRejected;

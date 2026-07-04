@@ -5,8 +5,8 @@ let
   fontconfig = cfg.fontconfig;
   fontconfigPackage = fontconfig.package;
   fontconfigOut = lib.getOutput "out" fontconfigPackage;
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
-  packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (pathString drv));
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
+  packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (displayPathString drv));
   fontconfigTools = [
     "fc-cache"
     "fc-list"
@@ -102,13 +102,13 @@ in
     enabled = cfg.enable;
     packages = map (package: {
       name = packageName package;
-      path = pathString package;
+      path = displayPathString package;
     }) cfg.packages;
     fontconfig = {
       enabled = cfg.enable && fontconfig.enable;
       package = packageName fontconfigPackage;
-      packagePath = pathString fontconfigPackage;
-      configPackagePath = pathString fontconfigOut;
+      packagePath = displayPathString fontconfigPackage;
+      configPackagePath = displayPathString fontconfigOut;
       configPath = "/etc/fonts/fonts.conf";
       confDir = "/etc/fonts/conf.d";
       includeUserConf = fontconfig.includeUserConf;

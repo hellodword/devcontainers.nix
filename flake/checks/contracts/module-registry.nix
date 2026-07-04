@@ -45,6 +45,7 @@ let
   actualModulePaths = map toString moduleRegistry.allModules;
 
   evalSource = builtins.readFile ../../../lib/compiler/eval.nix;
+  evalImportsModuleRegistry = lib.hasInfix "import ../modules" evalSource;
   disallowedLoaderReferences = lib.concatMap (
     category:
     builtins.filter (
@@ -144,6 +145,7 @@ in
     assert expectedFileNames == actualFileNames;
     assert expectedModulePaths == actualModulePaths;
     assert !(builtins.pathExists (moduleRoot + "/core/options.nix"));
+    assert !evalImportsModuleRegistry;
     assert disallowedLoaderReferences == [ ];
     pkgs.writeText "contracts-module-registry.json" (
       builtins.toJSON {
@@ -151,6 +153,7 @@ in
           categories
           expectedFileNames
           actualFileNames
+          evalImportsModuleRegistry
           disallowedLoaderReferences
           ;
       }

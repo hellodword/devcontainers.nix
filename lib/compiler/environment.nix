@@ -16,17 +16,24 @@
   },
 }:
 let
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
-  valueToString =
-    value:
-    if builtins.isBool value then
-      if value then "1" else "0"
-    else if builtins.isInt value then
-      toString value
-    else if builtins.isList value then
-      lib.concatStringsSep ":" (map valueToString value)
-    else
-      pathString value;
+  envUtils = import ./env-utils.nix { inherit lib; };
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
+  valueToString = value: envUtils.stringifyEnvValue { inherit value; };
+  modeChars = [
+    "0"
+    "1"
+    "2"
+    "3"
+    "4"
+    "5"
+    "6"
+    "7"
+  ];
+  validMode =
+    mode:
+    builtins.isString mode
+    && (builtins.stringLength mode == 3 || builtins.stringLength mode == 4)
+    && lib.all (char: builtins.elem char modeChars) (lib.stringToCharacters mode);
   mergedVariables = compiledProfiles.env.variables // config.environment.variables;
   mergeOrigins = lib.zipAttrsWith (_: values: lib.unique (lib.concatLists values));
   mergedVariableOrigins = mergeOrigins [
@@ -75,7 +82,7 @@ let
       inherit name target;
       path = "/etc/${target}";
       source = spec.source;
-      sourcePath = if spec.source == null then null else pathString spec.source;
+      sourcePath = if spec.source == null then null else displayPathString spec.source;
       text = spec.text;
       inherit (spec) mode uid gid;
       invalidTarget =
@@ -85,6 +92,8 @@ let
         || builtins.elem "" targetSegments;
       invalidPayload =
         (spec.text == null && spec.source == null) || (spec.text != null && spec.source != null);
+      invalidMode = !(validMode spec.mode);
+      invalidOwner = spec.uid < 0 || spec.gid < 0;
     }
   ) config.environment.etc;
   invalidEtcTargets = map (entry: entry.name) (
@@ -93,6 +102,8 @@ let
   invalidEtcPayloads = map (entry: entry.name) (
     builtins.filter (entry: entry.invalidPayload) etcEntries
   );
+  invalidEtcModes = map (entry: entry.name) (builtins.filter (entry: entry.invalidMode) etcEntries);
+  invalidEtcOwners = map (entry: entry.name) (builtins.filter (entry: entry.invalidOwner) etcEntries);
   validatedEtcEntries =
     if invalidVariableNames != [ ] then
       throw (
@@ -114,15 +125,27 @@ let
         "environment.etc entries must set exactly one of text or source; invalid entries: "
         + lib.concatStringsSep ", " invalidEtcPayloads
       )
+    else if invalidEtcModes != [ ] then
+      throw (
+        "environment.etc entries must use octal modes with 3 or 4 digits; invalid entries: "
+        + lib.concatStringsSep ", " invalidEtcModes
+      )
+    else if invalidEtcOwners != [ ] then
+      throw (
+        "environment.etc entries must use non-negative uid and gid values; invalid entries: "
+        + lib.concatStringsSep ", " invalidEtcOwners
+      )
     else
       map (
         entry:
         removeAttrs entry [
           "invalidTarget"
           "invalidPayload"
+          "invalidMode"
+          "invalidOwner"
         ]
       ) etcEntries;
-  packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (pathString drv));
+  packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (displayPathString drv));
 in
 {
   systemPackages = lib.unique (config.environment.systemPackages ++ compiledProfiles.packages);

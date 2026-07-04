@@ -16,7 +16,7 @@
   },
 }:
 let
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
   bucketOrder = config.devcontainer.layers.buckets;
   layerNames = lib.filter (bucket: compiledGraph.groups ? ${bucket}) bucketOrder;
   layerBudgetMax = config.devcontainer.layers.max;
@@ -39,7 +39,7 @@ let
       };
   pathsForMembers =
     members: lib.unique (lib.concatMap (name: compiledGraph.rawNodes.${name}.paths) members);
-  packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (pathString drv));
+  packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (displayPathString drv));
   mkLayer =
     group:
     let
@@ -56,7 +56,7 @@ let
         estimatedLayerSizeMiB
         ;
       pathCount = builtins.length paths;
-      storePaths = map pathString paths;
+      storePaths = map displayPathString paths;
       packages = map packageName paths;
       build = {
         copyToRoot = true;

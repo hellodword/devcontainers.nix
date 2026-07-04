@@ -1,8 +1,8 @@
 { lib }:
 { config }:
 let
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
-  packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (pathString drv));
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
+  packageName = drv: drv.pname or drv.name or (builtins.baseNameOf (displayPathString drv));
 
   bucketOrder = config.devcontainer.layers.buckets;
   bucketRanks = lib.listToAttrs (
@@ -11,11 +11,35 @@ let
   bucketRank = group: bucketRanks.${group} or 999999;
   duplicateValues =
     values:
-    lib.unique (
-      builtins.filter (
-        value: builtins.length (builtins.filter (candidate: candidate == value) values) > 1
-      ) values
-    );
+    let
+      counts = lib.foldl' (
+        acc: value:
+        acc
+        // {
+          ${value} = (acc.${value} or 0) + 1;
+        }
+      ) { } values;
+      state =
+        lib.foldl'
+          (
+            acc: value:
+            if (counts.${value} or 0) > 1 && !(builtins.hasAttr value acc.seen) then
+              {
+                seen = acc.seen // {
+                  ${value} = true;
+                };
+                valuesRev = [ value ] ++ acc.valuesRev;
+              }
+            else
+              acc
+          )
+          {
+            seen = { };
+            valuesRev = [ ];
+          }
+          values;
+    in
+    lib.reverseList state.valuesRev;
   sortProfiles = lib.sort (
     a: b:
     let

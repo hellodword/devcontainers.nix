@@ -4,11 +4,9 @@
   lib,
   system,
   inputs,
+  moduleRegistry,
 }:
 { modules }:
-let
-  moduleRegistry = import ../modules { inherit lib; };
-in
 lib.evalModules {
   specialArgs = {
     inherit

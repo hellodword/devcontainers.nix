@@ -1,6 +1,6 @@
 { lib }:
 let
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
 
   nonEmptyOutputs =
     pkg:
@@ -12,9 +12,9 @@ let
   getOutput = pkg: output: if builtins.hasAttr output pkg then builtins.getAttr output pkg else pkg;
 in
 rec {
-  inherit pathString;
+  inherit displayPathString;
 
-  packageName = pkg: pkg.pname or pkg.name or (builtins.baseNameOf (pathString pkg));
+  packageName = pkg: pkg.pname or pkg.name or (builtins.baseNameOf (displayPathString pkg));
 
   outputNames = nonEmptyOutputs;
 
@@ -43,33 +43,38 @@ rec {
 
   uniqueDrvs =
     drvs:
-    (lib.foldl'
-      (
-        acc: drv:
-        let
-          key = pathString drv;
-        in
-        if builtins.elem key acc.keys then
-          acc
-        else
+    let
+      state =
+        lib.foldl'
+          (
+            acc: drv:
+            let
+              key = displayPathString drv;
+            in
+            if builtins.hasAttr key acc.seen then
+              acc
+            else
+              {
+                seen = acc.seen // {
+                  ${key} = true;
+                };
+                valuesRev = [ drv ] ++ acc.valuesRev;
+              }
+          )
           {
-            keys = acc.keys ++ [ key ];
-            values = acc.values ++ [ drv ];
+            seen = { };
+            valuesRev = [ ];
           }
-      )
-      {
-        keys = [ ];
-        values = [ ];
-      }
-      drvs
-    ).values;
+          drvs;
+    in
+    lib.reverseList state.valuesRev;
 
   withoutDrvs =
     excluded: drvs:
     let
-      excludedKeys = map pathString excluded;
+      excludedKeys = lib.listToAttrs (map (drv: lib.nameValuePair (displayPathString drv) true) excluded);
     in
-    builtins.filter (drv: !(builtins.elem (pathString drv) excludedKeys)) drvs;
+    builtins.filter (drv: !(builtins.hasAttr (displayPathString drv) excludedKeys)) drvs;
 
   packageReport = pkg: {
     package = packageName pkg;

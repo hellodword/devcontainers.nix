@@ -36,7 +36,7 @@
 }:
 let
   jsonFile = name: value: pkgs.writeText name (builtins.toJSON value);
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
   pathsForMembers =
     members: lib.unique (lib.concatMap (name: compiledGraph.rawNodes.${name}.paths) members);
 
@@ -116,7 +116,7 @@ let
           packages
           ;
         rootPathCount = builtins.length rootPaths;
-        rootPaths = map pathString rootPaths;
+        rootPaths = map displayPathString rootPaths;
         closureInfoPath = "${closureInfo}";
       };
     }

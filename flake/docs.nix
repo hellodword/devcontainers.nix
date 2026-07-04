@@ -7,8 +7,8 @@
 let
   registryPrefix = "ghcr.io/hellodword/devcontainers-";
   code = value: "`${value}`";
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
-  modulePath = target: "images/${builtins.baseNameOf (pathString target.module)}";
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
+  modulePath = target: "images/${builtins.baseNameOf (displayPathString target.module)}";
   imageRef = target: tag: "${registryPrefix}${target.family}:${tag}";
   targetRefs = target: map (tag: imageRef target tag) target.tags;
   codeList = values: lib.concatStringsSep ", " (map code values);

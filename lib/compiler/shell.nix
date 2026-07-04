@@ -14,7 +14,7 @@
 let
   cfg = config.programs.bash;
   locale = config.i18n;
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
   invalidAliasNames = builtins.filter (name: builtins.match "[A-Za-z0-9_.+-]+" name == null) (
     builtins.attrNames compiledEnvironment.shellAliases
   );
@@ -235,7 +235,7 @@ in
       commandNotFound = cfg.commandNotFound.enable;
     };
     generatedFiles = generatedFiles;
-    imagePaths = map pathString imagePaths;
+    imagePaths = map displayPathString imagePaths;
     commandNotFound = {
       enabled = cfg.enable && cfg.commandNotFound.enable;
       database = "nix-index-database";

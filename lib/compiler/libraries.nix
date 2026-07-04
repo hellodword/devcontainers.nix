@@ -9,6 +9,7 @@
   },
 }:
 let
+  envUtils = import ./env-utils.nix { inherit lib; };
   libraryUtils = import ../library-utils.nix { inherit lib; };
   cfg = config.devcontainer.libraries;
   presets = lib.unique (compiledProfiles.libraryPresets ++ cfg.presets);
@@ -19,64 +20,22 @@ let
   buildOutputs = libraryUtils.uniqueDrvs (lib.concatMap libraryUtils.buildOutputs cfg.build);
   buildLayerOutputs = libraryUtils.withoutDrvs runtimeOutputs buildOutputs;
 
-  expandValue =
-    env: value:
-    let
-      names = lib.sort (a: b: builtins.stringLength a > builtins.stringLength b) (builtins.attrNames env);
-      replaceName =
-        current: name:
-        let
-          replacement = builtins.getAttr name env;
-          braced = "$" + "{" + name + "}";
-          plain = "$" + name;
-          withBraced = builtins.replaceStrings [ braced ] [ replacement ] current;
-          withDelimited =
-            builtins.replaceStrings
-              [
-                (plain + "/")
-                (plain + ":")
-                (plain + ".")
-                (plain + "-")
-                (plain + "_")
-              ]
-              [
-                (replacement + "/")
-                (replacement + ":")
-                (replacement + ".")
-                (replacement + "-")
-                (replacement + "_")
-              ]
-              withBraced;
-        in
-        if !(builtins.isString current) || !(builtins.isString replacement) then
-          current
-        else if withDelimited == plain then
-          replacement
-        else
-          withDelimited;
-    in
-    if builtins.isString value then lib.foldl' replaceName value names else value;
+  expandedBaseEnv = envUtils.expandEnv {
+    env = compiledEnvironment.variables;
+    scope = "library base environment";
+  };
+  runtimeProfile = envUtils.expandValue {
+    env = expandedBaseEnv;
+    value = cfg.dynamicRuntimeProfile;
+  };
+  buildProfile = envUtils.expandValue {
+    env = expandedBaseEnv;
+    value = cfg.dynamicBuildProfile;
+  };
 
-  expandEnv =
-    env:
-    let
-      step = current: lib.mapAttrs (_: value: expandValue current value) current;
-      go =
-        remaining: current:
-        let
-          next = step current;
-        in
-        if remaining == 0 || next == current then next else go (remaining - 1) next;
-    in
-    go 8 env;
-
-  expandedBaseEnv = expandEnv compiledEnvironment.variables;
-  runtimeProfile = expandValue expandedBaseEnv cfg.dynamicRuntimeProfile;
-  buildProfile = expandValue expandedBaseEnv cfg.dynamicBuildProfile;
-
-  runtimeStorePaths = map libraryUtils.pathString runtimeOutputs;
-  buildStorePaths = map libraryUtils.pathString buildOutputs;
-  buildLayerStorePaths = map libraryUtils.pathString buildLayerOutputs;
+  runtimeStorePaths = map libraryUtils.displayPathString runtimeOutputs;
+  buildStorePaths = map libraryUtils.displayPathString buildOutputs;
+  buildLayerStorePaths = map libraryUtils.displayPathString buildLayerOutputs;
 
   runtimeDynamicLibraryPathEntries = [
     "${runtimeProfile}/lib"
@@ -178,11 +137,16 @@ let
   missingPresetEnv = builtins.filter (preset: !(builtins.hasAttr preset presetEnvByName)) presets;
 
   presetEnvEntries =
-    assert missingPresetEnv == [ ];
-    map (preset: {
-      inherit preset;
-      env = presetEnvByName.${preset};
-    }) presets;
+    if missingPresetEnv != [ ] then
+      builtins.throw (
+        "devcontainer.libraries presets missing generated env definitions: "
+        + lib.concatStringsSep ", " missingPresetEnv
+      )
+    else
+      map (preset: {
+        inherit preset;
+        env = presetEnvByName.${preset};
+      }) presets;
   presetsEnv = lib.foldl' (acc: entry: acc // entry.env) { } presetEnvEntries;
 
   envContainer = coreEnv // presetsEnv;

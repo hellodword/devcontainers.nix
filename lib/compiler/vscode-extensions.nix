@@ -11,7 +11,7 @@
 }:
 let
   hashString = value: builtins.hashString "sha256" value;
-  pathString = path: builtins.unsafeDiscardStringContext (toString path);
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
   preinstall = config.devcontainer.vscode.preinstall;
   artifactModes = if preinstall.enable then preinstall.artifacts.modes else [ ];
   includeProjection = builtins.elem "projection" artifactModes;
@@ -80,7 +80,7 @@ let
     if urls != [ ] then
       builtins.head urls
     else
-      "nix-store:${pathString (extensionPackage.src or extensionPackage)}";
+      "nix-store:${displayPathString (extensionPackage.src or extensionPackage)}";
   sourceHashFor =
     extensionPackage:
     let
@@ -89,7 +89,7 @@ let
     if srcDrv != null && srcDrv ? outputHash then
       srcDrv.outputHash
     else
-      hashString (pathString (extensionPackage.src or extensionPackage));
+      hashString (displayPathString (extensionPackage.src or extensionPackage));
   sourceArchiveNameFor =
     extensionPackage:
     let
@@ -98,7 +98,7 @@ let
     if srcDrv != null && srcDrv ? name then
       srcDrv.name
     else
-      builtins.baseNameOf (pathString (extensionPackage.src or extensionPackage));
+      builtins.baseNameOf (displayPathString (extensionPackage.src or extensionPackage));
   mkExtension =
     metadata:
     let
@@ -161,7 +161,7 @@ let
             enabled = includeArchive;
             path = if includeArchive then archivePath else null;
             name = vsixName;
-            sourcePath = pathString (extensionPackage.src or extensionPackage);
+            sourcePath = displayPathString (extensionPackage.src or extensionPackage);
           };
         };
         companionTools = metadata.companionTools;

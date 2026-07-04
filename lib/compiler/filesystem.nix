@@ -22,6 +22,67 @@ let
   user = config.devcontainer.user;
   osRelease = config.devcontainer.filesystem.osRelease;
   directories = config.devcontainer.filesystem.directories;
+  modeChars = [
+    "0"
+    "1"
+    "2"
+    "3"
+    "4"
+    "5"
+    "6"
+    "7"
+  ];
+  validMode =
+    mode:
+    builtins.isString mode
+    && (builtins.stringLength mode == 3 || builtins.stringLength mode == 4)
+    && lib.all (char: builtins.elem char modeChars) (lib.stringToCharacters mode);
+  validAbsolutePath =
+    path:
+    let
+      relative = lib.removePrefix "/" path;
+      segments = lib.splitString "/" relative;
+    in
+    lib.hasPrefix "/" path
+    && relative != ""
+    && !(lib.hasSuffix "/" path)
+    && !(builtins.elem "" segments)
+    && !(builtins.elem "." segments)
+    && !(builtins.elem ".." segments);
+  directoryEntries = lib.mapAttrsToList (path: spec: {
+    inherit path;
+    inherit (spec) mode uid gid;
+    invalidPath = !(validAbsolutePath path);
+    invalidMode = !(validMode spec.mode);
+    invalidOwner = spec.uid < 0 || spec.gid < 0;
+  }) directories;
+  invalidDirectoryPaths = map (entry: entry.path) (
+    builtins.filter (entry: entry.invalidPath) directoryEntries
+  );
+  invalidDirectoryModes = map (entry: entry.path) (
+    builtins.filter (entry: entry.invalidMode) directoryEntries
+  );
+  invalidDirectoryOwners = map (entry: entry.path) (
+    builtins.filter (entry: entry.invalidOwner) directoryEntries
+  );
+  validatedDirectories =
+    if invalidDirectoryPaths != [ ] then
+      builtins.throw (
+        "devcontainer.filesystem.directories paths must be absolute normalized paths; invalid paths: "
+        + lib.concatStringsSep ", " invalidDirectoryPaths
+      )
+    else if invalidDirectoryModes != [ ] then
+      builtins.throw (
+        "devcontainer.filesystem.directories must use octal modes with 3 or 4 digits; invalid paths: "
+        + lib.concatStringsSep ", " invalidDirectoryModes
+      )
+    else if invalidDirectoryOwners != [ ] then
+      builtins.throw (
+        "devcontainer.filesystem.directories must use non-negative uid and gid values; invalid paths: "
+        + lib.concatStringsSep ", " invalidDirectoryOwners
+      )
+    else
+      directories;
   vscodeProjectionSuffix = "/extensions";
   vscodeProjectionSuffixLength = builtins.stringLength vscodeProjectionSuffix;
   vscodeServerRoots = lib.unique (
@@ -58,7 +119,7 @@ let
     lib.mapAttrsToList (path: spec: ''
       mkdir -p "$out${path}"
       chmod ${spec.mode} "$out${path}"
-    '') directories
+    '') validatedDirectories
   );
   etcCommands = lib.concatStringsSep "\n" (
     map (
@@ -166,7 +227,7 @@ let
     uname = userPermName spec;
     gname = groupPermName spec;
   };
-  directoryPerms = lib.mapAttrsToList mkPerm directories;
+  directoryPerms = lib.mapAttrsToList mkPerm validatedDirectories;
   filePerms = [
     {
       path = root;
@@ -266,6 +327,6 @@ in
     inherit (spec) mode uid gid;
     owner =
       if spec.uid == user.uid && spec.gid == user.gid then "${user.name}:${user.group}" else "root:root";
-  }) directories;
+  }) validatedDirectories;
   inherit symlinks;
 }

@@ -23,6 +23,7 @@
   },
 }:
 let
+  envUtils = import ./env-utils.nix { inherit lib; };
   order = config.devcontainer.path.order;
   pathSegments = lib.zipAttrsWith (_: values: lib.concatLists values) [
     config.devcontainer.path.segments
@@ -80,62 +81,11 @@ let
     (compiledEnvironment.remoteEnv or { }) // (fhsEnv.remote or { }) // (librariesEnv.remote or { });
   rawShellEnv = (fhsEnv.shell or { }) // (librariesEnv.shell or { });
   # Docker image Env values are not shell-expanded at runtime.
-  expandValue =
-    env: value:
-    let
-      names = lib.sort (a: b: builtins.stringLength a > builtins.stringLength b) (builtins.attrNames env);
-      replaceName =
-        current: name:
-        let
-          replacement = builtins.getAttr name env;
-          braced = "$" + "{" + name + "}";
-          plain = "$" + name;
-          withBraced = builtins.replaceStrings [ braced ] [ replacement ] current;
-          withDelimited =
-            builtins.replaceStrings
-              [
-                (plain + "/")
-                (plain + ":")
-                (plain + ".")
-                (plain + "-")
-                (plain + "_")
-              ]
-              [
-                (replacement + "/")
-                (replacement + ":")
-                (replacement + ".")
-                (replacement + "-")
-                (replacement + "_")
-              ]
-              withBraced;
-        in
-        if !(builtins.isString current) || !(builtins.isString replacement) then
-          current
-        else if withDelimited == plain then
-          replacement
-        else
-          withDelimited;
-    in
-    if builtins.isString value then lib.foldl' replaceName value names else value;
-  expandEnv =
-    env:
-    let
-      step = current: lib.mapAttrs (_: value: expandValue current value) current;
-      go =
-        remaining: current:
-        let
-          next = step current;
-        in
-        if remaining == 0 || next == current then next else go (remaining - 1) next;
-    in
-    go 8 env;
-  expandEnvWithContext =
-    context: env:
-    let
-      expanded = expandEnv (context // env);
-    in
-    lib.genAttrs (builtins.attrNames env) (name: builtins.getAttr name expanded);
-  expandedContainerEnv = expandEnv rawContainerEnv;
+  expandValue = env: value: envUtils.expandValue { inherit env value; };
+  expandedContainerEnv = envUtils.expandEnv {
+    env = rawContainerEnv;
+    scope = "container environment";
+  };
 
   pathEntryState =
     lib.foldl'
@@ -193,8 +143,16 @@ let
   containerEnv = expandedContainerEnv // {
     PATH = compiledPath;
   };
-  remoteEnv = expandEnvWithContext containerEnv rawRemoteEnv;
-  shellEnv = expandEnvWithContext (containerEnv // remoteEnv) rawShellEnv;
+  remoteEnv = envUtils.expandEnvWithContext {
+    context = containerEnv;
+    env = rawRemoteEnv;
+    scope = "remote environment";
+  };
+  shellEnv = envUtils.expandEnvWithContext {
+    context = containerEnv // remoteEnv;
+    env = rawShellEnv;
+    scope = "shell environment";
+  };
   containerEnvSources =
     lib.mapAttrs (name: value: mkEnvEntry "container" name value) containerEnv
     // {
