@@ -1,6 +1,9 @@
 # Development And Maintenance
 
-This guide is for maintainers extending or changing this repository. Read [Architecture](architecture.md) first if the compiler flow is unfamiliar.
+This guide is for maintainers extending or changing this repository. Read
+[Architecture](architecture.md) first if the compiler flow is unfamiliar. Read
+[Testing Architecture](testing-architecture.md) before moving assertions between
+Nix contracts, report checks, artifact checks, smoke tests, and GUI E2E.
 
 ## Local Requirements
 
@@ -36,7 +39,7 @@ Important paths:
 | `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter.                                                       |
 | `lib/compiler/`          | Pure compiler stages that turn evaluated module config into image artifacts and reports.                                   |
 | `runtime/`               | Shell helpers installed into images or exposed as package outputs.                                                         |
-| `tests/ci/`              | Report, artifact, and helper validation.                                                                                   |
+| `tests/ci/`              | Python checks for report bundles, artifacts, and helper boundaries; product facts should stay near Nix owners or contracts. |
 | `tests/smoke/`           | Runtime smoke execution after an image is loaded into Docker.                                                              |
 | `tests/e2e/`             | Heavy VS Code GUI Dev Containers tests.                                                                                    |
 | `docs/`                  | User, design, and maintenance documentation.                                                                               |
@@ -51,6 +54,10 @@ Keep source-of-truth metadata near the owner:
 - VS Code GUI E2E session metadata lives in `tests/e2e/vscode-gui.nix`; exported E2E attrs and generated docs derive from `sessionEntries`.
 - Module loading derives from `lib/modules/default.nix`. New ordinary `.nix` files under a module category are picked up automatically.
 - Layer and PATH bucket order derives from owner-local `devcontainer.layers.bucketDefinitions` and `devcontainer.path.bucketDefinitions`.
+- Testing ownership rules live in [Testing Architecture](testing-architecture.md).
+  Keep product facts in the owner module, compiler output, target registry, or
+  focused Nix contract. Use Python for JSON, filesystem, image, process, Docker,
+  and GUI boundaries.
 
 `flake/docs.nix`, `flake/workflows.nix`, and check modules consume these
 registries. Do not add parallel image, report, helper, or session lists there
@@ -117,6 +124,14 @@ The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths 
 `smoke-test-plan.json` publishes case identity through `caseIds` and each `tests[]` entry's `id`. Each test has a non-empty ordered `scripts` array with `command`, `shell`, and `interactive` fields. Smoke cases should be offline safe. The smoke runner creates one temporary container per case and runs that case's scripts sequentially in the same container, using `timeoutSeconds` as the whole-case budget. The order of `tests[]` is not a public contract; compare smoke plan contents by sorting entries by `id`.
 
 The `fhs.ca-certificates` smoke case verifies the local CA bundle path, CA-related environment variables, and PEM bundle contents. It does not verify external TLS connectivity.
+
+## Test Maintenance
+
+Use [Testing Architecture](testing-architecture.md) to choose where a new check
+belongs. Prefer `devcontainer.tests.cases` for runtime command coverage, focused
+contracts under `flake/checks/contracts/` for product facts available from
+evaluated Nix attrs, and Python only for imperative artifact or runtime
+boundaries.
 
 ## Heavy VS Code GUI E2E
 
@@ -360,7 +375,7 @@ When adding a program module:
 3. Generate files through `environment.etc`.
 4. Add packages through `environment.systemPackages`.
 5. Add shell integration through `environment.shellInit` or `environment.interactiveShellInit` only when it has no network, installer, or long-running side effects.
-6. Add focused report assertions in `tests/ci/check-reports.py` or a contract check under `flake/checks/` when the generated report schema changes.
+6. Add a focused contract under `flake/checks/` when the generated behavior is available from evaluated Nix attrs. Use a Python artifact check only for filesystem, JSON, image, process, Docker, or GUI boundaries.
 7. Add or update a smoke case when the module exposes user-visible commands, shell behavior, generated files, or environment behavior.
 8. Update [Architecture](architecture.md) when the supported NixOS-like API subset or program ownership model changes.
 9. Run `nix flake check`; load an affected image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
@@ -378,7 +393,7 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 7. Add image target wiring in `images/default.nix` if the language has version-specific tags.
 8. Run `nix run .#generate-docs` if image targets, families, tags, generated target docs, or published image references changed.
 9. Run `nix run .#generate-workflows` if image targets, target names, target `ci.e2eSessions`, or workflow templates changed.
-10. Update report assertions or compiler contracts when profile ownership, layer buckets, extension metadata, companion tools, PATH/env behavior, lifecycle tasks, or smoke case identity changes.
+10. Update owner-local facts or compiler contracts when profile ownership, layer buckets, extension metadata, companion tools, PATH/env behavior, lifecycle tasks, or smoke case identity changes.
 11. Run `nix flake check`; load an affected image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
 12. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed.
 
@@ -402,7 +417,7 @@ Compiler changes belong under `lib/compiler/`.
 3. Thread the compiler output through `lib/default.nix`.
 4. Include generated files in `compileFilesystem` or `compileImage` only at the stage that owns them.
 5. Add report output in `compileReports`, including a `baseReportEntries` or `reportEntries` entry when it should appear in the reports link farm.
-6. Add report validation in `tests/ci/check-reports.py` or an adjacent check; do not add a separate required-file list for reports already declared in `compileReports`.
+6. Add report validation through a focused compiler contract or adjacent artifact check; do not add a separate required-file list for reports already declared in `compileReports`.
 7. Add or update focused compiler contract checks under `flake/checks/contracts/` when evaluation rules, validation errors, generated metadata, graph nodes, filesystem entries, lifecycle wiring, or public report shape changes.
 8. Update report CLI tests or examples when `devcontainer-image explain`, `diff`, or `doctor` behavior changes.
 9. Update [Architecture](architecture.md) when the pipeline or ownership model changes.
@@ -462,7 +477,7 @@ Reports are declared in `lib/compiler/reports.nix`.
 1. Create the report JSON derivation from compiler-owned structured data.
 2. Add it to `baseReportEntries` when it should be part of the report directory and `ci-plan.json` `reportFiles`.
 3. Set `includeInCiPlan = false` only for internal or compatibility files that should be linked but not required by CI report validation.
-4. Update `tests/ci/check-reports.py` for schema/content assertions. It reads the report file list from `ci-plan.json`.
+4. Add schema or content validation in the smallest focused contract or artifact check. Bundle checks should read the report file list from `ci-plan.json`.
 5. Update report CLI tests or examples when the new report should be accepted by `devcontainer-image explain`, `diff`, or `doctor`.
 6. Update [Architecture](architecture.md) or a focused subsystem document when the report changes maintainer-visible workflow.
 7. Run `nix flake check`.
