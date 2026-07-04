@@ -85,6 +85,10 @@ let
       inherit lib pkgs;
     };
 
+    compileSecurity = import ./compiler/security.nix {
+      inherit lib runtimeHelpers;
+    };
+
     compileImage = import ./compiler/image.nix {
       inherit
         pkgs
@@ -171,6 +175,15 @@ let
           compiledEnvironment = environment;
           compiledGraph = graph;
         };
+        security = compileSecurity {
+          config = evaluated.config;
+          compiledEnvironment = environment;
+          compiledEnv = env;
+          compiledMetadata = metadata;
+          compiledLifecycle = lifecycle;
+          compiledVscodeExtensions = vscodeExtensions;
+          compiledLayers = layers;
+        };
         flakeInputs = compileFlakeInputs;
         reports = compileReports {
           config = evaluated.config;
@@ -189,6 +202,7 @@ let
           compiledFhsRuntime = fhsRuntime;
           compiledFilesystem = filesystem;
           compiledLayers = layers;
+          compiledSecurity = security;
         };
         image = compileImage {
           config = evaluated.config;
@@ -224,6 +238,7 @@ let
           shell
           fonts
           flakeInputs
+          security
           ;
         inherit lifecycle vscodeExtensions;
         profileReport = profiles.report;

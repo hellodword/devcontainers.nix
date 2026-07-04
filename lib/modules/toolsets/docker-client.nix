@@ -4,7 +4,7 @@
 }:
 let
   packages = with pkgs; [
-    docker
+    docker-client
     docker-buildx
     docker-compose
     docker-credential-helpers

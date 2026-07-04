@@ -149,6 +149,7 @@ let
       checkName = "task-runner";
       checkScript = ../tests/ci/check-task-runner.py;
       checkEnvName = "DEVCONTAINER_RUNNER";
+      securityCapabilities.redactsLifecycleLogs = true;
     };
     "vscode-extension-projector" = {
       order = 40;
@@ -157,6 +158,7 @@ let
       checkName = "vscode-extension-projector";
       checkScript = ../tests/ci/check-vscode-extension-projector.py;
       checkEnvName = "DEVCONTAINER_PROJECTOR";
+      securityCapabilities.redactsProjectionLogs = true;
     };
     devpkg = {
       order = 50;

@@ -550,6 +550,23 @@ in
     assert apiEvalImage.metadata.mergedPreview.userEnvProbe == "loginInteractiveShell";
     assert !(builtins.hasAttr "PATH" (apiEvalImage.metadata.mergedPreview.containerEnv or { }));
     assert builtins.hasAttr "postStartCommand" apiEvalImage.metadata.mergedPreview;
+    assert apiEvalImage.security.report.image == "api-eval";
+    assert builtins.attrNames apiEvalImage.security.report.checks == [
+      "dockerDaemon"
+      "dockerSocket"
+      "extensionArtifacts"
+      "extensionProjectionLogRedaction"
+      "lifecycleLogRedaction"
+      "secretScan"
+      "shellInitSideEffects"
+    ];
+    assert lib.all (
+      check:
+      check.status == "pass"
+      && check.evidence.findingCount == 0
+      && check.evidence.findings == [ ]
+    ) (builtins.attrValues apiEvalImage.security.report.checks);
+    assert apiEvalImage.security.report.findings == [ ];
     assert invalidKnownHostsRejected;
     assert unsupportedSudoRejected;
     assert missingCompanionToolRejected;

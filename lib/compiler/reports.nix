@@ -30,6 +30,9 @@
   compiledFhsRuntime,
   compiledFilesystem,
   compiledLayers,
+  compiledSecurity ? {
+    report = { };
+  },
 }:
 let
   jsonFile = name: value: pkgs.writeText name (builtins.toJSON value);
@@ -68,6 +71,7 @@ let
   };
   reportData = {
     inherit imagePlan smokePlan;
+    security = compiledSecurity.report;
   };
   profile-report-json = jsonFile "profile-report.json" (
     compiledProfiles.report
@@ -189,9 +193,7 @@ let
         config.devcontainer.vscode.preinstall.validation.noNetworkDuringProjection;
       allArtifactsLocked = builtins.all (
         extension:
-        extension ? sourceLock
-        && extension.sourceLock ? sha256
-        && extension.sourceLock ? vsixSha256
+        extension ? sourceLock && extension.sourceLock ? sha256 && extension.sourceLock ? vsixSha256
       ) compiledVscodeExtensions.extensions;
       companionToolsProvidedByNix =
         (compiledProfiles.report.validation or { }).companionToolsProvidedByNix or false;
@@ -240,19 +242,7 @@ let
       database = "nix-index-database";
     };
   };
-  security-report-json = jsonFile "security-report.json" {
-    secretsBakedIntoImage = false;
-    lifecycleLogRedaction = true;
-    extensionProjectionLogRedaction = true;
-    dockerDaemonBakedIntoImage = false;
-    dockerSocketMountedByDefault = false;
-    extensionArtifactsLocked = builtins.all (
-      extension: extension ? sourceLock && extension.sourceLock ? sha256
-    ) compiledVscodeExtensions.extensions;
-    uvxAutoRunFromShellInit = false;
-    npxAutoRunFromShellInit = false;
-    shellInitHasNoSideEffects = true;
-  };
+  security-report-json = jsonFile "security-report.json" compiledSecurity.report;
   smoke-test-plan-json = jsonFile "smoke-test-plan.json" smokePlan;
   baseReportEntries = [
     {

@@ -26,6 +26,23 @@ TARGET_POLICY_FIELDS = {
     "requiredProfiles",
     "requiredCommands",
 }
+REQUIRED_SECURITY_CHECKS = {
+    "secretScan",
+    "dockerSocket",
+    "dockerDaemon",
+    "extensionArtifacts",
+    "lifecycleLogRedaction",
+    "extensionProjectionLogRedaction",
+    "shellInitSideEffects",
+}
+DOCKER_DAEMON_MARKERS = {
+    "dockerd",
+    "dockerd-rootless",
+    "docker-containerd",
+    "docker.service",
+    "docker.socket",
+    "moby",
+}
 
 
 def read_json(path: pathlib.Path):
@@ -121,6 +138,76 @@ def validate_graph_duplicates_report(graph_duplicates_report):
             or not all(isinstance(node_id, str) and node_id for node_id in node_ids)
         ):
             fail("graph-duplicates-report.json values must be lists of duplicate graph node ids")
+
+
+def validate_security_finding(finding, context):
+    if not isinstance(finding, dict):
+        fail(f"{context} findings must contain objects")
+    if set(finding) != {"source", "path", "field", "count"}:
+        fail(f"{context} findings must only include source, path, field, and count")
+    for field in ["source", "path", "field"]:
+        if not isinstance(finding.get(field), str) or not finding[field]:
+            fail(f"{context} finding {field} must be a non-empty string")
+    if not isinstance(finding.get("count"), int) or isinstance(finding.get("count"), bool) or finding["count"] < 1:
+        fail(f"{context} finding count must be a positive integer")
+
+
+def validate_security_report(security_report, image_name, layer_closure_report):
+    if not isinstance(security_report, dict):
+        fail("security-report.json must be an object")
+    if security_report.get("image") != image_name:
+        fail("security-report.json image mismatch")
+
+    checks = security_report.get("checks")
+    if not isinstance(checks, dict):
+        fail("security-report.json checks must be an object")
+    missing_checks = sorted(REQUIRED_SECURITY_CHECKS - set(checks))
+    if missing_checks:
+        fail(f"security-report.json missing checks: {', '.join(missing_checks)}")
+
+    top_level_findings = security_report.get("findings")
+    if not isinstance(top_level_findings, list):
+        fail("security-report.json findings must be an array")
+    for finding in top_level_findings:
+        validate_security_finding(finding, "security-report.json")
+
+    collected_findings = []
+    for check_name in sorted(REQUIRED_SECURITY_CHECKS):
+        check = checks[check_name]
+        if not isinstance(check, dict):
+            fail(f"security-report.json {check_name} check must be an object")
+        if check.get("status") not in {"pass", "fail"}:
+            fail(f"security-report.json {check_name} status must be pass or fail")
+        if check.get("status") != "pass":
+            fail(f"security-report.json {check_name} must pass by default")
+        if not isinstance(check.get("summary"), str) or not check["summary"]:
+            fail(f"security-report.json {check_name} summary must be a non-empty string")
+        evidence = check.get("evidence")
+        if not isinstance(evidence, dict):
+            fail(f"security-report.json {check_name} evidence must be an object")
+        findings = evidence.get("findings")
+        if not isinstance(findings, list):
+            fail(f"security-report.json {check_name} evidence findings must be an array")
+        finding_count = evidence.get("findingCount")
+        if not isinstance(finding_count, int) or isinstance(finding_count, bool) or finding_count != len(findings):
+            fail(f"security-report.json {check_name} findingCount mismatch")
+        for finding in findings:
+            validate_security_finding(finding, f"security-report.json {check_name}")
+        collected_findings.extend(findings)
+
+    if top_level_findings != collected_findings:
+        fail("security-report.json top-level findings must match check evidence findings")
+
+    daemon_closure_paths = sorted(
+        {
+            path
+            for layer in layer_closure_report.get("layers", [])
+            for path in layer.get("closureStorePaths", [])
+            if any(marker in path.lower() for marker in DOCKER_DAEMON_MARKERS)
+        }
+    )
+    if daemon_closure_paths:
+        fail(f"layer closure must not contain Docker daemon components: {', '.join(daemon_closure_paths)}")
 
 
 def walk_strings(value):
@@ -779,22 +866,7 @@ def main() -> int:
         if nix_dir in directory_map:
             fail(f"filesystem-report.json must leave {nix_dir} to initializeNixDatabase")
 
-    if security_report["dockerDaemonBakedIntoImage"]:
-        fail("security-report.json must confirm no Docker daemon is baked into the image")
-    if security_report["dockerSocketMountedByDefault"]:
-        fail("security-report.json must confirm no default Docker socket mount")
-    if not security_report["lifecycleLogRedaction"]:
-        fail("security-report.json must confirm lifecycle log redaction")
-    if not security_report["extensionProjectionLogRedaction"]:
-        fail("security-report.json must confirm extension projection log redaction")
-    if not security_report["extensionArtifactsLocked"]:
-        fail("security-report.json must confirm extension artifacts are locked")
-    if security_report["uvxAutoRunFromShellInit"]:
-        fail("security-report.json must confirm uvx is not auto-run from shell init")
-    if security_report["npxAutoRunFromShellInit"]:
-        fail("security-report.json must confirm npx is not auto-run from shell init")
-    if not security_report["shellInitHasNoSideEffects"]:
-        fail("security-report.json must confirm shell init remains side-effect free")
+    validate_security_report(security_report, image_name, layer_closure_report)
 
     if not shell_report.get("enabled"):
         fail("shell-report.json must confirm shell support is enabled")

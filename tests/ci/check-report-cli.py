@@ -36,6 +36,37 @@ def run_json(tool: Path, args: list[str]):
     return json.loads(run_tool(tool, args).stdout)
 
 
+def validate_security_report(security: dict, image_name: str) -> None:
+    required_checks = {
+        "secretScan",
+        "dockerSocket",
+        "dockerDaemon",
+        "extensionArtifacts",
+        "lifecycleLogRedaction",
+        "extensionProjectionLogRedaction",
+        "shellInitSideEffects",
+    }
+    if security.get("image") != image_name:
+        fail("security report image mismatch")
+    checks = security.get("checks")
+    if not isinstance(checks, dict):
+        fail("security report checks must be an object")
+    missing_checks = sorted(required_checks - set(checks))
+    if missing_checks:
+        fail(f"security report missing checks: {', '.join(missing_checks)}")
+    findings = security.get("findings")
+    if not isinstance(findings, list) or findings:
+        fail("security report should have no default findings")
+    for name, check in checks.items():
+        if check.get("status") != "pass":
+            fail(f"security report check should pass: {name}")
+        if not check.get("summary"):
+            fail(f"security report check missing summary: {name}")
+        evidence = check.get("evidence") or {}
+        if evidence.get("findingCount") != 0 or evidence.get("findings") != []:
+            fail(f"security report check should have no findings: {name}")
+
+
 def main() -> int:
     if len(sys.argv) != 4:
         print("usage: tests/ci/check-report-cli.py <devcontainer-image> <reports-dir> <image-name>", file=sys.stderr)
@@ -82,17 +113,7 @@ def main() -> int:
             fail("image-plan report image mismatch")
 
         security = run_json(tool, ["explain", "security", "--report", str(reports_dir)])
-        for key in [
-            "dockerDaemonBakedIntoImage",
-            "dockerSocketMountedByDefault",
-            "uvxAutoRunFromShellInit",
-            "npxAutoRunFromShellInit",
-        ]:
-            if security.get(key):
-                fail(f"security report should disable {key}")
-        for key in ["lifecycleLogRedaction", "extensionArtifactsLocked"]:
-            if not security.get(key):
-                fail(f"security report should enable {key}")
+        validate_security_report(security, image_name)
 
         metadata_preview = read_json(reports_dir / "metadata-merged-preview.json")
         if "dockerAccess" in metadata_preview or "mounts" in metadata_preview:
