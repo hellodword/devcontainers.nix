@@ -52,12 +52,7 @@ in
     };
     settings = mkOption {
       type = types.attrsOf nixSettingValueType;
-      default = {
-        experimental-features = [
-          "nix-command"
-          "flakes"
-        ];
-      };
+      default = { };
     };
     extraOptions = mkOption {
       type = types.lines;
@@ -66,6 +61,19 @@ in
   };
 
   config = {
+    nix.settings.extra-experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
+    nix.settings.experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
+    nix.settings.trusted-users = [
+      "root"
+      "vscode"
+    ];
+
     environment.etc."nix/nix.conf".text = nixConfText;
 
     devcontainer.tests.cases."devpkg.core" = {

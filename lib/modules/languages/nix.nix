@@ -55,6 +55,7 @@ in
               command = ''
                 set -e
                 nix --version
+                nix config show >/dev/null
                 test -r /etc/nix/nix.conf
                 grep -F 'experimental-features = nix-command flakes' /etc/nix/nix.conf >/dev/null
                 test -f /usr/share/devcontainer/vscode/extensions-index.json

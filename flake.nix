@@ -97,7 +97,10 @@
 
       targets = import ./images { inherit pkgs lib; };
       images = lib.mapAttrs (
-        _: target: compiler.mkImage { inherit (target) modules; }
+        _: target:
+        compiler.mkImage {
+          modules = target.modules ++ [ inheritedNixConfigModule ];
+        }
       ) targets.imageTargets;
       workflows = import ./flake/workflows.nix {
         inherit pkgs lib targets;
@@ -198,6 +201,79 @@
           fi
         '';
       };
+
+      collectInputNixConfig =
+        {
+          inputs,
+          inputNames ? builtins.attrNames (removeAttrs inputs [ "self" ]),
+        }:
+        let
+          selectedInputs = lib.filterAttrs (
+            name: value:
+            lib.elem name inputNames && value ? outPath && builtins.pathExists (value.outPath + "/flake.nix")
+          ) (removeAttrs inputs [ "self" ]);
+
+          flakeNixOf = input: import (input.outPath + "/flake.nix");
+
+          nixConfigs = map (
+            input:
+            let
+              flake = flakeNixOf input;
+            in
+            flake.nixConfig or { }
+          ) (lib.attrValues selectedInputs);
+
+          asList = value: if builtins.isList value then value else [ value ];
+
+          readList = attrName: cfg: asList (cfg.${attrName} or [ ]);
+
+          collect =
+            attrNames:
+            lib.unique (
+              lib.flatten (map (cfg: lib.flatten (map (attrName: readList attrName cfg) attrNames)) nixConfigs)
+            );
+        in
+        {
+          substituters = collect [
+            # "substituters"
+            "extra-substituters"
+          ];
+
+          trustedSubstituters = collect [
+            # "trusted-substituters"
+            "extra-trusted-substituters"
+          ];
+
+          trustedPublicKeys = collect [
+            # "trusted-public-keys"
+            "extra-trusted-public-keys"
+          ];
+        };
+
+      inheritedNixConfig = collectInputNixConfig {
+        inherit inputs;
+        inputNames = [
+          "llm-agents"
+          "agents-misc"
+          "nix-vscode-extensions"
+        ];
+      };
+      inheritedTrustedSubstituters = lib.unique (
+        inheritedNixConfig.substituters ++ inheritedNixConfig.trustedSubstituters
+      );
+      inheritedNixConfigModule =
+        { lib, ... }:
+        {
+          config = lib.mkMerge [
+            (lib.optionalAttrs (inheritedTrustedSubstituters != [ ]) {
+              nix.settings.extra-substituters = lib.mkAfter inheritedTrustedSubstituters;
+              nix.settings.extra-trusted-substituters = lib.mkAfter inheritedTrustedSubstituters;
+            })
+            (lib.optionalAttrs (inheritedNixConfig.trustedPublicKeys != [ ]) {
+              nix.settings.extra-trusted-public-keys = lib.mkAfter inheritedNixConfig.trustedPublicKeys;
+            })
+          ];
+        };
     in
     {
       formatter.${system} = nixfmtFormatter;
