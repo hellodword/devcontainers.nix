@@ -16,7 +16,9 @@
     shellEnv = { };
   },
   compiledMetadata ? {
+    label = [ ];
     mergedPreview = { };
+    schemaReport = { };
   },
   compiledLifecycle ? {
     tasks = [ ];
@@ -108,12 +110,16 @@ let
   etcTextEntries = map (entry: {
     inherit (entry) name path text;
   }) (builtins.filter (entry: entry.text != null) (compiledEnvironment.etc or [ ]));
+  metadataValues = {
+    label = compiledMetadata.label or [ ];
+    mergedPreview = compiledMetadata.mergedPreview or { };
+  };
 
   secretFindings = lib.concatLists [
     (walkStrings hasSensitiveMarker "containerEnv" [ "containerEnv" ] compiledEnv.containerEnv)
     (walkStrings hasSensitiveMarker "remoteEnv" [ "remoteEnv" ] compiledEnv.remoteEnv)
     (walkStrings hasSensitiveMarker "shellEnv" [ "shellEnv" ] (compiledEnv.shellEnv or { }))
-    (walkStrings hasSensitiveMarker "metadata" [ "metadata" ] compiledMetadata.mergedPreview)
+    (walkStrings hasSensitiveMarker "metadata" [ "metadata" ] metadataValues)
     (walkStrings hasSensitiveMarker "shellInit" [ "shellInit" ] {
       shellInit = compiledEnvironment.shellInit or "";
       interactiveShellInit = compiledEnvironment.interactiveShellInit or "";
@@ -131,13 +137,21 @@ let
       "docker.sock"
     ];
   dockerSocketFindings =
-    walkStrings hasDockerSocket "metadata" [ "metadata" ] compiledMetadata.mergedPreview
-    ++ lib.optional (builtins.hasAttr dockerAccessKey compiledMetadata.mergedPreview) (
+    walkStrings hasDockerSocket "metadata" [ "metadata" ] metadataValues
+    ++ lib.optional (builtins.hasAttr dockerAccessKey (compiledMetadata.mergedPreview or { })) (
       mkFinding "metadata" [
         "metadata"
         dockerAccessKey
       ]
     );
+  workspaceConfigProtectionFindings =
+    lib.optional (!(compiledMetadata.schemaReport.hasWorkspaceConfigProtection or false))
+      (
+        mkFinding "metadata" [
+          "metadata"
+          "workspaceConfigProtection"
+        ]
+      );
 
   daemonMarkers = [
     "dockerd"
@@ -310,6 +324,13 @@ let
         {
           requiredKeys = requiredExtensionLockKeys;
           extensionCount = builtins.length compiledVscodeExtensions.extensions;
+        };
+    workspaceConfigProtection =
+      mkCheck "Dev Container metadata protects .devcontainer with a read-only bind mount."
+        workspaceConfigProtectionFindings
+        {
+          mount = (compiledMetadata.workspaceConfigProtection or { }).mount or null;
+          mountCount = compiledMetadata.schemaReport.protectedWorkspaceConfigMountCount or 0;
         };
     lifecycleLogRedaction =
       mkCheck "Lifecycle task runner declares checked log redaction support." lifecycleRedactionFindings

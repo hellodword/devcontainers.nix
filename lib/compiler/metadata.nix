@@ -9,6 +9,7 @@
   },
 }:
 let
+  protectedWorkspaceConfigMount = "source=\${localWorkspaceFolder}/.devcontainer,target=/workspaces/\${localWorkspaceFolderBasename}/.devcontainer,type=bind,readonly";
   allTasks = compiledProfiles.tasks // config.devcontainer.lifecycle.tasks;
   lifecycleCommands =
     let
@@ -39,6 +40,7 @@ let
     remoteUser = config.devcontainer.user.remoteUser;
     containerUser = config.devcontainer.user.containerUser;
     updateRemoteUserUID = config.devcontainer.user.updateRemoteUserUID;
+    mounts = [ protectedWorkspaceConfigMount ];
     containerEnv = removeAttrs compiledEnv.containerEnv [ "PATH" ];
     remoteEnv = compiledEnv.remoteEnv;
   }
@@ -62,6 +64,14 @@ let
       snippets;
   mergedPreview = lib.foldl' lib.recursiveUpdate { } validatedSnippets;
   dockerMetadataKey = "docker" + "Access";
+  labelMounts = lib.concatMap (snippet: snippet.mounts or [ ]) validatedSnippets;
+  protectedWorkspaceConfigMounts = builtins.filter (
+    mount: mount == protectedWorkspaceConfigMount
+  ) labelMounts;
+  unexpectedMounts = builtins.filter (mount: mount != protectedWorkspaceConfigMount) labelMounts;
+  hasDockerAccess = builtins.any (
+    snippet: builtins.hasAttr dockerMetadataKey snippet
+  ) validatedSnippets;
   schemaReport = {
     snippetCount = builtins.length validatedSnippets;
     hasRemoteUser = mergedPreview ? remoteUser;
@@ -72,11 +82,19 @@ let
       "postAttach"
     ];
     hasVscodeCustomizations = mergedPreview ? customizations;
-    hasDockerMetadata = builtins.hasAttr dockerMetadataKey mergedPreview || mergedPreview ? mounts;
+    hasWorkspaceConfigProtection = builtins.length protectedWorkspaceConfigMounts == 1;
+    protectedWorkspaceConfigMountCount = builtins.length protectedWorkspaceConfigMounts;
+    hasDockerMetadata = hasDockerAccess || unexpectedMounts != [ ];
+    unexpectedMounts = unexpectedMounts;
   };
 in
 {
   label = validatedSnippets;
   mergedPreview = mergedPreview;
+  workspaceConfigProtection = {
+    mount = protectedWorkspaceConfigMount;
+    source = "\${localWorkspaceFolder}/.devcontainer";
+    target = "/workspaces/\${localWorkspaceFolderBasename}/.devcontainer";
+  };
   schemaReport = schemaReport;
 }

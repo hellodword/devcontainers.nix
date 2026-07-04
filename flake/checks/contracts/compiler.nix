@@ -1000,6 +1000,7 @@ in
         "lifecycleLogRedaction"
         "secretScan"
         "shellInitSideEffects"
+        "workspaceConfigProtection"
       ];
     assert lib.all (
       check: check.status == "pass" && check.evidence.findingCount == 0 && check.evidence.findings == [ ]

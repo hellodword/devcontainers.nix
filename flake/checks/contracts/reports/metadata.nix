@@ -12,6 +12,7 @@ let
       metadata = image.metadata;
       preview = metadata.mergedPreview;
       previewEnv = preview.containerEnv or { };
+      previewMounts = preview.mounts or [ ];
       schema = metadata.schemaReport;
       checks = {
         labelIsArray = builtins.isList metadata.label;
@@ -19,6 +20,8 @@ let
         hasLifecycle = schema.hasLifecycle or false;
         hasVscodeCustomizations = schema.hasVscodeCustomizations or false;
         noDockerMetadata = !(schema.hasDockerMetadata or true);
+        workspaceConfigProtection = schema.hasWorkspaceConfigProtection or false;
+        protectedMountInPreview = builtins.elem metadata.workspaceConfigProtection.mount previewMounts;
         remoteUser = (preview.remoteUser or null) == "vscode";
         containerUser = (preview.containerUser or null) == "vscode";
         updateRemoteUserUid = (preview.updateRemoteUserUID or null) == false;
@@ -31,6 +34,8 @@ let
       inherit name checks;
       details = {
         snippetCount = schema.snippetCount or null;
+        mount = metadata.workspaceConfigProtection.mount;
+        unexpectedMounts = schema.unexpectedMounts or [ ];
       };
     }
   ) images;

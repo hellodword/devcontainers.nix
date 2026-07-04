@@ -380,7 +380,7 @@ All images include fontconfig and Noto Latin, CJK, symbol, and emoji coverage. F
 
 ## VS Code Metadata And Extensions
 
-The OCI image label `devcontainer.metadata` is a JSON array. It contains the computed Dev Containers metadata for users, environment, lifecycle commands, and VS Code extension customizations.
+The OCI image label `devcontainer.metadata` is a JSON array. It contains the computed Dev Containers metadata for users, environment, lifecycle commands, VS Code extension customizations, and the read-only workspace `.devcontainer` mount that prevents container-side edits to host-executed lifecycle configuration.
 
 VS Code extension support has two parts:
 

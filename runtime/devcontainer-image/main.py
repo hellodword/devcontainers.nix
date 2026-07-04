@@ -6,6 +6,14 @@ import sys
 from pathlib import Path
 
 
+PROTECTED_DEVCONTAINER_MOUNT_SOURCE = "${localWorkspaceFolder}/.devcontainer"
+PROTECTED_DEVCONTAINER_MOUNT_TARGET = "/workspaces/${localWorkspaceFolderBasename}/.devcontainer"
+PROTECTED_DEVCONTAINER_MOUNT = (
+    "source=${localWorkspaceFolder}/.devcontainer,"
+    "target=/workspaces/${localWorkspaceFolderBasename}/.devcontainer,"
+    "type=bind,readonly"
+)
+
 USAGE = """devcontainer-image explain layer <n> [--report <dir>]
 devcontainer-image explain package <name> [--report <dir>]
 devcontainer-image explain extension <id> [--report <dir>]
@@ -53,7 +61,92 @@ def user_ok(value) -> bool:
     )
 
 
-def check_devcontainer_user(metadata_file: Path) -> None:
+def boolish(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"", "1", "true", "yes", "readonly", "ro"}
+    return False
+
+
+def parse_mount_string(value: str) -> dict[str, str]:
+    result = {}
+    for part in value.split(","):
+        item = part.strip()
+        if not item:
+            continue
+        if "=" in item:
+            key, raw = item.split("=", 1)
+            result[key.strip().lower()] = raw.strip()
+        else:
+            result[item.lower()] = ""
+    return result
+
+
+def mount_flag_enabled(parsed: dict[str, str], key: str) -> bool:
+    if key not in parsed:
+        return False
+    value = parsed[key]
+    return value == "" or boolish(value)
+
+
+def mount_entries(value):
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, dict):
+        items = value.get("mounts") or []
+    else:
+        items = []
+    if isinstance(items, (str, dict)):
+        yield items
+        return
+    if isinstance(items, list):
+        yield from items
+
+
+def metadata_mounts(metadata):
+    if isinstance(metadata, list):
+        for item in metadata:
+            yield from mount_entries(item)
+        return
+    yield from mount_entries(metadata)
+
+
+def mount_parts(mount) -> dict[str, object]:
+    if isinstance(mount, str):
+        parsed = parse_mount_string(mount)
+        return {
+            "source": parsed.get("source") or parsed.get("src"),
+            "target": parsed.get("target") or parsed.get("dst") or parsed.get("destination"),
+            "type": parsed.get("type"),
+            "readonly": mount_flag_enabled(parsed, "readonly") or mount_flag_enabled(parsed, "ro"),
+        }
+    if isinstance(mount, dict):
+        return {
+            "source": mount.get("source") or mount.get("src"),
+            "target": mount.get("target") or mount.get("dst") or mount.get("destination"),
+            "type": mount.get("type"),
+            "readonly": boolish(mount.get("readonly")) or boolish(mount.get("readOnly")) or boolish(mount.get("ro")),
+        }
+    return {}
+
+
+def protected_mount_ok(mount) -> bool:
+    parts = mount_parts(mount)
+    return (
+        parts.get("source") == PROTECTED_DEVCONTAINER_MOUNT_SOURCE
+        and parts.get("target") == PROTECTED_DEVCONTAINER_MOUNT_TARGET
+        and parts.get("type") == "bind"
+        and parts.get("readonly") is True
+    )
+
+
+def conflicts_with_protected_mount(mount) -> bool:
+    parts = mount_parts(mount)
+    return parts.get("target") == PROTECTED_DEVCONTAINER_MOUNT_TARGET and not protected_mount_ok(mount)
+
+
+def check_devcontainer_config(metadata_file: Path) -> None:
     metadata = read_json(metadata_file)
     ok = False
     if isinstance(metadata, list):
@@ -64,6 +157,17 @@ def check_devcontainer_user(metadata_file: Path) -> None:
         fail(
             "devcontainers.nix images only support the vscode user; "
             "remove remoteUser/containerUser/updateRemoteUserUID overrides from devcontainer.json"
+        )
+    mounts = list(metadata_mounts(metadata))
+    if any(conflicts_with_protected_mount(mount) for mount in mounts):
+        fail(
+            "devcontainer.json must not override the protected .devcontainer mount; "
+            "keep it as a bind mount with readonly enabled"
+        )
+    if isinstance(metadata, list) and not any(protected_mount_ok(mount) for mount in mounts):
+        fail(
+            "devcontainers.nix image metadata must protect .devcontainer with this readonly mount: "
+            f"{PROTECTED_DEVCONTAINER_MOUNT}"
         )
 
 
@@ -205,7 +309,7 @@ def main(argv: list[str]) -> int:
         if len(rest) != 1:
             usage(sys.stderr)
             return 1
-        check_devcontainer_user(Path(rest[0]))
+        check_devcontainer_config(Path(rest[0]))
         return 0
     if cmd == "doctor":
         return doctor(rest)

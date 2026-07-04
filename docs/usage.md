@@ -38,6 +38,16 @@ The image metadata already sets `remoteUser`, `containerUser`, and
 start as a different user, and `devcontainer-image check` reports these
 overrides as invalid.
 
+The image metadata also mounts the project `.devcontainer` directory back onto
+`/workspaces/${localWorkspaceFolderBasename}/.devcontainer` as a read-only bind
+mount. This prevents processes running as `vscode` inside the container from
+editing `devcontainer.json` and planting a later `initializeCommand` that would
+run on the host during rebuild. This protects containers created after the
+metadata is trusted; it does not validate a `.devcontainer` that was already
+malicious before the first open. If you use a custom `workspaceMount`,
+`workspaceFolder`, or Docker Compose layout, add an equivalent read-only mount
+for the workspace root's `.devcontainer` directory.
+
 Important defaults:
 
 - default working directory is `/workspaces`

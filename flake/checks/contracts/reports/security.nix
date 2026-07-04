@@ -11,6 +11,7 @@ let
     "dockerSocket"
     "dockerDaemon"
     "extensionArtifacts"
+    "workspaceConfigProtection"
     "lifecycleLogRedaction"
     "extensionProjectionLogRedaction"
     "shellInitSideEffects"

@@ -451,6 +451,12 @@ let
                 require test "$(cat "$terminal_probe_path")" = "$terminal_probe_value"
                 require test "$(cat "$terminal_probe_user_path")" = "vscode"
                 require test "$(cat "$terminal_probe_pwd_path")" = "/workspaces/workspace"
+                require test -r /workspaces/workspace/.devcontainer/devcontainer.json
+                require test ! -w /workspaces/workspace/.devcontainer
+                if printf '%s\n' probe >/workspaces/workspace/.devcontainer/write-probe 2>/dev/null; then
+                  echo ".devcontainer must be mounted read-only inside the container" >&2
+                  exit 1
+                fi
                 require test -f /usr/share/devcontainer/tasks.json
                 require test -f /usr/share/devcontainer/vscode/extensions-index.json
 
@@ -1247,6 +1253,7 @@ let
 
             test -d /workspaces/workspace
             test -f /workspaces/workspace/.devcontainer/devcontainer.json
+            test ! -w /workspaces/workspace/.devcontainer
             test -f /usr/share/devcontainer/tasks.json
             test -f /usr/share/devcontainer/vscode/extensions-index.json
             devcontainer-task-runner status > /tmp/e2e-task-runner-status.wait.txt

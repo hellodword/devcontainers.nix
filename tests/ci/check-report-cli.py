@@ -7,6 +7,13 @@ import tempfile
 from pathlib import Path
 
 
+PROTECTED_DEVCONTAINER_MOUNT = (
+    "source=${localWorkspaceFolder}/.devcontainer,"
+    "target=/workspaces/${localWorkspaceFolderBasename}/.devcontainer,"
+    "type=bind,readonly"
+)
+
+
 def fail(message: str) -> None:
     print(message, file=sys.stderr)
     raise SystemExit(1)
@@ -42,6 +49,7 @@ def validate_security_report(security: dict, image_name: str) -> None:
         "dockerSocket",
         "dockerDaemon",
         "extensionArtifacts",
+        "workspaceConfigProtection",
         "lifecycleLogRedaction",
         "extensionProjectionLogRedaction",
         "shellInitSideEffects",
@@ -123,8 +131,10 @@ def main() -> int:
         validate_security_report(security, image_name)
 
         metadata_preview = read_json(reports_dir / "metadata-merged-preview.json")
-        if "dockerAccess" in metadata_preview or "mounts" in metadata_preview:
+        if "dockerAccess" in metadata_preview:
             fail("metadata preview contains forbidden Docker metadata")
+        if metadata_preview.get("mounts") != [PROTECTED_DEVCONTAINER_MOUNT]:
+            fail("metadata preview missing protected .devcontainer mount")
 
         run_tool(tool, ["check", str(reports_dir / "metadata-label.json")])
         project_devcontainer = tmpdir / "project-devcontainer.json"
@@ -133,6 +143,38 @@ def main() -> int:
             {"name": "fixture", "remoteUser": "vscode", "containerUser": "vscode", "updateRemoteUserUID": False},
         )
         run_tool(tool, ["check", str(project_devcontainer)])
+
+        project_with_protected_mount = tmpdir / "project-protected-mount-devcontainer.json"
+        write_json(
+            project_with_protected_mount,
+            {
+                "name": "fixture",
+                "mounts": [PROTECTED_DEVCONTAINER_MOUNT],
+            },
+        )
+        run_tool(tool, ["check", str(project_with_protected_mount)])
+
+        bad_label = tmpdir / "bad-label.json"
+        write_json(bad_label, [{"remoteUser": "vscode"}])
+        bad_label_result = run_tool(tool, ["check", str(bad_label)], check=False)
+        if bad_label_result.returncode == 0 or "must protect .devcontainer" not in bad_label_result.stderr:
+            fail("expected check to reject image metadata without protected mount")
+
+        bad_mount = tmpdir / "bad-mount-devcontainer.json"
+        write_json(
+            bad_mount,
+            {
+                "name": "fixture",
+                "mounts": [
+                    "source=${localWorkspaceFolder}/.devcontainer,"
+                    "target=/workspaces/${localWorkspaceFolderBasename}/.devcontainer,"
+                    "type=bind"
+                ],
+            },
+        )
+        bad_mount_result = run_tool(tool, ["check", str(bad_mount)], check=False)
+        if bad_mount_result.returncode == 0 or "must not override the protected .devcontainer mount" not in bad_mount_result.stderr:
+            fail("expected check to reject writable protected mount override")
 
         bad_user = tmpdir / "bad-user-devcontainer.json"
         write_json(bad_user, {"name": "fixture", "remoteUser": "root"})
