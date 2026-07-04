@@ -18,14 +18,28 @@ LOG_DIR = STATE_ROOT / "logs"
 
 SAFE_TASK_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-SENSITIVE_RE = re.compile(
-    r"([A-Za-z0-9_]*(?:TOKEN|PASSWORD|SECRET|KEY)[A-Za-z0-9_]*=)[^\s]+|"
-    r"(Authorization: )[\x21-\x7e]+"
-)
+PREFIX_SECRET_PATTERNS = [
+    re.compile(
+        r"([A-Za-z0-9_.:/-]*(?:TOKEN|PASSWORD|PASSWD|PWD|SECRET|KEY|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|AUTH[_-]?TOKEN|CREDENTIAL|CLIENT[_-]?SECRET)[A-Za-z0-9_.:/-]*=)[^\s]+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"((?:Authorization|Proxy-Authorization):\s*)[\x21-\x7e]+", re.IGNORECASE),
+    re.compile(r"(\bsig=)[^&\s;]+", re.IGNORECASE),
+    re.compile(r"(\bSharedAccessSignature=)[^\s;]+", re.IGNORECASE),
+]
+VALUE_SECRET_PATTERNS = [
+    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bnpm_[A-Za-z0-9]{30,}\b"),
+    re.compile(r"\b(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|ASIA)[A-Z0-9]{16}\b"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
+    re.compile(r"\bya29\.[0-9A-Za-z_-]+\b"),
+]
 TIMEOUT_EXIT_CODE = 124
 TERMINATION_GRACE_SECONDS = 2
 
 USAGE = """devcontainer-task-runner run <phase>
+devcontainer-task-runner plan <phase>
 devcontainer-task-runner list
 devcontainer-task-runner status
 devcontainer-task-runner logs <task>
@@ -39,7 +53,7 @@ def usage(file=sys.stdout):
 
 
 def fail(message: str) -> None:
-    print(message, file=sys.stderr)
+    print(redact(message), file=sys.stderr)
     raise SystemExit(1)
 
 
@@ -147,12 +161,11 @@ def atomic_write(path: Path, text: str) -> None:
 
 
 def redact(text: str) -> str:
-    def replace(match: re.Match) -> str:
-        if match.group(1) is not None:
-            return f"{match.group(1)}[REDACTED]"
-        return f"{match.group(2)}[REDACTED]"
-
-    return SENSITIVE_RE.sub(replace, text)
+    for pattern in PREFIX_SECRET_PATTERNS:
+        text = pattern.sub(lambda match: f"{match.group(1)}[REDACTED]", text)
+    for pattern in VALUE_SECRET_PATTERNS:
+        text = pattern.sub("[REDACTED]", text)
+    return text
 
 
 def task_paths(name: str) -> tuple[Path, Path, Path]:
@@ -287,6 +300,77 @@ def cmd_status(tasks: dict[str, dict]) -> int:
     return 0
 
 
+def phase_roots(tasks: dict[str, dict], phase: str) -> list[str]:
+    return [name for name in sorted(tasks) if tasks[name].get("phase") == phase]
+
+
+def topo_order(tasks: dict[str, dict], roots: list[str]) -> list[str]:
+    visited = set()
+    order = []
+
+    def visit(name: str) -> None:
+        if name in visited:
+            return
+        for dep in tasks[name].get("needs", []):
+            visit(dep)
+        visited.add(name)
+        order.append(name)
+
+    for root in roots:
+        visit(root)
+    return order
+
+
+def dependency_tree(tasks: dict[str, dict], name: str) -> dict:
+    return {
+        "name": name,
+        "needs": [dependency_tree(tasks, dep) for dep in tasks[name].get("needs", [])],
+    }
+
+
+def plan_task(tasks: dict[str, dict], name: str) -> dict:
+    task = tasks[name]
+    _, statusfile, rcfile = task_paths(name)
+    status = status_value(statusfile, "pending")
+    exit_code = status_value(rcfile, "-")
+    once_done = task["once"] is True and status == "done"
+    has_command = bool(task.get("command") or [])
+    skip_reason = None
+    if once_done:
+        skip_reason = "once-done"
+    elif not has_command:
+        skip_reason = "empty-command"
+    return {
+        "name": name,
+        "phase": task["phase"],
+        "needs": task.get("needs", []),
+        "once": task["once"],
+        "status": status,
+        "exit": exit_code,
+        "timeoutSeconds": task["timeoutSeconds"],
+        "hasCommand": has_command,
+        "wouldRun": skip_reason is None,
+        "skipReason": skip_reason,
+    }
+
+
+def cmd_plan(tasks: dict[str, dict], args: list[str]) -> int:
+    if len(args) != 1 or not args[0]:
+        usage(sys.stderr)
+        return 1
+    phase = args[0]
+    roots = phase_roots(tasks, phase)
+    order = topo_order(tasks, roots)
+    plan = {
+        "phase": phase,
+        "topoOrder": order,
+        "roots": [dependency_tree(tasks, root) for root in roots],
+        "tasks": [plan_task(tasks, name) for name in order],
+    }
+    print(json.dumps(plan, indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_logs(tasks: dict[str, dict], args: list[str]) -> int:
     if len(args) != 1:
         usage(sys.stderr)
@@ -334,7 +418,7 @@ def main(argv: list[str]) -> int:
     if cmd == "ensure-xdg":
         ensure_xdg()
         return 0
-    if cmd not in {"list", "status", "logs", "reset", "run"}:
+    if cmd not in {"list", "status", "logs", "reset", "run", "plan"}:
         usage(sys.stderr)
         return 1
     tasks = load_tasks()
@@ -342,6 +426,8 @@ def main(argv: list[str]) -> int:
         return cmd_list(tasks)
     if cmd == "status":
         return cmd_status(tasks)
+    if cmd == "plan":
+        return cmd_plan(tasks, args)
     if cmd == "logs":
         return cmd_logs(tasks, args)
     if cmd == "reset":

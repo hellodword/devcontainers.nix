@@ -183,6 +183,7 @@ let
     {
       id = extensionId;
       native = singleValue "native" extensionId entries;
+      required = singleValue "required" extensionId entries;
       inherit bucket;
       companionTools = lib.unique (lib.concatMap (entry: entry.companionTools) entries);
       projectionOverride = nullableValue "projectionOverride" extensionId entries;

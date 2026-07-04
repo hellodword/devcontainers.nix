@@ -103,6 +103,10 @@ let
         native = mkOption { type = types.bool; };
         bucket = mkOption { type = nonEmptyStringType; };
         companionTools = mkOption { type = types.listOf nonEmptyStringType; };
+        required = mkOption {
+          type = types.bool;
+          default = true;
+        };
         projectionOverride = mkOption {
           type = types.nullOr nonEmptyStringType;
           default = null;

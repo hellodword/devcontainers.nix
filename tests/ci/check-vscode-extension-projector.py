@@ -51,12 +51,25 @@ def main() -> int:
             {
                 "projectionTargets": [str(symlink_target), str(copy_target)],
                 "extensions": [
-                    {"id": "example.extension", "path": str(source_ext_link), "projection": "symlink"},
-                    {"id": "example.native", "path": str(source_ext_copy), "projection": "copy-if-needed"},
                     {
-                        "id": "example.missing",
-                        "path": str(tmpdir / "KEY=missing-secret" / "missing"),
+                        "id": "example.extension",
+                        "path": str(source_ext_link),
                         "projection": "symlink",
+                        "required": True,
+                    },
+                    {
+                        "id": "example.native",
+                        "path": str(source_ext_copy),
+                        "projection": "copy-if-needed",
+                        "required": True,
+                    },
+                    {
+                        "id": "example.optional-missing",
+                        "path": str(
+                            tmpdir / "github_pat_optionalmissing000000000000000000000000" / "missing"
+                        ),
+                        "projection": "symlink",
+                        "required": False,
                     },
                 ],
             },
@@ -69,9 +82,38 @@ def main() -> int:
             fail("copy projection missing")
         if "[REDACTED]" not in combined_log:
             fail(f"expected redacted projector log:\n{combined_log}")
-        for secret in ["super-secret", "another-secret", "missing-secret"]:
+        for secret in [
+            "super-secret",
+            "another-secret",
+            "github_pat_optionalmissing000000000000000000000000",
+        ]:
             if secret in combined_log:
                 fail(f"projector log leaked {secret}")
+
+        missing_required_index = tmpdir / "missing-required-index.json"
+        write_json(
+            missing_required_index,
+            {
+                "projectionTargets": [str(symlink_target)],
+                "extensions": [
+                    {
+                        "id": "example.required-missing",
+                        "path": str(tmpdir / "KEY=required-missing-secret" / "missing"),
+                        "projection": "symlink",
+                        "required": True,
+                    },
+                ],
+            },
+        )
+        missing_required = run(
+            [str(projector), "activate", "--index", str(missing_required_index)],
+            check=False,
+        )
+        if missing_required.returncode == 0:
+            fail("expected required missing extension source to fail")
+        missing_required_log = missing_required.stdout + missing_required.stderr
+        if "[REDACTED]" not in missing_required_log or "required-missing-secret" in missing_required_log:
+            fail(f"required missing source log redaction failed:\n{missing_required_log}")
 
         outside_marker = tmpdir / "outside-marker"
         outside_marker.write_text("keep", encoding="utf-8")
@@ -85,6 +127,7 @@ def main() -> int:
                         "id": "example.escape",
                         "path": str(source_ext_link / ".."),
                         "projection": "copy-if-needed",
+                        "required": True,
                     }
                 ],
             },

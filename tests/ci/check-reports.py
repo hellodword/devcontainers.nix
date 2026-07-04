@@ -756,9 +756,14 @@ def main() -> int:
         fail("extensions-report.json must report the archive artifact path")
 
     report_extension_ids = set()
+    report_extension_required = {}
     for extension in extensions_report["extensions"]:
         extension_id = extension["id"]
         report_extension_ids.add(extension_id)
+        required = extension.get("required")
+        if not isinstance(required, bool):
+            fail(f"extensions-report.json must record required boolean for {extension_id}")
+        report_extension_required[extension_id] = required
         if extension["version"] == "pinned":
             fail(f"extensions-report.json must record a real version for {extension_id}")
         if not extension["source"].startswith("nix-vscode-extensions."):
@@ -801,6 +806,7 @@ def main() -> int:
         extension_id = extension["id"]
         extension_path = extension["path"]
         projection = extension.get("projection")
+        required = extension.get("required")
         if extension_id in seen_extension_ids:
             fail(f"extensions-index.json must not duplicate extension id: {extension_id}")
         if extension_path in seen_extension_paths:
@@ -813,6 +819,8 @@ def main() -> int:
             fail(f"extensions-index.json must point at projection artifact path for {extension_id}")
         if not isinstance(projection, str) or not projection:
             fail(f"extensions-index.json must record projection strategy for {extension_id}")
+        if required != report_extension_required.get(extension_id):
+            fail(f"extensions-index.json required value must match extensions-report.json for {extension_id}")
     if seen_extension_ids != profile_extension_ids:
         missing_extension_ids = sorted(profile_extension_ids - seen_extension_ids)
         extra_extension_ids = sorted(seen_extension_ids - profile_extension_ids)

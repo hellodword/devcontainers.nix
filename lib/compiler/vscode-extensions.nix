@@ -115,6 +115,7 @@ let
       uniqueId =
         if passthru ? vscodeExtUniqueId then passthru.vscodeExtUniqueId else "${publisher}.${name}";
       native = metadata.native;
+      required = metadata.required;
       bucket = metadata.bucket;
       pathSegment = uniqueId;
       vsixName = "${builtins.replaceStrings [ "." ] [ "-" ] uniqueId}.vsix";
@@ -141,6 +142,7 @@ let
         inherit
           id
           native
+          required
           bucket
           publisher
           name
@@ -191,7 +193,7 @@ let
         sourcePath = extensionPackage.src or extensionPackage;
       };
       index = {
-        inherit id projection;
+        inherit id projection required;
         path = projectionPath;
       };
     };

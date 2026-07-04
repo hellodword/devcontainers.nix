@@ -8,7 +8,23 @@ from pathlib import Path
 
 
 USAGE = "vscode-extension-projector activate --index <path>\n"
-SENSITIVE_RE = re.compile(r"([A-Za-z0-9_]*(?:TOKEN|PASSWORD|SECRET|KEY)[A-Za-z0-9_]*=)[^\s]+")
+PREFIX_SECRET_PATTERNS = [
+    re.compile(
+        r"([A-Za-z0-9_.:/-]*(?:TOKEN|PASSWORD|PASSWD|PWD|SECRET|KEY|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|AUTH[_-]?TOKEN|CREDENTIAL|CLIENT[_-]?SECRET)[A-Za-z0-9_.:/-]*=)[^\s]+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"((?:Authorization|Proxy-Authorization):\s*)[\x21-\x7e]+", re.IGNORECASE),
+    re.compile(r"(\bsig=)[^&\s;]+", re.IGNORECASE),
+    re.compile(r"(\bSharedAccessSignature=)[^\s;]+", re.IGNORECASE),
+]
+VALUE_SECRET_PATTERNS = [
+    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bnpm_[A-Za-z0-9]{30,}\b"),
+    re.compile(r"\b(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|ASIA)[A-Z0-9]{16}\b"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
+    re.compile(r"\bya29\.[0-9A-Za-z_-]+\b"),
+]
 
 
 def usage(file=sys.stdout):
@@ -16,12 +32,16 @@ def usage(file=sys.stdout):
 
 
 def fail(message: str) -> None:
-    print(message, file=sys.stderr)
+    print(redact(message), file=sys.stderr)
     raise SystemExit(1)
 
 
 def redact(text: str) -> str:
-    return SENSITIVE_RE.sub(lambda match: f"{match.group(1)}[REDACTED]", text)
+    for pattern in PREFIX_SECRET_PATTERNS:
+        text = pattern.sub(lambda match: f"{match.group(1)}[REDACTED]", text)
+    for pattern in VALUE_SECRET_PATTERNS:
+        text = pattern.sub("[REDACTED]", text)
+    return text
 
 
 def log(message: str, *, error: bool = False) -> None:
@@ -96,17 +116,23 @@ def activate(index_file: Path) -> int:
         extension_id = extension.get("id")
         source = extension.get("path")
         projection = extension.get("projection")
+        required = extension.get("required")
         if not isinstance(extension_id, str) or not extension_id:
             fail("extension entry must include an id")
         if not isinstance(source, str) or not source:
             fail(f"extension {extension_id} must include a path")
         if not isinstance(projection, str) or not projection:
             fail(f"extension {extension_id} must include a projection")
+        if not isinstance(required, bool):
+            fail(f"extension {extension_id} must include a boolean required value")
 
         source_path = Path(source)
         dest_name = safe_dest_name(source_path)
         if not source_path.exists():
-            log(f"missing extension source for {extension_id}: {source_path}", error=True)
+            message = f"missing extension source for {extension_id}: {source_path}"
+            if required:
+                fail(message)
+            log(message, error=True)
             continue
 
         for target in targets:

@@ -50,6 +50,22 @@ Important defaults:
 - Git, OpenSSH client tools, and nix-index are available in the base image set
 - `LD_LIBRARY_PATH` is not exported by default
 
+## Lifecycle Tasks
+
+Images run structured lifecycle tasks through `devcontainer-task-runner`.
+Inspect the configured task graph without executing it:
+
+```sh
+devcontainer-task-runner plan postCreate
+```
+
+The plan output is JSON and includes the phase roots, dependency tree,
+topological order, once-task status, and whether each task would run now.
+Task logs and helper diagnostics use best-effort redaction for common token,
+password, key, Authorization, GitHub, npm, cloud credential, and SAS signature
+formats. This redaction is not a secret scanner; keep secrets out of image
+modules and lifecycle commands.
+
 ## VS Code Settings
 
 Project-local VS Code settings belong in Dev Containers metadata:

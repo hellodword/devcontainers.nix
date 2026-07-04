@@ -175,6 +175,7 @@ Add the extension under the owning leaf profile's `vscode.extensions`:
 ```nix
 vscode.extensions."publisher.extension-id" = {
   native = false;
+  required = true;
   bucket = "vscode-extensions-python";
   companionTools = [ "python" ];
 };
@@ -183,8 +184,10 @@ vscode.extensions."publisher.extension-id" = {
 Use the module's existing VS Code extension bucket. If none exists, add an
 owner-local `devcontainer.layers.bucketDefinitions."vscode-extensions-<owner>"`
 entry in the same module and use that bucket. Set `companionTools` to commands
-the extension expects from the image. Use `notes` when the extension is syntax
-only or intentionally has no companion tool.
+the extension expects from the image. Leave `required = true` for normal
+preinstalled extensions; set it to `false` only when a missing projection source
+should warn and skip instead of failing container lifecycle setup. Use `notes`
+when the extension is syntax only or intentionally has no companion tool.
 
 Update a focused compiler contract or report assertion when the extension
 changes ownership, bucket placement, companion-tool policy, or published image
