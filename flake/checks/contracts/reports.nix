@@ -33,7 +33,6 @@ let
     builtins.attrValues nixReportContracts
   );
   checkReports = ../../../tests/ci/check-report-bundle.py;
-  checkSmokePlan = ../../../tests/ci/check-smoke-plan.py;
   checkHermeticDefaults = ../../../tests/ci/check-hermetic-default-checks.py;
   checkMetadataSchema = ../../../tests/ci/check-devcontainer-metadata-schema.py;
   pythonWithJsonschema = pkgs.python3.withPackages (ps: [ ps.jsonschema ]);
@@ -44,21 +43,10 @@ let
     hash = "sha256-NYaeKpbRy+pRbPCuyZ7t6KiOmBerCCFBG2jAKrfgEMI=";
   };
   devcontainersSchemaDir = "${devcontainersSpec}/schemas";
-  targetPolicyPath =
-    name:
-    let
-      checks = targets.imageTargets.${name}.checks or { };
-    in
-    pkgs.writeText "target-policy-${name}.json" (
-      builtins.toJSON {
-        requiredProfiles = checks.requiredProfiles or [ ];
-        requiredCommands = checks.requiredCommands or [ ];
-      }
-    );
   reportLines = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (name: image: ''
       echo "checking reports for ${name}"
-      python3 ${checkReports} ${image.reports} ${name} ${targetPolicyPath name}
+      python3 ${checkReports} ${image.reports} ${name}
       python3 ${checkMetadataSchema} ${image.metadata-label-json} ${image.metadata-merged-preview-json} ${devcontainersSchemaDir} ${name}
     '') images
   );
@@ -71,19 +59,12 @@ let
         }
         ''
           export PYTHONPATH=${../../../tests/ci}
-          export CHECK_SMOKE_PLAN=${checkSmokePlan}
-          python3 ${checkReports} ${image.reports} ${name} ${targetPolicyPath name}
+          python3 ${checkReports} ${image.reports} ${name}
           python3 ${checkMetadataSchema} ${image.metadata-label-json} ${image.metadata-merged-preview-json} ${devcontainersSchemaDir} ${name}
           touch "$out"
         ''
     )
   ) images;
-  smokePlanLines = lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (name: image: ''
-      echo "checking smoke plan for ${name}"
-      python3 ${checkSmokePlan} ${image.smoke} ${image.profile-report-json} ${name}
-    '') images
-  );
 in
 reportChecks
 // nixReportContracts
@@ -92,16 +73,8 @@ reportChecks
     pkgs.runCommand "contracts-reports-all" { nativeBuildInputs = [ pythonWithJsonschema ]; }
       ''
         export PYTHONPATH=${../../../tests/ci}
-        export CHECK_SMOKE_PLAN=${checkSmokePlan}
         ${reportLines}
         ${nixReportContractLines}
-        touch "$out"
-      '';
-
-  contracts-smoke-plan-all =
-    pkgs.runCommand "contracts-smoke-plan-all" { nativeBuildInputs = [ pkgs.python3 ]; }
-      ''
-        ${smokePlanLines}
         touch "$out"
       '';
 

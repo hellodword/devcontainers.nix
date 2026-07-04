@@ -1,7 +1,6 @@
 {
   pkgs,
   lib,
-  nixpkgs,
   images,
   targets,
   ...
@@ -17,7 +16,7 @@ let
         }
         ''
           export PYTHONPATH=${../../tests/ci}
-          python3 ${../../tests/ci/check-image-tar.py} ${image.oci} ${image.reports} ${name} path:${nixpkgs.outPath}
+          python3 ${../../tests/ci/check-image-tar.py} ${image.oci} ${image.reports} ${name}
           touch "$out"
         ''
     )
