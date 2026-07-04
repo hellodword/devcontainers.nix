@@ -46,10 +46,10 @@ toolChecks
       }
       ''
         export PYTHONPYCACHEPREFIX="$TMPDIR/pycache"
-        find ${../..}/runtime ${../..}/tests/ci ${../..}/tests/smoke -name '*.py' -print0 \
-          | xargs -0 python3 -m py_compile
-        find ${../..}/runtime ${../..}/tests/ci ${../..}/tests/smoke -name '*.sh' -print0 \
-          | xargs -0 shellcheck
+        find ${../..}/runtime ${../..}/tests ${../..}/flake -type f -name '*.py' -print0 \
+          | xargs -0 -r python3 -m py_compile
+        find ${../..}/runtime ${../..}/tests ${../..}/flake -type f -name '*.sh' -print0 \
+          | xargs -0 -r shellcheck
         touch "$out"
       '';
 }

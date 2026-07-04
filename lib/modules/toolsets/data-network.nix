@@ -23,8 +23,6 @@ in
     sharing = "image-family";
     securityClass = "networked";
     provides.commands = [
-      "psql"
-      "redis-cli"
       "http"
     ];
   };

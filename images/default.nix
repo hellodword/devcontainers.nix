@@ -159,7 +159,23 @@ let
       docs.useWhen = "Use for Nix flakes, Nix modules, shell tooling, and general repositories that still benefit from Python and Node.js runtimes.";
       checks = {
         required = true;
-        reportCli = true;
+        requiredProfiles = [
+          "runtime/python"
+          "language/python"
+          "runtime/nodejs"
+        ];
+        requiredCommands = [
+          "python"
+          "python3"
+          "pip"
+          "pip3"
+          "uv"
+          "uvx"
+          "node"
+          "npm"
+          "npx"
+          "corepack"
+        ];
       };
       extraModules = commonLatestRuntimeModules ++ [
         (

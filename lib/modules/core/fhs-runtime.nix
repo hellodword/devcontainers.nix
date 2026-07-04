@@ -89,7 +89,6 @@ in
           tags = [
             "smoke"
             "baseline"
-            "e2e-baseline"
             "fhs"
           ];
           scripts = [
@@ -142,7 +141,6 @@ in
           tags = [
             "smoke"
             "baseline"
-            "e2e-baseline"
             "fhs"
             "nix-ld"
           ];

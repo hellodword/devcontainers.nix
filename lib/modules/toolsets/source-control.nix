@@ -43,7 +43,6 @@ in
           tags = [
             "smoke"
             "baseline"
-            "e2e-baseline"
             "source-control"
             "git"
             "ssh"

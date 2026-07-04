@@ -327,8 +327,7 @@ VS Code integration contract:
 - The `gui-env-refresh` task log reports the expected backend.
 - `/run/user/1000/devcontainer-gui-env.sh` contains the expected session
   exports.
-- The `e2e-baseline` tag from the image's own smoke plan passes inside the
-  container.
+- The image's full smoke plan passes inside the container.
 
 The lifecycle wait before GUI readiness is narrower than final verification. It
 waits for the workspace, shared devcontainer files, and `gui-env-refresh`. It no

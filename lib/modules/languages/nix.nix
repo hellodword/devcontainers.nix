@@ -45,7 +45,6 @@ in
           tags = [
             "smoke"
             "baseline"
-            "e2e-baseline"
             "nix"
             "runtime"
           ];

@@ -425,10 +425,9 @@ Checks use those reports to reject regressions before an image is published. Smo
 - generated workflow synchronization
 
 Image-specific check policy belongs on target records in `images/default.nix`.
-For example, target metadata marks required public image targets, the report CLI
-sample target, and rootfs path requirements. The check modules derive concrete
-check attributes from that metadata while preserving compatibility names such as
-`report-cli-core` and `artifact-rootfs-maximal`.
+For example, target metadata marks required public image targets, required
+report profiles/commands, and rootfs path requirements. The check modules derive
+concrete check attributes from the image target list and metadata.
 
 VS Code GUI E2E session metadata lives beside the tests in
 `tests/e2e/vscode-gui.nix`. `sessionEntries` drives the exported `e2e` attrs and

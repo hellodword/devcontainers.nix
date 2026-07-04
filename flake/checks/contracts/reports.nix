@@ -2,6 +2,7 @@
   pkgs,
   lib,
   images,
+  targets,
   ...
 }:
 
@@ -10,10 +11,21 @@ let
   checkReports = ../../../tests/ci/check-reports.py;
   checkSmokePlan = ../../../tests/ci/check-smoke-plan.py;
   checkHermeticDefaults = ../../../tests/ci/check-hermetic-default-checks.py;
+  targetPolicyPath =
+    name:
+    let
+      checks = targets.imageTargets.${name}.checks or { };
+    in
+    pkgs.writeText "target-policy-${name}.json" (
+      builtins.toJSON {
+        requiredProfiles = checks.requiredProfiles or [ ];
+        requiredCommands = checks.requiredCommands or [ ];
+      }
+    );
   reportLines = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (name: image: ''
       echo "checking reports for ${name}"
-      python3 ${checkReports} ${image.reports} ${name}
+      python3 ${checkReports} ${image.reports} ${name} ${targetPolicyPath name}
     '') images
   );
   reportChecks = lib.mapAttrs' (
@@ -26,7 +38,7 @@ let
         ''
           export PYTHONPATH=${../../../tests/ci}
           export CHECK_SMOKE_PLAN=${checkSmokePlan}
-          python3 ${checkReports} ${image.reports} ${name}
+          python3 ${checkReports} ${image.reports} ${name} ${targetPolicyPath name}
           touch "$out"
         ''
     )

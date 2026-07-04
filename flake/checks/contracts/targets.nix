@@ -72,18 +72,27 @@ let
   actualRequiredTargets = map (target: target.target) (
     builtins.filter (target: target.checks.required or false) targets.imageTargetList
   );
-  actualReportCliTargets = map (target: target.target) (
-    builtins.filter (target: target.checks.reportCli or false) targets.imageTargetList
-  );
-  actualRootfsRequireTargets = lib.listToAttrs (
-    map (target: {
+  targetCheckContracts = map (
+    target:
+    let
+      rootfsRequires = target.checks.rootfsRequires or [ ];
+      requiredProfiles = target.checks.requiredProfiles or [ ];
+      requiredCommands = target.checks.requiredCommands or [ ];
+    in
+    {
       name = target.target;
-      value = target.checks.rootfsRequires or [ ];
-    }) (builtins.filter (target: (target.checks.rootfsRequires or [ ]) != [ ]) targets.imageTargetList)
-  );
-  rootfsRequirePathsValid = lib.all (paths: lib.all nonEmptyString paths) (
-    builtins.attrValues actualRootfsRequireTargets
-  );
+      inherit rootfsRequires requiredProfiles requiredCommands;
+      rootfsRequiresValid = lib.all (path: nonEmptyString path && lib.hasPrefix "/" path) rootfsRequires;
+      requiredProfilesValid = lib.all nonEmptyString requiredProfiles;
+      requiredCommandsValid = lib.all (
+        command: nonEmptyString command && builtins.match ".*/.*" command == null
+      ) requiredCommands;
+    }
+  ) targets.imageTargetList;
+  targetCheckMetadataValid = lib.all (
+    contract:
+    contract.rootfsRequiresValid && contract.requiredProfilesValid && contract.requiredCommandsValid
+  ) targetCheckContracts;
 
   matchesAnyPattern = name: patterns: lib.any (pattern: builtins.match pattern name != null) patterns;
   previousTargets = builtins.filter (
@@ -134,9 +143,7 @@ in
     assert lib.all (contract: contract.compiledMatches) targetRegistryContracts;
     assert unknownTargetCiE2eSessions == [ ];
     assert actualRequiredTargets == policy.requiredTargets;
-    assert actualReportCliTargets == policy.reportCliTargets;
-    assert actualRootfsRequireTargets == policy.rootfsRequireTargets;
-    assert rootfsRequirePathsValid;
+    assert targetCheckMetadataValid;
     assert lib.all (name: matchesAnyPattern name policy.previousTargetPatterns) previousTargets;
     assert lib.all (contract: contract.publishRefs != [ ]) imageContracts;
     assert lib.all (contract: contract.smokeCaseIds != [ ]) imageContracts;
@@ -146,8 +153,7 @@ in
       builtins.toJSON {
         previousTargets = previousTargets;
         requiredImageTargets = actualRequiredTargets;
-        reportCliTargets = actualReportCliTargets;
-        rootfsRequireTargets = actualRootfsRequireTargets;
+        checkPolicy = targetCheckContracts;
         registry = targetRegistryContracts;
         ciE2eSessions = targetCiE2eSessions;
         images = imageContracts;

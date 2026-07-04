@@ -22,6 +22,10 @@ OLD_PROFILE_TEST_FIELDS = {
     f"declared{CAPABILITY_FIELD_SUFFIX}",
     f"resolved{CAPABILITY_FIELD_SUFFIX}",
 }
+TARGET_POLICY_FIELDS = {
+    "requiredProfiles",
+    "requiredCommands",
+}
 
 
 def read_json(path: pathlib.Path):
@@ -32,6 +36,27 @@ def read_json(path: pathlib.Path):
 def fail(message: str):
     print(f"report-check failed: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def load_target_policy(path: pathlib.Path | None) -> dict[str, list[str]]:
+    if path is None:
+        return {field: [] for field in TARGET_POLICY_FIELDS}
+
+    policy = read_json(path)
+    if not isinstance(policy, dict):
+        fail("target policy must be a JSON object")
+
+    unknown_fields = sorted(set(policy) - TARGET_POLICY_FIELDS)
+    if unknown_fields:
+        fail(f"target policy contains unknown fields: {', '.join(unknown_fields)}")
+
+    normalized = {}
+    for field in TARGET_POLICY_FIELDS:
+        values = policy.get(field) or []
+        if not isinstance(values, list) or not all(isinstance(value, str) and value for value in values):
+            fail(f"target policy {field} must be a list of non-empty strings")
+        normalized[field] = values
+    return normalized
 
 
 def validate_profile_test_schema(profile_report):
@@ -110,12 +135,13 @@ def walk_strings(value):
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
-        print("usage: tests/ci/check-reports.py <reports-dir> <image-name>", file=sys.stderr)
+    if len(sys.argv) not in {3, 4}:
+        print("usage: tests/ci/check-reports.py <reports-dir> <image-name> [target-policy-json]", file=sys.stderr)
         return 1
 
     reports_dir = pathlib.Path(sys.argv[1])
     image_name = sys.argv[2]
+    target_policy = load_target_policy(pathlib.Path(sys.argv[3]) if len(sys.argv) == 4 else None)
 
     if not reports_dir.is_dir():
         fail(f"reports directory does not exist: {reports_dir}")
@@ -302,15 +328,14 @@ def main() -> int:
         fail(f"smoke-test-plan.json missing declared smoke cases: {', '.join(missing_declared_cases)}")
     if image_plan.get("smokeTestCount") != len(smoke_tests):
         fail("image-plan.json smokeTestCount must match smoke-test-plan.json")
-    if image_name == "nix":
-        required_profiles = {"runtime/python", "language/python", "runtime/nodejs"}
-        missing_profiles = sorted(required_profiles - enabled_profile_ids)
-        if missing_profiles:
-            fail(f"nix image missing required profiles: {', '.join(missing_profiles)}")
-        required_commands = {"python", "python3", "pip", "pip3", "uv", "uvx", "node", "npm", "npx", "corepack"}
-        missing_commands = sorted(required_commands - provided_commands)
-        if missing_commands:
-            fail(f"nix image missing required runtime commands: {', '.join(missing_commands)}")
+    required_profiles = set(target_policy["requiredProfiles"])
+    missing_profiles = sorted(required_profiles - enabled_profile_ids)
+    if missing_profiles:
+        fail(f"{image_name} image missing target policy profiles: {', '.join(missing_profiles)}")
+    required_commands = set(target_policy["requiredCommands"])
+    missing_commands = sorted(required_commands - provided_commands)
+    if missing_commands:
+        fail(f"{image_name} image missing target policy commands: {', '.join(missing_commands)}")
 
     smoke_plan_file = reports_dir / "smoke-test-plan.json"
     smoke_checker = pathlib.Path(

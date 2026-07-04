@@ -498,7 +498,7 @@ let
         esac
 
         require test -f "$smoke_plan"
-        jq -c '.tests[] | select(.tags | index("e2e-baseline"))' "$smoke_plan" | while IFS= read -r test_case; do
+        jq -c '.tests[]' "$smoke_plan" | while IFS= read -r test_case; do
           id="$(printf '%s' "$test_case" | jq -r '.id')"
           script_count="$(printf '%s' "$test_case" | jq -r '.scripts | length')"
           timeout_seconds="$(printf '%s' "$test_case" | jq -r '(.timeoutSeconds // 30) * ${toString timeoutScaleValue}')"

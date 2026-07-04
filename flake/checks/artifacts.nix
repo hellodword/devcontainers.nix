@@ -17,32 +17,19 @@ let
         }
         ''
           export PYTHONPATH=${../../tests/ci}
-          ${lib.optionalString (name == "nix") ''
-            python3 ${../../tests/ci/check-rootfs-layout.py} ${image.rootfs} ${image.reports} ${name}
-          ''}
           python3 ${../../tests/ci/check-image-tar.py} ${image.oci} ${image.reports} ${name} path:${nixpkgs.outPath}
-          ${lib.optionalString (name == "nix") ''
-            python3 ${../../tests/ci/check-image-tar-fixture.py} ${../..}
-          ''}
           touch "$out"
         ''
     )
   ) images;
-  rootfsRequireTargets = builtins.filter (
-    target: (target.checks.rootfsRequires or [ ]) != [ ]
-  ) targets.imageTargetList;
-  rootfsRequireChecks = lib.listToAttrs (
+  rootfsChecks = lib.listToAttrs (
     map (
       target:
       let
-        checkName =
-          if builtins.length rootfsRequireTargets == 1 then
-            "artifact-rootfs-maximal"
-          else
-            "artifact-rootfs-${target.target}";
-        requireArgs = lib.concatMapStringsSep " " (
-          path: "--require ${lib.escapeShellArg path}"
-        ) target.checks.rootfsRequires;
+        checkName = "artifact-rootfs-${target.target}";
+        requireArgs = lib.concatMapStringsSep " " (path: "--require ${lib.escapeShellArg path}") (
+          target.checks.rootfsRequires or [ ]
+        );
       in
       lib.nameValuePair checkName (
         pkgs.runCommand checkName
@@ -56,7 +43,18 @@ let
             touch "$out"
           ''
       )
-    ) rootfsRequireTargets
+    ) targets.imageTargetList
   );
+  imageTarFixtureCheck = {
+    artifact-image-fixture =
+      pkgs.runCommand "artifact-image-fixture"
+        {
+          nativeBuildInputs = [ pkgs.python3 ];
+        }
+        ''
+          python3 ${../../tests/ci/check-image-tar-fixture.py} ${../..}
+          touch "$out"
+        '';
+  };
 in
-artifactImageChecks // rootfsRequireChecks
+artifactImageChecks // rootfsChecks // imageTarFixtureCheck

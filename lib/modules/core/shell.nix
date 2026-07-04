@@ -201,7 +201,6 @@ in
         tags = [
           "smoke"
           "baseline"
-          "e2e-baseline"
           "shell"
           "locale"
         ];
@@ -220,7 +219,6 @@ in
         tags = [
           "smoke"
           "baseline"
-          "e2e-baseline"
           "shell"
         ];
         scripts = [

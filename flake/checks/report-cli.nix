@@ -8,14 +8,10 @@
 }:
 
 let
-  reportCliTargets = builtins.filter (
-    target: target.checks.reportCli or false
-  ) targets.imageTargetList;
   mkReportCliCheck =
     target:
     let
-      checkName =
-        if builtins.length reportCliTargets == 1 then "report-cli-core" else "report-cli-${target.target}";
+      checkName = "report-cli-${target.target}";
     in
     lib.nameValuePair checkName (
       pkgs.runCommand checkName
@@ -32,4 +28,4 @@ let
         ''
     );
 in
-lib.listToAttrs (map mkReportCliCheck reportCliTargets)
+lib.listToAttrs (map mkReportCliCheck targets.imageTargetList)

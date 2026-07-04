@@ -147,7 +147,6 @@ in
               tags = [
                 "smoke"
                 "baseline"
-                "e2e-baseline"
                 "fontconfig"
               ];
               scripts = [
@@ -162,7 +161,6 @@ in
               tags = [
                 "smoke"
                 "baseline"
-                "e2e-baseline"
                 "fontconfig"
                 "cjk"
                 "emoji"

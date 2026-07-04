@@ -120,7 +120,6 @@ in
         tags = [
           "smoke"
           "baseline"
-          "e2e-baseline"
           "base"
           "user"
         ];
@@ -143,7 +142,6 @@ in
         tags = [
           "smoke"
           "baseline"
-          "e2e-baseline"
           "base"
           "filesystem"
         ];
@@ -166,7 +164,6 @@ in
         tags = [
           "smoke"
           "baseline"
-          "e2e-baseline"
           "base"
           "nix"
         ];

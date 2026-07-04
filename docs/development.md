@@ -306,7 +306,7 @@ shell initialization changed.
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
 3. Add the image target in `images/default.nix` with target name, family, tags, module, `docs.useWhen`, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
-4. Set target metadata for policy that belongs to the image: `ci.e2eSessions` for workflow GUI E2E coverage and `checks` for required public targets, report CLI sample coverage, or rootfs path requirements.
+4. Set target metadata for policy that belongs to the image: `ci.e2eSessions` for workflow GUI E2E coverage and `checks` for required public targets, required report profiles/commands, or rootfs path requirements.
 5. Run `nix run .#generate-docs` when targets, families, tags, generated docs text, or published image references changed.
 6. Run `nix run .#generate-workflows` when image targets, target names, `ci.e2eSessions`, or workflow templates changed.
 7. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
