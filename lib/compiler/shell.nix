@@ -38,54 +38,96 @@ let
   aliasesText =
     if cfg.enable && aliasLines != [ ] then lib.concatStringsSep "\n" (aliasLines ++ [ "" ]) else "";
   compiledPath = compiledEnv.containerEnv.PATH or "";
+  compiledPathSegments =
+    if compiledEnv ? pathSegments then
+      compiledEnv.pathSegments
+    else if compiledPath != "" then
+      lib.splitString ":" compiledPath
+    else
+      [ ];
+  shellContainerEnv = compiledEnv.containerEnv // (compiledEnv.lateBoundContainerEnv or { });
+  workspace = compiledEnv.workspace or { };
+  workspaceLateBound = workspace.lateBound or false;
+  workspaceReferenceSuffix =
+    value:
+    if !workspaceLateBound || !builtins.isString value then
+      null
+    else if value == "$WORKSPACE" || value == "\${WORKSPACE}" then
+      ""
+    else if lib.hasPrefix "$WORKSPACE/" value then
+      "/" + lib.removePrefix "$WORKSPACE/" value
+    else if lib.hasPrefix "\${WORKSPACE}/" value then
+      "/" + lib.removePrefix "\${WORKSPACE}/" value
+    else
+      null;
+  renderWorkspaceValue =
+    workspaceSuffix:
+    if workspaceSuffix == "" then
+      "\"\${WORKSPACE}\""
+    else
+      "\"\${WORKSPACE}\"${lib.escapeShellArg workspaceSuffix}";
   sortedEnvNames = lib.sort lib.lessThan (
-    builtins.filter (name: name != "PATH") (builtins.attrNames compiledEnv.containerEnv)
+    builtins.filter (name: name != "PATH") (builtins.attrNames shellContainerEnv)
   );
   renderExport =
     name:
     let
-      value = builtins.getAttr name compiledEnv.containerEnv;
+      value = builtins.getAttr name shellContainerEnv;
+      workspaceSuffix = workspaceReferenceSuffix value;
     in
-    "export ${name}=${lib.escapeShellArg value}";
+    if workspaceSuffix != null then
+      ''
+        if [ -n "''${WORKSPACE:-}" ]; then
+          export ${name}=${renderWorkspaceValue workspaceSuffix}
+        fi
+      ''
+    else
+      "export ${name}=${lib.escapeShellArg value}";
   environmentExportText =
     if sortedEnvNames != [ ] then
       lib.concatStringsSep "\n" ((map renderExport sortedEnvNames) ++ [ "" ])
     else
       "";
-  pathMergeText = lib.optionalString (compiledPath != "") ''
-    __devcontainer_compiled_path=${lib.escapeShellArg compiledPath}
+  renderPathSegment =
+    segment:
+    let
+      workspaceSuffix = workspaceReferenceSuffix segment;
+    in
+    if workspaceSuffix != null then
+      ''
+        if [ -n "''${WORKSPACE:-}" ]; then
+          __devcontainer_append_path_segment ${renderWorkspaceValue workspaceSuffix}
+        fi
+      ''
+    else
+      ''
+        __devcontainer_append_path_segment ${lib.escapeShellArg segment}
+      '';
+  pathMergeText = lib.optionalString (compiledPathSegments != [ ]) ''
+    __devcontainer_append_path_segment() {
+      [ -n "$1" ] || return 0
+      case ":$__devcontainer_path:" in
+        *:"$1":*) ;;
+        *)
+          if [ -n "$__devcontainer_path" ]; then
+            __devcontainer_path="$__devcontainer_path:$1"
+          else
+            __devcontainer_path="$1"
+          fi
+          ;;
+      esac
+    }
     __devcontainer_path=""
     __devcontainer_old_ifs="$IFS"
     IFS=:
     for __devcontainer_path_segment in ''${PATH:-}; do
-      [ -n "$__devcontainer_path_segment" ] || continue
-      case ":$__devcontainer_path:" in
-        *:"$__devcontainer_path_segment":*) ;;
-        *)
-          if [ -n "$__devcontainer_path" ]; then
-            __devcontainer_path="$__devcontainer_path:$__devcontainer_path_segment"
-          else
-            __devcontainer_path="$__devcontainer_path_segment"
-          fi
-          ;;
-      esac
-    done
-    for __devcontainer_path_segment in $__devcontainer_compiled_path; do
-      [ -n "$__devcontainer_path_segment" ] || continue
-      case ":$__devcontainer_path:" in
-        *:"$__devcontainer_path_segment":*) ;;
-        *)
-          if [ -n "$__devcontainer_path" ]; then
-            __devcontainer_path="$__devcontainer_path:$__devcontainer_path_segment"
-          else
-            __devcontainer_path="$__devcontainer_path_segment"
-          fi
-          ;;
-      esac
+      __devcontainer_append_path_segment "$__devcontainer_path_segment"
     done
     IFS="$__devcontainer_old_ifs"
+    ${lib.concatStringsSep "\n" (map renderPathSegment compiledPathSegments)}
     export PATH="$__devcontainer_path"
-    unset __devcontainer_compiled_path __devcontainer_path __devcontainer_old_ifs __devcontainer_path_segment
+    unset -f __devcontainer_append_path_segment 2>/dev/null || true
+    unset __devcontainer_path __devcontainer_old_ifs __devcontainer_path_segment
   '';
   shellInitText = lib.optionalString (compiledEnvironment.shellInit != "") ''
     ${compiledEnvironment.shellInit}

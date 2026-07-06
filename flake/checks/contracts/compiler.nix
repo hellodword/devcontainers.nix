@@ -322,12 +322,12 @@ let
       )
     ];
   };
-  pythonLanguageProfile = lib.findFirst (
-    profile: profile.id == "language/python"
-  ) (throw "language/python profile missing") pythonProfileEvalImage.profileReport.effectiveEnabledProfiles;
-  pythonRuntimeProfile = lib.findFirst (
-    profile: profile.id == "runtime/python"
-  ) (throw "runtime/python profile missing") pythonProfileEvalImage.profileReport.effectiveEnabledProfiles;
+  pythonLanguageProfile =
+    lib.findFirst (profile: profile.id == "language/python") (throw "language/python profile missing")
+      pythonProfileEvalImage.profileReport.effectiveEnabledProfiles;
+  pythonRuntimeProfile =
+    lib.findFirst (profile: profile.id == "runtime/python") (throw "runtime/python profile missing")
+      pythonProfileEvalImage.profileReport.effectiveEnabledProfiles;
   pythonExtension = lib.findFirst (
     extension: extension.id == "ms-python.python"
   ) (throw "ms-python.python extension missing") pythonProfileEvalImage.vscodeExtensions.extensions;
@@ -356,6 +356,11 @@ let
   };
   pathCommandScript = builtins.head (smokeCase "smoke.path-command" apiEvalImage).scripts;
   defaultFieldsScript = builtins.head (smokeCase "smoke.default-script-fields" apiEvalImage).scripts;
+  apiWorkspacePathSegments = [
+    "$WORKSPACE/.devcontainer/bin"
+    "$WORKSPACE/node_modules/.bin"
+    "$WORKSPACE/.venv/bin"
+  ];
   customLocaleCommand = smokeCaseCommandText "shell.locale" customLocaleImage;
   vscodeProjectionSuffix = "/extensions";
   vscodeMachineSettingsPathForProjectionTarget =
@@ -540,7 +545,9 @@ let
       )
     ];
   };
-  profileIncludeIds = map (profile: profile.id) profileIncludeEvalImage.profileReport.effectiveEnabledProfiles;
+  profileIncludeIds = map (
+    profile: profile.id
+  ) profileIncludeEvalImage.profileReport.effectiveEnabledProfiles;
   profileIncludeLeafA = lib.findFirst (
     profile: profile.id == "test/leaf-a"
   ) (throw "test/leaf-a missing") profileIncludeEvalImage.profileReport.effectiveEnabledProfiles;
@@ -901,6 +908,18 @@ in
     assert invalidFilesystemPathRejected;
     assert invalidFilesystemModeRejected;
     assert invalidFilesystemOwnerRejected;
+    assert apiEvalImage.env.workspace.lateBound;
+    assert !(builtins.hasAttr "WORKSPACE" apiEvalImage.env.containerEnv);
+    assert apiEvalImage.env.workspace.pathSegments == apiWorkspacePathSegments;
+    assert
+      apiEvalImage.env.staticPathSegments
+      == builtins.filter (
+        segment: !(builtins.elem segment apiEvalImage.env.workspace.pathSegments)
+      ) apiEvalImage.env.pathSegments;
+    assert
+      apiEvalImage.env.containerEnv.PATH == lib.concatStringsSep ":" apiEvalImage.env.staticPathSegments;
+    assert apiEvalImage.env.runtimePATH == lib.concatStringsSep ":" apiEvalImage.env.pathSegments;
+    assert apiEvalImage.metadata.mergedPreview.containerEnv.WORKSPACE == "\${containerWorkspaceFolder}";
     assert apiEvalImage.env.containerEnv.API_BOOL == "1";
     assert apiEvalImage.env.containerEnv.TZDIR == "/etc/zoneinfo";
     assert

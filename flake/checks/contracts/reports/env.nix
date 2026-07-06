@@ -76,12 +76,22 @@ let
     ) (builtins.attrNames env);
   expectedRuntimeProfile = "/home/vscode/.local/share/devpkg/runtime-libraries/profile";
   expectedBuildProfile = "/home/vscode/.local/share/devpkg/build-libraries/profile";
+  expectedWorkspacePathSegments = [
+    "$WORKSPACE/.devcontainer/bin"
+    "$WORKSPACE/node_modules/.bin"
+    "$WORKSPACE/.venv/bin"
+  ];
   perImage = lib.mapAttrsToList (
     name: image:
     let
       env = image.env.containerEnv;
       environment = image.environment.report;
+      metadataEnv = image.metadata.mergedPreview.containerEnv or { };
+      lateBoundEnv = image.env.lateBoundContainerEnv or { };
       pathSegments = lib.splitString ":" (env.PATH or "");
+      staticPathSegments = image.env.staticPathSegments or pathSegments;
+      runtimePathSegments = image.env.runtimePathSegments or (image.env.pathSegments or pathSegments);
+      workspacePathSegments = image.env.workspace.pathSegments or [ ];
       libraries = image.libraries.report;
       libraryPresets = libraries.settings.presets or [ ];
       profileLibraryPresets = image.profiles.libraryPresets;
@@ -122,6 +132,16 @@ let
         nixpkgsSources = envHasSource requiredNixpkgsEnv image "core.env";
         coreEnvValues = envMatches requiredCoreEnv env;
         coreEnvSources = envHasSource requiredCoreEnv image "core.env";
+        workspaceLateBound = image.env.workspace.lateBound or false;
+        workspaceNotInStaticEnv = !(builtins.hasAttr "WORKSPACE" env);
+        workspaceInMetadata = (metadataEnv.WORKSPACE or null) == "\${containerWorkspaceFolder}";
+        staticPathMatchesSegments = (env.PATH or "") == lib.concatStringsSep ":" staticPathSegments;
+        workspacePathSegmentsLateBound = workspacePathSegments == expectedWorkspacePathSegments;
+        workspacePathSegmentsOmittedFromStatic =
+          lib.intersectLists workspacePathSegments staticPathSegments == [ ];
+        runtimePathCarriesWorkspace = lib.all (
+          segment: builtins.elem segment runtimePathSegments
+        ) workspacePathSegments;
         devpkgNixpkgsRef =
           builtins.isString (env.DEVPKG_NIXPKGS_REF or null)
           && lib.hasPrefix "path:/nix/store/" env.DEVPKG_NIXPKGS_REF
@@ -178,6 +198,9 @@ let
             builtins.elem "rust-bindgen" libraryPresets
             && builtins.hasAttr "BINDGEN_EXTRA_CLANG_ARGS" env
             && hasSource image "BINDGEN_EXTRA_CLANG_ARGS" "compiler.libraries.preset.rust-bindgen"
+            && !(builtins.hasAttr "CARGO_TARGET_DIR" env)
+            && (lateBoundEnv.CARGO_TARGET_DIR or null) == "$WORKSPACE/target"
+            && (metadataEnv.CARGO_TARGET_DIR or null) == "\${containerWorkspaceFolder}/target"
           else
             !(builtins.elem "rust-bindgen" libraryPresets);
         fhsEnvSources = lib.all (envName: hasSource image envName "compiler.fhs-runtime.nix-ld") [
@@ -197,6 +220,7 @@ let
       details = {
         inherit missingEnvironmentLinks;
         pathSegments = pathSegments;
+        runtimePathSegments = runtimePathSegments;
         unexpandedEnvNames = namesWithUnexpandedHomeOrXdg env;
       };
     }

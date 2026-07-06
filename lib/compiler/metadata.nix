@@ -35,14 +35,36 @@ let
       extensions = compiledProfiles.extensionIds;
     };
   };
+  workspace = compiledEnv.workspace or { };
+  workspaceLateBound = workspace.lateBound or false;
+  workspaceMetadataValue = workspace.metadataValue or "\${containerWorkspaceFolder}";
+  workspaceValueForMetadata =
+    value:
+    if !workspaceLateBound || !builtins.isString value then
+      value
+    else if value == "$WORKSPACE" || value == "\${WORKSPACE}" then
+      workspaceMetadataValue
+    else if lib.hasPrefix "$WORKSPACE/" value then
+      workspaceMetadataValue + "/" + lib.removePrefix "$WORKSPACE/" value
+    else if lib.hasPrefix "\${WORKSPACE}/" value then
+      workspaceMetadataValue + "/" + lib.removePrefix "\${WORKSPACE}/" value
+    else
+      value;
+  workspaceMetadataEnv = lib.optionalAttrs workspaceLateBound {
+    WORKSPACE = workspaceMetadataValue;
+  };
+  containerEnv =
+    (lib.mapAttrs (_: workspaceValueForMetadata) (removeAttrs compiledEnv.containerEnv [ "PATH" ]))
+    // (lib.mapAttrs (_: workspaceValueForMetadata) (compiledEnv.lateBoundContainerEnv or { }))
+    // workspaceMetadataEnv;
+  remoteEnv = lib.mapAttrs (_: workspaceValueForMetadata) compiledEnv.remoteEnv;
 
   computedSnippet = {
     remoteUser = config.devcontainer.user.remoteUser;
     containerUser = config.devcontainer.user.containerUser;
     updateRemoteUserUID = config.devcontainer.user.updateRemoteUserUID;
     mounts = [ protectedWorkspaceConfigMount ];
-    containerEnv = removeAttrs compiledEnv.containerEnv [ "PATH" ];
-    remoteEnv = compiledEnv.remoteEnv;
+    inherit containerEnv remoteEnv;
   }
   // lib.optionalAttrs config.devcontainer.gui.forwarding.enable {
     userEnvProbe = "loginInteractiveShell";

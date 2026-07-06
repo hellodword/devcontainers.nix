@@ -80,10 +80,39 @@ let
   rawRemoteEnv =
     (compiledEnvironment.remoteEnv or { }) // (fhsEnv.remote or { }) // (librariesEnv.remote or { });
   rawShellEnv = (fhsEnv.shell or { }) // (librariesEnv.shell or { });
+  defaultWorkspaceEnvValues = [
+    "/workspaces/$DEVCONTAINER_WORKSPACE"
+    "/workspaces/${"$"}{DEVCONTAINER_WORKSPACE}"
+  ];
+  lateBoundWorkspace = builtins.elem (rawContainerEnv.WORKSPACE or null) defaultWorkspaceEnvValues;
+  workspace = {
+    inherit lateBoundWorkspace;
+    lateBound = lateBoundWorkspace;
+    envName = "WORKSPACE";
+    metadataValue = "\${containerWorkspaceFolder}";
+    containerEnv = lateBoundContainerEnv;
+    pathEntries = lateBoundPathEntries;
+    pathSegments = lateBoundPathSegments;
+  };
+  workspaceReferenceSuffix =
+    value:
+    if !lateBoundWorkspace || !builtins.isString value then
+      null
+    else if value == "$WORKSPACE" || value == "\${WORKSPACE}" then
+      ""
+    else if lib.hasPrefix "$WORKSPACE/" value then
+      "/" + lib.removePrefix "$WORKSPACE/" value
+    else if lib.hasPrefix "\${WORKSPACE}/" value then
+      "/" + lib.removePrefix "\${WORKSPACE}/" value
+    else
+      null;
+  isWorkspaceReference = value: workspaceReferenceSuffix value != null;
+  expandableContainerEnv =
+    if lateBoundWorkspace then removeAttrs rawContainerEnv [ "WORKSPACE" ] else rawContainerEnv;
   # Docker image Env values are not shell-expanded at runtime.
   expandValue = env: value: envUtils.expandValue { inherit env value; };
   expandedContainerEnv = envUtils.expandEnv {
-    env = rawContainerEnv;
+    env = expandableContainerEnv;
     scope = "container environment";
   };
 
@@ -130,7 +159,30 @@ let
       order;
   pathEntries = map (segment: builtins.getAttr segment pathEntryState.entries) pathEntryState.order;
   uniqueSegments = map (entry: entry.segment) pathEntries;
-  compiledPath = lib.concatStringsSep ":" uniqueSegments;
+  lateBoundPathEntries =
+    if lateBoundWorkspace then
+      builtins.filter (entry: isWorkspaceReference entry.segment) pathEntries
+    else
+      [ ];
+  staticPathEntries =
+    if lateBoundWorkspace then
+      builtins.filter (entry: !(isWorkspaceReference entry.segment)) pathEntries
+    else
+      pathEntries;
+  lateBoundPathSegments = map (entry: entry.segment) lateBoundPathEntries;
+  staticPathSegments = map (entry: entry.segment) staticPathEntries;
+  compiledPath = lib.concatStringsSep ":" staticPathSegments;
+  runtimeCompiledPath = lib.concatStringsSep ":" uniqueSegments;
+  lateBoundContainerEnv =
+    if lateBoundWorkspace then
+      lib.filterAttrs (_: value: isWorkspaceReference value) expandedContainerEnv
+    else
+      { };
+  staticContainerEnv =
+    if lateBoundWorkspace then
+      lib.filterAttrs (_: value: !(isWorkspaceReference value)) expandedContainerEnv
+    else
+      expandedContainerEnv;
   mkEnvEntry =
     scope: name: value:
     let
@@ -140,16 +192,19 @@ let
       inherit value sources;
       conflict = builtins.length sources > 1;
     };
-  containerEnv = expandedContainerEnv // {
+  containerEnv = staticContainerEnv // {
     PATH = compiledPath;
   };
+  runtimeContainerEnv = expandedContainerEnv // {
+    PATH = runtimeCompiledPath;
+  };
   remoteEnv = envUtils.expandEnvWithContext {
-    context = containerEnv;
+    context = runtimeContainerEnv;
     env = rawRemoteEnv;
     scope = "remote environment";
   };
   shellEnv = envUtils.expandEnvWithContext {
-    context = containerEnv // remoteEnv;
+    context = runtimeContainerEnv // remoteEnv;
     env = rawShellEnv;
     scope = "shell environment";
   };
@@ -160,7 +215,7 @@ let
         value = compiledPath;
         sources = [ "compiler.env.path" ];
         conflict = false;
-        pathEntries = pathEntries;
+        pathEntries = staticPathEntries;
       };
     };
   remoteEnvSources = lib.mapAttrs (name: value: mkEnvEntry "remote" name value) remoteEnv;
@@ -176,12 +231,21 @@ in
   pathOrder = order;
   pathEntries = pathEntries;
   pathSegments = uniqueSegments;
+  runtimePathEntries = pathEntries;
+  runtimePathSegments = uniqueSegments;
+  runtimePATH = runtimeCompiledPath;
+  staticPathEntries = staticPathEntries;
+  staticPathSegments = staticPathSegments;
+  staticPATH = compiledPath;
   PATH = compiledPath;
   containerEnv = containerEnv;
+  runtimeContainerEnv = runtimeContainerEnv;
+  lateBoundContainerEnv = lateBoundContainerEnv;
   containerEnvSources = containerEnvSources;
   remoteEnv = remoteEnv;
   remoteEnvSources = remoteEnvSources;
   shellEnv = shellEnv;
   shellEnvSources = shellEnvSources;
   conflicts = conflicts;
+  workspace = workspace;
 }
