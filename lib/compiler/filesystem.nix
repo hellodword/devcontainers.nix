@@ -96,7 +96,74 @@ let
         ) config.devcontainer.vscode.preinstall.projection.targets
       )
   );
-  vscodeSettingsText = builtins.toJSON compiledProfiles.settings;
+  jsonIndent = level: lib.concatStrings (lib.replicate level "  ");
+  jsonAttrNames = value: builtins.attrNames value;
+  formatJsonCompact =
+    value:
+    let
+      type = builtins.typeOf value;
+    in
+    if type == "set" then
+      let
+        names = jsonAttrNames value;
+      in
+      if names == [ ] then
+        "{}"
+      else
+        "{ "
+        + lib.concatMapStringsSep ", " (
+          name: "${builtins.toJSON name}: ${formatJsonCompact value.${name}}"
+        ) names
+        + " }"
+    else if type == "list" then
+      "[" + lib.concatMapStringsSep ", " formatJsonCompact value + "]"
+    else
+      builtins.toJSON value;
+  isJsonCompact =
+    value:
+    let
+      type = builtins.typeOf value;
+    in
+    if type == "set" then
+      let
+        names = jsonAttrNames value;
+      in
+      names == [ ] || (builtins.length names == 1 && isJsonCompact value.${builtins.head names})
+    else if type == "list" then
+      lib.all isJsonCompact value
+    else
+      true;
+  formatJson =
+    level: value:
+    let
+      type = builtins.typeOf value;
+    in
+    if type == "set" then
+      let
+        names = jsonAttrNames value;
+      in
+      if names == [ ] then
+        "{}"
+      else if builtins.length names == 1 then
+        formatJsonCompact value
+      else
+        "{\n"
+        + lib.concatMapStringsSep ",\n" (
+          name: "${jsonIndent (level + 1)}${builtins.toJSON name}: ${formatJson (level + 1) value.${name}}"
+        ) names
+        + "\n${jsonIndent level}}"
+    else if type == "list" then
+      if value == [ ] || lib.all isJsonCompact value then
+        formatJsonCompact value
+      else
+        "[\n"
+        + lib.concatMapStringsSep ",\n" (
+          item: "${jsonIndent (level + 1)}${formatJson (level + 1) item}"
+        ) value
+        + "\n${jsonIndent level}]"
+    else
+      builtins.toJSON value;
+  vscodeSettingsText = "${formatJson 0 compiledProfiles.settings}\n";
   vscodeMachineSettingsPaths = map (
     root:
     let
