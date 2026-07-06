@@ -60,7 +60,7 @@
         allowUnsupportedSystem = true;
         permittedInsecurePackages =
           [ ]
-          ++ (nixpkgs.lib.optionals (llm-agents.rev == "76b9956a4e357732178b3c9c471c259d4e7d5b63") [
+          ++ (nixpkgs.lib.optionals (llm-agents.rev == "5dd40d7cef40fce5ac4f922b92d92373ef71daf2") [
             "pnpm-10.34.0"
           ]);
       };
