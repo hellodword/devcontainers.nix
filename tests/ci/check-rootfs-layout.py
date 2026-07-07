@@ -8,6 +8,7 @@ from lib.json_checks import read_json
 
 
 PREFIX = "rootfs-layout-check"
+VERSION_FILE_PATH = "/usr/share/devcontainer/version.json"
 
 
 def fail(message: str) -> None:
@@ -44,6 +45,12 @@ def require_symlink(rootfs: pathlib.Path, absolute_path: str, target: str) -> No
 def require_reported_filesystem(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> dict:
     filesystem_report = read_json(reports_dir / "filesystem-report.json", PREFIX)
     env_report = read_json(reports_dir / "env-report.json", PREFIX)
+    source_version = read_json(reports_dir / "version.json", PREFIX)
+    version_file = root_path(rootfs, VERSION_FILE_PATH)
+    if not version_file.is_file():
+        fail(f"rootfs missing {VERSION_FILE_PATH}")
+    if read_json(version_file, PREFIX) != source_version:
+        fail(f"rootfs {VERSION_FILE_PATH} must match version.json")
 
     for entry in filesystem_report.get("directories") or []:
         path = entry.get("path")

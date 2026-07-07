@@ -21,6 +21,15 @@ def mkdir(rootfs: pathlib.Path, path: str) -> None:
     (rootfs / path.lstrip("/")).mkdir(parents=True, exist_ok=True)
 
 
+SOURCE_VERSION = {
+    "version": "fixture-rev",
+    "revision": "fixture-revision",
+    "shortRevision": "fixture-rev",
+    "dirty": False,
+    "lastModified": 1,
+}
+
+
 def write_minimal_reports(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> None:
     mkdir(rootfs, "/run/user/1000")
     mkdir(rootfs, "/usr/bin")
@@ -28,6 +37,8 @@ def write_minimal_reports(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> No
         "projectionTargets": [],
         "extensions": [],
     })
+    write_json(rootfs / "usr/share/devcontainer/version.json", SOURCE_VERSION)
+    write_json(reports_dir / "version.json", SOURCE_VERSION)
     write_json(reports_dir / "env-report.json", {
         "containerEnv": {
             "PATH": "/usr/local/bin:/usr/bin",

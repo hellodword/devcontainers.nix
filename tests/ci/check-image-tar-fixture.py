@@ -26,6 +26,15 @@ def env_map(entries: list[str]) -> dict[str, str]:
     return dict(entry.split("=", 1) for entry in entries)
 
 
+SOURCE_VERSION = {
+    "version": "fixture-rev-dirty",
+    "revision": "fixture-revision-dirty",
+    "shortRevision": "fixture-rev-dirty",
+    "dirty": True,
+    "lastModified": 1,
+}
+
+
 def write_expected_reports(reports_dir: Path, env_entries: list[str]) -> None:
     write_json(
         reports_dir / "image-plan.json",
@@ -34,6 +43,7 @@ def write_expected_reports(reports_dir: Path, env_entries: list[str]) -> None:
             "user": "vscode",
             "workingDir": "/workspaces",
             "entrypoint": ["/usr/bin/devcontainer-entrypoint"],
+            "sourceVersion": SOURCE_VERSION,
         },
     )
     write_json(
@@ -41,11 +51,13 @@ def write_expected_reports(reports_dir: Path, env_entries: list[str]) -> None:
         {
             "image": "fixture",
             "architectures": ["linux/amd64"],
+            "sourceVersion": SOURCE_VERSION,
             "reportFiles": [],
         },
     )
     write_json(reports_dir / "env-report.json", {"containerEnv": env_map(env_entries)})
     write_json(reports_dir / "metadata-label.json", [])
+    write_json(reports_dir / "version.json", SOURCE_VERSION)
 
 
 def layer_budget(max_layer_size: str = "8GiB", max_layers: int = 100, reserve: int = 20) -> dict:
@@ -130,6 +142,10 @@ def main() -> int:
             "DEVPKG_NIXPKGS_REF=path:/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source",
             "DEVPKG_NIXPKGS_CACHE_KEY=fixture-rev",
             "DEVPKG_SYSTEM=x86_64-linux",
+            "DEVCONTAINERS_NIX_VERSION=fixture-rev-dirty",
+            "DEVCONTAINERS_NIX_REVISION=fixture-revision-dirty",
+            "DEVCONTAINERS_NIX_DIRTY=true",
+            "DEVCONTAINERS_NIX_VERSION_FILE=/usr/share/devcontainer/version.json",
             "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
             "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
             "CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
@@ -146,7 +162,14 @@ def main() -> int:
                     "WorkingDir": "/workspaces",
                     "Entrypoint": ["/usr/bin/devcontainer-entrypoint"],
                     "Env": env_entries,
-                    "Labels": {"devcontainer.metadata": "[]"},
+                    "Labels": {
+                        "devcontainer.metadata": "[]",
+                        "devcontainers.nix.dirty": "true",
+                        "devcontainers.nix.revision": "fixture-revision-dirty",
+                        "devcontainers.nix.version": "fixture-rev-dirty",
+                        "org.opencontainers.image.revision": "fixture-revision-dirty",
+                        "org.opencontainers.image.version": "fixture-rev-dirty",
+                    },
                 },
                 "layers": [
                     {

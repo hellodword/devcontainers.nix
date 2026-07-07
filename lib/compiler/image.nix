@@ -44,6 +44,8 @@ let
 
   tasksFile = renderJson { tasks = compiledLifecycle.tasks; };
   flakeInputsFile = builtins.toFile "flake-inputs.json" compiledFlakeInputs.json;
+  sourceVersion = config.devcontainer.image.sourceVersion;
+  versionFile = renderJson sourceVersion;
   extensionsFile = renderJson {
     extensions = compiledVscodeExtensions.projectionExtensions;
     projectionTargets = compiledVscodeExtensions.projectionTargets;
@@ -166,6 +168,7 @@ let
     mkdir -p "$out/usr/share/devcontainer/vscode" "$out/usr/share/devcontainer"
     cp ${tasksFile} "$out/usr/share/devcontainer/tasks.json"
     cp ${flakeInputsFile} "$out/usr/share/devcontainer/flake-inputs.json"
+    cp ${versionFile} "$out/usr/share/devcontainer/version.json"
     cp ${extensionsFile} "$out/usr/share/devcontainer/vscode/extensions-index.json"
     ${mkSymlinkCommands}
     ${lockedNixpkgsCommands}
@@ -275,6 +278,11 @@ let
 
   labels = {
     "devcontainer.metadata" = builtins.toJSON compiledMetadata.label;
+    "devcontainers.nix.dirty" = if sourceVersion.dirty then "true" else "false";
+    "devcontainers.nix.revision" = sourceVersion.revision;
+    "devcontainers.nix.version" = sourceVersion.version;
+    "org.opencontainers.image.revision" = sourceVersion.revision;
+    "org.opencontainers.image.version" = sourceVersion.version;
   };
 
   containerConfig = {

@@ -82,6 +82,15 @@ devpkg list
 devpkg remove cowsay
 ```
 
+Each generated image carries its source version inside the image:
+
+```sh
+cat /usr/share/devcontainer/version.json
+printf '%s\n' "$DEVCONTAINERS_NIX_VERSION"
+```
+
+For a dirty flake source, the version value includes the `-dirty` suffix.
+
 ## Documentation
 
 - [Documentation Index](docs/index.md)

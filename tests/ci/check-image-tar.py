@@ -10,6 +10,7 @@ from layer_budget import BudgetError, check_layer_budget
 
 
 PREFIX = "image-artifact-check"
+VERSION_FILE_PATH = "/usr/share/devcontainer/version.json"
 SENSITIVE_VALUE_RE = re.compile(
     r"(?i)(?:token|password|secret|api[_-]?key|access[_-]?key|private[_-]?key)\s*(?:=|:)\s*[\"']?[^\"'\\s]+"
 )
@@ -17,6 +18,20 @@ SENSITIVE_VALUE_RE = re.compile(
 
 def fail(message: str) -> None:
     fail_with_prefix(PREFIX, message)
+
+
+def require_source_version(value: object) -> dict:
+    if not isinstance(value, dict):
+        fail("version.json must contain an object")
+    for name in ("version", "revision", "shortRevision"):
+        if not isinstance(value.get(name), str) or not value.get(name):
+            fail(f"version.json {name} must be a non-empty string")
+    if not isinstance(value.get("dirty"), bool):
+        fail("version.json dirty must be a boolean")
+    last_modified = value.get("lastModified")
+    if last_modified is not None and not isinstance(last_modified, int):
+        fail("version.json lastModified must be an integer or null")
+    return value
 
 
 def main() -> int:
@@ -41,6 +56,7 @@ def main() -> int:
     image_plan = read_json(reports_dir / "image-plan.json", PREFIX)
     ci_plan = read_json(reports_dir / "ci-plan.json", PREFIX)
     env_report = read_json(reports_dir / "env-report.json", PREFIX)
+    source_version = require_source_version(read_json(reports_dir / "version.json", PREFIX))
     expected_metadata_label = read_json(reports_dir / "metadata-label.json", PREFIX)
     layer_plan = read_json(reports_dir / "layer-plan.json", PREFIX)
     layer_closure_report = read_json(reports_dir / "layer-closure-report.json", PREFIX)
@@ -53,6 +69,10 @@ def main() -> int:
         fail("image-plan.json image must match the checked image")
     if ci_plan.get("image") != image_name:
         fail("ci-plan.json image must match the checked image")
+    if image_plan.get("sourceVersion") != source_version:
+        fail("image-plan.json sourceVersion must match version.json")
+    if ci_plan.get("sourceVersion") != source_version:
+        fail("ci-plan.json sourceVersion must match version.json")
 
     if image_json.get("version") != 1:
         fail("image artifact must use nix2container JSON version 1")
@@ -81,6 +101,15 @@ def main() -> int:
         extra = sorted(set(actual_env) - set(expected_env))
         changed = sorted(name for name in set(expected_env) & set(actual_env) if expected_env[name] != actual_env[name])
         fail(f"image artifact Env must match env-report.json; missing={missing}, extra={extra}, changed={changed}")
+    expected_version_env = {
+        "DEVCONTAINERS_NIX_VERSION": source_version["version"],
+        "DEVCONTAINERS_NIX_REVISION": source_version["revision"],
+        "DEVCONTAINERS_NIX_DIRTY": "true" if source_version["dirty"] else "false",
+        "DEVCONTAINERS_NIX_VERSION_FILE": VERSION_FILE_PATH,
+    }
+    for name, value in expected_version_env.items():
+        if actual_env.get(name) != value:
+            fail(f"image artifact {name} must match version.json")
 
     if expected_devpkg_nixpkgs_ref is not None:
         if not re.fullmatch(r"path:/nix/store/[a-z0-9]{32}-source", expected_devpkg_nixpkgs_ref):
@@ -97,6 +126,16 @@ def main() -> int:
         fail(f"devcontainer.metadata label must be valid JSON: {exc}")
     if actual_metadata_label != expected_metadata_label:
         fail("image artifact devcontainer.metadata label must match metadata-label.json")
+    expected_version_labels = {
+        "devcontainers.nix.dirty": "true" if source_version["dirty"] else "false",
+        "devcontainers.nix.revision": source_version["revision"],
+        "devcontainers.nix.version": source_version["version"],
+        "org.opencontainers.image.revision": source_version["revision"],
+        "org.opencontainers.image.version": source_version["version"],
+    }
+    for name, value in expected_version_labels.items():
+        if labels.get(name) != value:
+            fail(f"image artifact label {name} must match version.json")
 
     for text in walk_strings(image_json):
         if SENSITIVE_VALUE_RE.search(text):

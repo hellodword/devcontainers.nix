@@ -47,6 +47,8 @@ let
   metadata-merged-preview-json = jsonFile "metadata-merged-preview.json" compiledMetadata.mergedPreview;
   metadata-schema-report-json = jsonFile "metadata-schema-report.json" compiledMetadata.schemaReport;
   flake-inputs-json = pkgs.writeText "flake-inputs.json" compiledFlakeInputs.json;
+  sourceVersion = config.devcontainer.image.sourceVersion;
+  version-json = jsonFile "version.json" sourceVersion;
   allSmokeTests = compiledTests.tests;
   imagePlan = {
     image = config.devcontainer.image.name;
@@ -63,6 +65,7 @@ let
     workingDir = "/workspaces";
     entrypoint = [ "/usr/bin/devcontainer-entrypoint" ];
     smokeTestCount = builtins.length allSmokeTests;
+    inherit sourceVersion;
   };
   smokePlan = {
     image = config.devcontainer.image.name;
@@ -270,6 +273,10 @@ let
       path = image-plan-json;
     }
     {
+      name = "version.json";
+      path = version-json;
+    }
+    {
       name = "flake-inputs.json";
       path = flake-inputs-json;
     }
@@ -355,6 +362,7 @@ let
     imageRef = imageRef;
     publishRefs = publishRefs;
     architectures = config.devcontainer.image.architectures;
+    inherit sourceVersion;
     reportFiles = ciReportFileNames;
   };
   reportEntries = baseReportEntries ++ [
@@ -378,6 +386,7 @@ in
     metadata-schema-report-json
     profile-report-json
     flake-inputs-json
+    version-json
     image-plan-json
     tasks-json
     extensions-index-json
