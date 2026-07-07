@@ -6,11 +6,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1783354374,
-        "narHash": "sha256-9d/tTukOHipddPlW5jSJzBxUUCNGGU6N3Tcgcss/wbU=",
+        "lastModified": 1783407631,
+        "narHash": "sha256-2yMV96O2LCyDj7N66DaB2NhR3UuVuer9GUj46Iij/QM=",
         "owner": "hellodword",
         "repo": "agents-misc",
-        "rev": "a43df344d6d3d4438fde246f30ba1bda67c514c1",
+        "rev": "6d31c948cde0e1c7d3698d0e978b9fad77416fee",
         "type": "github"
       },
       "original": {
