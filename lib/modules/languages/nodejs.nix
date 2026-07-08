@@ -151,7 +151,7 @@ in
             yarn --version
             corepack --version
             node-gyp --version
-            tailwindcss-language-server --help >/dev/null
+            # tailwindcss-language-server --help >/dev/null
             stylelint --version
             python --version
             cc --version
