@@ -1,17 +1,6 @@
 {
   description = "Devcontainer Nix/OCI image compiler";
 
-  nixConfig = {
-    extra-substituters = [
-      "https://hellodword-codex.cachix.org"
-      "https://cache.numtide.com"
-    ];
-    extra-trusted-public-keys = [
-      "hellodword-codex.cachix.org-1:0URmcnC9aynWh9+FJ2tf+HQloylGgZzPtrz3sttTTiQ="
-      "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
-    ];
-  };
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -205,69 +194,82 @@
       collectInputNixConfig =
         {
           inputs,
-          inputNames ? builtins.attrNames (removeAttrs inputs [ "self" ]),
+          inputNames ? lib.genAttrs (builtins.attrNames (removeAttrs inputs [ "self" ])) (_: [ ]),
         }:
         let
           selectedInputs = lib.filterAttrs (
             name: value:
-            lib.elem name inputNames && value ? outPath && builtins.pathExists (value.outPath + "/flake.nix")
+            builtins.hasAttr name inputNames
+            && value ? outPath
+            && builtins.pathExists (value.outPath + "/flake.nix")
           ) (removeAttrs inputs [ "self" ]);
 
           flakeNixOf = input: import (input.outPath + "/flake.nix");
 
-          nixConfigs = map (
-            input:
+          nixConfigs = lib.mapAttrsToList (
+            name: input:
             let
               flake = flakeNixOf input;
             in
-            flake.nixConfig or { }
-          ) (lib.attrValues selectedInputs);
+            {
+              inherit name;
+              config = flake.nixConfig or { };
+            }
+          ) selectedInputs;
 
           asList = value: if builtins.isList value then value else [ value ];
 
-          readList = attrName: cfg: asList (cfg.${attrName} or [ ]);
+          matchesInputKeywords =
+            name: value:
+            let
+              keywords = asList inputNames.${name};
+            in
+            keywords == [ ] || lib.any (keyword: lib.hasInfix keyword value) keywords;
+
+          readList =
+            name: attrName: cfg:
+            lib.filter (matchesInputKeywords name) (asList (cfg.${attrName} or [ ]));
 
           collect =
             attrNames:
             lib.unique (
-              lib.flatten (map (cfg: lib.flatten (map (attrName: readList attrName cfg) attrNames)) nixConfigs)
+              lib.flatten (
+                map (
+                  { name, config }:
+                  lib.flatten (map (attrName: readList name attrName config) attrNames)
+                ) nixConfigs
+              )
             );
         in
         {
           substituters = collect [
-            # "substituters"
+            "substituters"
             "extra-substituters"
-          ];
-
-          trustedSubstituters = collect [
-            # "trusted-substituters"
+            "trusted-substituters"
             "extra-trusted-substituters"
           ];
 
           trustedPublicKeys = collect [
-            # "trusted-public-keys"
+            "trusted-public-keys"
             "extra-trusted-public-keys"
           ];
         };
 
       inheritedNixConfig = collectInputNixConfig {
         inherit inputs;
-        inputNames = [
-          "llm-agents"
-          "agents-misc"
-          "nix-vscode-extensions"
-        ];
+        inputNames = {
+          llm-agents = [ ".numtide.com" ];
+          agents-misc = [ "hellodword-codex.cachix.org" ];
+          nix-vscode-extensions = [ "nix-community.cachix.org" ];
+        };
       };
-      inheritedTrustedSubstituters = lib.unique (
-        inheritedNixConfig.substituters ++ inheritedNixConfig.trustedSubstituters
-      );
+      inheritedSubstituters = lib.unique inheritedNixConfig.substituters;
       inheritedNixConfigModule =
         { lib, ... }:
         {
           config = lib.mkMerge [
-            (lib.optionalAttrs (inheritedTrustedSubstituters != [ ]) {
-              nix.settings.extra-substituters = lib.mkAfter inheritedTrustedSubstituters;
-              nix.settings.extra-trusted-substituters = lib.mkAfter inheritedTrustedSubstituters;
+            (lib.optionalAttrs (inheritedSubstituters != [ ]) {
+              nix.settings.extra-substituters = lib.mkAfter inheritedSubstituters;
             })
             (lib.optionalAttrs (inheritedNixConfig.trustedPublicKeys != [ ]) {
               nix.settings.extra-trusted-public-keys = lib.mkAfter inheritedNixConfig.trustedPublicKeys;
