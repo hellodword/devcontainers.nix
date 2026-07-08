@@ -85,10 +85,8 @@ Examples:
 | ------------- | ----------------------- | ---------------- | ------------------------ |
 | `nix`         | `devcontainers-nix`     | `latest`         | `images/nix.nix`         |
 | `go`          | `devcontainers-go`      | `latest`, `1.26` | `images/go.nix`          |
-| `go-1_25`     | `devcontainers-go`      | `1.25`           | `images/go.nix`          |
 | `go-web`      | `devcontainers-go`      | `web`            | `images/go-web.nix`      |
 | `nodejs`      | `devcontainers-nodejs`  | `latest`, `26`   | `images/nodejs.nix`      |
-| `nodejs-24`   | `devcontainers-nodejs`  | `24`             | `images/nodejs.nix`      |
 | `python3`     | `devcontainers-python3` | `latest`, `3.13` | `images/python.nix`      |
 | `python3-web` | `devcontainers-python3` | `web`            | `images/python3-web.nix` |
 | `rust`        | `devcontainers-rust`    | `latest`         | `images/rust.nix`        |

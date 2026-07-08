@@ -38,7 +38,7 @@ Examples:
 
 ```sh
 nix build .#e2e.x86_64-linux.e2e-vscode-nix-x11-xfce
-nix build .#e2e.x86_64-linux.e2e-vscode-go-1_25-wayland-sway
+nix build .#e2e.x86_64-linux.e2e-vscode-go-wayland-sway
 nix build .#e2e.x86_64-linux.e2e-vscode-python3-web-wayland-kde
 nix build .#e2e.x86_64-linux.e2e-vscode-flutter-wayland-kde
 ```

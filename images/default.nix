@@ -202,17 +202,17 @@ let
       checks.required = true;
       extraModules = goLatestRuntimeModules;
     })
-    (mkImageTarget {
-      target = "go-${goPrevious.targetSuffix}";
-      family = "go";
-      tags = [ goPrevious.version ];
-      module = ./go.nix;
-      docs.useWhen = "Use for the previous Go major/minor line exposed by this repository.";
-      extraModules = [
-        (goVersionModule goPrevious.package)
-      ]
-      ++ commonLatestRuntimeModules;
-    })
+    # (mkImageTarget {
+    #   target = "go-${goPrevious.targetSuffix}";
+    #   family = "go";
+    #   tags = [ goPrevious.version ];
+    #   module = ./go.nix;
+    #   docs.useWhen = "Use for the previous Go major/minor line exposed by this repository.";
+    #   extraModules = [
+    #     (goVersionModule goPrevious.package)
+    #   ]
+    #   ++ commonLatestRuntimeModules;
+    # })
     (mkImageTarget {
       target = "go-web";
       family = "go";
@@ -235,17 +235,17 @@ let
       checks.required = true;
       extraModules = commonLatestRuntimeModules;
     })
-    (mkImageTarget {
-      target = "nodejs-${nodejsPrevious.version}";
-      family = "nodejs";
-      tags = [ nodejsPrevious.version ];
-      module = ./nodejs.nix;
-      docs.useWhen = "Use for the previous even Node.js major line exposed by this repository.";
-      extraModules = [
-        (pythonVersionModule pythonLatestPackage pythonLatestPackageSet)
-        (nodejsVersionModule nodejsPrevious.package)
-      ];
-    })
+    # (mkImageTarget {
+    #   target = "nodejs-${nodejsPrevious.version}";
+    #   family = "nodejs";
+    #   tags = [ nodejsPrevious.version ];
+    #   module = ./nodejs.nix;
+    #   docs.useWhen = "Use for the previous even Node.js major line exposed by this repository.";
+    #   extraModules = [
+    #     (pythonVersionModule pythonLatestPackage pythonLatestPackageSet)
+    #     (nodejsVersionModule nodejsPrevious.package)
+    #   ];
+    # })
     (mkImageTarget {
       target = "python3";
       family = "python3";
