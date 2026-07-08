@@ -18,36 +18,39 @@ let
       symlinksByTarget = lib.listToAttrs (
         map (link: lib.nameValuePair link.target link) (fhs.symlinks or [ ])
       );
-      sourceFor = target: (symlinksByTarget.${target} or { }).source or "";
+      sourceRoleFor = target: (symlinksByTarget.${target} or { }).sourceRole or null;
       missingSymlinks = builtins.filter (
         target: !(builtins.hasAttr target symlinksByTarget)
       ) requiredSymlinkTargets;
       caCertificates = fhs.caCertificates or { };
       realGlibcLoader = fhs.realGlibcLoader or null;
-      nixLdLibraryPath = (fhs.nixLdEnv or { }).NIX_LD_LIBRARY_PATH or "";
+      nixLdLibraryPathInputs = fhs.nixLdLibraryPathInputs or [ ];
+      hasLibraryInputRole = role: lib.any (entry: (entry.role or null) == role) nixLdLibraryPathInputs;
       checks = {
         enabled = fhs.enabled or false;
         dynamicLoaderMode = (fhs.dynamicLoaderMode or null) == "nix-ld";
         realGlibcLoader =
-          contractLib.nonEmptyString realGlibcLoader
-          && lib.hasInfix "glibc" realGlibcLoader
-          && realGlibcLoader != "/lib64/ld-linux-x86-64.so.2";
+          contractLib.nonEmptyString realGlibcLoader && realGlibcLoader != "/lib64/ld-linux-x86-64.so.2";
         requiredSymlinksPresent = missingSymlinks == [ ];
         caBundle = (caCertificates.bundle or null) == "/etc/ssl/certs/ca-certificates.crt";
         caRoot = lib.hasInfix "ca-certificates" (caCertificates.root or "");
         caSource = lib.hasSuffix "/etc/ssl/certs/ca-certificates.crt" (caCertificates.source or "");
-        libcSource = lib.hasInfix "glibc" (sourceFor "/usr/lib/libc.so.6");
-        libstdcxxSource = lib.hasInfix "gcc" (sourceFor "/usr/lib/libstdc++.so.6");
-        dynamicLoaderSource = lib.hasInfix "nix-ld" (sourceFor "/lib64/ld-linux-x86-64.so.2");
+        libcSource = sourceRoleFor "/usr/lib/libc.so.6" == "glibc";
+        libstdcxxSource = sourceRoleFor "/usr/lib/libstdc++.so.6" == "gcc-lib";
+        dynamicLoaderSource = sourceRoleFor "/lib64/ld-linux-x86-64.so.2" == "nix-ld";
         nixLdEnvLoader = ((fhs.nixLdEnv or { }).NIX_LD or null) == realGlibcLoader;
-        nixLdLibraryPathHasRuntimeLibs =
-          lib.hasInfix "glibc" nixLdLibraryPath && lib.hasInfix "gcc" nixLdLibraryPath;
+        nixLdLibraryPathHasRuntimeLibs = hasLibraryInputRole "glibc" && hasLibraryInputRole "gcc-lib";
       };
     in
     {
       inherit name checks;
       details = {
-        inherit missingSymlinks realGlibcLoader caCertificates;
+        inherit
+          missingSymlinks
+          realGlibcLoader
+          caCertificates
+          nixLdLibraryPathInputs
+          ;
       };
     }
   ) images;

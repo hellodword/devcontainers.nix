@@ -96,7 +96,11 @@ let
       libraryPresets = libraries.settings.presets or [ ];
       profileLibraryPresets = image.profiles.libraryPresets;
       fhs = image.fhsRuntime;
-      nixLdLibraryPath = env.NIX_LD_LIBRARY_PATH or "";
+      nixLdLibraryPathInputs = fhs.nixLdLibraryPathInputs or [ ];
+      hasNixLdLibraryInputRole =
+        role: lib.any (entry: (entry.role or null) == role) nixLdLibraryPathInputs;
+      hasNixLdLibraryInputStorePath =
+        storePath: lib.any (entry: (entry.storePath or null) == storePath) nixLdLibraryPathInputs;
       hasGoProfile = builtins.elem "language/go" image.profiles.ids;
       hasRustProfile = builtins.elem "language/rust" image.profiles.ids;
       shellAliases = image.shell.report.aliases or { };
@@ -165,7 +169,7 @@ let
         nixLdLibraryPathMatches =
           (env.NIX_LD_LIBRARY_PATH or null) == (fhs.nixLdEnv.NIX_LD_LIBRARY_PATH or null);
         nixLdLibraryPathHasRuntimeLibs =
-          lib.hasInfix "glibc" nixLdLibraryPath && lib.hasInfix "gcc" nixLdLibraryPath;
+          hasNixLdLibraryInputRole "glibc" && hasNixLdLibraryInputRole "gcc-lib";
         libraryProfilesExpanded =
           (libraries.runtime.dynamicProfile or null) == expectedRuntimeProfile
           && (libraries.build.dynamicProfile or null) == expectedBuildProfile;
@@ -176,8 +180,10 @@ let
           (env.DEVPKG_RUNTIME_LIBRARY_PROFILE or null) == expectedRuntimeProfile
           && (env.DEVPKG_BUILD_LIBRARY_PROFILE or null) == expectedBuildProfile;
         nixLdHasDynamicProfiles =
-          lib.hasInfix "${expectedRuntimeProfile}/lib" nixLdLibraryPath
-          && lib.hasInfix "${expectedBuildProfile}/lib" nixLdLibraryPath;
+          hasNixLdLibraryInputRole "runtime-dynamic-profile"
+          && hasNixLdLibraryInputStorePath "${expectedRuntimeProfile}/lib"
+          && hasNixLdLibraryInputRole "build-dynamic-profile"
+          && hasNixLdLibraryInputStorePath "${expectedBuildProfile}/lib";
         libraryEnvPresent = lib.all (envName: builtins.hasAttr envName env) requiredLibraryEnv;
         libraryEnvSources = lib.all (
           envName: hasSource image envName "compiler.libraries.core"

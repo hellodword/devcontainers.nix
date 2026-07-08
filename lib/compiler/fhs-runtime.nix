@@ -17,6 +17,9 @@ let
   cfg = config.devcontainer.compat.fhsRuntime;
   nixLdCfg = config.programs.nix-ld;
   pkiCfg = config.security.pki;
+  displayPathString = path: builtins.unsafeDiscardStringContext (toString path);
+  compiledRuntime = compiledLibraries.runtime or { };
+  compiledBuild = compiledLibraries.build or { };
   currentDynamicLoader =
     if system == "x86_64-linux" then
       nixLdCfg.dynamicLoader.x86_64.path
@@ -45,18 +48,55 @@ let
     else
       realGlibcLoader;
   nixLdEnabled = cfg.enable && nixLdCfg.enable && currentDynamicLoader != null;
+  mkPackageLibraryPathInput = role: package: {
+    inherit role;
+    name = package.name or (builtins.baseNameOf (displayPathString package));
+    storePath = displayPathString package;
+    libraryPath = "${package}/lib";
+  };
+  dynamicLibraryPathRole =
+    entry:
+    if
+      (compiledRuntime.dynamicProfile or null) != null && entry == "${compiledRuntime.dynamicProfile}/lib"
+    then
+      "runtime-dynamic-profile"
+    else if
+      (compiledBuild.dynamicProfile or null) != null && entry == "${compiledBuild.dynamicProfile}/lib"
+    then
+      "build-dynamic-profile"
+    else
+      "dynamic-profile";
+  dynamicLibraryPathName =
+    role:
+    if role == "runtime-dynamic-profile" then
+      "runtime"
+    else if role == "build-dynamic-profile" then
+      "build"
+    else
+      "dynamic";
+  mkDynamicLibraryPathInput =
+    entry:
+    let
+      role = dynamicLibraryPathRole entry;
+    in
+    {
+      inherit role;
+      name = dynamicLibraryPathName role;
+      storePath = entry;
+      libraryPath = entry;
+    };
+  nixLdLibraryPathInputsWithPath = [
+    (mkPackageLibraryPathInput "glibc" pkgs.glibc)
+    (mkPackageLibraryPathInput "gcc-lib" pkgs.stdenv.cc.cc.lib)
+  ]
+  ++ (map (mkPackageLibraryPathInput "nix-ld-library") nixLdCfg.libraries)
+  ++ (map (mkPackageLibraryPathInput "compiled-runtime-library") (compiledRuntime.outputPaths or [ ]))
+  ++ (map mkDynamicLibraryPathInput (compiledRuntime.dynamicLibraryPathEntries or [ ]));
+  nixLdLibraryPathInputs = lib.optionals nixLdEnabled (
+    map (entry: removeAttrs entry [ "libraryPath" ]) nixLdLibraryPathInputsWithPath
+  );
   nixLdLibraryPath = lib.concatStringsSep ":" (
-    lib.filter (entry: entry != "") [
-      (lib.makeLibraryPath (
-        [
-          pkgs.glibc
-          pkgs.stdenv.cc.cc.lib
-        ]
-        ++ nixLdCfg.libraries
-        ++ (compiledLibraries.runtime.outputPaths or [ ])
-      ))
-      (lib.concatStringsSep ":" (compiledLibraries.runtime.dynamicLibraryPathEntries or [ ]))
-    ]
+    lib.optionals nixLdEnabled (map (entry: entry.libraryPath) nixLdLibraryPathInputsWithPath)
   );
   nixLdEnv = lib.optionalAttrs nixLdEnabled {
     NIX_LD = realGlibcLoader;
@@ -142,14 +182,17 @@ let
     {
       target = currentDynamicLoader;
       source = dynamicLoaderSource;
+      sourceRole = if nixLdCfg.enable then "nix-ld" else "glibc-loader";
     }
     {
       target = "/usr/lib/libc.so.6";
       source = "${pkgs.glibc}/lib/libc.so.6";
+      sourceRole = "glibc";
     }
     {
       target = "/usr/lib/libstdc++.so.6";
       source = "${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6";
+      sourceRole = "gcc-lib";
     }
   ];
 in
@@ -164,6 +207,7 @@ in
       "glibc";
   realGlibcLoader = if cfg.enable then realGlibcLoader else null;
   nixLdEnv = nixLdEnv;
+  nixLdLibraryPathInputs = nixLdLibraryPathInputs;
   caCertificates = lib.optionalAttrs caCertificatesEnabled {
     bundle = certBundleTarget;
     root = "${caCertificatesRoot}";

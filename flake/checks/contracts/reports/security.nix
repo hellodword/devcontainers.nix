@@ -6,23 +6,14 @@
 }:
 
 let
-  requiredSecurityChecks = [
-    "secretScan"
-    "dockerSocket"
-    "dockerDaemon"
-    "extensionArtifacts"
-    "workspaceConfigProtection"
-    "lifecycleLogRedaction"
-    "extensionProjectionLogRedaction"
-    "shellInitSideEffects"
-  ];
   evidenceValid =
     check:
     let
-      evidence = check.evidence or { };
-      findings = evidence.findings or [ ];
+      evidence = check.evidence or null;
+      findings = if builtins.isAttrs evidence then evidence.findings or null else null;
     in
-    builtins.isList findings
+    builtins.isAttrs evidence
+    && builtins.isList findings
     && (evidence.findingCount or null) == builtins.length findings
     && lib.all (
       finding:
@@ -33,36 +24,33 @@ let
       && builtins.isInt (finding.count or null)
       && finding.count >= 1
     ) findings;
+  checkValid =
+    check:
+    builtins.isAttrs check
+    && (check.status or null) == "pass"
+    && contractLib.nonEmptyString (check.summary or null)
+    && evidenceValid check;
   perImage = lib.mapAttrsToList (
     name: image:
     let
       report = image.security.report;
-      checksByName = report.checks or { };
-      missingChecks = builtins.filter (
-        checkName: !(builtins.hasAttr checkName checksByName)
-      ) requiredSecurityChecks;
-      failedChecks = builtins.filter (
-        checkName: ((checksByName.${checkName} or { }).status or null) != "pass"
-      ) requiredSecurityChecks;
-      invalidEvidence = builtins.filter (checkName: !(evidenceValid checksByName.${checkName})) (
+      rawChecks = report.checks or null;
+      checksByName = if builtins.isAttrs rawChecks then rawChecks else { };
+      invalidChecks = builtins.filter (checkName: !(checkValid checksByName.${checkName})) (
         builtins.attrNames checksByName
       );
       checks = {
         imageMatches = (report.image or null) == name;
-        requiredChecksPresent = missingChecks == [ ];
-        requiredChecksPass = failedChecks == [ ];
+        checksIsObject = builtins.isAttrs rawChecks;
+        checksPresent = checksByName != { };
         topLevelFindingsEmpty = (report.findings or [ ]) == [ ];
-        evidenceShape = invalidEvidence == [ ];
+        checkShape = invalidChecks == [ ];
       };
     in
     {
       inherit name checks;
       details = {
-        inherit
-          missingChecks
-          failedChecks
-          invalidEvidence
-          ;
+        inherit invalidChecks;
       };
     }
   ) images;

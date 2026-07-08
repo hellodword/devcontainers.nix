@@ -212,6 +212,7 @@ let
     dynamicLoaderMode = compiledFhsRuntime.dynamicLoaderMode;
     realGlibcLoader = compiledFhsRuntime.realGlibcLoader;
     nixLdEnv = compiledFhsRuntime.nixLdEnv;
+    nixLdLibraryPathInputs = compiledFhsRuntime.nixLdLibraryPathInputs;
     caCertificates = compiledFhsRuntime.caCertificates;
     symlinkCount = builtins.length compiledFhsRuntime.symlinks;
     symlinks = compiledFhsRuntime.symlinks;
@@ -352,8 +353,11 @@ let
       includeInCiPlan = false;
     }
   ];
-  ciReportFileNames = map (entry: entry.name) (
+  reportFiles = map (entry: entry.name) (
     builtins.filter (entry: entry.includeInCiPlan or true) baseReportEntries
+  );
+  nonCiReportFiles = map (entry: entry.name) (
+    builtins.filter (entry: (entry.includeInCiPlan or true) == false) baseReportEntries
   );
   ci-plan-json = jsonFile "ci-plan.json" {
     image = config.devcontainer.image.name;
@@ -363,7 +367,7 @@ let
     publishRefs = publishRefs;
     architectures = config.devcontainer.image.architectures;
     inherit sourceVersion;
-    reportFiles = ciReportFileNames;
+    inherit reportFiles nonCiReportFiles;
   };
   reportEntries = baseReportEntries ++ [
     {
