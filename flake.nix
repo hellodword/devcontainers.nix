@@ -47,13 +47,18 @@
         android_sdk.accept_license = true;
         oraclejdk.accept_license = true;
         allowUnsupportedSystem = true;
-        permittedInsecurePackages =
-          [ ]
-          ++ (nixpkgs.lib.optionals (llm-agents.rev == "5dd40d7cef40fce5ac4f922b92d92373ef71daf2") [
-            "pnpm-10.34.0"
-          ]);
       };
-      projectOverlays = [ ];
+      projectOverlays = [
+        (final: prev: {
+          # vue-language-server still needs pnpm_10_34_0, but the exception
+          # should stay scoped to that package instead of permitting it globally.
+          vue-language-server = prev.vue-language-server.override {
+            pnpm_10_34_0 = prev.pnpm_10_34_0.overrideAttrs (old: {
+              meta = removeAttrs (old.meta or { }) [ "knownVulnerabilities" ];
+            });
+          };
+        })
+      ];
       nixpkgsOverlays = [
         nix-vscode-extensions.overlays.default
         (final: prev: {
