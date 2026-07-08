@@ -49,15 +49,7 @@
         allowUnsupportedSystem = true;
       };
       projectOverlays = [
-        (final: prev: {
-          # vue-language-server still needs pnpm_10_34_0, but the exception
-          # should stay scoped to that package instead of permitting it globally.
-          vue-language-server = prev.vue-language-server.override {
-            pnpm_10_34_0 = prev.pnpm_10_34_0.overrideAttrs (old: {
-              meta = removeAttrs (old.meta or { }) [ "knownVulnerabilities" ];
-            });
-          };
-        })
+        # (final: prev: { })
       ];
       nixpkgsOverlays = [
         nix-vscode-extensions.overlays.default
