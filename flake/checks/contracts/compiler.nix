@@ -335,6 +335,36 @@ let
     extension: extension.id
   ) pythonProfileEvalImage.vscodeExtensions.extensions;
 
+  cppProfileEvalImage = compiler.mkImage {
+    modules = [
+      ../../../images/nix.nix
+      (
+        { lib, ... }:
+        {
+          config = {
+            devcontainer.image = {
+              name = lib.mkForce "profile-cpp-eval";
+              family = lib.mkForce "test";
+              tags = lib.mkForce [ "eval" ];
+            };
+            devcontainer.profiles."language/cpp".enable = true;
+          };
+        }
+      )
+    ];
+  };
+  cppCoreProfile =
+    lib.findFirst (profile: profile.id == "language/cpp/core")
+      (throw "language/cpp/core profile missing")
+      cppProfileEvalImage.profileReport.effectiveEnabledProfiles;
+  cppSmokeProfile =
+    lib.findFirst (profile: profile.id == "language/cpp/smoke")
+      (throw "language/cpp/smoke profile missing")
+      cppProfileEvalImage.profileReport.effectiveEnabledProfiles;
+  cppClangdExtension = extensionById cppProfileEvalImage "llvm-vs-code-extensions.vscode-clangd";
+  cppCmakeExtension = extensionById cppProfileEvalImage "ms-vscode.cmake-tools";
+  cppLldbExtension = extensionById cppProfileEvalImage "vadimcn.vscode-lldb";
+
   customLocaleImage = compiler.mkImage {
     modules = [
       ../../../images/nix.nix
@@ -986,6 +1016,27 @@ in
     assert !(pythonExtension.native);
     assert builtins.elem "python" pythonExtension.companionTools;
     assert pythonProfileEvalImage.profileReport.validation.companionToolsProvidedByNix;
+    assert builtins.hasAttr "runtime/c-env" cppProfileEvalImage.graph.nodes;
+    assert builtins.hasAttr "language/cpp/core" cppProfileEvalImage.graph.nodes;
+    assert builtins.elem "language.cpp" cppSmokeProfile.tests.cases;
+    assert builtins.elem "clangd" cppCoreProfile.provides.commands;
+    assert builtins.elem "cmake-language-server" cppCoreProfile.provides.commands;
+    assert hasCompanionTools cppClangdExtension [
+      "clangd"
+      "clang-format"
+      "clang-tidy"
+    ];
+    assert hasCompanionTools cppCmakeExtension [
+      "cmake"
+      "cmake-language-server"
+    ];
+    assert cppLldbExtension.native;
+    assert cppLldbExtension.sourcePreference == "open-vsx-first";
+    assert hasCompanionTools cppLldbExtension [
+      "lldb"
+      "lldb-dap"
+    ];
+    assert cppProfileEvalImage.profileReport.validation.companionToolsProvidedByNix;
     assert lib.hasInfix "fr_FR.UTF-8" customLocaleCommand;
     assert lib.hasInfix "fr_FR:fr" customLocaleCommand;
     assert !(lib.hasInfix "en_US.UTF-8" customLocaleCommand);

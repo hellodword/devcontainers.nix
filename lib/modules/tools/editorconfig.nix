@@ -9,5 +9,10 @@
     sharing = "global";
     securityClass = "trusted";
     provides.commands = [ "editorconfig" ];
+    vscode.extensions."editorconfig.editorconfig" = {
+      native = false;
+      bucket = "vscode-extensions-base";
+      companionTools = [ "editorconfig" ];
+    };
   };
 }

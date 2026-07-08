@@ -36,7 +36,22 @@
         "[typescript]" = {
           "editor.defaultFormatter" = "esbenp.prettier-vscode";
         };
+        "[javascriptreact]" = {
+          "editor.defaultFormatter" = "esbenp.prettier-vscode";
+        };
+        "[typescriptreact]" = {
+          "editor.defaultFormatter" = "esbenp.prettier-vscode";
+        };
+        "[vue]" = {
+          "editor.defaultFormatter" = "esbenp.prettier-vscode";
+        };
         "[html]" = {
+          "editor.defaultFormatter" = "esbenp.prettier-vscode";
+        };
+        "[css]" = {
+          "editor.defaultFormatter" = "esbenp.prettier-vscode";
+        };
+        "[scss]" = {
           "editor.defaultFormatter" = "esbenp.prettier-vscode";
         };
       };

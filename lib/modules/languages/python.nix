@@ -87,6 +87,21 @@ in
             bucket = "vscode-extensions-python";
             companionTools = [ "ruff" ];
           };
+          "ms-python.mypy-type-checker" = {
+            native = false;
+            bucket = "vscode-extensions-python";
+            companionTools = [ "mypy" ];
+          };
+          "ms-python.pylint" = {
+            native = false;
+            bucket = "vscode-extensions-python";
+            companionTools = [ "pylint" ];
+          };
+          "ms-python.black-formatter" = {
+            native = false;
+            bucket = "vscode-extensions-python";
+            companionTools = [ "black" ];
+          };
         };
         settings = {
           "python.defaultInterpreterPath" = "/usr/bin/python";
@@ -96,6 +111,12 @@ in
           "ruff.nativeServer" = "on";
           "ruff.path" = [ "/usr/bin/ruff" ];
           "python-envs.alwaysUseUv" = true;
+          "mypy-type-checker.importStrategy" = "fromEnvironment";
+          "mypy-type-checker.path" = [ "/usr/bin/mypy" ];
+          "pylint.importStrategy" = "fromEnvironment";
+          "pylint.path" = [ "/usr/bin/pylint" ];
+          "black-formatter.importStrategy" = "fromEnvironment";
+          "black-formatter.path" = [ "/usr/bin/black" ];
         };
       };
       tests.cases."language.python" = {

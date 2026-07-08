@@ -11,6 +11,8 @@ let
     eslint
     node-gyp
     vue-language-server
+    tailwindcss-language-server
+    stylelint
   ];
 in
 {
@@ -59,6 +61,8 @@ in
       "eslint"
       "node-gyp"
       "vue-language-server"
+      "tailwindcss-language-server"
+      "stylelint"
     ];
     vscode = {
       extensions = {
@@ -79,11 +83,42 @@ in
             "vue-language-server"
           ];
         };
+        "bradlc.vscode-tailwindcss" = {
+          native = false;
+          bucket = "vscode-extensions-nodejs";
+          companionTools = [
+            "node"
+            "tailwindcss-language-server"
+          ];
+        };
+        "stylelint.vscode-stylelint" = {
+          native = false;
+          bucket = "vscode-extensions-nodejs";
+          companionTools = [
+            "node"
+            "stylelint"
+          ];
+        };
+        "yoavbls.pretty-ts-errors" = {
+          native = false;
+          bucket = "vscode-extensions-nodejs";
+          companionTools = [ "typescript-language-server" ];
+        };
       };
       settings = {
         "typescript.tsdk" = "/usr/lib/node_modules/typescript/lib";
+        "eslint.workingDirectories" = [ { mode = "auto"; } ];
         "eslint.runtime" = "/usr/bin/node";
         "vue.server.path" = "/usr/bin/vue-language-server";
+        "stylelint.runtime" = "/usr/bin/node";
+        "stylelint.stylelintPath" = "/usr/lib/node_modules/stylelint";
+        "stylelint.validate" = [
+          "css"
+          "scss"
+          "less"
+          "postcss"
+          "vue"
+        ];
       };
     };
   };
@@ -116,6 +151,8 @@ in
             yarn --version
             corepack --version
             node-gyp --version
+            tailwindcss-language-server --help >/dev/null
+            stylelint --version
             python --version
             cc --version
           '';
