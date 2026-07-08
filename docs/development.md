@@ -536,7 +536,7 @@ nix build .#checks.x86_64-linux.generated-workflows
 
 The checked-in generated workflows, template, and target registry should remain synchronized.
 
-The workflows do not use GitHub Actions cache. Nix already uses configured binary substituters for reusable store paths, while per-run image closures and Docker artifacts are large and input-sensitive.
+The workflows do not use GitHub Actions cache. The base Nix install step configures the project Cachix cache, then a follow-up step optionally evaluates `lib.x86_64-linux.inheritedNixConfig` and merges those binary substituters and trusted keys into `/etc/nix/nix.conf` before heavy image builds start. Per-run image closures and Docker artifacts remain large and input-sensitive.
 
 The `Free disk space` step removes large preinstalled SDKs and prunes Docker state because hosted Ubuntu runners have limited writable disk.
 

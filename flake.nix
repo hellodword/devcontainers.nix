@@ -255,26 +255,33 @@
           ];
         };
 
-      inheritedNixConfig = collectInputNixConfig {
-        inherit inputs;
-        inputNames = {
-          llm-agents = [ ".numtide.com" ];
-          agents-misc = [ "hellodword-codex.cachix.org" ];
-          nix-vscode-extensions = [ "nix-community.cachix.org" ];
+      inheritedNixConfig =
+        let
+          collected = collectInputNixConfig {
+            inherit inputs;
+            inputNames = {
+              llm-agents = [ ".numtide.com" ];
+              agents-misc = [ "hellodword-codex.cachix.org" ];
+              nix-vscode-extensions = [ "nix-community.cachix.org" ];
+            };
+          };
+        in
+        collected
+        // {
+          settings =
+            (lib.optionalAttrs (collected.substituters != [ ]) {
+              extra-substituters = collected.substituters;
+            })
+            // (lib.optionalAttrs (collected.trustedPublicKeys != [ ]) {
+              extra-trusted-public-keys = collected.trustedPublicKeys;
+            });
         };
-      };
-      inheritedSubstituters = lib.unique inheritedNixConfig.substituters;
       inheritedNixConfigModule =
         { lib, ... }:
         {
-          config = lib.mkMerge [
-            (lib.optionalAttrs (inheritedSubstituters != [ ]) {
-              nix.settings.extra-substituters = lib.mkAfter inheritedSubstituters;
-            })
-            (lib.optionalAttrs (inheritedNixConfig.trustedPublicKeys != [ ]) {
-              nix.settings.extra-trusted-public-keys = lib.mkAfter inheritedNixConfig.trustedPublicKeys;
-            })
-          ];
+          config = lib.optionalAttrs (inheritedNixConfig.settings != { }) {
+            nix.settings = lib.mapAttrs (_: value: lib.mkAfter value) inheritedNixConfig.settings;
+          };
         };
     in
     {
@@ -318,6 +325,7 @@
 
       lib.${system} = {
         imageNames = targets.imageNames;
+        inheritedNixConfig = inheritedNixConfig;
         vscodeExtensionSources = builtins.attrNames pkgs.nix-vscode-extensions;
         nix2container = compiler.nix2container;
       };

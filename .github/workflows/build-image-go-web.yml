@@ -54,10 +54,8 @@ jobs:
           GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NIX_EXTRA_SUBSTITUTERS: |
             https://${{ env.CACHIX_CACHE_NAME }}.cachix.org
-            https://cache.numtide.com
           NIX_EXTRA_TRUSTED_PUBLIC_KEYS: |
             ${{ env.CACHIX_PUBLIC_KEY }}
-            niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
         run: |
           set -euo pipefail
 
@@ -150,6 +148,100 @@ jobs:
           nix config show substituters
           nix config show trusted-public-keys
           nix config show trusted-users
+
+      - name: Apply inherited Nix cache config
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f flake.nix ]]; then
+            echo "No flake.nix found; skipping inherited Nix cache config"
+            exit 0
+          fi
+
+          eval_args=(
+            --extra-experimental-features nix-command
+            --extra-experimental-features flakes
+            --no-write-lock-file
+          )
+
+          if ! nix eval --json "${eval_args[@]}" .#lib.x86_64-linux.inheritedNixConfig >/dev/null 2>&1; then
+            echo "No inheritedNixConfig output found; skipping inherited Nix cache config"
+            exit 0
+          fi
+
+          normalize_list() {
+            local s="${1:-}"
+            s="${s//$'\n'/ }"
+            s="${s//$'\t'/ }"
+            printf '%s\n' "$s" | awk '{$1=$1; print}'
+          }
+
+          flake_output_list() {
+            local attr="$1"
+            nix eval --raw \
+              "${eval_args[@]}" \
+              ".#lib.x86_64-linux.inheritedNixConfig.${attr}" \
+              --apply 'builtins.concatStringsSep " "'
+          }
+
+          read_nix_conf_values() {
+            local key="$1"
+            awk -v key="$key" '
+              $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+                sub(/^[^=]*=/, "")
+                print
+              }
+            ' /etc/nix/nix.conf
+          }
+
+          merge_lists() {
+            normalize_list "$*" | awk '
+              {
+                for (i = 1; i <= NF; i++) {
+                  if (!seen[$i]++) {
+                    values[++count] = $i
+                  }
+                }
+              }
+              END {
+                for (i = 1; i <= count; i++) {
+                  printf "%s%s", (i == 1 ? "" : " "), values[i]
+                }
+                if (count > 0) {
+                  printf "\n"
+                }
+              }
+            '
+          }
+
+          current_extra_substituters="$(normalize_list "$(read_nix_conf_values extra-substituters)")"
+          current_extra_trusted_public_keys="$(normalize_list "$(read_nix_conf_values extra-trusted-public-keys)")"
+          inherited_substituters="$(normalize_list "$(flake_output_list substituters)")"
+          inherited_trusted_public_keys="$(normalize_list "$(flake_output_list trustedPublicKeys)")"
+
+          merged_extra_substituters="$(merge_lists "$current_extra_substituters" "$inherited_substituters")"
+          merged_extra_trusted_public_keys="$(merge_lists "$current_extra_trusted_public_keys" "$inherited_trusted_public_keys")"
+
+          sudo sed -i \
+            -e '/^[[:space:]]*extra-substituters[[:space:]]*=/d' \
+            -e '/^[[:space:]]*extra-trusted-public-keys[[:space:]]*=/d' \
+            /etc/nix/nix.conf
+
+          {
+            if [[ -n "$merged_extra_substituters" ]]; then
+              printf '%s\n' "extra-substituters = ${merged_extra_substituters}"
+            fi
+
+            if [[ -n "$merged_extra_trusted_public_keys" ]]; then
+              printf '%s\n' "extra-trusted-public-keys = ${merged_extra_trusted_public_keys}"
+            fi
+          } | sudo tee -a /etc/nix/nix.conf >/dev/null
+
+          sudo systemctl restart nix-daemon.service
+
+          nix config show substituters
+          nix config show trusted-public-keys
 
       - name: Build reports
         run: |
