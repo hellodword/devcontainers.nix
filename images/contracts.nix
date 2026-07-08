@@ -11,10 +11,8 @@
     "flutter"
   ];
 
-  previousTargetPatterns = [
-    "go-[0-9]+_[0-9]+"
-    "nodejs-[0-9]+"
-  ];
+  # Keep empty while no previous-version image targets are published.
+  previousTargetPatterns = [ ];
 
   disallowedTargetSuffixes = [ "-latest" ];
 }

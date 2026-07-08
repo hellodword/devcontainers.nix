@@ -94,10 +94,16 @@ let
     contract.rootfsRequiresValid && contract.requiredProfilesValid && contract.requiredCommandsValid
   ) targetCheckContracts;
 
-  matchesAnyPattern = name: patterns: lib.any (pattern: builtins.match pattern name != null) patterns;
-  previousTargets = builtins.filter (
-    name: matchesAnyPattern name policy.previousTargetPatterns
-  ) imageNames;
+  previousTargetPatternMatches = map (pattern: {
+    inherit pattern;
+    matches = builtins.filter (name: builtins.match pattern name != null) imageNames;
+  }) policy.previousTargetPatterns;
+  previousTargetPatternViolations = builtins.filter (
+    contract: builtins.length contract.matches != 1
+  ) previousTargetPatternMatches;
+  previousTargets = lib.unique (
+    lib.concatMap (contract: contract.matches) previousTargetPatternMatches
+  );
   disallowedSuffixTargets = builtins.filter (
     name: lib.any (suffix: lib.hasSuffix suffix name) policy.disallowedTargetSuffixes
   ) imageNames;
@@ -132,7 +138,7 @@ let
 in
 {
   contracts-image-targets =
-    assert builtins.length previousTargets >= 2;
+    assert previousTargetPatternViolations == [ ];
     assert disallowedSuffixTargets == [ ];
     assert targetNames == targets.imageNames;
     assert sortedTargetNames == imageNames;
@@ -144,7 +150,6 @@ in
     assert unknownTargetCiE2eSessions == [ ];
     assert actualRequiredTargets == policy.requiredTargets;
     assert targetCheckMetadataValid;
-    assert lib.all (name: matchesAnyPattern name policy.previousTargetPatterns) previousTargets;
     assert lib.all (contract: contract.publishRefs != [ ]) imageContracts;
     assert lib.all (contract: contract.smokeCaseIds != [ ]) imageContracts;
     assert publishedExtensionOriginViolations == [ ];
@@ -152,6 +157,7 @@ in
     pkgs.writeText "contracts-image-targets.json" (
       builtins.toJSON {
         previousTargets = previousTargets;
+        previousTargetPatternMatches = previousTargetPatternMatches;
         requiredImageTargets = actualRequiredTargets;
         checkPolicy = targetCheckContracts;
         registry = targetRegistryContracts;
