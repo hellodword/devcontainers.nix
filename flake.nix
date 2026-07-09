@@ -19,6 +19,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     agents-misc.url = "github:hellodword/agents-misc";
     llm-agents.url = "github:numtide/llm-agents.nix";
 
@@ -35,6 +40,7 @@
       rust-overlay,
       nix-vscode-extensions,
       nix-index-database,
+      treefmt-nix,
       agents-misc,
       llm-agents,
       nix2container,
@@ -114,6 +120,7 @@
           images
           ;
       };
+      treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
 
       imageLoadApps = lib.mapAttrs' (
         name: image:
@@ -167,20 +174,6 @@
         ];
         text = ''
           exec ${pkgs.python3}/bin/python3 ${./tests/smoke/run-plan.py} "$@"
-        '';
-      };
-      nixfmtFormatter = pkgs.writeShellApplication {
-        name = "nixfmt";
-        runtimeInputs = [
-          pkgs.findutils
-          pkgs.nixfmt
-        ];
-        text = ''
-          if [ "$#" -eq 0 ]; then
-            find . -path ./result -prune -o -name '*.nix' -type f -print0 | xargs -0 nixfmt
-          else
-            nixfmt "$@"
-          fi
         '';
       };
 
@@ -278,7 +271,7 @@
         };
     in
     {
-      formatter.${system} = nixfmtFormatter;
+      formatter.${system} = treefmtEval.config.build.wrapper;
 
       images = images;
 
