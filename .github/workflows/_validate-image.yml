@@ -257,7 +257,6 @@ jobs:
           fi
 
           export TMPDIR=/nix/tmp
-          echo "TMPDIR=/nix/tmp" >> "${GITHUB_ENV}"
           diagnose_disk "after tmpdir setup"
 
           echo "Initial volume created" | tee "${HOME}/.expansion/holster_done"
@@ -326,8 +325,10 @@ jobs:
           curl -fsSL https://nixos.org/nix/install | sh -s -- --daemon
           echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
           echo "NIX_REMOTE=daemon" >> "$GITHUB_ENV"
+          echo "TMPDIR=/nix/tmp" >> "$GITHUB_ENV"
 
           export NIX_REMOTE=daemon
+          export TMPDIR=/nix/tmp
           . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 
           normalize_list() {
