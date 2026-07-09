@@ -27,6 +27,7 @@ The initial Nix implementation lives on the `v0` branch. This version was refact
 Published images:
 
 <!-- BEGIN GENERATED:image-refs -->
+
 - `ghcr.io/hellodword/devcontainers-nix:latest`
 - `ghcr.io/hellodword/devcontainers-go:latest`
 - `ghcr.io/hellodword/devcontainers-go:1.26`

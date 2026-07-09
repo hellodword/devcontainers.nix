@@ -13,15 +13,15 @@ contract.
 
 Use these layers in order:
 
-| Layer | Owns | Good assertions |
-| --- | --- | --- |
-| Nix owner module | Packages, profiles, environment, VS Code metadata, libraries, lifecycle tasks, smoke cases, and layer buckets for one feature | The owner exposes the expected structured data |
-| Image target registry | Image identity, family/tag policy, E2E opt-in, and target-specific required profiles, commands, or rootfs paths | Target contracts such as required commands for `go` |
-| Compiler stage | Derived artifact structure and report shape | Compiler output contains normalized attrs and expected report entries |
-| Nix contract check | Cross-owner product rules over structured attrs | Profiles resolve to smoke cases, required target commands exist, security checks are enabled |
-| Python artifact check | JSON, filesystem, tar, Docker, process, or GUI boundaries | A report bundle is complete, an OCI image JSON is parseable, rootfs paths exist |
-| Smoke runner | Runtime command behavior inside a loaded container | Declared cases run in Docker with stable scripts and timeouts |
-| GUI E2E | Heavy VS Code Dev Containers behavior | Opt-in editor session behavior only |
+| Layer                 | Owns                                                                                                                          | Good assertions                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Nix owner module      | Packages, profiles, environment, VS Code metadata, libraries, lifecycle tasks, smoke cases, and layer buckets for one feature | The owner exposes the expected structured data                                               |
+| Image target registry | Image identity, family/tag policy, E2E opt-in, and target-specific required profiles, commands, or rootfs paths               | Target contracts such as required commands for `go`                                          |
+| Compiler stage        | Derived artifact structure and report shape                                                                                   | Compiler output contains normalized attrs and expected report entries                        |
+| Nix contract check    | Cross-owner product rules over structured attrs                                                                               | Profiles resolve to smoke cases, required target commands exist, security checks are enabled |
+| Python artifact check | JSON, filesystem, tar, Docker, process, or GUI boundaries                                                                     | A report bundle is complete, an OCI image JSON is parseable, rootfs paths exist              |
+| Smoke runner          | Runtime command behavior inside a loaded container                                                                            | Declared cases run in Docker with stable scripts and timeouts                                |
+| GUI E2E               | Heavy VS Code Dev Containers behavior                                                                                         | Opt-in editor session behavior only                                                          |
 
 Do not add a second owner list in a check module when a compiler or registry
 already publishes the same information. For example, `ci-plan.json` is derived
@@ -165,16 +165,16 @@ Move or redesign the check when you see:
 
 Use the smallest check that proves the changed boundary:
 
-| Change | First validation |
-| --- | --- |
-| Documentation only | `nix flake show --no-write-lock-file` |
-| Nix contract helper | A focused contract build |
+| Change                        | First validation                                        |
+| ----------------------------- | ------------------------------------------------------- |
+| Documentation only            | `nix flake show --no-write-lock-file`                   |
+| Nix contract helper           | A focused contract build                                |
 | Product contract over reports | `nix build .#checks.x86_64-linux.contracts-reports-all` |
-| Image artifact checker | `nix build .#checks.x86_64-linux.artifact-image-nix` |
-| Rootfs artifact checker | `nix build .#checks.x86_64-linux.artifact-rootfs-nix` |
-| Python script quality | `nix build .#checks.x86_64-linux.script-quality` |
-| Public helper behavior | The matching `tool-*` check |
-| Cross-cutting cleanup | `nix flake check` |
+| Image artifact checker        | `nix build .#checks.x86_64-linux.artifact-image-nix`    |
+| Rootfs artifact checker       | `nix build .#checks.x86_64-linux.artifact-rootfs-nix`   |
+| Python script quality         | `nix build .#checks.x86_64-linux.script-quality`        |
+| Public helper behavior        | The matching `tool-*` check                             |
+| Cross-cutting cleanup         | `nix flake check`                                       |
 
 Do not make GUI E2E part of the default check path. Use
 [VS Code GUI E2E Testing](e2e-testing.md) for those opt-in sessions.

@@ -25,24 +25,24 @@ This runs contract checks, report CLI checks, selected image artifact checks, an
 
 Important paths:
 
-| Path                     | Purpose                                                                                                                    |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `flake.nix`              | Pins inputs and assembles image outputs, packages, apps, checks, and library metadata.                                     |
-| `flake/`                 | Maintainer flake internals: docs, checks, workflow generation, and E2E output wiring.                                      |
-| `images/`                | Image target registry plus small image-family modules that combine shared modules.                                         |
-| `lib/modules/core/`      | Shared image contract: user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, PATH, and FHS runtime. |
-| `lib/modules/editor/`    | Editor integrations, shared editor bundles, VS Code extension metadata, and editor-focused smoke coverage.                 |
-| `lib/modules/programs/`  | Static program integrations such as Git, SSH, and nix-index.                                                               |
-| `lib/modules/toolsets/`  | Reusable command groups such as source control, Docker client, data/network, and debug tools.                              |
-| `lib/modules/tools/`     | Small standalone tools that are useful globally but do not justify a larger toolset.                                       |
-| `lib/modules/runtimes/`  | Shared language runtimes used by multiple image families.                                                                  |
-| `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter.                                                       |
-| `lib/compiler/`          | Pure compiler stages that turn evaluated module config into image artifacts and reports.                                   |
-| `runtime/`               | Shell helpers installed into images or exposed as package outputs.                                                         |
+| Path                     | Purpose                                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `flake.nix`              | Pins inputs and assembles image outputs, packages, apps, checks, and library metadata.                                      |
+| `flake/`                 | Maintainer flake internals: docs, checks, workflow generation, and E2E output wiring.                                       |
+| `images/`                | Image target registry plus small image-family modules that combine shared modules.                                          |
+| `lib/modules/core/`      | Shared image contract: user, filesystem, environment, shell, fonts, libraries, metadata, lifecycle, PATH, and FHS runtime.  |
+| `lib/modules/editor/`    | Editor integrations, shared editor bundles, VS Code extension metadata, and editor-focused smoke coverage.                  |
+| `lib/modules/programs/`  | Static program integrations such as Git, SSH, and nix-index.                                                                |
+| `lib/modules/toolsets/`  | Reusable command groups such as source control, Docker client, data/network, and debug tools.                               |
+| `lib/modules/tools/`     | Small standalone tools that are useful globally but do not justify a larger toolset.                                        |
+| `lib/modules/runtimes/`  | Shared language runtimes used by multiple image families.                                                                   |
+| `lib/modules/languages/` | Full language stacks such as Go, Python, Node.js, Rust, and Flutter.                                                        |
+| `lib/compiler/`          | Pure compiler stages that turn evaluated module config into image artifacts and reports.                                    |
+| `runtime/`               | Shell helpers installed into images or exposed as package outputs.                                                          |
 | `tests/ci/`              | Python checks for report bundles, artifacts, and helper boundaries; product facts should stay near Nix owners or contracts. |
-| `tests/smoke/`           | Runtime smoke execution after an image is loaded into Docker.                                                              |
-| `tests/e2e/`             | Heavy VS Code GUI Dev Containers tests.                                                                                    |
-| `docs/`                  | User, design, and maintenance documentation.                                                                               |
+| `tests/smoke/`           | Runtime smoke execution after an image is loaded into Docker.                                                               |
+| `tests/e2e/`             | Heavy VS Code GUI Dev Containers tests.                                                                                     |
+| `docs/`                  | User, design, and maintenance documentation.                                                                                |
 
 ## Maintenance Registries
 
