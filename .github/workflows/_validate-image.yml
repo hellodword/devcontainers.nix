@@ -52,11 +52,142 @@ jobs:
       CACHIX_PUBLIC_KEY: ${{ inputs.cachix_public_key }}
 
     steps:
-      - name: Free disk space
+      - name: Free disk space for Nix
+        if: ${{ runner.os == 'Linux' && runner.environment == 'github-hosted' }}
+        shell: bash
+        env:
+          ROOT_SAFE_HAVEN_MB: "40000"
+          NIX_PERMISSION_EDICT: "false"
         run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+            echo "This step is intended for GitHub Actions only." >&2
+            exit 1
+          fi
+
+          if [[ "$(lsb_release -is 2>/dev/null || true)" != "Ubuntu" ]]; then
+            echo "This step only supports Ubuntu runners." >&2
+            exit 1
+          fi
+
+          if [[ -d /nix ]]; then
+            echo "/nix already exists; run this step before installing Nix." >&2
+            exit 1
+          fi
+
+          if [[ ! "$ROOT_SAFE_HAVEN_MB" =~ ^[0-9]+$ ]]; then
+            echo "Root safe haven value must be an integer MB value." >&2
+            exit 1
+          fi
+
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
           docker system prune -af || true
           df -h
+
+          sudo -n true
+
+          if ! command -v mkfs.btrfs >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y btrfs-progs
+          fi
+
+          mkdir -p "${HOME}/.expansion"
+          sudo mkdir -p /var/cache/nix /var/lib/nix-storage
+          sudo chmod 1777 /var/cache/nix
+
+          diagnose_disk() {
+            local label="$1"
+            local target
+            local tmp_target="${TMPDIR:-/var/cache/nix}"
+            local -a disk_targets=(/ /tmp /var/cache/nix "$tmp_target" /nix /var/lib/docker)
+
+            echo "::group::disk diagnostics: ${label}"
+            date -u +"%Y-%m-%dT%H:%M:%SZ"
+            printf 'TMPDIR=%s\n' "${TMPDIR:-<unset>}"
+
+            df -hT "${disk_targets[@]}" 2>/dev/null || true
+            df -ih "${disk_targets[@]}" 2>/dev/null || true
+
+            for target in "${disk_targets[@]}"; do
+              if [[ -e "$target" ]]; then
+                findmnt -T "$target" -o TARGET,SOURCE,FSTYPE,SIZE,AVAIL,USED,USE%,OPTIONS 2>/dev/null || true
+              else
+                printf 'missing path for findmnt: %s\n' "$target"
+              fi
+            done
+
+            sudo btrfs filesystem usage -T /nix 2>/dev/null || true
+            sudo btrfs filesystem df /nix 2>/dev/null || true
+            sudo btrfs filesystem show /nix 2>/dev/null || true
+
+            lsblk -f 2>/dev/null || true
+            sudo losetup -a 2>/dev/null || true
+
+            sudo du -xh --max-depth=1 /var/cache/nix 2>/dev/null | sort -h | tail -n 30 || true
+            sudo du -xh --max-depth=1 /var/lib/nix-storage 2>/dev/null | sort -h | tail -n 30 || true
+            sudo du -xh --max-depth=1 /nix 2>/dev/null | sort -h | tail -n 30 || true
+            sudo du -xh --max-depth=1 /var/lib/docker 2>/dev/null | sort -h | tail -n 30 || true
+
+            if command -v docker >/dev/null 2>&1; then
+              docker info --format 'DockerRootDir={{.DockerRootDir}} Driver={{.Driver}}' 2>/dev/null || true
+              docker system df -v 2>/dev/null || true
+            fi
+
+            echo "::endgroup::"
+          }
+
+          diagnose_disk "before carving"
+
+          echo "== Initial disk state =="
+          df -h
+
+          free_root="$(df -m --output=avail / | tail -n 1 | tr -d ' ')"
+          echo "Initial free space of /: ${free_root}MB"
+
+          min_required=$((ROOT_SAFE_HAVEN_MB + 1024))
+          if (( free_root < min_required )); then
+            echo "Insufficient free space on /."
+            echo "Available: ${free_root}MB, required: at least ${min_required}MB"
+            sudo ls -lah / || true
+            exit 1
+          fi
+
+          root_loop="$(sudo losetup --find)"
+          root_loop_num="${root_loop##*/loop}"
+          root_img="/var/lib/nix-storage/disk${root_loop_num}.img"
+          root_size=$((free_root - ROOT_SAFE_HAVEN_MB))
+
+          echo "Creating /nix disk image: ${root_img} (${root_size}MB)"
+          sudo fallocate -l "${root_size}M" "${root_img}"
+          sudo losetup "${root_loop}" "${root_img}"
+
+          sudo mkfs.btrfs -L nix -d raid0 -m raid0 --nodiscard "${root_loop}"
+          sudo btrfs device scan
+
+          sudo mkdir -p /nix
+          sudo mount LABEL=nix /nix -o noatime,nobarrier,nodiscard,compress=zstd:1,space_cache=v2,commit=120
+          sudo mkdir -p /nix/build
+          diagnose_disk "after /nix mount"
+
+          if [[ "${NIX_PERMISSION_EDICT}" == "true" ]]; then
+            sudo chown -R "$(id --user)":"$(id --group)" /nix
+          fi
+
+          export TMPDIR=/var/cache/nix
+          echo "TMPDIR=/var/cache/nix" >> "${GITHUB_ENV}"
+          diagnose_disk "after tmpdir setup"
+
+          echo "Initial volume created" | tee "${HOME}/.expansion/holster_done"
+
+          echo "Disk space has been carved out" | tee "${HOME}/.expansion/carve_done"
+          diagnose_disk "after carving"
+
+          echo "== Final disk state =="
+          df -h
+
+          echo "== BTRFS devices backing /nix =="
+          sudo btrfs filesystem show /nix || sudo btrfs filesystem show
 
       # https://github.com/orgs/community/discussions/42479#discussioncomment-4484937
       # https://github.com/wph95/opentelemetry-demo-webstore/blob/ae08811157db7ba590a7c8dd6faa2cb9d1473bef/.github/workflows/release.yml#L24-L29
@@ -315,8 +446,60 @@ jobs:
           nix build --accept-flake-config ".#checks.x86_64-linux.artifact-image-${{ inputs.image }}" --no-link
 
       - name: Load OCI image
+        shell: bash
         run: |
+          set -euo pipefail
+
+          diagnose_disk() {
+            local label="$1"
+            local target
+            local tmp_target="${TMPDIR:-/var/cache/nix}"
+            local -a disk_targets=(/ /tmp /var/cache/nix "$tmp_target" /nix /var/lib/docker)
+
+            echo "::group::disk diagnostics: ${label}"
+            date -u +"%Y-%m-%dT%H:%M:%SZ"
+            printf 'TMPDIR=%s\n' "${TMPDIR:-<unset>}"
+
+            df -hT "${disk_targets[@]}" 2>/dev/null || true
+            df -ih "${disk_targets[@]}" 2>/dev/null || true
+
+            for target in "${disk_targets[@]}"; do
+              if [[ -e "$target" ]]; then
+                findmnt -T "$target" -o TARGET,SOURCE,FSTYPE,SIZE,AVAIL,USED,USE%,OPTIONS 2>/dev/null || true
+              else
+                printf 'missing path for findmnt: %s\n' "$target"
+              fi
+            done
+
+            sudo btrfs filesystem usage -T /nix 2>/dev/null || true
+            sudo btrfs filesystem df /nix 2>/dev/null || true
+            sudo btrfs filesystem show /nix 2>/dev/null || true
+
+            lsblk -f 2>/dev/null || true
+            sudo losetup -a 2>/dev/null || true
+
+            sudo du -xh --max-depth=1 /var/cache/nix 2>/dev/null | sort -h | tail -n 30 || true
+            sudo du -xh --max-depth=1 /var/lib/nix-storage 2>/dev/null | sort -h | tail -n 30 || true
+            sudo du -xh --max-depth=1 /nix 2>/dev/null | sort -h | tail -n 30 || true
+            sudo du -xh --max-depth=1 /var/lib/docker 2>/dev/null | sort -h | tail -n 30 || true
+
+            if command -v docker >/dev/null 2>&1; then
+              docker info --format 'DockerRootDir={{.DockerRootDir}} Driver={{.Driver}}' 2>/dev/null || true
+              docker system df -v 2>/dev/null || true
+            fi
+
+            echo "::endgroup::"
+          }
+
+          diagnose_disk "before load image"
+
+          set +e
           nix run --accept-flake-config ".#load-${{ inputs.image }}"
+          status="$?"
+          set -e
+
+          diagnose_disk "after load image status=${status}"
+          exit "$status"
 
       - name: Run smoke plan
         env:
