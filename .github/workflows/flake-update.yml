@@ -22,12 +22,6 @@ jobs:
       images: ${{ steps.plan.outputs.images }}
 
     steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
-          docker system prune -af || true
-          df -h
-
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -38,6 +32,12 @@ jobs:
         id: base
         run: |
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          docker system prune -af || true
+          df -h
 
       - name: Install and configure Nix
         shell: bash
@@ -306,8 +306,6 @@ jobs:
       upload_reports: false
       upload_smoke_logs: true
       push_image: false
-      cachix_cache_name: hellodword-codex
-      cachix_public_key: hellodword-codex.cachix.org-1:0URmcnC9aynWh9+FJ2tf+HQloylGgZzPtrz3sttTTiQ=
 
   create-pr-and-merge:
     name: create-pr-and-merge
@@ -373,3 +371,4 @@ jobs:
 
           PR_URL="$(gh pr create --fill --base "${BASE_BRANCH}" --head "${BRANCH}")"
           gh pr merge "$PR_URL" --delete-branch --rebase
+          gh workflow run build-images.yml --ref "${BASE_BRANCH}"
