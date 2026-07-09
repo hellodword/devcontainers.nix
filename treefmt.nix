@@ -15,6 +15,13 @@
   };
 
   settings = {
+    formatter.prettier.options = [
+      "--config"
+      (toString ./.prettierrc.json)
+
+      "--no-editorconfig"
+    ];
+
     excludes = [
       ".direnv/*"
       ".git/*"
