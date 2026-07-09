@@ -59,8 +59,7 @@ workflow E2E opt-in sessions, and image-specific check policy.
 The larger flake internals live under `flake/`:
 
 - `flake/docs.nix` renders checked-in documentation snippets from target and E2E session metadata and exposes `generate-docs`.
-- `flake/checks.nix` aggregates focused check suites under `flake/checks/`: contracts, tooling, artifacts, report CLI behavior, and generated workflow synchronization.
-- `flake/workflows.nix` renders per-image GitHub Actions workflows, exposes `generate-workflows`, and checks that generated workflow files are synchronized with the template and target registry.
+- `flake/checks.nix` aggregates focused check suites under `flake/checks/`: contracts, tooling, artifacts, and report CLI behavior.
 - `flake/e2e.nix` exposes heavy VS Code GUI Dev Containers tests under the custom `e2e.${system}` output.
 
 ## Image Targets
@@ -73,7 +72,6 @@ The larger flake internals live under `flake/`:
 - one image module under `images/`
 - `docs.useWhen`, the target's user-facing selection hint validated by
   contract checks
-- optional `ci.e2eSessions`, used by workflow generation
 - optional `checks`, used by required-target, report CLI, and rootfs checks
 - optional override modules for selected language versions
 
@@ -101,9 +99,8 @@ The published reference for a family is:
 ghcr.io/hellodword/devcontainers-<family>:<tag>
 ```
 
-`flake/docs.nix`, `flake/workflows.nix`, and focused checks consume this target
-registry. They should not keep separate image-name or image-documentation
-registries.
+`flake/docs.nix` and focused checks consume this target registry. They should
+not keep separate image-name or image-documentation registries.
 
 ## Module Layers
 
@@ -433,7 +430,6 @@ Checks use those reports to reject regressions before an image is published. Smo
 - `tooling` for runtime helper behavior
 - `artifacts` for selected OCI/rootfs checks
 - `report-cli` for the report inspection CLI
-- generated workflow synchronization
 
 Image-specific check policy belongs on target records in `images/default.nix`.
 For example, target metadata marks required public image targets, required

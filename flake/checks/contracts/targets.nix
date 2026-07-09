@@ -61,14 +61,6 @@ let
     }
   ) targets.imageTargetList;
 
-  vscodeGuiE2e = import ../../../tests/e2e/vscode-gui.nix {
-    inherit pkgs lib;
-  };
-  targetCiE2eSessions = lib.concatMap (target: target.ci.e2eSessions or [ ]) targets.imageTargetList;
-  unknownTargetCiE2eSessions = builtins.filter (
-    session: !(builtins.elem session vscodeGuiE2e.sessionNames)
-  ) targetCiE2eSessions;
-
   actualRequiredTargets = map (target: target.target) (
     builtins.filter (target: target.checks.required or false) targets.imageTargetList
   );
@@ -147,7 +139,6 @@ in
     assert lib.all (contract: contract.indexedTargetMatches) targetRegistryContracts;
     assert lib.all (contract: contract.docsValid) targetRegistryContracts;
     assert lib.all (contract: contract.compiledMatches) targetRegistryContracts;
-    assert unknownTargetCiE2eSessions == [ ];
     assert actualRequiredTargets == policy.requiredTargets;
     assert targetCheckMetadataValid;
     assert lib.all (contract: contract.publishRefs != [ ]) imageContracts;
@@ -161,7 +152,6 @@ in
         requiredImageTargets = actualRequiredTargets;
         checkPolicy = targetCheckContracts;
         registry = targetRegistryContracts;
-        ciE2eSessions = targetCiE2eSessions;
         images = imageContracts;
         extensionOriginViolations = publishedExtensionOriginViolations;
         prettierOriginViolations = prettierOriginViolations;

@@ -6,7 +6,6 @@
   compiler,
   images,
   targets,
-  workflows,
 }:
 
 let
@@ -19,7 +18,6 @@ let
       compiler
       images
       targets
-      workflows
       ;
   };
 in
@@ -27,4 +25,3 @@ in
 // (import ./checks/artifacts.nix commonArgs)
 // (import ./checks/tooling.nix commonArgs)
 // (import ./checks/report-cli.nix commonArgs)
-// (import ./checks/workflows.nix commonArgs)

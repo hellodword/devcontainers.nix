@@ -1,30 +1,136 @@
-
-
-
-name: build-image-nodejs
+name: build-images
 
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
-
-concurrency:
-  group: build-image-nodejs
-  cancel-in-progress: true
+    branches: [master]
 
 env:
   CACHIX_CACHE_NAME: hellodword-codex
   CACHIX_PUBLIC_KEY: hellodword-codex.cachix.org-1:0URmcnC9aynWh9+FJ2tf+HQloylGgZzPtrz3sttTTiQ=
+  E2E_IMAGES: '["go-web", "rust-web"]'
+  E2E_SESSIONS: '["wayland-sway"]'
+
+permissions:
+  contents: read
 
 jobs:
+  prepare-matrix:
+    name: prepare-matrix
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.matrix.outputs.images }}
+      e2e: ${{ steps.matrix.outputs.e2e }}
+      e2e_enabled: ${{ steps.matrix.outputs.e2e_enabled }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix with official installer
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y xz-utils
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+          echo "NIX_REMOTE=daemon" >> "$GITHUB_ENV"
+          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+          nix --version
+
+      - name: Configure Nix
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo sed -i \
+            -e '/^experimental-features[[:space:]]*=/d' \
+            -e '/^max-jobs[[:space:]]*=/d' \
+            -e '/^substituters[[:space:]]*=/d' \
+            -e '/^trusted-public-keys[[:space:]]*=/d' \
+            -e '/^trusted-users[[:space:]]*=/d' \
+            /etc/nix/nix.conf
+
+          printf '%s\n' \
+            "experimental-features = nix-command flakes" \
+            "max-jobs = auto" \
+            "trusted-users = root ${USER}" \
+            "extra-substituters = https://${{ env.CACHIX_CACHE_NAME }}.cachix.org" \
+            "extra-trusted-public-keys = ${{ env.CACHIX_PUBLIC_KEY }}" \
+            | sudo tee -a /etc/nix/nix.conf
+
+          sudo systemctl restart nix-daemon
+          nix config show experimental-features
+          nix config show substituters
+
+      - name: Read CI matrix from Nix
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          images="$(
+            nix eval --accept-flake-config --json .#lib.x86_64-linux.imageNames \
+              | tr -d '\n'
+          )"
+          e2e="$(
+            python3 - <<'PY'
+          import json
+          import os
+
+          images = json.loads(os.environ["E2E_IMAGES"])
+          sessions = json.loads(os.environ["E2E_SESSIONS"])
+          matrix = [
+              {
+                  "image": image,
+                  "session": session,
+                  "attr": f"e2e-vscode-{image}-{session}",
+              }
+              for image in images
+              for session in sessions
+          ]
+          print(json.dumps(matrix, separators=(",", ":")))
+          PY
+          )"
+
+          if [[ -z "$images" || "$images" == "[]" ]]; then
+            echo "CI image matrix is empty" >&2
+            exit 1
+          fi
+
+          if [[ -z "$e2e" || "$e2e" == "[]" ]]; then
+            e2e_enabled=false
+            e2e='[{"image":"__disabled__","session":"__disabled__","attr":"__disabled__"}]'
+          else
+            e2e_enabled=true
+          fi
+
+          {
+            printf 'images=%s\n' "$images"
+            printf 'e2e=%s\n' "$e2e"
+            printf 'e2e_enabled=%s\n' "$e2e_enabled"
+          } >> "$GITHUB_OUTPUT"
+
+          printf 'images=%s\n' "$images"
+          printf 'e2e_enabled=%s\n' "$e2e_enabled"
+          printf 'e2e=%s\n' "$e2e"
+
   build:
-    name: build-nodejs
+    name: build-${{ matrix.image }}
+    needs: prepare-matrix
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.prepare-matrix.outputs.images) }}
+    concurrency:
+      group: build-image-${{ matrix.image }}
+      cancel-in-progress: true
     uses: ./.github/workflows/_validate-image.yml
     with:
-      image: nodejs
+      image: ${{ matrix.image }}
       upload_reports: true
       upload_smoke_logs: true
       push_image: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
@@ -32,16 +138,21 @@ jobs:
       cachix_public_key: hellodword-codex.cachix.org-1:0URmcnC9aynWh9+FJ2tf+HQloylGgZzPtrz3sttTTiQ=
 
   e2e:
-    name: e2e-nodejs-${{ matrix.session }}
-    needs: build
-    if: ${{ false }}
+    name: e2e-${{ matrix.image }}-${{ matrix.session }}
+    needs:
+      - prepare-matrix
+      - build
+    if: ${{ needs.prepare-matrix.outputs.e2e_enabled == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        session: ["disabled"]
+        include: ${{ fromJSON(needs.prepare-matrix.outputs.e2e) }}
+    concurrency:
+      group: e2e-${{ matrix.image }}-${{ matrix.session }}
+      cancel-in-progress: true
 
     steps:
       - name: Free disk space
@@ -103,7 +214,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          attr=".#e2e.x86_64-linux.e2e-vscode-nodejs-${{ matrix.session }}"
+          attr=".#e2e.x86_64-linux.${{ matrix.attr }}"
 
           drv_path="$(
             nix path-info \
@@ -158,7 +269,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-output-nodejs-${{ matrix.session }}
+          name: e2e-output-${{ matrix.image }}-${{ matrix.session }}
           path: e2e-output
           if-no-files-found: error
 
@@ -166,6 +277,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-nix-logs-nodejs-${{ matrix.session }}
+          name: e2e-nix-logs-${{ matrix.image }}-${{ matrix.session }}
           path: e2e-logs
           if-no-files-found: warn

@@ -18,7 +18,7 @@ jobs:
       contents: read
     outputs:
       base_sha: ${{ steps.base.outputs.sha }}
-      changed: ${{ steps.plan.outputs.changed }}
+      changed: ${{ steps.update.outputs.changed == 'true' && steps.plan.outputs.changed == 'true' }}
       images: ${{ steps.plan.outputs.images }}
 
     steps:
@@ -230,37 +230,34 @@ jobs:
           nix config show trusted-public-keys
 
       - name: Update flake and generated files
+        id: update
         shell: bash
         run: |
           set -euo pipefail
 
           nix flake update --accept-flake-config
 
-          # Keep generated build-image workflows in sync after nixpkgs/toolchain bumps.
-          nix run --accept-flake-config .#generate-workflows
+          git add flake.lock
 
-          # Keep generated README/docs snippets in sync when image tags move.
-          nix run --accept-flake-config .#generate-docs
+          if git diff --cached --quiet --exit-code; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No flake update changes; nothing to validate or merge."
+            exit 0
+          fi
 
-          # Stage before checks and patch creation so the patch is the exact tested state.
-          git add -A
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Nix flake check
+        if: steps.update.outputs.changed == 'true'
         run: |
           nix flake check --accept-flake-config
 
       - name: Plan PR and validation
         id: plan
+        if: steps.update.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
-
-          if git diff --cached --quiet --exit-code; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo 'images=["__no_changes__"]' >> "$GITHUB_OUTPUT"
-            echo "No flake update changes; nothing to validate or merge."
-            exit 0
-          fi
 
           images="$(
             nix eval --accept-flake-config --json .#lib.x86_64-linux.imageNames \
@@ -332,7 +329,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download update patch
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: flake-update-patch
           path: .ci/flake-update

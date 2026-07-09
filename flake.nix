@@ -88,9 +88,6 @@
           modules = target.modules ++ [ inheritedNixConfigModule ];
         }
       ) targets.imageTargets;
-      workflows = import ./flake/workflows.nix {
-        inherit pkgs lib targets;
-      };
       docs = import ./flake/docs.nix {
         inherit
           pkgs
@@ -107,7 +104,6 @@
           compiler
           images
           targets
-          workflows
           ;
       };
       e2ePackages = import ./flake/e2e.nix {
@@ -293,17 +289,11 @@
         // runtimePublicPackages
         // {
           default = images."nix".reports;
-          generate-workflows = workflows.generateWorkflows;
           generate-docs = docs.generateDocs;
         };
 
       apps.${system} = imageLoadApps // {
         default = imageLoadApps."load-nix";
-        generate-workflows = {
-          type = "app";
-          program = "${workflows.generateWorkflows}/bin/generate-workflows";
-          meta.description = "Regenerate checked-in image build workflows";
-        };
         generate-docs = {
           type = "app";
           program = "${docs.generateDocs}/bin/generate-docs";
@@ -316,9 +306,7 @@
         };
       };
 
-      checks.${system} = flakeChecks // {
-        generated-workflows = workflows.generatedWorkflowsCheck;
-      };
+      checks.${system} = flakeChecks;
 
       lib.${system} = {
         imageNames = targets.imageNames;

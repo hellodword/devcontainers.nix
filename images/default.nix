@@ -219,7 +219,6 @@ let
       tags = [ "web" ];
       module = ./go-web.nix;
       docs.useWhen = "Use for Go services that also need web and data tools.";
-      ci.e2eSessions = [ "wayland-sway" ];
       checks.required = true;
       extraModules = goLatestRuntimeModules;
     })
@@ -282,7 +281,6 @@ let
       tags = [ "web" ];
       module = ./rust-web.nix;
       docs.useWhen = "Use for Rust services that also need web and data tools.";
-      ci.e2eSessions = [ "wayland-sway" ];
       checks.required = true;
       extraModules = rustLatestRuntimeModules;
     })

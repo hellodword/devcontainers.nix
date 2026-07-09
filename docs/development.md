@@ -19,7 +19,7 @@ The fast local loop is:
 nix flake check
 ```
 
-This runs contract checks, report CLI checks, selected image artifact checks, focused runtime helper suites, and generated workflow synchronization.
+This runs contract checks, report CLI checks, selected image artifact checks, and focused runtime helper suites.
 
 ## Repository Map
 
@@ -59,9 +59,9 @@ Keep source-of-truth metadata near the owner:
   focused Nix contract. Use Python for JSON, filesystem, image, process, Docker,
   and GUI boundaries.
 
-`flake/docs.nix`, `flake/workflows.nix`, and check modules consume these
-registries. Do not add parallel image, report, helper, or session lists there
-unless the new list is an explicit policy guard.
+`flake/docs.nix` and check modules consume these registries. Do not add
+parallel image, report, helper, or session lists there unless the new list is an
+explicit policy guard.
 
 ## Build And Inspect
 
@@ -324,14 +324,13 @@ shell initialization changed.
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
 3. Add the image target in `images/default.nix` with target name, family, tags, module, `docs.useWhen`, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
-4. Set target metadata for policy that belongs to the image: `ci.e2eSessions` for workflow GUI E2E coverage and `checks` for required public targets, required report profiles/commands, or rootfs path requirements.
+4. Set target metadata for policy that belongs to the image: `checks` for required public targets, required report profiles/commands, or rootfs path requirements.
 5. Run `nix run .#generate-docs` when targets, families, tags, generated docs text, or published image references changed.
-6. Run `nix run .#generate-workflows` when image targets, target names, `ci.e2eSessions`, or workflow templates changed.
-7. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
-8. Run `nix flake check`, including the generated workflow synchronization check.
-9. Build the image reports and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `metadata-label.json`.
-10. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
-11. Update [Usage](usage.md) if the published image contract changed.
+6. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
+7. Run `nix flake check`.
+8. Build the image reports and inspect `profile-report.json`, `graph.json`, `layer-plan.json`, and `metadata-label.json`.
+9. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
+10. Update [Usage](usage.md) if the published image contract changed.
 
 Use target names for local build outputs and smoke plans, for example `go`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
 
@@ -392,10 +391,9 @@ Use a runtime module when multiple language stacks need a base runtime. Use a la
 6. Add a `tests.cases` entry next to the profile or owner module when the module exposes user-visible behavior that should run in a real container.
 7. Add image target wiring in `images/default.nix` if the language has version-specific tags.
 8. Run `nix run .#generate-docs` if image targets, families, tags, generated target docs, or published image references changed.
-9. Run `nix run .#generate-workflows` if image targets, target names, target `ci.e2eSessions`, or workflow templates changed.
-10. Update owner-local facts or compiler contracts when profile ownership, layer buckets, extension metadata, companion tools, PATH/env behavior, lifecycle tasks, or smoke case identity changes.
-11. Run `nix flake check`; load an affected image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
-12. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed.
+9. Update owner-local facts or compiler contracts when profile ownership, layer buckets, extension metadata, companion tools, PATH/env behavior, lifecycle tasks, or smoke case identity changes.
+10. Run `nix flake check`; load an affected image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
+11. Update [Usage](usage.md) with user-facing `devcontainer.json` examples when behavior changed.
 
 Layer bucket names should be semantic names such as `python-language` or
 `vscode-extensions-python`. Choose new bucket `order` values from the semantic
@@ -518,23 +516,11 @@ Use that document when changing default font packages, fallback order, fontconfi
 
 ## GitHub Actions
 
-Image workflows are generated one file per image:
-
-```sh
-nix run .#generate-workflows
-```
-
-The generator renders `.github/workflows/_build-image.yml.j2` with minijinja and writes complete `build-image-*.yml` workflows.
-
-One workflow per image is intentional. Image builds do not use a matrix workflow because matrix jobs and GitHub Actions concurrency have an observed workflow pitfall: unfinished matrix jobs can be canceled before the image set completes. Separate workflows give each image target its own concurrency group and limit cancellation to that target.
-
-`flake/workflows.nix` also defines the generated workflow sync check:
-
-```sh
-nix build .#checks.x86_64-linux.generated-workflows
-```
-
-The checked-in generated workflows, template, and target registry should remain synchronized.
+`.github/workflows/build-images.yml` builds images with a GitHub Actions
+matrix. The workflow reads `lib.x86_64-linux.imageNames` with `nix eval` for
+build coverage and owns its GUI E2E image/session lists in workflow-global
+environment variables, so CI policy does not add workflow-specific flake outputs
+or image target metadata.
 
 The workflows do not use GitHub Actions cache. The base Nix install step configures the project Cachix cache, then a follow-up step optionally evaluates `lib.x86_64-linux.inheritedNixConfig` and merges those binary substituters and trusted keys into `/etc/nix/nix.conf` before heavy image builds start. Per-run image closures and Docker artifacts remain large and input-sensitive.
 
