@@ -26,22 +26,4 @@
       "*.scss"
     ];
   };
-
-  settings = {
-    excludes = [
-      ".direnv/*"
-      ".git/*"
-      "result"
-      "result-*"
-      "node_modules/*"
-      "vendor/*"
-      ".work"
-      "tmp"
-      "flake.lock"
-      "AGENTS.md"
-      ".agents"
-      ".vscode"
-      ".devcontainer"
-    ];
-  };
 }
