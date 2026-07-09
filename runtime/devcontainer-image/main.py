@@ -51,14 +51,47 @@ def write_json(value) -> None:
     print(json.dumps(value, indent=2, sort_keys=False))
 
 
-def user_ok(value) -> bool:
+def image_metadata_user_ok(value) -> bool:
     if not isinstance(value, dict):
         return False
     return (
         value.get("remoteUser", "vscode") == "vscode"
         and value.get("containerUser", "vscode") == "vscode"
         and value.get("updateRemoteUserUID", False) is not True
+        and not has_user_run_arg(value.get("runArgs"))
     )
+
+
+def project_user_ok(value) -> bool:
+    if not isinstance(value, dict):
+        return False
+    return (
+        "remoteUser" not in value
+        and "containerUser" not in value
+        and value.get("updateRemoteUserUID", False) is not True
+        and not has_user_run_arg(value.get("runArgs"))
+    )
+
+
+def has_user_run_arg(value) -> bool:
+    if isinstance(value, str):
+        items = [value]
+    elif isinstance(value, list):
+        items = value
+    else:
+        return False
+    for item in items:
+        if not isinstance(item, str):
+            continue
+        if item in {"--user", "-u"}:
+            return True
+        if item.startswith("--user=") or item.startswith("--user "):
+            return True
+        if item.startswith("-u=") or item.startswith("-u "):
+            return True
+        if item.startswith("-u") and len(item) > 2:
+            return True
+    return False
 
 
 def boolish(value) -> bool:
@@ -150,13 +183,13 @@ def check_devcontainer_config(metadata_file: Path) -> None:
     metadata = read_json(metadata_file)
     ok = False
     if isinstance(metadata, list):
-        ok = bool(metadata) and all(user_ok(item) for item in metadata)
+        ok = bool(metadata) and all(image_metadata_user_ok(item) for item in metadata)
     elif isinstance(metadata, dict):
-        ok = user_ok(metadata)
+        ok = project_user_ok(metadata)
     if not ok:
         fail(
             "devcontainers.nix images only support the vscode user; "
-            "remove remoteUser/containerUser/updateRemoteUserUID overrides from devcontainer.json"
+            "remove remoteUser/containerUser/runArgs user overrides and keep updateRemoteUserUID disabled"
         )
     mounts = list(metadata_mounts(metadata))
     if any(conflicts_with_protected_mount(mount) for mount in mounts):

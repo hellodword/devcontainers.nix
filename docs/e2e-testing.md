@@ -170,14 +170,22 @@ extension recommendations, and online server downloads. The server download base
 URL points at an unreachable local address so a cache miss fails loudly instead
 of silently using the network.
 
-The generated `devcontainer.json` uses the loaded image tag and sets:
+The generated `devcontainer.json` builds a local image from the loaded image tag
+and sets:
 
 ```json
 {
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   "workspaceFolder": "/workspaces/workspace",
   "updateRemoteUserUID": false
 }
 ```
+
+The generated Dockerfile runs `devcontainer-set-user-id --uid 1000 --gid 100`
+so E2E covers a derived image whose group id differs from the published image
+default.
 
 It also sets a `postAttachCommand` that creates an
 `E2E-READY-MARKER.txt` file in the workspace. The file name is base64-decoded at
@@ -313,8 +321,9 @@ The final verification script runs inside the container and checks the image and
 VS Code integration contract:
 
 - `id -un` is `vscode`.
+- `id -g` is `100`.
 - `HOME` is `/home/vscode`.
-- `XDG_RUNTIME_DIR` is `/run/user/1000`.
+- `XDG_RUNTIME_DIR` is `/run/user/$(id -u)`.
 - `/workspaces/workspace` exists.
 - `/usr/share/devcontainer/tasks.json` exists.
 - `/usr/share/devcontainer/vscode/extensions-index.json` exists.
@@ -325,7 +334,7 @@ VS Code integration contract:
 - The post-attach marker exists.
 - The VS Code terminal probe files exist and contain the expected values.
 - The `gui-env-refresh` task log reports the expected backend.
-- `/run/user/1000/devcontainer-gui-env.sh` contains the expected session
+- `$XDG_RUNTIME_DIR/devcontainer-gui-env.sh` contains the expected session
   exports.
 - The image's full smoke plan passes inside the container.
 
@@ -437,7 +446,7 @@ only readiness requirement.
 In Xfce, the visible environment did not always show the expected GUI forwarding
 "trace" when inspected by ad-hoc commands. The reliable evidence is the
 `gui-env-refresh` task log and the generated
-`/run/user/1000/devcontainer-gui-env.sh`, both produced during the VS Code
+`$XDG_RUNTIME_DIR/devcontainer-gui-env.sh`, both produced during the VS Code
 lifecycle.
 
 ### Command Palette Ambiguity

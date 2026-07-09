@@ -16,6 +16,9 @@ let
     ) "tests/e2e/vscode-gui.nix: timeoutScale must be an integer >= 1";
     timeoutScale;
   scaledTimeout = seconds: seconds * timeoutScaleValue;
+  expectedContainerUid = 1000;
+  expectedContainerGid = 100;
+  expectedRuntimeDir = "/run/user/${toString expectedContainerUid}";
 
   sessionNames = map (entry: entry.name) sessionEntries;
 
@@ -128,6 +131,8 @@ let
         install -d -o alice -g users -m 0755 /home/alice/workspace/.devcontainer
         install -D -o alice -g users -m 0644 /etc/devcontainers-nix-e2e/devcontainer.json \
           /home/alice/workspace/.devcontainer/devcontainer.json
+        install -D -o alice -g users -m 0644 /etc/devcontainers-nix-e2e/Dockerfile \
+          /home/alice/workspace/.devcontainer/Dockerfile
         install -D -o alice -g users -m 0644 /etc/devcontainers-nix-e2e/settings.json \
           /home/alice/.config/Code/User/settings.json
         install -d -o alice -g users -m 0755 \
@@ -364,12 +369,20 @@ let
       devcontainerJson = pkgs.writeText "devcontainer-${imageName}-${session}.json" (
         builtins.toJSON {
           name = "devcontainers-nix-e2e-${imageName}";
-          image = imageRef;
+          build.dockerfile = "Dockerfile";
           workspaceFolder = "/workspaces/workspace";
           updateRemoteUserUID = false;
           postAttachCommand = "sh -lc 'n=$(printf %s ${postAttachMarkerEncoded} | base64 -d); : > \"/workspaces/workspace/$n\"; printf %s \"/workspaces/workspace/$n\" > /tmp/e2e-postattach-marker-path'";
         }
       );
+      devcontainerDockerfile = pkgs.writeText "Dockerfile-${imageName}-${session}" ''
+        FROM ${imageRef}
+
+        USER root
+        RUN /usr/bin/devcontainer-set-user-id --uid ${toString expectedContainerUid} --gid ${toString expectedContainerGid}
+        ENV XDG_RUNTIME_DIR=${expectedRuntimeDir}
+        USER vscode
+      '';
       vscodeSettings = pkgs.writeText "vscode-settings-${imageName}-${session}.json" (
         builtins.toJSON {
           "dev.containers.cacheVolume" = false;
@@ -441,8 +454,11 @@ let
                 }
 
                 require test "$(id -un)" = "vscode"
+                require test "$(id -u)" = ${toString expectedContainerUid}
+                require test "$(id -gn)" = "vscode"
+                require test "$(id -g)" = ${toString expectedContainerGid}
                 require test "$HOME" = "/home/vscode"
-                require test "''${XDG_RUNTIME_DIR:-}" = "/run/user/1000"
+                require test "''${XDG_RUNTIME_DIR:-}" = ${lib.escapeShellArg expectedRuntimeDir}
                 require test -d /workspaces/workspace
                 require test -f "$post_attach_marker"
                 require test -f "$terminal_probe_path"
@@ -473,10 +489,11 @@ let
                 cp "$gui_env_log" "$gui_env_status"
                 cat "$gui_env_status"
                 require grep -Fx "backend=$expected_backend" /tmp/e2e-gui-env-status.txt
-                require test -f /run/user/1000/devcontainer-gui-env.sh
+                gui_env_file="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/devcontainer-gui-env.sh"
+                require test -f "$gui_env_file"
                 # The postStart task writes this shell fragment with VS Code's remote env.
                 # shellcheck disable=SC1091
-                . /run/user/1000/devcontainer-gui-env.sh
+                . "$gui_env_file"
 
                 case "$expected_backend" in
                   x11)
@@ -484,18 +501,18 @@ let
                       echo "gui-env-refresh log must contain DISPLAY or REMOTE_CONTAINERS_DISPLAY for X11 sessions" >&2
                       exit 1
                     fi
-                    require grep -E "XDG_SESSION_TYPE=.*x11" /run/user/1000/devcontainer-gui-env.sh
+                    require grep -E "XDG_SESSION_TYPE=.*x11" "$gui_env_file"
                     ;;
                   wayland)
                     require test -n "''${WAYLAND_DISPLAY:-}"
                     case "$WAYLAND_DISPLAY" in
                       /*) wayland_socket="$WAYLAND_DISPLAY" ;;
-                      *) wayland_socket="''${XDG_RUNTIME_DIR:-/run/user/1000}/$WAYLAND_DISPLAY" ;;
+                      *) wayland_socket="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$WAYLAND_DISPLAY" ;;
                     esac
                     require test -S "$wayland_socket"
                     require grep -Fx "wayland_socket_valid=1" /tmp/e2e-gui-env-status.txt
-                    require grep -E "XDG_SESSION_TYPE=.*wayland" /run/user/1000/devcontainer-gui-env.sh
-                    require grep -E "NIXOS_OZONE_WL=.*1" /run/user/1000/devcontainer-gui-env.sh
+                    require grep -E "XDG_SESSION_TYPE=.*wayland" "$gui_env_file"
+                    require grep -E "NIXOS_OZONE_WL=.*1" "$gui_env_file"
                     ;;
                   *)
                     echo "unsupported expected backend: $expected_backend" >&2
@@ -560,6 +577,7 @@ let
 
           environment.etc = {
             "devcontainers-nix-e2e/devcontainer.json".source = devcontainerJson;
+            "devcontainers-nix-e2e/Dockerfile".source = devcontainerDockerfile;
             "devcontainers-nix-e2e/settings.json".source = vscodeSettings;
           };
         };
@@ -828,6 +846,7 @@ let
                     timeout=scaled_timeout(30),
                 )
             machine.execute("cp -f /home/alice/workspace/.devcontainer/devcontainer.json /tmp/e2e-artifacts/devcontainer.json 2>/dev/null || true", timeout=scaled_timeout(30))
+            machine.execute("cp -f /home/alice/workspace/.devcontainer/Dockerfile /tmp/e2e-artifacts/Dockerfile 2>/dev/null || true", timeout=scaled_timeout(30))
             machine.execute("cp -f /tmp/e2e-vscode-window-titles.txt /tmp/e2e-artifacts/vscode-window-titles.txt 2>/dev/null || true", timeout=scaled_timeout(30))
             machine.execute("cp -f /tmp/e2e-vscode-window-wait.log /tmp/e2e-artifacts/vscode-window-wait.log 2>/dev/null || true", timeout=scaled_timeout(30))
             machine.execute("cp -f /tmp/e2e-vscode-gui-ready.log /tmp/e2e-artifacts/vscode-gui-ready.log 2>/dev/null || true", timeout=scaled_timeout(30))

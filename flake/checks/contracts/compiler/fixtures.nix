@@ -537,6 +537,28 @@ let
         }).profileReport
         null
     )).success;
+  metadataRunArgsUserRejected =
+    !(builtins.tryEval (
+      builtins.deepSeq
+        (compiler.mkImage {
+          modules = [
+            (
+              { ... }:
+              {
+                config = {
+                  devcontainer.image.name = "metadata-runargs-user";
+                  devcontainer.metadata.snippets = [
+                    {
+                      runArgs = [ "-u1000:100" ];
+                    }
+                  ];
+                };
+              }
+            )
+          ];
+        }).metadata.label
+        null
+    )).success;
   profileIncludeEvalImage = compiler.mkImage {
     modules = [
       (
@@ -919,6 +941,7 @@ in
     invalidKnownHostsRejected
     unsupportedSudoRejected
     missingCompanionToolRejected
+    metadataRunArgsUserRejected
     profileIncludeEvalImage
     profileIncludeIds
     profileIncludeLeafA

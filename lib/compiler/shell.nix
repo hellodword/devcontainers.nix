@@ -135,11 +135,12 @@ let
   interactiveShellInitText = lib.optionalString (compiledEnvironment.interactiveShellInit != "") ''
     ${compiledEnvironment.interactiveShellInit}
   '';
-  guiEnvFile = "/run/user/${toString config.devcontainer.user.uid}/devcontainer-gui-env.sh";
   guiEnvSourceText = lib.optionalString config.devcontainer.gui.forwarding.enable ''
-    if [ -r ${lib.escapeShellArg guiEnvFile} ]; then
-      . ${lib.escapeShellArg guiEnvFile}
+    __devcontainer_gui_env_file="''${DEVCONTAINER_GUI_ENV_FILE:-''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/devcontainer-gui-env.sh}"
+    if [ -r "$__devcontainer_gui_env_file" ]; then
+      . "$__devcontainer_gui_env_file"
     fi
+    unset __devcontainer_gui_env_file
   '';
 
   promptText = lib.optionalString (cfg.enable && cfg.prompt.enable) ''

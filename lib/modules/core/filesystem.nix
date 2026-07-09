@@ -130,9 +130,7 @@ in
             command = ''
               set -e
               test "$(id -un)" = vscode
-              test "$(id -u)" = 1000
               test "$(id -gn)" = vscode
-              test "$(id -g)" = 1000
               test "$HOME" = /home/vscode
             '';
           }
@@ -154,7 +152,7 @@ in
               test -w /tmp
               test -w /var/tmp
               test -w /workspaces
-              test "$XDG_RUNTIME_DIR" = /run/user/1000
+              test "$XDG_RUNTIME_DIR" = "/run/user/$(id -u)"
               test -d "$XDG_RUNTIME_DIR"
             '';
           }

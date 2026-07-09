@@ -19,6 +19,7 @@ let
     apiEvalImage
     invalidKnownHostsRejected
     missingCompanionToolRejected
+    metadataRunArgsUserRejected
     unsupportedSudoRejected
     ;
   securityReport = apiEvalImage.security.report;
@@ -55,6 +56,7 @@ in
     assert invalidKnownHostsRejected;
     assert unsupportedSudoRejected;
     assert missingCompanionToolRejected;
+    assert metadataRunArgsUserRejected;
     pkgs.writeText "contracts-compiler-metadata.json" (
       builtins.toJSON apiEvalImage.metadata.schemaReport
     );

@@ -111,7 +111,7 @@ def main() -> int:
         project_devcontainer = tmpdir / "project-devcontainer.json"
         write_json(
             project_devcontainer,
-            {"name": "fixture", "remoteUser": "vscode", "containerUser": "vscode", "updateRemoteUserUID": False},
+            {"name": "fixture", "updateRemoteUserUID": False},
         )
         run_tool(tool, ["check", str(project_devcontainer)])
 
@@ -131,6 +131,23 @@ def main() -> int:
         if bad_label_result.returncode == 0 or "must protect .devcontainer" not in bad_label_result.stderr:
             fail("expected check to reject image metadata without protected mount")
 
+        bad_label_run_args = tmpdir / "bad-label-run-args.json"
+        write_json(
+            bad_label_run_args,
+            [
+                {
+                    "remoteUser": "vscode",
+                    "containerUser": "vscode",
+                    "updateRemoteUserUID": False,
+                    "mounts": [protected_mount],
+                    "runArgs": ["-u1000:100"],
+                }
+            ],
+        )
+        bad_label_run_args_result = run_tool(tool, ["check", str(bad_label_run_args)], check=False)
+        if bad_label_run_args_result.returncode == 0 or "only support the vscode user" not in bad_label_run_args_result.stderr:
+            fail("expected check to reject image metadata runArgs user override")
+
         bad_mount = tmpdir / "bad-mount-devcontainer.json"
         write_json(
             bad_mount,
@@ -144,16 +161,40 @@ def main() -> int:
             fail("expected check to reject writable protected mount override")
 
         bad_user = tmpdir / "bad-user-devcontainer.json"
-        write_json(bad_user, {"name": "fixture", "remoteUser": "root"})
+        write_json(bad_user, {"name": "fixture", "remoteUser": "vscode"})
         bad_user_result = run_tool(tool, ["check", str(bad_user)], check=False)
         if bad_user_result.returncode == 0 or "only support the vscode user" not in bad_user_result.stderr:
             fail("expected check to reject remoteUser override")
+
+        bad_container_user = tmpdir / "bad-container-user-devcontainer.json"
+        write_json(bad_container_user, {"name": "fixture", "containerUser": "vscode"})
+        bad_container_user_result = run_tool(tool, ["check", str(bad_container_user)], check=False)
+        if bad_container_user_result.returncode == 0 or "only support the vscode user" not in bad_container_user_result.stderr:
+            fail("expected check to reject containerUser override")
 
         bad_uid = tmpdir / "bad-uid-devcontainer.json"
         write_json(bad_uid, {"name": "fixture", "updateRemoteUserUID": True})
         bad_uid_result = run_tool(tool, ["check", str(bad_uid)], check=False)
         if bad_uid_result.returncode == 0 or "only support the vscode user" not in bad_uid_result.stderr:
             fail("expected check to reject updateRemoteUserUID")
+
+        bad_run_args = tmpdir / "bad-run-args-devcontainer.json"
+        write_json(bad_run_args, {"name": "fixture", "runArgs": ["--user", "1000:100"]})
+        bad_run_args_result = run_tool(tool, ["check", str(bad_run_args)], check=False)
+        if bad_run_args_result.returncode == 0 or "only support the vscode user" not in bad_run_args_result.stderr:
+            fail("expected check to reject runArgs --user")
+
+        bad_run_args_equals = tmpdir / "bad-run-args-equals-devcontainer.json"
+        write_json(bad_run_args_equals, {"name": "fixture", "runArgs": ["--user=1000:100"]})
+        bad_run_args_equals_result = run_tool(tool, ["check", str(bad_run_args_equals)], check=False)
+        if bad_run_args_equals_result.returncode == 0 or "only support the vscode user" not in bad_run_args_equals_result.stderr:
+            fail("expected check to reject runArgs --user=<uid>:<gid>")
+
+        bad_run_args_short = tmpdir / "bad-run-args-short-devcontainer.json"
+        write_json(bad_run_args_short, {"name": "fixture", "runArgs": ["-u1000:100"]})
+        bad_run_args_short_result = run_tool(tool, ["check", str(bad_run_args_short)], check=False)
+        if bad_run_args_short_result.returncode == 0 or "only support the vscode user" not in bad_run_args_short_result.stderr:
+            fail("expected check to reject runArgs -u<uid>:<gid>")
 
         diff_same = run_json(
             tool,

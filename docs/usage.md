@@ -21,7 +21,7 @@ language or tool stack.
 
 ## Runtime Defaults
 
-All images run as the fixed `vscode` user with uid/gid `1000`.
+Published images run as the fixed `vscode` user with uid/gid `1000:1000`.
 
 Do not set these fields in project `devcontainer.json`:
 
@@ -29,14 +29,44 @@ Do not set these fields in project `devcontainer.json`:
 {
   "remoteUser": "root",
   "containerUser": "root",
-  "updateRemoteUserUID": true
+  "updateRemoteUserUID": true,
+  "runArgs": ["--user", "1000:100"]
 }
 ```
 
 The image metadata already sets `remoteUser`, `containerUser`, and
 `updateRemoteUserUID` to the supported values. The image entrypoint refuses to
-start as a different user, and `devcontainer-image check` reports these
-overrides as invalid.
+start as a different user, and `devcontainer-image check` reports user-name and
+Docker user overrides as invalid.
+
+When a project needs the container UID/GID to match the host user, derive a
+small project-local image at build time. Keep the account names fixed and only
+change the numeric ids.
+
+Example `.devcontainer/devcontainer.json`:
+
+```json
+{
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "updateRemoteUserUID": false
+}
+```
+
+Example `.devcontainer/Dockerfile`:
+
+```dockerfile
+FROM ghcr.io/hellodword/devcontainers-go:latest
+
+USER root
+RUN /usr/bin/devcontainer-set-user-id --uid 1000 --gid 100
+ENV XDG_RUNTIME_DIR=/run/user/1000
+USER vscode
+```
+
+Replace `1000` and `100` with the host values from `id -u` and `id -g`, then
+rebuild the devcontainer. Do not pass usernames or group names.
 
 The image metadata also mounts the project `.devcontainer` directory back onto
 `/workspaces/${localWorkspaceFolderBasename}/.devcontainer` as a read-only bind

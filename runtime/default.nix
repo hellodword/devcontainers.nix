@@ -114,6 +114,9 @@ let
     "vscode-extension-projector" =
       writePythonApp "vscode-extension-projector" [ ]
         ./vscode-extension-projector/main.py;
+    "devcontainer-set-user-id" =
+      writePythonApp "devcontainer-set-user-id" [ ]
+        ./devcontainer-set-user-id/main.py;
     devpkg = pkgs.symlinkJoin {
       name = "devpkg";
       paths = [
@@ -154,6 +157,14 @@ let
       checkScript = ../tests/ci/check-vscode-extension-projector.py;
       checkEnvName = "DEVCONTAINER_PROJECTOR";
       securityCapabilities.redactsProjectionLogs = true;
+    };
+    "devcontainer-set-user-id" = {
+      order = 45;
+      publicPackage = true;
+      installInImage = true;
+      checkName = "set-user-id";
+      checkScript = ../tests/ci/check-set-user-id.py;
+      checkEnvName = "DEVCONTAINER_SET_USER_ID";
     };
     devpkg = {
       order = 50;

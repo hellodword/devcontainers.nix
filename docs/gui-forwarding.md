@@ -18,7 +18,7 @@ but it is still metadata, not a runtime socket probe.
 
 These images instead use `devcontainer-gui-env` at runtime:
 
-- the entrypoint refreshes `/run/user/1000/devcontainer-gui-env.sh`
+- the entrypoint refreshes `$XDG_RUNTIME_DIR/devcontainer-gui-env.sh`
 - `/etc/profile` and interactive `/etc/bashrc` source that file
 - metadata sets `userEnvProbe` to `loginInteractiveShell`
 - a `postStart` lifecycle task refreshes the file again after VS Code has had a
@@ -62,7 +62,7 @@ elsewhere, it exports the absolute socket path.
 ## Startup Ordering Pitfall
 
 VS Code may create the Wayland forwarding socket, or a symlink such as
-`/run/user/1000/... -> /tmp/...`, before it injects `WAYLAND_DISPLAY` into the
+`/run/user/<uid>/... -> /tmp/...`, before it injects `WAYLAND_DISPLAY` into the
 container process environment. In that startup window, `DISPLAY` can already be
 present while `WAYLAND_DISPLAY` is still empty.
 
@@ -156,7 +156,7 @@ Refresh and inspect the generated file:
 devcontainer-gui-env refresh
 devcontainer-gui-env status
 devcontainer-gui-env print
-cat /run/user/1000/devcontainer-gui-env.sh
+cat "$XDG_RUNTIME_DIR/devcontainer-gui-env.sh"
 ```
 
 Force X11 for a session:

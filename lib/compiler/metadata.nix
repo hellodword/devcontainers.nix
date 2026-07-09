@@ -54,7 +54,12 @@ let
     WORKSPACE = workspaceMetadataValue;
   };
   containerEnv =
-    (lib.mapAttrs (_: workspaceValueForMetadata) (removeAttrs compiledEnv.containerEnv [ "PATH" ]))
+    (lib.mapAttrs (_: workspaceValueForMetadata) (
+      removeAttrs compiledEnv.containerEnv [
+        "PATH"
+        "XDG_RUNTIME_DIR"
+      ]
+    ))
     // (lib.mapAttrs (_: workspaceValueForMetadata) (compiledEnv.lateBoundContainerEnv or { }))
     // workspaceMetadataEnv;
   remoteEnv = lib.mapAttrs (_: workspaceValueForMetadata) compiledEnv.remoteEnv;
@@ -73,15 +78,36 @@ let
   // vscodeCustomization;
 
   snippets = config.devcontainer.metadata.snippets ++ [ computedSnippet ];
+  runArgItems =
+    value:
+    if builtins.isString value then
+      [ value ]
+    else if builtins.isList value then
+      builtins.filter builtins.isString value
+    else
+      [ ];
+  hasUserRunArg =
+    value:
+    builtins.any (
+      item:
+      item == "--user"
+      || item == "-u"
+      || lib.hasPrefix "--user=" item
+      || lib.hasPrefix "--user " item
+      || lib.hasPrefix "-u=" item
+      || lib.hasPrefix "-u " item
+      || (lib.hasPrefix "-u" item && builtins.stringLength item > 2)
+    ) (runArgItems value);
   invalidUserSnippet = lib.findFirst (
     snippet:
     (snippet ? remoteUser && snippet.remoteUser != "vscode")
     || (snippet ? containerUser && snippet.containerUser != "vscode")
     || (snippet ? updateRemoteUserUID && snippet.updateRemoteUserUID == true)
+    || hasUserRunArg (snippet.runArgs or null)
   ) null config.devcontainer.metadata.snippets;
   validatedSnippets =
     if invalidUserSnippet != null then
-      builtins.throw "devcontainer metadata may not override the user. Remove remoteUser/containerUser/updateRemoteUserUID or keep remoteUser/containerUser as vscode and updateRemoteUserUID as false."
+      builtins.throw "devcontainer metadata may not override the user. Remove remoteUser/containerUser/runArgs user overrides and keep updateRemoteUserUID disabled."
     else
       snippets;
   mergedPreview = lib.foldl' lib.recursiveUpdate { } validatedSnippets;

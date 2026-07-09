@@ -26,6 +26,7 @@ let
         containerUser = (preview.containerUser or null) == "vscode";
         updateRemoteUserUid = (preview.updateRemoteUserUID or null) == false;
         noPathInContainerEnv = !(builtins.hasAttr "PATH" previewEnv);
+        noRuntimeDirInContainerEnv = !(builtins.hasAttr "XDG_RUNTIME_DIR" previewEnv);
         editorMatchesEnv = (previewEnv.EDITOR or null) == (image.env.containerEnv.EDITOR or null);
         nixLdMatchesEnv = (previewEnv.NIX_LD or null) == (image.env.containerEnv.NIX_LD or null);
       };

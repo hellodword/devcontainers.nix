@@ -265,19 +265,19 @@ the report compiler rather than in a separate checker list.
 All images share a single-user runtime contract:
 
 - `User = "vscode"`
-- uid/gid `1000`
+- default uid/gid `1000:1000`
 - `HOME=/home/vscode`
 - working directory `/workspaces`
 - default command `sleep infinity`
 - entrypoint `/usr/bin/devcontainer-entrypoint`
 
-Generated filesystem content includes `/etc/passwd`, `/etc/group`, `/etc/os-release`, `/etc/xdg`, `/home/vscode`, `/tmp`, `/var/{cache,lib,log,tmp}`, `/run/user/1000`, and `/workspaces`. `/run/user/1000` is the fixed `XDG_RUNTIME_DIR`; it is owned by `vscode:vscode` and has mode `0700`. `/var/run` is a compatibility symlink to `/run`.
+Generated filesystem content includes `/etc/passwd`, `/etc/group`, `/etc/os-release`, `/etc/xdg`, `/home/vscode`, `/tmp`, `/var/{cache,lib,log,tmp}`, `/run/user/1000`, and `/workspaces`. `/run/user/1000` is the default `XDG_RUNTIME_DIR`; it is owned by `vscode:vscode` and has mode `0700`. `/var/run` is a compatibility symlink to `/run`.
 
 The image root follows a usr-merge layout. Nix package outputs are still collected from their native `/bin`, `/lib`, `/share`, and related output directories, then the generated root trees are normalized so the primary runtime locations are `/usr/bin`, `/usr/lib`, `/usr/lib64`, `/usr/libexec`, `/usr/include`, and `/usr/share`. Compatibility links keep `/bin`, `/sbin`, `/lib`, `/lib64`, `/libexec`, `/include`, and `/share` available. `/usr/local/{bin,etc,include,lib,lib64,sbin,share,src}` exists for local administrator or user overlays; image-provided Nix tools are not installed there. Package `/sbin` outputs are not linked into the image by default, so Nix glibc's `ldconfig` is not exposed as `/sbin/ldconfig`; VS Code's requirement check falls back to the explicit `/usr/lib/libc.so.6` and `/usr/lib/libstdc++.so.6` compatibility links instead of reading a missing Nix store `ld.so.cache`.
 
-Project `devcontainer.json` files should not set `remoteUser`, `containerUser`, or `updateRemoteUserUID`. The image metadata already sets the supported values. The image entrypoint refuses to start as another user, and `devcontainer-image check` reports those overrides as errors.
+Project `devcontainer.json` files should not set `remoteUser`, `containerUser`, `runArgs --user`, or `updateRemoteUserUID=true`. The image metadata already sets the supported values. The image entrypoint refuses to start as another user, and `devcontainer-image check` reports those overrides as errors.
 
-This fixed-user design reduces the number of supported runtime states. It also keeps generated files, Nix profiles, VS Code extension projection, and helper scripts aligned on one home directory and one uid/gid pair.
+Projects that need host UID/GID alignment use a project-local Dockerfile and the image-provided `devcontainer-set-user-id --uid <uid> --gid <gid>` helper. The helper only rewrites the fixed `vscode:vscode` account, updates `/home/vscode`, `/run/user/<uid>`, and the writable Nix state paths, and does not accept username or group-name input. This keeps generated files, Nix profiles, VS Code extension projection, and helper scripts aligned on one home directory and fixed account names.
 
 ## Environment Model
 
@@ -378,7 +378,7 @@ The default locale contract is:
 
 Generated shell files are `/etc/profile`, `/etc/bashrc`, and `/etc/bash.bashrc`. Interactive Bash gets aliases, a lightweight prompt, history settings, bash completion, and a command-not-found handler. The handler only queries the local nix-index database after an unknown command is entered and returns 127. It does not install software, call the network, execute project commands, or perform nix-index work during shell startup.
 
-XDG defaults are explicit and absolute in the container environment: `XDG_CONFIG_HOME=/home/vscode/.config`, `XDG_CACHE_HOME=/home/vscode/.cache`, `XDG_DATA_HOME=/home/vscode/.local/share`, `XDG_STATE_HOME=/home/vscode/.local/state`, `XDG_RUNTIME_DIR=/run/user/1000`, `XDG_CONFIG_DIRS=/etc/xdg`, and `XDG_DATA_DIRS=/usr/local/share:/usr/share`. `PATH` prefers project and user tools, then `/usr/local/bin:/usr/bin`; it does not include `/bin` because `/bin` is only the usr-merge compatibility symlink.
+XDG defaults are explicit and absolute in the container environment: `XDG_CONFIG_HOME=/home/vscode/.config`, `XDG_CACHE_HOME=/home/vscode/.cache`, `XDG_DATA_HOME=/home/vscode/.local/share`, `XDG_STATE_HOME=/home/vscode/.local/state`, `XDG_RUNTIME_DIR=/run/user/1000`, `XDG_CONFIG_DIRS=/etc/xdg`, and `XDG_DATA_DIRS=/usr/local/share:/usr/share`. Derived images that change UID should also set `XDG_RUNTIME_DIR=/run/user/<uid>` in their Dockerfile. `PATH` prefers project and user tools, then `/usr/local/bin:/usr/bin`; it does not include `/bin` because `/bin` is only the usr-merge compatibility symlink.
 
 All images include fontconfig and Noto Latin, CJK, symbol, and emoji coverage. Fontconfig defaults prefer Simplified Chinese CJK families for generic sans, serif, and monospace aliases. See [Fonts And Fontconfig](fonts-fontconfig.md) for the detailed font design.
 
@@ -395,7 +395,7 @@ VS Code extension artifacts are split by use. The default image includes only un
 
 `extensions-index.json` is the projector input and contains projection targets plus extension `id`, `path`, projection strategy, and whether the source is `required`. Required extension sources fail projection when missing; optional sources warn and are skipped. `extensions-report.json` is the audit surface and records source locks, artifact modes, projection/archive paths, required state, and validation metadata.
 
-VS Code keeps two deliberate home-directory exceptions because the Remote Server looks there. Preinstalled extensions are projected into `/home/vscode/.vscode-server/extensions`, `/home/vscode/.vscode-server-insiders/extensions`, and `/home/vscode/.vscode-remote/extensions`. The same server roots also contain root-owned, read-only `data/Machine/settings.json` files generated from the compiled VS Code settings. These settings files are preformatted in the image so VS Code does not try to rewrite them during startup, which would fail because the files are intentionally read-only. Their server root, `data`, and `data/Machine` directories stay sticky-writable so VS Code can create its normal runtime content, while `settings.json` is not writable by the `vscode` user. Other shared image data lives under `/usr/share/devcontainer`. VS Code Remote Server logs show temporary socket handling as `VSC_TMP="${XDG_RUNTIME_DIR:-/tmp}"`; with `XDG_RUNTIME_DIR=/run/user/1000`, VS Code IPC sockets can use `/run/user/1000/vscode-ipc-*.sock` and only fall back to `/tmp` when the runtime directory is unset.
+VS Code keeps two deliberate home-directory exceptions because the Remote Server looks there. Preinstalled extensions are projected into `/home/vscode/.vscode-server/extensions`, `/home/vscode/.vscode-server-insiders/extensions`, and `/home/vscode/.vscode-remote/extensions`. The same server roots also contain root-owned, read-only `data/Machine/settings.json` files generated from the compiled VS Code settings. These settings files are preformatted in the image so VS Code does not try to rewrite them during startup, which would fail because the files are intentionally read-only. Their server root, `data`, and `data/Machine` directories stay sticky-writable so VS Code can create its normal runtime content, while `settings.json` is not writable by the `vscode` user. Other shared image data lives under `/usr/share/devcontainer`. VS Code Remote Server logs show temporary socket handling as `VSC_TMP="${XDG_RUNTIME_DIR:-/tmp}"`; with `XDG_RUNTIME_DIR=/run/user/<uid>`, VS Code IPC sockets can use `/run/user/<uid>/vscode-ipc-*.sock` and only fall back to `/tmp` when the runtime directory is unset.
 
 VS Code settings that need absolute tool paths point at the usr-merged locations: language servers and command tools use `/usr/bin`, TypeScript uses `/usr/lib/node_modules/typescript/lib`, and Go uses `/usr/share/go`. `/usr/local` is left for local overrides.
 
