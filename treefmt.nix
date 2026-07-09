@@ -7,21 +7,27 @@
   programs.prettier = {
     enable = true;
     includes = [
+      "*.json"
+      "*.jsonc"
       "*.md"
       "*.markdown"
-      "*.yaml"
-      "*.yml"
+      "*.js"
+      "*.cjs"
+      "*.mjs"
+      "*.ts"
+      "*.cts"
+      "*.mts"
+      "*.jsx"
+      "*.tsx"
+      "*.vue"
+      "*.html"
+      "*.htm"
+      "*.css"
+      "*.scss"
     ];
   };
 
   settings = {
-    formatter.prettier.options = [
-      "--config"
-      (toString ./.prettierrc.json)
-
-      "--no-editorconfig"
-    ];
-
     excludes = [
       ".direnv/*"
       ".git/*"
