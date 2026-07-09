@@ -57,6 +57,9 @@ jobs:
         shell: bash
         env:
           ROOT_SAFE_HAVEN_MB: "40000"
+          ROOT_FALLBACK_SAFE_HAVEN_MB: "12288"
+          ROOT_MIN_NIX_VOLUME_MB: "20480"
+          MNT_SAFE_HAVEN_MB: "1024"
           NIX_PERMISSION_EDICT: "false"
         run: |
           set -euo pipefail
@@ -81,7 +84,32 @@ jobs:
             exit 1
           fi
 
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          if [[ ! "$ROOT_FALLBACK_SAFE_HAVEN_MB" =~ ^[0-9]+$ ]]; then
+            echo "Root fallback safe haven value must be an integer MB value." >&2
+            exit 1
+          fi
+
+          if [[ ! "$ROOT_MIN_NIX_VOLUME_MB" =~ ^[0-9]+$ ]]; then
+            echo "Root minimum Nix volume value must be an integer MB value." >&2
+            exit 1
+          fi
+
+          if [[ ! "$MNT_SAFE_HAVEN_MB" =~ ^[0-9]+$ ]]; then
+            echo "Mnt safe haven value must be an integer MB value." >&2
+            exit 1
+          fi
+
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache \
+            /opt/az \
+            /opt/microsoft \
+            /opt/google \
+            /usr/local/.ghcup \
+            /usr/share/swift \
+            || true
           docker system prune -af || true
           df -h
 
@@ -99,8 +127,8 @@ jobs:
           diagnose_disk() {
             local label="$1"
             local target
-            local tmp_target="${TMPDIR:-/var/cache/nix}"
-            local -a disk_targets=(/ /tmp /var/cache/nix "$tmp_target" /nix /var/lib/docker)
+            local tmp_target="${TMPDIR:-/nix/tmp}"
+            local -a disk_targets=(/ /mnt /tmp /var/cache/nix "$tmp_target" /nix /nix/tmp /var/lib/docker)
 
             echo "::group::disk diagnostics: ${label}"
             date -u +"%Y-%m-%dT%H:%M:%SZ"
@@ -125,6 +153,7 @@ jobs:
             sudo losetup -a 2>/dev/null || true
 
             sudo du -xh --max-depth=1 /var/cache/nix 2>/dev/null | sort -h | tail -n 30 || true
+            sudo du -xh --max-depth=1 /mnt 2>/dev/null | sort -h | tail -n 30 || true
             sudo du -xh --max-depth=1 /var/lib/nix-storage 2>/dev/null | sort -h | tail -n 30 || true
             sudo du -xh --max-depth=1 /nix 2>/dev/null | sort -h | tail -n 30 || true
             sudo du -xh --max-depth=1 /var/lib/docker 2>/dev/null | sort -h | tail -n 30 || true
@@ -142,45 +171,97 @@ jobs:
           echo "== Initial disk state =="
           df -h
 
-          free_root="$(df -m --output=avail / | tail -n 1 | tr -d ' ')"
-          echo "Initial free space of /: ${free_root}MB"
+          initial_label="/"
+          initial_avail_path="/"
+          initial_image_dir="/var/lib/nix-storage"
+          initial_safe_haven_mb="$ROOT_SAFE_HAVEN_MB"
 
-          min_required=$((ROOT_SAFE_HAVEN_MB + 1024))
-          if (( free_root < min_required )); then
-            echo "Insufficient free space on /."
-            echo "Available: ${free_root}MB, required: at least ${min_required}MB"
-            sudo ls -lah / || true
+          if [[ -d /mnt && "$(findmnt -T /mnt -no TARGET 2>/dev/null || true)" == "/mnt" ]]; then
+            free_mnt="$(df -m --output=avail /mnt | tail -n 1 | tr -d ' ')"
+            mnt_min_required=$((MNT_SAFE_HAVEN_MB + 1024))
+            echo "Initial free space of /mnt: ${free_mnt}MB"
+
+            if (( free_mnt >= mnt_min_required )); then
+              initial_label="/mnt"
+              initial_avail_path="/mnt"
+              initial_image_dir="/mnt"
+              initial_safe_haven_mb="$MNT_SAFE_HAVEN_MB"
+            else
+              echo "Skipping /mnt initial volume: available ${free_mnt}MB, required at least ${mnt_min_required}MB"
+            fi
+          else
+            echo "No separate /mnt mount found; using / for the initial /nix volume."
+          fi
+
+          free_initial="$(df -m --output=avail "$initial_avail_path" | tail -n 1 | tr -d ' ')"
+          echo "Initial free space of ${initial_label}: ${free_initial}MB"
+
+          if [[ "$initial_label" == "/" && "$initial_safe_haven_mb" == "$ROOT_SAFE_HAVEN_MB" ]]; then
+            root_min_required=$((ROOT_SAFE_HAVEN_MB + 1024))
+            root_nix_volume_mb=$((free_initial - ROOT_SAFE_HAVEN_MB))
+            if (( free_initial < root_min_required || root_nix_volume_mb < ROOT_MIN_NIX_VOLUME_MB )); then
+              echo "Root has ${free_initial}MB free; normal reserve would leave ${root_nix_volume_mb}MB for /nix."
+              echo "Normal reserve requires ${root_min_required}MB free and at least ${ROOT_MIN_NIX_VOLUME_MB}MB for /nix."
+              echo "Using root fallback safe haven: ${ROOT_FALLBACK_SAFE_HAVEN_MB}MB"
+              initial_safe_haven_mb="$ROOT_FALLBACK_SAFE_HAVEN_MB"
+            fi
+          fi
+
+          min_required=$((initial_safe_haven_mb + 1024))
+          if (( free_initial < min_required )); then
+            echo "Insufficient free space on ${initial_label}."
+            echo "Available: ${free_initial}MB, required: at least ${min_required}MB"
+            sudo ls -lah "$initial_avail_path" || true
             exit 1
           fi
 
-          root_loop="$(sudo losetup --find)"
-          root_loop_num="${root_loop##*/loop}"
-          root_img="/var/lib/nix-storage/disk${root_loop_num}.img"
-          root_size=$((free_root - ROOT_SAFE_HAVEN_MB))
+          initial_loop="$(sudo losetup --find)"
+          initial_loop_num="${initial_loop##*/loop}"
+          initial_img="${initial_image_dir}/disk${initial_loop_num}.img"
+          initial_size=$((free_initial - initial_safe_haven_mb))
 
-          echo "Creating /nix disk image: ${root_img} (${root_size}MB)"
-          sudo fallocate -l "${root_size}M" "${root_img}"
-          sudo losetup "${root_loop}" "${root_img}"
+          echo "Creating /nix disk image: ${initial_img} (${initial_size}MB)"
+          sudo fallocate -l "${initial_size}M" "${initial_img}"
+          sudo losetup "${initial_loop}" "${initial_img}"
 
-          sudo mkfs.btrfs -L nix -d raid0 -m raid0 --nodiscard "${root_loop}"
+          sudo mkfs.btrfs -L nix -d raid0 -m raid0 --nodiscard "${initial_loop}"
           sudo btrfs device scan
 
           sudo mkdir -p /nix
-          sudo mount LABEL=nix /nix -o noatime,nobarrier,nodiscard,compress=zstd:1,space_cache=v2,commit=120
-          sudo mkdir -p /nix/build
+          sudo mount "${initial_loop}" /nix -o noatime,nobarrier,nodiscard,compress=zstd:1,space_cache=v2,commit=120
+          sudo mkdir -p /nix/build /nix/tmp
+          sudo chmod 1777 /nix/tmp
+
+          free_root="$(df -m --output=avail / | tail -n 1 | tr -d ' ')"
+          root_expand_min_required=$((ROOT_SAFE_HAVEN_MB + 2048))
+          if (( free_root > root_expand_min_required )); then
+            root_loop="$(sudo losetup --find)"
+            root_loop_num="${root_loop##*/loop}"
+            root_img="/var/lib/nix-storage/root-disk${root_loop_num}.img"
+            root_size=$((free_root - ROOT_SAFE_HAVEN_MB))
+
+            echo "Adding root expansion disk: ${root_img} (${root_size}MB)"
+            sudo fallocate -l "${root_size}M" "${root_img}"
+            sudo losetup "${root_loop}" "${root_img}"
+            sudo btrfs device add --nodiscard "${root_loop}" /nix
+            sudo btrfs balance start -dusage=50 /nix
+            echo "Disk space has been carved out" | tee "${HOME}/.expansion/carve_done"
+          else
+            echo "Skipping root expansion: / has ${free_root}MB free; need more than ${root_expand_min_required}MB."
+          fi
+
           diagnose_disk "after /nix mount"
 
           if [[ "${NIX_PERMISSION_EDICT}" == "true" ]]; then
             sudo chown -R "$(id --user)":"$(id --group)" /nix
           fi
 
-          export TMPDIR=/var/cache/nix
-          echo "TMPDIR=/var/cache/nix" >> "${GITHUB_ENV}"
+          export TMPDIR=/nix/tmp
+          echo "TMPDIR=/nix/tmp" >> "${GITHUB_ENV}"
           diagnose_disk "after tmpdir setup"
 
           echo "Initial volume created" | tee "${HOME}/.expansion/holster_done"
 
-          echo "Disk space has been carved out" | tee "${HOME}/.expansion/carve_done"
           diagnose_disk "after carving"
 
           echo "== Final disk state =="
@@ -286,6 +367,7 @@ jobs:
           sudo touch /etc/nix/nix.conf
           sudo sed -i \
             -e '/^[[:space:]]*experimental-features[[:space:]]*=/d' \
+            -e '/^[[:space:]]*build-dir[[:space:]]*=/d' \
             -e '/^[[:space:]]*max-jobs[[:space:]]*=/d' \
             -e '/^[[:space:]]*trusted-users[[:space:]]*=/d' \
             -e '/^[[:space:]]*access-tokens[[:space:]]*=/d' \
@@ -299,6 +381,7 @@ jobs:
             printf '\n'
             printf '%s\n' '# CI Nix settings'
             printf '%s\n' "experimental-features = ${nix_experimental_features}"
+            printf '%s\n' 'build-dir = /nix/build'
             printf '%s\n' "max-jobs = ${nix_max_jobs}"
             printf '%s\n' "trusted-users = ${nix_trusted_users}"
 
@@ -319,6 +402,7 @@ jobs:
 
           nix --version
           nix config show experimental-features
+          nix config show build-dir
           nix config show substituters
           nix config show trusted-public-keys
           nix config show trusted-users
