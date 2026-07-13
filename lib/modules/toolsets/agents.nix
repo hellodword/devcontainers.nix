@@ -1,10 +1,12 @@
 {
   pkgs,
+  inputs,
+  system,
   ...
 }:
 let
   codex = pkgs.agents-misc.codex;
-  opencode = pkgs.llm-agents.opencode;
+  opencode = inputs.llm-agents.packages.${system}.opencode;
 in
 {
   config.devcontainer.layers.bucketDefinitions."agent-tools" = {

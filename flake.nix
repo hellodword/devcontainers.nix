@@ -42,7 +42,6 @@
       nix-index-database,
       treefmt-nix,
       agents-misc,
-      llm-agents,
       nix2container,
       ...
     }:
@@ -68,7 +67,6 @@
         rust-overlay.overlays.default
         nix-index-database.overlays.nix-index
         agents-misc.overlays.default
-        llm-agents.overlays.default
       ]
       ++ projectOverlays;
       pkgs = import nixpkgs {
