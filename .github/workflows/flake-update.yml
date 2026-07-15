@@ -587,4 +587,4 @@ jobs:
 
           PR_URL="$(gh pr create --fill --base "${BASE_BRANCH}" --head "${BRANCH}")"
           gh pr merge "$PR_URL" --delete-branch --rebase
-          gh workflow run build-images.yml --ref "${BASE_BRANCH}"
+          gh workflow run build-images.yml --ref "${BASE_BRANCH}" -f push_image=true

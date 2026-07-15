@@ -8,7 +8,7 @@ The main target platform is `x86_64-linux`.
 
 There are four concepts to understand first:
 
-1. An image target is a named build such as `go`, `python3-web`, or `flutter`.
+1. An image target is a named build: either `dev` or `flutter`.
 2. Module evaluation produces typed configuration. Project-specific image contract remains under `devcontainer.*`, while maintainer-facing NixOS-like subsets such as `environment.*`, `i18n.*`, `time.*`, `security.pki.*`, `programs.*`, and `nix.*` describe static image content.
 3. `devcontainer.profiles` is the main maintenance surface for reusable image content. Leaf profiles describe packages, environment, VS Code metadata, lifecycle tasks, smoke cases, and library presets. Bundle profiles include other profiles.
 4. The compiler expands the enabled profile graph, turns profiles into graph nodes, then produces environment data, layers, an OCI image, smoke plans, and reports that explain what was built.
@@ -51,8 +51,8 @@ Inputs that provide packages are consumed through overlays. That means modules n
 
 `flake.nix` keeps the top-level assembly small: it pins inputs, imports the package set, creates the compiler, wires image outputs, and exposes packages, apps, checks, and library metadata.
 
-The target registry lives in `images/default.nix`; it discovers language package
-versions and defines the image target list next to the image modules it owns.
+The target registry lives in `images/default.nix`; it selects the latest language
+toolchains and defines the image target list next to the image modules it owns.
 Target records are the owner for image identity, documentation `use when` text,
 workflow E2E opt-in sessions, and image-specific check policy.
 
@@ -66,30 +66,23 @@ The larger flake internals live under `flake/`:
 
 `images/default.nix` defines image targets with:
 
-- a target name, used by local build outputs such as `images.go`
-- a family name, used in the registry image name such as `devcontainers-go`
+- a target name, used by local build outputs such as `images.dev`
+- a family name, used in the registry image name such as `devcontainers-dev`
 - tags, used in published image references
 - one image module under `images/`
 - `docs.useWhen`, the target's user-facing selection hint validated by
   contract checks
 - optional `checks`, used by required-target, report CLI, and rootfs checks
-- optional override modules for selected language versions
+- optional override modules for the selected latest language toolchains
 
 Examples:
 
 <!-- BEGIN GENERATED:image-targets -->
 
-| Target        | Registry family         | Tags             | Base module              |
-| ------------- | ----------------------- | ---------------- | ------------------------ |
-| `nix`         | `devcontainers-nix`     | `latest`         | `images/nix.nix`         |
-| `go`          | `devcontainers-go`      | `latest`, `1.26` | `images/go.nix`          |
-| `go-web`      | `devcontainers-go`      | `web`            | `images/go-web.nix`      |
-| `nodejs`      | `devcontainers-nodejs`  | `latest`, `26`   | `images/nodejs.nix`      |
-| `python3`     | `devcontainers-python3` | `latest`, `3.13` | `images/python.nix`      |
-| `python3-web` | `devcontainers-python3` | `web`            | `images/python3-web.nix` |
-| `rust`        | `devcontainers-rust`    | `latest`         | `images/rust.nix`        |
-| `rust-web`    | `devcontainers-rust`    | `web`            | `images/rust-web.nix`    |
-| `flutter`     | `devcontainers-flutter` | `latest`         | `images/flutter.nix`     |
+| Target    | Registry family         | Tags     | Base module          |
+| --------- | ----------------------- | -------- | -------------------- |
+| `dev`     | `devcontainers-dev`     | `latest` | `images/dev.nix`     |
+| `flutter` | `devcontainers-flutter` | `latest` | `images/flutter.nix` |
 
 <!-- END GENERATED:image-targets -->
 
@@ -135,7 +128,7 @@ Some maintainer-facing options intentionally reuse familiar NixOS names:
 
 This reuse is scoped to static OCI image generation. The project does not import NixOS modules or imply NixOS runtime semantics. Do not add APIs that require a service manager, daemon lifecycle, PAM, polkit, setuid wrappers, sudo, multi-user account management, or a Docker daemon inside the devcontainer.
 
-Image modules combine these building blocks. For example `images/go.nix` imports the Nix image, enables C, Python, and Node.js runtimes, then enables the Go language module. `images/go-web.nix` imports the Go image and adds data/network tools.
+Image modules combine these building blocks. `images/dev.nix` enables the shared Nix and editor base, C, Python, and Node.js runtimes, the Nix, Node.js, Go, Python, and Rust language profiles, and data/network tools. `images/flutter.nix` imports that complete dev image and adds Flutter, Android SDK, browser/GUI/GPU, and Flutter/Rust bridge profiles.
 
 ## Profiles
 

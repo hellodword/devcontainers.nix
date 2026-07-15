@@ -1,6 +1,6 @@
 { lib, ... }:
 {
-  imports = [ ./rust.nix ];
+  imports = [ ./dev.nix ];
 
   config.devcontainer = {
     image.name = lib.mkOverride 800 "flutter";

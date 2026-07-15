@@ -28,17 +28,7 @@ Published images:
 
 <!-- BEGIN GENERATED:image-refs -->
 
-- `ghcr.io/hellodword/devcontainers-nix:latest`
-- `ghcr.io/hellodword/devcontainers-go:latest`
-- `ghcr.io/hellodword/devcontainers-go:1.26`
-- `ghcr.io/hellodword/devcontainers-go:web`
-- `ghcr.io/hellodword/devcontainers-nodejs:latest`
-- `ghcr.io/hellodword/devcontainers-nodejs:26`
-- `ghcr.io/hellodword/devcontainers-python3:latest`
-- `ghcr.io/hellodword/devcontainers-python3:3.13`
-- `ghcr.io/hellodword/devcontainers-python3:web`
-- `ghcr.io/hellodword/devcontainers-rust:latest`
-- `ghcr.io/hellodword/devcontainers-rust:web`
+- `ghcr.io/hellodword/devcontainers-dev:latest`
 - `ghcr.io/hellodword/devcontainers-flutter:latest`
 <!-- END GENERATED:image-refs -->
 
@@ -46,14 +36,14 @@ Create `.devcontainer/devcontainer.json`:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-go:latest"
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest"
 }
 ```
 
 <details><summary>Working with agents:</summary>
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-go:web",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "mounts": [
     "source=${localEnv:HOME}/dev/workspace/agents-misc/.agents,target=${containerWorkspaceFolder}/.agents,type=bind,readonly",
     "source=${localEnv:HOME}/dev/workspace/agents-misc/AGENTS.md,target=${containerWorkspaceFolder}/AGENTS.md,type=bind,readonly",

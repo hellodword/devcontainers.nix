@@ -279,12 +279,12 @@
         imagePackages
         // runtimePublicPackages
         // {
-          default = images."nix".reports;
+          default = images."dev".reports;
           generate-docs = docs.generateDocs;
         };
 
       apps.${system} = imageLoadApps // {
-        default = imageLoadApps."load-nix";
+        default = imageLoadApps."load-dev";
         generate-docs = {
           type = "app";
           program = "${docs.generateDocs}/bin/generate-docs";

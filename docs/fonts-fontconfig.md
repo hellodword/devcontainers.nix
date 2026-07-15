@@ -256,26 +256,26 @@ is loaded into Docker.
 Build the generated font root:
 
 ```sh
-nix build .#images.nix.fonts.root --print-out-paths --no-link
+nix build .#images.dev.fonts.root --print-out-paths --no-link
 ```
 
 Build reports for one image:
 
 ```sh
-nix build .#images.nix.reports
+nix build .#images.dev.reports
 ```
 
 Build the image tar check for the reference image:
 
 ```sh
-nix build .#checks.x86_64-linux.artifact-image-nix
+nix build .#checks.x86_64-linux.artifact-image-dev
 ```
 
 After loading an image, run the normal smoke plan:
 
 ```sh
-nix run .#load-nix
-nix run .#run-smoke-plan -- nix
+nix run .#load-dev
+nix run .#run-smoke-plan -- dev
 ```
 
 Useful manual checks inside a container:

@@ -12,12 +12,19 @@ Create `.devcontainer/devcontainer.json` with one published image reference:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-go:latest"
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest"
 }
 ```
 
-Pick another image tag from the README when the project needs a different
-language or tool stack.
+Use the Flutter image from the README only when the project also needs Flutter,
+Dart, Android, or the bundled browser workflow.
+
+When migrating from an older release, replace every `devcontainers-nix`,
+`devcontainers-go`, `devcontainers-nodejs`, `devcontainers-python3`, or
+`devcontainers-rust` reference—including versioned and `web` tags—with
+`ghcr.io/hellodword/devcontainers-dev:latest`. The Flutter reference remains
+`ghcr.io/hellodword/devcontainers-flutter:latest` and now includes the complete
+dev tool stack.
 
 ## Runtime Defaults
 
@@ -57,7 +64,7 @@ Example `.devcontainer/devcontainer.json`:
 Example `.devcontainer/Dockerfile`:
 
 ```dockerfile
-FROM ghcr.io/hellodword/devcontainers-go:latest
+FROM ghcr.io/hellodword/devcontainers-dev:latest
 
 USER root
 RUN /usr/bin/devcontainer-set-user-id --uid 1000 --gid 100
@@ -112,7 +119,7 @@ Project-local VS Code settings belong in Dev Containers metadata:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "customizations": {
     "vscode": {
       "settings": {
@@ -137,7 +144,7 @@ Install packages after container creation:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "postCreateCommand": "devpkg add jq just"
 }
 ```
@@ -170,7 +177,7 @@ Runtime libraries are for programs that need shared objects at execution time:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-python3:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "postCreateCommand": "devpkg add-lib libGL"
 }
 ```
@@ -180,7 +187,7 @@ Build libraries are for compiling and linking. They expose headers,
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-go:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "postCreateCommand": "devpkg add-dev-lib openssl zlib"
 }
 ```
@@ -189,21 +196,21 @@ Select explicit package outputs when a project needs them:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-rust:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "postCreateCommand": "devpkg add-dev-lib --outputs out,dev,static zlib"
 }
 ```
 
-Go images enable the `cgo` library preset, so dynamically installed build
+The dev and Flutter images enable the `cgo` library preset, so dynamically installed build
 libraries also feed `CGO_CFLAGS` and `CGO_LDFLAGS`.
 
-Rust and Flutter images enable the `rust-bindgen` preset, so build library
+The dev and Flutter images enable the `rust-bindgen` preset, so build library
 include paths feed `BINDGEN_EXTRA_CLANG_ARGS`. Projects that use bindgen still
 need to install `clang` and `libclang` when their build requires those tools:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-rust:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "postCreateCommand": "devpkg add clang && devpkg add-dev-lib llvmPackages.libclang openssl"
 }
 ```
@@ -212,7 +219,7 @@ If a non-Nix toolchain or FFI loader needs `LD_LIBRARY_PATH`, opt in explicitly:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-python3:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "postCreateCommand": "devpkg add-dev-lib openssl zlib",
   "remoteEnv": {
     "LD_LIBRARY_PATH": "/home/vscode/.local/share/devpkg/runtime-libraries/profile/lib:/home/vscode/.local/share/devpkg/build-libraries/profile/lib:${containerEnv:LD_LIBRARY_PATH}"
@@ -232,7 +239,7 @@ Example with project-local Git, SSH, CA, and timezone settings:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "containerEnv": {
     "TZ": "America/New_York",
     "SSL_CERT_FILE": "/workspaces/${localWorkspaceFolderBasename}/.devcontainer/ca-bundle.pem",
@@ -259,7 +266,7 @@ needs:
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-nodejs:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "runArgs": ["--shm-size=1g"],
   "postCreateCommand": "devpkg add chromium && devpkg add-dev-lib openssl"
 }
@@ -278,7 +285,7 @@ For Docker Compose based devcontainers:
 ```yaml
 services:
   dev:
-    image: ghcr.io/hellodword/devcontainers-nodejs:latest
+    image: ghcr.io/hellodword/devcontainers-dev:latest
     shm_size: "1gb"
 ```
 
@@ -298,7 +305,7 @@ If the Docker daemon has `runsc` registered as a runtime, opt in from
 
 ```json
 {
-  "image": "ghcr.io/hellodword/devcontainers-nix:latest",
+  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
   "runArgs": ["--runtime=runsc"]
 }
 ```
@@ -316,6 +323,6 @@ For Docker Compose based devcontainers:
 ```yaml
 services:
   dev:
-    image: ghcr.io/hellodword/devcontainers-nix:latest
+    image: ghcr.io/hellodword/devcontainers-dev:latest
     runtime: runsc
 ```

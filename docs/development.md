@@ -68,13 +68,13 @@ explicit policy guard.
 Build reports for one image:
 
 ```sh
-nix build .#images.nix.reports
+nix build .#images.dev.reports
 ```
 
 Build the checked nix2container image artifact:
 
 ```sh
-nix build .#images.nix.oci
+nix build .#images.dev.oci
 ```
 
 This output depends on the layer budget gate. Inspect `layer-plan.json` for
@@ -85,20 +85,20 @@ from the nix2container image JSON.
 Load an image into the local Docker daemon:
 
 ```sh
-nix run .#load-nix
-nix run .#load-python3
+nix run .#load-dev
+nix run .#load-flutter
 ```
 
 Build the generated font root or other compiler outputs through the `images.<name>` attr when debugging a specific compiler stage:
 
 ```sh
-nix build .#images.nix.fonts.root --print-out-paths --no-link
+nix build .#images.dev.fonts.root --print-out-paths --no-link
 ```
 
 Inspect reports through the packaged helper:
 
 ```sh
-nix build .#images.nix.reports
+nix build .#images.dev.reports
 report="$(readlink -f result)"
 nix run .#devcontainer-image -- explain layer 0 --report "$report"
 nix run .#devcontainer-image -- explain package bash --report "$report"
@@ -108,7 +108,7 @@ nix run .#devcontainer-image -- explain filesystem --report "$report"
 nix run .#devcontainer-image -- explain image-plan --report "$report"
 nix run .#devcontainer-image -- explain security --report "$report"
 nix run .#devcontainer-image -- diff old-layer-plan.json "$report/layer-plan.json"
-nix run .#devcontainer-image -- doctor image ghcr.io/hellodword/devcontainers-nix:latest
+nix run .#devcontainer-image -- doctor image ghcr.io/hellodword/devcontainers-dev:latest
 ```
 
 ## Smoke Tests
@@ -116,7 +116,7 @@ nix run .#devcontainer-image -- doctor image ghcr.io/hellodword/devcontainers-ni
 After loading an image, run its smoke plan:
 
 ```sh
-nix run .#run-smoke-plan -- nix
+nix run .#run-smoke-plan -- dev
 ```
 
 The smoke runner is exposed as a flake app so Python, Nix, and Docker CLI paths come from nixpkgs. It still talks to the host Docker daemon and writes logs to `${SMOKE_LOG_DIR:-smoke-logs}`. It creates each smoke container with Docker `--network none`, never accepts extra Docker run arguments, and does not inject Docker daemon configuration into the container. It validates repository-owned smoke cases; Docker daemon endpoint configuration stays a project-level Dev Containers choice.
@@ -323,7 +323,7 @@ shell initialization changed.
 
 1. Add or update a module in `images/`.
 2. Reuse existing core, runtime, toolset, and language modules before adding new ones.
-3. Add the image target in `images/default.nix` with target name, family, tags, module, `docs.useWhen`, and any version override modules. Use the existing version-entry helpers when a family exposes latest and previous version targets.
+3. Add the image target in `images/default.nix` with target name, family, tags, module, `docs.useWhen`, and any toolchain override modules.
 4. Set target metadata for policy that belongs to the image: `checks` for required public targets, required report profiles/commands, or rootfs path requirements.
 5. Run `nix run .#generate-docs` when targets, families, tags, generated docs text, or published image references changed.
 6. Update `contracts-image-targets` or another focused contract check when the public image contract changes.
@@ -332,7 +332,7 @@ shell initialization changed.
 9. Load the image and run `nix run .#run-smoke-plan -- <target>` when runtime behavior changed.
 10. Update [Usage](usage.md) if the published image contract changed.
 
-Use target names for local build outputs and smoke plans, for example `go`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-go:latest`.
+Use target names for local build outputs and smoke plans, for example `dev`. Use family and tag for registry references, for example `ghcr.io/hellodword/devcontainers-dev:latest`.
 
 ## Adding A Toolset
 

@@ -67,6 +67,24 @@ let
     ]
 
 
+    def format_markdown_fragment(content: str) -> tuple[str, bool]:
+        lines = content.strip().splitlines()
+        is_table = len(lines) >= 2 and all(line.startswith("|") and line.endswith("|") for line in lines)
+        if not is_table:
+            return content.strip(), False
+
+        rows = [[cell.strip() for cell in line[1:-1].split("|")] for line in lines]
+        widths = [max(len(row[index]) for row in rows) for index in range(len(rows[0]))]
+
+        def render(row: list[str]) -> str:
+            return "| " + " | ".join(cell.ljust(widths[index]) for index, cell in enumerate(row)) + " |"
+
+        separator = ["-" * width for width in widths]
+        formatted_rows = [render(rows[0]), render(separator)]
+        formatted_rows.extend(render(row) for row in rows[2:])
+        return "\n".join(formatted_rows), True
+
+
     def replace_fragment(path: Path, marker: str, content: str) -> bool:
         begin = f"<!-- BEGIN GENERATED:{marker} -->"
         end = f"<!-- END GENERATED:{marker} -->"
@@ -77,7 +95,9 @@ let
         current, end_marker, after = rest.partition(end)
         if not end_marker:
             raise SystemExit(f"missing generated block end {end!r} in {path}")
-        replacement = f"{begin}\n{content.rstrip()}\n{end}"
+        formatted, is_table = format_markdown_fragment(content)
+        trailing = "\n\n" if is_table else "\n"
+        replacement = f"{begin}\n\n{formatted}{trailing}{end}"
         updated = before + replacement + after
         if updated == text:
             return False

@@ -2,13 +2,19 @@ name: build-images
 
 on:
   workflow_dispatch:
+    inputs:
+      push_image:
+        description: Push validated images to GHCR
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [master]
 
 env:
   CACHIX_CACHE_NAME: hellodword-codex
   CACHIX_PUBLIC_KEY: hellodword-codex.cachix.org-1:0URmcnC9aynWh9+FJ2tf+HQloylGgZzPtrz3sttTTiQ=
-  E2E_IMAGES: '["go-web", "rust-web"]'
+  E2E_IMAGES: '["dev"]'
   E2E_SESSIONS: '["wayland-sway"]'
 
 permissions:
@@ -509,7 +515,7 @@ jobs:
       image: ${{ matrix.image }}
       upload_reports: true
       upload_smoke_logs: true
-      push_image: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+      push_image: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_dispatch' && inputs.push_image) }}
 
   e2e:
     name: e2e-${{ matrix.image }}-${{ matrix.session }}

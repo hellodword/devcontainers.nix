@@ -1,13 +1,6 @@
 {
   requiredTargets = [
-    "nix"
-    "go"
-    "go-web"
-    "nodejs"
-    "python3"
-    "python3-web"
-    "rust"
-    "rust-web"
+    "dev"
     "flutter"
   ];
 

@@ -251,7 +251,7 @@ let
 
   apiEvalImage = compiler.mkImage {
     modules = [
-      ../../../../images/nix.nix
+      ../../../../images/dev.nix
       (
         { pkgs, lib, ... }:
         {
@@ -309,7 +309,7 @@ let
 
   pythonProfileEvalImage = compiler.mkImage {
     modules = [
-      ../../../../images/python.nix
+      ../../../../images/dev.nix
       (
         { lib, ... }:
         {
@@ -337,7 +337,7 @@ let
 
   cppProfileEvalImage = compiler.mkImage {
     modules = [
-      ../../../../images/nix.nix
+      ../../../../images/dev.nix
       (
         { lib, ... }:
         {
@@ -367,7 +367,7 @@ let
 
   customLocaleImage = compiler.mkImage {
     modules = [
-      ../../../../images/nix.nix
+      ../../../../images/dev.nix
       (
         { lib, ... }:
         {
@@ -408,7 +408,7 @@ let
 
   shellFeatureEvalImage = compiler.mkImage {
     modules = [
-      ../../../../images/nix.nix
+      ../../../../images/dev.nix
       (
         { lib, ... }:
         {

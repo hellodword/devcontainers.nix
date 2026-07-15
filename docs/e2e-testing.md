@@ -37,9 +37,8 @@ e2e-vscode-<image-name>-<session>
 Examples:
 
 ```sh
-nix build .#e2e.x86_64-linux.e2e-vscode-nix-x11-xfce
-nix build .#e2e.x86_64-linux.e2e-vscode-go-wayland-sway
-nix build .#e2e.x86_64-linux.e2e-vscode-python3-web-wayland-kde
+nix build .#e2e.x86_64-linux.e2e-vscode-dev-x11-xfce
+nix build .#e2e.x86_64-linux.e2e-vscode-dev-wayland-sway
 nix build .#e2e.x86_64-linux.e2e-vscode-flutter-wayland-kde
 ```
 
@@ -66,7 +65,7 @@ The current default scale is `8`, which is the CI/slow-builder profile. With the
 seconds. A local fast run can override it:
 
 ```sh
-DEVCONTAINERS_NIX_E2E_TIMEOUT_SCALE=1 nix build --impure .#e2e.x86_64-linux.e2e-vscode-python3-wayland-sway
+DEVCONTAINERS_NIX_E2E_TIMEOUT_SCALE=1 nix build --impure .#e2e.x86_64-linux.e2e-vscode-dev-wayland-sway
 ```
 
 The `--impure` flag is required because pure flake evaluation does not read
