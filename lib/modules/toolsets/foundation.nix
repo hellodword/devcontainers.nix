@@ -21,6 +21,7 @@ let
     util-linux
     sqlite
     diffutils
+    time
   ];
 in
 {
@@ -54,6 +55,7 @@ in
       "less"
       "vim"
       "sqlite3"
+      "time"
     ];
   };
 }
