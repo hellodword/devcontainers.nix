@@ -280,6 +280,7 @@ jobs:
       # https://discourse.nixos.org/t/building-docker-image-in-github-actions-leads-to-skopeo-related-issues/40636/4
       - name: Fix dockerTools.pullImage issue
         run: |
+          sudo mkdir -p /run/containers
           sudo chmod 755 /run/containers
           sudo mkdir -p "/run/containers/$(id -u runner)"
           sudo chown runner: "/run/containers/$(id -u runner)"
