@@ -24,7 +24,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    agents-misc.url = "github:hellodword/agents-misc";
     llm-agents.url = "github:numtide/llm-agents.nix";
 
     nix2container = {
@@ -41,7 +40,6 @@
       nix-vscode-extensions,
       nix-index-database,
       treefmt-nix,
-      agents-misc,
       nix2container,
       ...
     }:
@@ -66,7 +64,6 @@
         })
         rust-overlay.overlays.default
         nix-index-database.overlays.nix-index
-        agents-misc.overlays.default
       ]
       ++ projectOverlays;
       pkgs = import nixpkgs {
@@ -245,7 +242,6 @@
             inherit inputs;
             inputNames = {
               llm-agents = [ ".numtide.com" ];
-              agents-misc = [ "hellodword-codex.cachix.org" ];
               nix-vscode-extensions = [ "nix-community.cachix.org" ];
             };
           };

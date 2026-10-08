@@ -35,7 +35,7 @@ The flake pins the dependency set:
 - `rust-overlay`
 - `nix-vscode-extensions`
 - `nix-index-database`
-- `agents-misc`
+- `llm-agents`
 - `nix2container`
 
 The top-level package set is imported once for `x86_64-linux` with shared nixpkgs policy:
@@ -45,7 +45,7 @@ The top-level package set is imported once for `x86_64-linux` with shared nixpkg
 - `oraclejdk.accept_license = true`
 - `allowUnsupportedSystem = true`
 
-Inputs that provide packages are consumed through overlays. That means modules normally use `pkgs.*`, not `inputs.foo.packages.*`. Local package overrides should be added to the flake's `projectOverlays` list so image builds, checks, reports, and runtime helper packages all see the same package set.
+Most inputs that provide packages are consumed through overlays, so modules normally use `pkgs.*`. The agent toolset takes Codex and OpenCode directly from `inputs.llm-agents.packages.${system}`. Local overrides for the shared package set should be added to the flake's `projectOverlays` list so image builds, checks, reports, and runtime helper packages all see the same package set.
 
 ## Flake Output Structure
 

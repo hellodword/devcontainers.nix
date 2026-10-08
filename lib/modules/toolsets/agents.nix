@@ -1,11 +1,10 @@
 {
-  pkgs,
   inputs,
   system,
   ...
 }:
 let
-  codex = pkgs.agents-misc.codex;
+  codex = inputs.llm-agents.packages.${system}.codex;
   opencode = inputs.llm-agents.packages.${system}.opencode;
 in
 {
