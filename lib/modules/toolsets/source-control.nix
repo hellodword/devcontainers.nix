@@ -9,6 +9,7 @@ let
     config.programs.git.package
     pkgs.git-lfs
     config.programs.ssh.package
+    pkgs.sshpass
     pkgs.gnupg
     pkgs.pinentry-curses
     pkgs.delta
@@ -35,6 +36,7 @@ in
           "git"
           "git-lfs"
           "ssh"
+          "sshpass"
           "gpg"
           "pinentry-curses"
           "delta"
