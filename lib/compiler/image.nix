@@ -46,6 +46,9 @@ let
   flakeInputsFile = builtins.toFile "flake-inputs.json" compiledFlakeInputs.json;
   sourceVersion = config.devcontainer.image.sourceVersion;
   versionFile = renderJson sourceVersion;
+  runtimeFile = renderJson {
+    runtimeDir = "/run/user/${toString config.devcontainer.user.uid}";
+  };
   extensionsFile = renderJson {
     extensions = compiledVscodeExtensions.projectionExtensions;
     projectionTargets = compiledVscodeExtensions.projectionTargets;
@@ -169,6 +172,7 @@ let
     cp ${tasksFile} "$out/usr/share/devcontainer/tasks.json"
     cp ${flakeInputsFile} "$out/usr/share/devcontainer/flake-inputs.json"
     cp ${versionFile} "$out/usr/share/devcontainer/version.json"
+    cp ${runtimeFile} "$out/usr/share/devcontainer/runtime.json"
     cp ${extensionsFile} "$out/usr/share/devcontainer/vscode/extensions-index.json"
     ${mkSymlinkCommands}
     ${lockedNixpkgsCommands}

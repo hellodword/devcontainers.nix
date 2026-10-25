@@ -268,15 +268,23 @@ Generated filesystem content includes `/etc/passwd`, `/etc/group`, `/etc/os-rele
 
 The image root follows a usr-merge layout. Nix package outputs are still collected from their native `/bin`, `/lib`, `/share`, and related output directories, then the generated root trees are normalized so the primary runtime locations are `/usr/bin`, `/usr/lib`, `/usr/lib64`, `/usr/libexec`, `/usr/include`, and `/usr/share`. Compatibility links keep `/bin`, `/sbin`, `/lib`, `/lib64`, `/libexec`, `/include`, and `/share` available. `/usr/local/{bin,etc,include,lib,lib64,sbin,share,src}` exists for local administrator or user overlays; image-provided Nix tools are not installed there. Package `/sbin` outputs are not linked into the image by default, so Nix glibc's `ldconfig` is not exposed as `/sbin/ldconfig`; VS Code's requirement check falls back to the explicit `/usr/lib/libc.so.6` and `/usr/lib/libstdc++.so.6` compatibility links instead of reading a missing Nix store `ld.so.cache`.
 
-Project `devcontainer.json` files should not set `remoteUser`, `containerUser`, `runArgs --user`, or `updateRemoteUserUID=true`. The image metadata already sets the supported values. The image entrypoint refuses to start as another user, and `devcontainer-image check` reports those overrides as errors.
+Project `devcontainer.json` files should not set `remoteUser`, `containerUser`, `runArgs --user`, or `updateRemoteUserUID=true`. The image metadata sets the supported users, `init=true`, and `overrideCommand=false`. The latter preserves the image entrypoint under the Dev Containers CLI's command wrapper. `devcontainer-image check` reports project user overrides as errors.
 
-Projects that need host UID/GID alignment use a project-local Dockerfile and the image-provided `devcontainer-set-user-id --uid <uid> --gid <gid>` helper. The helper only rewrites the fixed `vscode:vscode` account, updates `/home/vscode`, `/run/user/<uid>`, and the writable Nix state paths, and does not accept username or group-name input. This keeps generated files, Nix profiles, VS Code extension projection, and helper scripts aligned on one home directory and fixed account names.
+Dev Containers projects establish custom UID/GID values in a Dockerfile using `devcontainer-set-user-id --uid <uid> --gid <gid>`. Plain Docker also accepts root startup with `DEVCONTAINER_UID` and/or `DEVCONTAINER_GID`; the entrypoint invokes the same identity implementation and drops supplementary groups, GID, and UID before user code. Docker's configured user remains root in that opt-in mode, so later exec commands must specify `--user vscode`.
+
+The identity helper rewrites only the fixed `vscode:vscode` account. It adjusts matching image-owned home files, machine-id state, the runtime directory, and writable Nix state. It parses mountinfo to skip nested bind mounts, never follows symlink targets while changing ownership, and removes old runtime directories only when empty. Whole-home and Nix mounts are rejected during remapping. `/nix/store` and `/nix/store/.links` receive directory ownership changes only; store contents and optimiser hardlinks remain unchanged. Nix database, profiles, logs, and image GC roots remain usable by the new identity.
+
+The entrypoint is a Python executable in isolated mode, so root setup cannot evaluate caller-provided Bash or Python startup files. After dropping privileges it prepares XDG directories and machine-id, then starts the GUI refresh shell and the requested command. When PID 1 it execs Tini with process-group signal forwarding; when an external init is present it directly execs the command shell. It does not start persistent services.
+
+`/etc/machine-id` points to `/var/lib/devcontainer/machine-id`, and `/var/lib/dbus/machine-id` points to `/etc/machine-id`. The filesystem compiler emits only an empty target in a vscode-owned state directory. Runtime creation uses a lock, rechecks the file, and atomically renames a new read-only file. A valid existing ID is retained. Explicit environment and read-only file inputs are validated for format and agreement; an invalid nonempty file is never repaired silently. The artifact check verifies the empty target inside the generated rootfs instead of following an absolute symlink into the build host.
+
+`core/linux-runtime` owns service/protocol databases, NSS and shell declarations, terminal and MIME tools/data, and standalone session D-Bus configuration. D-Bus is opt-in through `dbus-run-session`; the configuration accommodates nixpkgs' `/etc` datadir without a self-including session configuration. `core/time` retains the existing timezone data, with `/usr/share/zoneinfo` exposed as a compatibility alias.
 
 ## Environment Model
 
 The project tracks two configured environment scopes plus generated compiler values:
 
-- `environment.variables` becomes the container environment for the OCI image config and is also exported from generated shell startup files
+- `environment.variables` becomes the container environment for the OCI image config; generated shell startup files supply defaults only for unset variables, preserving explicit values including empty strings
 - `devcontainer.remoteEnv` becomes VS Code Dev Containers metadata only
 - FHS runtime and native-library compilers add generated container environment values
 

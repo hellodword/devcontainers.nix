@@ -83,6 +83,16 @@ in
         uid = 0;
         gid = 0;
       };
+      "/var/lib/devcontainer" = {
+        mode = "0755";
+        uid = user.uid;
+        gid = user.gid;
+      };
+      "/var/lib/dbus" = {
+        mode = "0755";
+        uid = 0;
+        gid = 0;
+      };
       "/var/log" = {
         mode = "0755";
         uid = 0;

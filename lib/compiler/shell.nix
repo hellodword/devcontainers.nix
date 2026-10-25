@@ -77,12 +77,16 @@ let
     in
     if workspaceSuffix != null then
       ''
-        if [ -n "''${WORKSPACE:-}" ]; then
+        if [ -z "''${${name}+x}" ] && [ -n "''${WORKSPACE:-}" ]; then
           export ${name}=${renderWorkspaceValue workspaceSuffix}
         fi
       ''
     else
-      "export ${name}=${lib.escapeShellArg value}";
+      ''
+        if [ -z "''${${name}+x}" ]; then
+          export ${name}=${lib.escapeShellArg value}
+        fi
+      '';
   environmentExportText =
     if sortedEnvNames != [ ] then
       lib.concatStringsSep "\n" ((map renderExport sortedEnvNames) ++ [ "" ])

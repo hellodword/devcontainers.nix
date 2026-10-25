@@ -526,6 +526,35 @@ The workflows do not use GitHub Actions cache. The base Nix install step configu
 
 The `Free disk space` step removes large preinstalled SDKs and prunes Docker state because hosted Ubuntu runners have limited writable disk.
 
+## Runtime Validation
+
+Runtime changes should first pass `tool-runtime`, `tool-set-user-id`,
+`tool-task-runner`, `script-quality`, and the filesystem/metadata contracts.
+The rootfs artifact check rejects a nonempty baked machine-id.
+
+With a local Docker daemon and loaded images, run:
+
+```sh
+nix run .#run-smoke-plan -- dev
+nix run .#run-smoke-plan -- flutter
+```
+
+Selecting the `base.linux-runtime` case (including the `baseline` tag) also runs
+`tests/smoke/runtime_baseline.py`. This host-side suite covers image defaults,
+container restarts, fixed and mounted machine IDs, UID/GID changes, bind-mount
+preservation, signals, orphan reaping, interactive Ctrl-C, and session-bus cleanup.
+It builds disposable derived images and runs `nix_runtime.py` only in disposable
+containers: that probe installs and executes a profile, builds offline with the
+sandbox enabled, exercises store optimisation, and garbage-collects while checking
+that image roots and the active profile survive. Bind-mount cases require the
+daemon to see the test runner's temporary paths.
+
+The existing GUI E2E also runs the pinned Dev Containers CLI with an image-only
+configuration and a Dockerfile with custom `DEV_UID`/`DEV_GID` build arguments
+before opening the GUI. Run an X11 and a Wayland case from
+[the E2E guide](e2e-testing.md). These checks require KVM or a prepared executor;
+they remain outside `nix flake check`.
+
 ## Documentation Rules
 
 Keep documentation split by audience:

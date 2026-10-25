@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import shutil
+import errno
+import re
 import stat
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,9 +32,12 @@ class Identity:
 
 
 def parse_numeric_id(name: str, value: str) -> int:
-    if not value or not value.isdecimal():
+    if re.fullmatch(r"[0-9]+", value) is None:
         raise UsageError(f"{name} must be a decimal integer")
-    parsed = int(value, 10)
+    significant = value.lstrip("0") or "0"
+    if len(significant) > 10:
+        raise UsageError(f"{name} must be between 1 and {MAX_ID}")
+    parsed = int(significant, 10)
     if parsed < 1 or parsed > MAX_ID:
         raise UsageError(f"{name} must be between 1 and {MAX_ID}")
     return parsed
@@ -66,10 +71,14 @@ def read_lines(path: Path) -> list[str]:
 def write_lines(path: Path, lines: list[str]) -> None:
     try:
         original_mode = stat.S_IMODE(path.stat().st_mode)
-        tmp_path = path.with_name(f".{path.name}.tmp")
-        tmp_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        os.chmod(tmp_path, original_mode)
-        os.replace(tmp_path, path)
+        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as handle:
+            tmp_path = Path(handle.name)
+            handle.write("\n".join(lines) + "\n")
+        try:
+            os.chmod(tmp_path, original_mode)
+            os.replace(tmp_path, path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
     except OSError as exc:
         raise ApplyError(f"failed to write {path}: {exc}") from exc
 
@@ -121,11 +130,13 @@ def reject_gid_conflict(group_path: Path, lines: list[str], gid: int) -> None:
             raise ApplyError(f"GID {gid} already belongs to group {name}")
 
 
-def rewrite_identity(root: Path, uid: int, gid: int) -> Identity:
+def plan_identity(root: Path, uid: int, gid: int) -> tuple[Identity, list[tuple[Path, list[str]]]]:
     passwd_path = root / "etc/passwd"
     group_path = root / "etc/group"
     passwd_lines = read_lines(passwd_path)
     group_lines = read_lines(group_path)
+    original_passwd = passwd_lines.copy()
+    original_group = group_lines.copy()
 
     passwd_index, passwd_fields = find_passwd_entry(passwd_path, passwd_lines)
     group_index, group_fields = find_group_entry(group_path, group_lines)
@@ -149,9 +160,19 @@ def rewrite_identity(root: Path, uid: int, gid: int) -> Identity:
     group_fields[3] = ",".join(members)
     group_lines[group_index] = ":".join(group_fields)
 
-    write_lines(passwd_path, passwd_lines)
-    write_lines(group_path, group_lines)
-    return Identity(old_uid=old_uid, old_gid=old_gid, uid=uid, gid=gid)
+    changes = []
+    if passwd_lines != original_passwd:
+        changes.append((passwd_path, passwd_lines))
+    if group_lines != original_group:
+        changes.append((group_path, group_lines))
+    return Identity(old_uid=old_uid, old_gid=old_gid, uid=uid, gid=gid), changes
+
+
+def rewrite_identity(root: Path, uid: int, gid: int) -> Identity:
+    identity, changes = plan_identity(root, uid, gid)
+    for path, lines in changes:
+        write_lines(path, lines)
+    return identity
 
 
 def chown_path(path: Path, uid: int, gid: int) -> None:
@@ -181,7 +202,31 @@ def chown_matching_path(path: Path, identity: Identity) -> None:
         raise ApplyError(f"failed to chown {path}: {exc}") from exc
 
 
-def chown_matching_tree(path: Path, identity: Identity) -> None:
+def mount_points() -> set[Path]:
+    # mountinfo escapes whitespace and backslashes; st_dev alone misses bind mounts.
+    def unescape(value: str) -> str:
+        return re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), value)
+
+    return {
+        Path(unescape(line.split()[4]))
+        for line in Path("/proc/self/mountinfo").read_text().splitlines()
+        if line.split()[4] != "/"
+    }
+
+
+def on_mount(path: Path, mounts: set[Path]) -> bool:
+    return any(path == mount or mount in path.parents for mount in mounts)
+
+
+def require_plain_directory(path: Path) -> None:
+    for parent in [*reversed(path.parents), path]:
+        if parent.is_symlink():
+            raise ApplyError(f"refusing to traverse symlink directory {parent}")
+
+
+def chown_matching_tree(path: Path, identity: Identity, mounts: set[Path]) -> None:
+    if on_mount(path, mounts):
+        return
     if not path.exists() and not path.is_symlink():
         return
     chown_matching_path(path, identity)
@@ -190,11 +235,16 @@ def chown_matching_tree(path: Path, identity: Identity) -> None:
     for current, dirs, files in os.walk(path, followlinks=False):
         current_path = Path(current)
         chown_matching_path(current_path, identity)
+        dirs[:] = [name for name in dirs if not on_mount(current_path / name, mounts)]
         for name in dirs + files:
-            chown_matching_path(current_path / name, identity)
+            child = current_path / name
+            if not on_mount(child, mounts):
+                chown_matching_path(child, identity)
 
 
-def chown_tree(path: Path, uid: int, gid: int) -> None:
+def chown_tree(path: Path, uid: int, gid: int, mounts: set[Path]) -> None:
+    if on_mount(path, mounts):
+        return
     if not path.exists() and not path.is_symlink():
         return
     chown_path(path, uid, gid)
@@ -203,11 +253,16 @@ def chown_tree(path: Path, uid: int, gid: int) -> None:
     for current, dirs, files in os.walk(path, followlinks=False):
         current_path = Path(current)
         chown_path(current_path, uid, gid)
+        dirs[:] = [name for name in dirs if not on_mount(current_path / name, mounts)]
         for name in dirs + files:
-            chown_path(current_path / name, uid, gid)
+            child = current_path / name
+            if not on_mount(child, mounts):
+                chown_path(child, uid, gid)
 
 
-def remove_stale_runtime_dir(path: Path, identity: Identity) -> None:
+def remove_stale_runtime_dir(path: Path, identity: Identity, mounts: set[Path]) -> None:
+    if on_mount(path, mounts):
+        return
     if not path.exists() and not path.is_symlink():
         return
     try:
@@ -219,15 +274,25 @@ def remove_stale_runtime_dir(path: Path, identity: Identity) -> None:
     if st.st_uid != identity.old_uid or st.st_gid != identity.old_gid:
         return
     try:
-        shutil.rmtree(path)
+        # A previous runtime directory may contain mounted GUI sockets or user data.
+        # Only remove the empty image-owned directory; never recursively clean it.
+        path.rmdir()
     except OSError as exc:
-        raise ApplyError(f"failed to remove stale runtime dir {path}: {exc}") from exc
+        if exc.errno not in {errno.ENOTEMPTY, errno.EEXIST, errno.EBUSY}:
+            raise ApplyError(f"failed to remove stale runtime dir {path}: {exc}") from exc
 
 
-def ensure_runtime_dir(root: Path, identity: Identity) -> None:
+def ensure_runtime_dir(root: Path, identity: Identity, mounts: set[Path]) -> None:
     runtime_parent = root / "run/user"
     runtime_dir = runtime_parent / str(identity.uid)
     stale_dir = runtime_parent / str(identity.old_uid)
+    require_plain_directory(runtime_dir)
+    if on_mount(runtime_dir, mounts):
+        # A caller-provided runtime directory must already have the right permissions.
+        st = runtime_dir.stat()
+        if st.st_uid != identity.uid or stat.S_IMODE(st.st_mode) != 0o700:
+            raise ApplyError(f"mounted runtime directory {runtime_dir} must be owned by UID {identity.uid} with mode 0700")
+        return
     try:
         runtime_parent.mkdir(parents=True, exist_ok=True)
         runtime_dir.mkdir(parents=True, exist_ok=True)
@@ -236,15 +301,19 @@ def ensure_runtime_dir(root: Path, identity: Identity) -> None:
         raise ApplyError(f"failed to create {runtime_dir}: {exc}") from exc
     chown_path(runtime_dir, identity.uid, identity.gid)
     if identity.old_uid != identity.uid:
-        remove_stale_runtime_dir(stale_dir, identity)
+        remove_stale_runtime_dir(stale_dir, identity, mounts)
 
 
-def apply_ownership(root: Path, identity: Identity) -> None:
-    chown_matching_tree(root / "home/vscode", identity)
-    ensure_runtime_dir(root, identity)
+def apply_ownership(root: Path, identity: Identity, mounts: set[Path]) -> None:
+    if identity.old_uid != identity.uid or identity.old_gid != identity.gid:
+        chown_matching_tree(root / "home/vscode", identity, mounts)
+        chown_matching_tree(root / "var/lib/devcontainer", identity, mounts)
+    ensure_runtime_dir(root, identity, mounts)
     for path in [
         root / "nix",
         root / "nix/store",
+        # The optimiser links files here. Do not chown its hardlink contents.
+        root / "nix/store/.links",
         root / "nix/var",
         root / "nix/var/log",
     ]:
@@ -253,12 +322,29 @@ def apply_ownership(root: Path, identity: Identity) -> None:
         root / "nix/var/nix",
         root / "nix/var/log/nix",
     ]:
-        chown_tree(path, identity.uid, identity.gid)
+        if identity.old_uid != identity.uid or identity.old_gid != identity.gid:
+            chown_tree(path, identity.uid, identity.gid, mounts)
 
 
 def set_user_id(root: Path, uid: int, gid: int) -> None:
-    identity = rewrite_identity(root, uid, gid)
-    apply_ownership(root, identity)
+    mounts = mount_points()
+    # Validate before changing account files. Shared stores and whole-home mounts
+    # are outside this per-container identity model; nested caches remain untouched.
+    for path in [root / "etc/passwd", root / "etc/group", root / "home/vscode", root / "var/lib/devcontainer", root / "nix"]:
+        require_plain_directory(path)
+        if on_mount(path, mounts):
+            raise ApplyError(f"cannot change identity with mounted system path {path}")
+    if any(root / "nix" in mount.parents for mount in mounts):
+        raise ApplyError("cannot change identity with mounts inside /nix")
+    for path in ["nix/store", "nix/store/.links", "nix/var/nix", "nix/var/log/nix"]:
+        require_plain_directory(root / path)
+    identity, changes = plan_identity(root, uid, gid)
+    apply_ownership(root, identity, mounts)
+    # Keep the old account IDs until traversal succeeds. An interrupted startup
+    # can then retry the remaining old-owned paths; already migrated files stay
+    # untouched. Passwd and group changes are independently idempotent as well.
+    for path, lines in changes:
+        write_lines(path, lines)
 
 
 def main(argv: list[str]) -> int:
@@ -267,9 +353,12 @@ def main(argv: list[str]) -> int:
     except UsageError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    if os.geteuid() != 0:
+        print("devcontainer-set-user-id requires root (use USER root during the image build)", file=sys.stderr)
+        return 126
     try:
         set_user_id(Path("/"), uid, gid)
-    except ApplyError as exc:
+    except (ApplyError, OSError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     return 0

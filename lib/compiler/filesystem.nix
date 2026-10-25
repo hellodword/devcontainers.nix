@@ -257,17 +257,37 @@ let
     ''PRETTY_NAME="${osRelease.prettyName}"''
     ""
   ];
+  machineId = {
+    path = "/etc/machine-id";
+    target = "/var/lib/devcontainer/machine-id";
+    mode = "0444";
+    uid = user.uid;
+    gid = user.gid;
+  };
   symlinks = [
     {
       path = "/var/run";
       target = "/run";
+    }
+    {
+      path = machineId.path;
+      target = machineId.target;
+    }
+    {
+      path = "/var/lib/dbus/machine-id";
+      target = machineId.path;
     }
   ];
   root = pkgs.runCommand "${config.devcontainer.image.name}-filesystem" { } ''
     mkdir -p "$out/etc/profile.d" "$out/etc/nixpkgs"
     mkdir -p "$out/root"
     ${dirCommands}
-    ln -sfn /run "$out/var/run"
+    ${lib.concatMapStringsSep "\n" (link: ''
+      mkdir -p "$out$(dirname ${lib.escapeShellArg link.path})"
+      ln -sfn ${lib.escapeShellArg link.target} "$out${link.path}"
+    '') symlinks}
+    touch "$out${machineId.target}"
+    chmod ${machineId.mode} "$out${machineId.target}"
 
     printf '%s' ${lib.escapeShellArg passwdText} >"$out/etc/passwd"
     printf '%s' ${lib.escapeShellArg groupText} >"$out/etc/group"
@@ -296,6 +316,13 @@ let
   };
   directoryPerms = lib.mapAttrsToList mkPerm validatedDirectories;
   filePerms = [
+    {
+      path = root;
+      regex = "^${root}${machineId.target}$";
+      inherit (machineId) mode uid gid;
+      uname = user.name;
+      gname = user.group;
+    }
     {
       path = root;
       regex = "^${root}/etc/(passwd|group|os-release|profile|bashrc|bash\\.bashrc|nixpkgs/config\\.nix)$";
@@ -362,7 +389,7 @@ let
   ]) vscodeMachineSettingsPaths;
 in
 {
-  inherit root;
+  inherit root machineId;
   passwd = passwdText;
   group = groupText;
   osRelease = osReleaseText;

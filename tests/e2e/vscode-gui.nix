@@ -369,7 +369,13 @@ let
       devcontainerJson = pkgs.writeText "devcontainer-${imageName}-${session}.json" (
         builtins.toJSON {
           name = "devcontainers-nix-e2e-${imageName}";
-          build.dockerfile = "Dockerfile";
+          build = {
+            dockerfile = "Dockerfile";
+            args = {
+              DEV_UID = toString expectedContainerUid;
+              DEV_GID = toString expectedContainerGid;
+            };
+          };
           workspaceFolder = "/workspaces/workspace";
           updateRemoteUserUID = false;
           postAttachCommand = "sh -lc 'n=$(printf %s ${postAttachMarkerEncoded} | base64 -d); : > \"/workspaces/workspace/$n\"; printf %s \"/workspaces/workspace/$n\" > /tmp/e2e-postattach-marker-path'";
@@ -379,8 +385,10 @@ let
         FROM ${imageRef}
 
         USER root
-        RUN /usr/bin/devcontainer-set-user-id --uid ${toString expectedContainerUid} --gid ${toString expectedContainerGid}
-        ENV XDG_RUNTIME_DIR=${expectedRuntimeDir}
+        ARG DEV_UID=1000
+        ARG DEV_GID=1000
+        RUN /usr/bin/devcontainer-set-user-id --uid "$DEV_UID" --gid "$DEV_GID"
+        ENV XDG_RUNTIME_DIR=/run/user/''${DEV_UID}
         USER vscode
       '';
       vscodeSettings = pkgs.writeText "vscode-settings-${imageName}-${session}.json" (
@@ -563,9 +571,9 @@ let
       # The base values below are tuned for a fast local host.  The default
       # scale is the CI/slow-builder profile.  Local fast runs can use:
       # DEVCONTAINERS_NIX_E2E_TIMEOUT_SCALE=1 nix build --impure .#...
-      globalTimeout = scaledTimeout 375;
+      globalTimeout = scaledTimeout 575;
 
-      meta.timeout = scaledTimeout 375;
+      meta.timeout = scaledTimeout 575;
 
       nodes.machine =
         { ... }:
@@ -584,6 +592,7 @@ let
 
       testScript = ''
         import fcntl
+        import json
         import os
         import re
         import shlex
@@ -856,6 +865,7 @@ let
             machine.execute("cp -f /tmp/e2e-vscode.log /tmp/e2e-artifacts/vscode-launch.log 2>/dev/null || true", timeout=scaled_timeout(30))
             machine.execute("cp -f /tmp/e2e-image-load.log /tmp/e2e-artifacts/image-load.log 2>/dev/null || true", timeout=scaled_timeout(30))
             machine.execute("cp -f /tmp/devcontainer-cli-up.log /tmp/e2e-artifacts/devcontainer-cli-up.log 2>/dev/null || true", timeout=scaled_timeout(30))
+            machine.execute("cp -f /tmp/e2e-cli-*.log /tmp/e2e-cli-*.json /tmp/e2e-artifacts/ 2>/dev/null || true", timeout=scaled_timeout(30))
             machine.execute("cp -f /tmp/e2e-container-verification.log /tmp/e2e-artifacts/container-verification.log 2>/dev/null || true", timeout=scaled_timeout(30))
             machine.execute("tar -C /home/alice/.config/Code -czf /tmp/e2e-artifacts/vscode-logs.tar.gz logs 2>/dev/null || true", timeout=scaled_timeout(60))
             machine.execute(
@@ -907,6 +917,53 @@ let
             wait_for_local_devcontainers_logs()
             dismiss_vscode_overlays()
             machine.screenshot("vscode-opened")
+
+
+        def verify_cli_startup():
+            # Test the real CLI before GUI startup: an image-only config, then
+            # numeric IDs established at build time before its account probes.
+            cases = [
+                ("minimal", {"image": IMAGE_REF}, 1000, 1000),
+                ("build-args", {"build": {"dockerfile": "Dockerfile", "args": {"DEV_UID": "1234", "DEV_GID": "1235"}}}, 1234, 1235),
+            ]
+            for name, config, uid, gid in cases:
+                workspace = "/home/alice/cli-" + name
+                config_dir = workspace + "/.devcontainer"
+                output = "/tmp/e2e-cli-" + name
+                machine.succeed(
+                    f"install -d -o alice -g users -m 0755 {q(config_dir)} && "
+                    f"printf %s {q(json.dumps(config))} > {q(config_dir + '/devcontainer.json')} && "
+                    f"cp /etc/devcontainers-nix-e2e/Dockerfile {q(config_dir + '/Dockerfile')}"
+                )
+                cli_container = ""
+                try:
+                    machine.succeed(as_alice(
+                        f"node {q(SPEC_CLI)} up --workspace-folder {q(workspace)} "
+                        f"> {q(output + '.json')} 2> {q(output + '.log')}"
+                    ), timeout=scaled_timeout(120))
+                    result = json.loads(machine.succeed(f"tail -n1 {q(output + '.json')}"))
+                    assert result["outcome"] == "success", result
+                    cli_container = result["containerId"]
+                    probe = (
+                        f'test "$(id -u)" = {uid} && test "$(id -g)" = {gid} && '
+                        'test "$(id -un)" = vscode && test "$HOME" = /home/vscode && '
+                        f'test "$XDG_RUNTIME_DIR" = /run/user/{uid} && '
+                        'test "$(stat -c %a "$XDG_RUNTIME_DIR")" = 700 && '
+                        'dbus-uuidgen --get=/etc/machine-id >/dev/null && '
+                        'cmp /etc/machine-id /var/lib/dbus/machine-id'
+                    )
+                    machine.succeed(as_alice(
+                        f"node {q(SPEC_CLI)} exec --workspace-folder {q(workspace)} bash -lc {q(probe)}"
+                    ), timeout=scaled_timeout(30))
+                finally:
+                    if not cli_container:
+                        _, cli_container = machine.execute(
+                            "docker ps -aq --filter " + q("label=devcontainer.local_folder=" + workspace)
+                        )
+                        cli_container = cli_container.strip()
+                    if cli_container:
+                        machine.execute(f"docker logs {q(cli_container)} > {q(output + '-container.log')} 2>&1")
+                        machine.succeed(f"docker rm -f {q(cli_container)}")
 
 
         def command_palette_log(message):
@@ -1350,6 +1407,8 @@ let
         ${waitForSessionScript}
             e2e_log("loading Docker image")
             load_image()
+            e2e_log("checking minimal and build-argument Dev Containers CLI startup")
+            verify_cli_startup()
             e2e_log("launching VS Code")
             launch_vscode()
             e2e_log("triggering Dev Containers reopen from command palette")

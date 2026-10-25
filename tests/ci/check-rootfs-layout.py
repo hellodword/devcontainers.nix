@@ -71,6 +71,14 @@ def require_reported_filesystem(rootfs: pathlib.Path, reports_dir: pathlib.Path)
         if isinstance(path, str) and isinstance(target, str):
             require_symlink(rootfs, path, target)
 
+    machine_id = filesystem_report.get("machineId")
+    if machine_id:
+        # Inspect the target inside the artifact; following /etc/machine-id on
+        # the build host would accidentally validate the host's identity.
+        target = root_path(rootfs, machine_id["target"])
+        if target.is_symlink() or not target.is_file() or target.read_bytes() != b"":
+            fail("machine-id image target must be an empty regular file")
+
     for link in (env_report.get("environment") or {}).get("pathsToLink") or []:
         if link in {"/bin", "/include", "/lib", "/lib64", "/libexec", "/share"}:
             require_symlink(rootfs, link, f"usr/{link.lstrip('/')}")

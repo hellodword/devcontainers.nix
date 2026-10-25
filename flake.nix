@@ -168,7 +168,7 @@
           pkgs.nix
         ];
         text = ''
-          exec ${pkgs.python3}/bin/python3 ${./tests/smoke/run-plan.py} "$@"
+          exec ${pkgs.python3}/bin/python3 ${./tests/smoke}/run-plan.py "$@"
         '';
       };
 

@@ -25,6 +25,8 @@ let
         remoteUser = (preview.remoteUser or null) == "vscode";
         containerUser = (preview.containerUser or null) == "vscode";
         updateRemoteUserUid = (preview.updateRemoteUserUID or null) == false;
+        entrypointEnabled = (preview.overrideCommand or null) == false;
+        externalInit = (preview.init or null) == true;
         noPathInContainerEnv = !(builtins.hasAttr "PATH" previewEnv);
         noRuntimeDirInContainerEnv = !(builtins.hasAttr "XDG_RUNTIME_DIR" previewEnv);
         editorMatchesEnv = (previewEnv.EDITOR or null) == (image.env.containerEnv.EDITOR or null);

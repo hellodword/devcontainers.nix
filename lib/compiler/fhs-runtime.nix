@@ -243,5 +243,13 @@ in
       }
     else
       emptyScopedAttrs;
-  symlinks = lib.optionals cfg.enable (baseSymlinks ++ dynamicLoaderSymlinks);
+  symlinks = lib.optionals cfg.enable (
+    baseSymlinks
+    ++ dynamicLoaderSymlinks
+    ++ lib.optional (config.time.timeZone != null) {
+      target = "/usr/share/zoneinfo";
+      source = "/etc/zoneinfo";
+      sourceRole = "timezone-data";
+    }
+  );
 }

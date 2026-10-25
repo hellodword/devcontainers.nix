@@ -266,22 +266,13 @@ def run_task(name: str, tasks: dict[str, dict], active: set[str] | None = None) 
 
 
 def ensure_xdg() -> None:
-    home = os.environ.get("HOME")
-    defaults = {
-        "XDG_CONFIG_HOME": ".config",
-        "XDG_CACHE_HOME": ".cache",
-        "XDG_DATA_HOME": ".local/share",
-        "XDG_STATE_HOME": ".local/state",
-    }
-    for env_name, suffix in defaults.items():
-        configured = os.environ.get(env_name)
-        if configured:
-            path = Path(configured)
-        elif home:
-            path = Path(home) / suffix
-        else:
-            fail(f"HOME or {env_name} is required")
-        path.mkdir(parents=True, exist_ok=True)
+    sys.path.insert(0, "@runtimeLibrary@")
+    from devcontainer_state import StateError, ensure_xdg as prepare_xdg
+
+    try:
+        prepare_xdg(os.environ)
+    except (StateError, OSError) as exc:
+        fail(str(exc))
 
 
 def cmd_list(tasks: dict[str, dict]) -> int:

@@ -179,6 +179,26 @@ def run_test(image_ref: str, test: dict, smoke_log_dir: Path) -> int:
             print(output, end="")
             return start_result.returncode
 
+        # docker start returns before the entrypoint finishes initialization.
+        # Wait without changing machine-id or extending the whole-case budget.
+        output += "waiting for machine-id initialization\n"
+        ready_result = run_with_deadline(
+            [
+                "docker", "exec", container_id,
+                "sh", "-c",
+                "until dbus-uuidgen --get=/etc/machine-id "
+                ">/dev/null 2>&1; do sleep 0.1; done",
+            ],
+            deadline,
+        )
+        if ready_result.returncode != 0:
+            output += "container initialization failed\n"
+            output += decode_process_output(ready_result.stdout)
+            logs = run_with_deadline(["docker", "logs", container_id], deadline)
+            output += decode_process_output(logs.stdout)
+            write_and_print(log_file, output, stderr=True)
+            return ready_result.returncode
+
         for index, script in enumerate(scripts):
             script_argv = shell_argv(script)
             output += f"script[{index}]={command_line(script_argv)}\n"
@@ -229,7 +249,13 @@ def main(argv: list[str]) -> int:
 
     smoke_log_dir.mkdir(parents=True, exist_ok=True)
     plan = read_json(plan_file)
-    for test in selected_tests(plan, tags):
+    tests = list(selected_tests(plan, tags))
+    if any(test["id"] == "base.linux-runtime" for test in tests):
+        from runtime_baseline import run_runtime_checks
+        rc = run_runtime_checks(image_ref, smoke_log_dir)
+        if rc != 0:
+            return rc
+    for test in tests:
         rc = run_test(image_ref, test, smoke_log_dir)
         if rc != 0:
             return rc

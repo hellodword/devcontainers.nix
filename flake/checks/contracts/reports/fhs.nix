@@ -10,6 +10,7 @@ let
     "/lib64/ld-linux-x86-64.so.2"
     "/usr/lib/libc.so.6"
     "/usr/lib/libstdc++.so.6"
+    "/usr/share/zoneinfo"
   ];
   perImage = lib.mapAttrsToList (
     name: image:
@@ -36,6 +37,7 @@ let
         caRoot = lib.hasInfix "ca-certificates" (caCertificates.root or "");
         caSource = lib.hasSuffix "/etc/ssl/certs/ca-certificates.crt" (caCertificates.source or "");
         libcSource = sourceRoleFor "/usr/lib/libc.so.6" == "glibc";
+        zoneinfoAlias = (symlinksByTarget."/usr/share/zoneinfo".source or null) == "/etc/zoneinfo";
         libstdcxxSource = sourceRoleFor "/usr/lib/libstdc++.so.6" == "gcc-lib";
         dynamicLoaderSource = sourceRoleFor "/lib64/ld-linux-x86-64.so.2" == "nix-ld";
         nixLdEnvLoader = ((fhs.nixLdEnv or { }).NIX_LD or null) == realGlibcLoader;

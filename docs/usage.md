@@ -1,7 +1,6 @@
 # Usage
 
-This guide is for project authors using the published images from
-`.devcontainer/devcontainer.json`.
+This guide covers the published images in VS Code Dev Containers and plain Docker.
 
 For the full image list, see [README: Quick Start](../README.md#quick-start).
 For intent-based navigation, see [Documentation Index](index.md).
@@ -41,10 +40,10 @@ Do not set these fields in project `devcontainer.json`:
 }
 ```
 
-The image metadata already sets `remoteUser`, `containerUser`, and
-`updateRemoteUserUID` to the supported values. The image entrypoint refuses to
-start as a different user, and `devcontainer-image check` reports user-name and
-Docker user overrides as invalid.
+The image metadata sets the supported users, `updateRemoteUserUID=false`,
+`init=true`, and `overrideCommand=false`. This keeps the image entrypoint active
+even with the one-field configuration above. `devcontainer-image check` reports
+project user-name and Docker user overrides as invalid.
 
 When a project needs the container UID/GID to match the host user, derive a
 small project-local image at build time. Keep the account names fixed and only
@@ -55,9 +54,12 @@ Example `.devcontainer/devcontainer.json`:
 ```json
 {
   "build": {
-    "dockerfile": "Dockerfile"
-  },
-  "updateRemoteUserUID": false
+    "dockerfile": "Dockerfile",
+    "args": {
+      "DEV_UID": "1000",
+      "DEV_GID": "100"
+    }
+  }
 }
 ```
 
@@ -67,13 +69,17 @@ Example `.devcontainer/Dockerfile`:
 FROM ghcr.io/hellodword/devcontainers-dev:latest
 
 USER root
-RUN /usr/bin/devcontainer-set-user-id --uid 1000 --gid 100
-ENV XDG_RUNTIME_DIR=/run/user/1000
+ARG DEV_UID=1000
+ARG DEV_GID=1000
+RUN /usr/bin/devcontainer-set-user-id --uid "$DEV_UID" --gid "$DEV_GID"
+ENV XDG_RUNTIME_DIR=/run/user/${DEV_UID}
 USER vscode
 ```
 
-Replace `1000` and `100` with the host values from `id -u` and `id -g`, then
-rebuild the devcontainer. Do not pass usernames or group names.
+Set the build arguments to the host values from `id -u` and `id -g`, then rebuild.
+The account names and home stay `vscode:vscode` and `/home/vscode`. Dev Containers
+must finish this change during the build, before its startup probes inspect the
+account. The plain-Docker runtime mode below is not a Dev Containers configuration.
 
 The image metadata also mounts the project `.devcontainer` directory back onto
 `/workspaces/${localWorkspaceFolderBasename}/.devcontainer` as a read-only bind
@@ -96,6 +102,93 @@ Important defaults:
   container; see [Remote Docker](docker-remote.md)
 - Git, OpenSSH client tools, and nix-index are available in the base image set
 - `LD_LIBRARY_PATH` is not exported by default
+
+## Plain Docker
+
+The default invocation needs no setup commands:
+
+```sh
+docker run --rm -it \
+  -v "$PWD:/workspaces/project" -w /workspaces/project \
+  -p 8080:8080 \
+  ghcr.io/hellodword/devcontainers-dev:latest bash
+```
+
+The entrypoint prepares user directories and machine-id, then runs the command
+as `vscode`. It starts Tini when it is PID 1. With `docker run --init`, Docker's
+init handles that job. Bash keeps interactive Ctrl-C and job control. Omitting
+the command runs `sleep infinity`.
+
+To select numeric IDs at container startup:
+
+```sh
+docker run --rm -it --user 0 \
+  -e DEVCONTAINER_UID="$(id -u)" -e DEVCONTAINER_GID="$(id -g)" \
+  -e XDG_RUNTIME_DIR="/run/user/$(id -u)" \
+  -v "$PWD:/workspaces/project" -w /workspaces/project \
+  ghcr.io/hellodword/devcontainers-dev:latest bash
+```
+
+Startup validates the IDs, updates the fixed account and container-owned state,
+then drops privileges before running user code. IDs must be decimal integers in
+`1..2147483647`; an omitted ID keeps the account's existing value. A conflicting
+account or a non-root attempt to change IDs fails. Starting as root without an
+ID request also fails.
+
+Docker still records the container's configured user as root in this mode.
+Use `docker exec --user vscode <container> <command>` for later commands. Setting
+`XDG_RUNTIME_DIR` in the invocation also gives those exec commands the correct
+environment; environment changes inside an entrypoint do not update Docker's
+stored configuration.
+
+Project/data bind mounts and nested cache mounts are left untouched. The helper
+skips mounted contents and preserves root-owned image files. It does not repair
+host permissions. Replacing the entire home or sharing `/nix` across containers
+is outside this mode. Nix remains a per-container, single-user installation;
+profiles, builds, optimisation and garbage collection continue to use its local
+store and image GC roots.
+
+## Machine Identity And Linux Basics
+
+The image contains an empty machine-id placeholder. First startup generates a
+random ID; restarting the same container retains it. Creating or rebuilding a
+container generates a new ID. `/etc/machine-id` and `/var/lib/dbus/machine-id`
+resolve to the same container-owned state file.
+
+For an explicitly fixed identity, pass
+`-e DEVCONTAINER_MACHINE_ID=1234567890abcdef1234567890abcdef`, or mount a file:
+
+```sh
+docker run --rm \
+  --mount "type=bind,src=$PWD/container-machine-id,dst=/etc/machine-id,readonly" \
+  ghcr.io/hellodword/devcontainers-dev:latest cat /etc/machine-id
+```
+
+The file must contain 32 lowercase hexadecimal characters, nonzero, optionally
+followed by one newline. Empty or malformed mounted files fail startup. If both
+an existing ID and the environment variable are present, they must match.
+Startup never overwrites a valid existing identity or logs its value.
+
+The baseline includes libc user/host/service/protocol lookup configuration,
+`getent`, `/etc/shells`, ncurses tools and terminfo, MIME data and `gio`, standard
+zoneinfo paths, UTF-8 locales, and CA certificates. `/tmp` and `/var/tmp` have mode
+1777; the user's runtime directory has mode 0700. Docker supplies hostnames,
+resolver files, `/proc`, and `/dev`.
+
+Applications that need a session bus can run:
+
+```sh
+dbus-run-session -- your-application
+```
+
+The bus ends with the application. No persistent D-Bus service, systemd, SSH
+server, cron, or full desktop session starts automatically.
+
+Explicit environment values survive login and interactive shell startup. PATH
+still merges image tools with caller paths, and workspace variables still bind
+when `WORKSPACE` is available. Changing one XDG variable does not recalculate
+other variables. The default `XDG_RUNTIME_DIR` follows the actual UID; a custom
+absolute runtime path is preserved and must belong to the user with mode 0700.
 
 ## Lifecycle Tasks
 

@@ -151,6 +151,7 @@ in
     devcontainer.metadata.snippets = [
       {
         init = true;
+        overrideCommand = false;
         hostRequirements = {
           cpus = 2;
           memory = "4gb";

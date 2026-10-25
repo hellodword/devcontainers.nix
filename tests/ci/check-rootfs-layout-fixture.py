@@ -33,6 +33,10 @@ SOURCE_VERSION = {
 def write_minimal_reports(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> None:
     mkdir(rootfs, "/run/user/1000")
     mkdir(rootfs, "/usr/bin")
+    mkdir(rootfs, "/etc")
+    mkdir(rootfs, "/var/lib/devcontainer")
+    (rootfs / "var/lib/devcontainer/machine-id").touch()
+    (rootfs / "etc/machine-id").symlink_to("/var/lib/devcontainer/machine-id")
     write_json(rootfs / "usr/share/devcontainer/vscode/extensions-index.json", {
         "projectionTargets": [],
         "extensions": [],
@@ -57,7 +61,8 @@ def write_minimal_reports(rootfs: pathlib.Path, reports_dir: pathlib.Path) -> No
         ],
         "shellFiles": [],
         "etcFiles": [],
-        "symlinks": [],
+        "symlinks": [{"path": "/etc/machine-id", "target": "/var/lib/devcontainer/machine-id"}],
+        "machineId": {"path": "/etc/machine-id", "target": "/var/lib/devcontainer/machine-id"},
         "vscodeMachineSettings": {
             "settings": {},
             "paths": [],
@@ -113,6 +118,11 @@ def main() -> int:
         passing = run_checker(checker, rootfs, reports_dir)
         if passing.returncode != 0:
             fail(f"expected rootfs layout checker to pass complete fixture: {passing.stderr}")
+
+        (rootfs / "var/lib/devcontainer/machine-id").write_text("1234567890abcdef1234567890abcdef\n")
+        baked_id = run_checker(checker, rootfs, reports_dir)
+        if baked_id.returncode == 0 or "empty regular file" not in baked_id.stderr:
+            fail("expected a baked machine-id to fail artifact validation")
 
     print("rootfs-layout-fixture ok")
     return 0

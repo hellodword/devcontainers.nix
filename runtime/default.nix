@@ -1,5 +1,10 @@
 { pkgs, lib }:
 let
+  runtimeLibrary = pkgs.runCommand "devcontainer-runtime-library" { } ''
+    mkdir -p "$out"
+    cp ${./devcontainer-set-user-id/main.py} "$out/devcontainer_identity.py"
+    cp ${./devcontainer-runtime/state.py} "$out/devcontainer_state.py"
+  '';
   writeShellApp =
     name: runtimeInputs: scriptPath:
     pkgs.writeShellApplication {
@@ -16,8 +21,28 @@ let
         ''
           mkdir -p "$out/bin"
           substitute ${scriptPath} "$out/bin/${name}" \
-            --replace-fail '#!/usr/bin/env python3' '#!${pkgs.python3}/bin/python3'
+            --replace-fail '#!/usr/bin/env python3' '#!${pkgs.python3}/bin/python3${
+              lib.optionalString (builtins.elem name [
+                "devcontainer-runtime"
+                "devcontainer-set-user-id"
+              ]) " -I"
+            }'
           chmod +x "$out/bin/${name}"
+        ''
+        +
+          lib.optionalString
+            (builtins.elem name [
+              "devcontainer-runtime"
+              "devcontainer-task-runner"
+            ])
+            ''
+              substituteInPlace "$out/bin/${name}" --replace-fail '@runtimeLibrary@' '${runtimeLibrary}'
+            ''
+        + lib.optionalString (name == "devcontainer-runtime") ''
+          substituteInPlace "$out/bin/${name}" \
+            --replace-fail '@bash@' '${pkgs.bashInteractive}/bin/bash' \
+            --replace-fail '@tini@' '${pkgs.tini}/bin/tini' \
+            --replace-fail '@session@' '${./devcontainer-entrypoint/main.sh}'
         ''
         + lib.optionalString (runtimeInputs != [ ]) ''
           wrapProgram "$out/bin/${name}" --prefix PATH : ${lib.makeBinPath runtimeInputs}
@@ -102,9 +127,13 @@ let
   '';
   devpkgCompletion = pkgs.writeTextDir "share/bash-completion/completions/devpkg" devpkgCompletionText;
   packages = rec {
-    "devcontainer-entrypoint" = writeShellApp "devcontainer-entrypoint" [
-      pkgs.coreutils
-    ] ./devcontainer-entrypoint/main.sh;
+    # Start Python in isolated mode directly: a root startup must not evaluate
+    # BASH_ENV, PYTHONPATH, or other user-provided shell/Python startup files.
+    "devcontainer-entrypoint" = pkgs.runCommand "devcontainer-entrypoint" { } ''
+      mkdir -p "$out/bin"
+      ln -s ${packages.devcontainer-runtime}/bin/devcontainer-runtime "$out/bin/devcontainer-entrypoint"
+    '';
+    "devcontainer-runtime" = writePythonApp "devcontainer-runtime" [ ] ./devcontainer-runtime/main.py;
     "devcontainer-gui-env" = writeShellApp "devcontainer-gui-env" [
       pkgs.coreutils
     ] ./devcontainer-gui-env/main.sh;
@@ -131,6 +160,14 @@ let
       order = 10;
       publicPackage = false;
       installInImage = true;
+    };
+    "devcontainer-runtime" = {
+      order = 15;
+      publicPackage = false;
+      installInImage = true;
+      checkName = "runtime";
+      checkScript = ../tests/ci/check-runtime.py;
+      checkEnvName = "DEVCONTAINER_RUNTIME";
     };
     "devcontainer-gui-env" = {
       order = 30;

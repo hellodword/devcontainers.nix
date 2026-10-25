@@ -243,6 +243,7 @@ let
     etcFiles = compiledFilesystem.etcFiles;
     vscodeMachineSettings = compiledFilesystem.vscodeMachineSettings;
     symlinks = compiledFilesystem.symlinks;
+    machineId = compiledFilesystem.machineId;
     shellFiles = compiledFilesystem.shellFiles;
     commandNotFoundHook = {
       enabled = config.programs.bash.enable && config.programs.bash.commandNotFound.enable;

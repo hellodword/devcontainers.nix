@@ -14,6 +14,12 @@ let
     "/etc/gitconfig"
     "/etc/ssh/ssh_config"
     "/etc/ssh/ssh_known_hosts"
+    "/etc/services"
+    "/etc/protocols"
+    "/etc/nsswitch.conf"
+    "/etc/shells"
+    "/etc/mime.types"
+    "/etc/dbus-1/session.conf"
   ];
   requiredShellFiles = [
     "/etc/profile"
@@ -28,6 +34,8 @@ let
     "/var"
     "/var/cache"
     "/var/lib"
+    "/var/lib/devcontainer"
+    "/var/lib/dbus"
     "/var/log"
     "/var/tmp"
     "/run/user/1000"
@@ -112,6 +120,10 @@ let
         runtimeDirMode = ((dir "/run/user/1000").mode or null) == "0700";
         runtimeDirOwner = ((dir "/run/user/1000").owner or null) == "vscode:vscode";
         varRunSymlink = symlinkTarget "/var/run" == "/run";
+        machineIdSymlink = symlinkTarget fs.machineId.path == fs.machineId.target;
+        dbusMachineIdSymlink = symlinkTarget "/var/lib/dbus/machine-id" == fs.machineId.path;
+        machineIdOwner = fs.machineId.uid == user.uid && fs.machineId.gid == user.gid;
+        machineIdStateOwner = ((dir "/var/lib/devcontainer").owner or null) == "vscode:vscode";
         nixDatabaseLeftToInitializer = nixDatabaseDirsPresent == [ ];
         vscodeMachineSettingsMatchProfiles = (machineSettings.settings or { }) == image.profiles.settings;
         projectionTargetsEndWithExtensions = lib.all (
