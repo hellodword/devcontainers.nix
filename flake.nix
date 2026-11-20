@@ -30,6 +30,11 @@
       url = "github:nlewo/nix2container";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    agents-misc = {
+      url = "github:hellodword/agents-misc";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =

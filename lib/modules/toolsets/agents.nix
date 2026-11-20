@@ -7,6 +7,7 @@ let
   codex = inputs.llm-agents.packages.${system}.codex;
   opencode = inputs.llm-agents.packages.${system}.opencode;
   antigravity-cli = inputs.llm-agents.packages.${system}.antigravity-cli;
+  vm-test-submit = inputs.agents-misc.packages.${system}.vm-test-submit;
 in
 {
   config.devcontainer.layers.bucketDefinitions."agent-tools" = {
@@ -22,6 +23,7 @@ in
       codex
       opencode
       antigravity-cli
+      vm-test-submit
     ];
     priority = 74;
     stability = "medium";
@@ -67,6 +69,20 @@ in
           shell = "bash";
           interactive = false;
           command = "agy --version";
+        }
+      ];
+    };
+    tests.cases."vm-test-submit.cli" = {
+      tags = [
+        "smoke"
+        "tooling"
+        "vm-test-submit"
+      ];
+      scripts = [
+        {
+          shell = "bash";
+          interactive = false;
+          command = "vm-test-submit --version";
         }
       ];
     };
