@@ -6,6 +6,7 @@
 let
   codex = inputs.llm-agents.packages.${system}.codex;
   opencode = inputs.llm-agents.packages.${system}.opencode;
+  antigravity-cli = inputs.llm-agents.packages.${system}.antigravity-cli;
 in
 {
   config.devcontainer.layers.bucketDefinitions."agent-tools" = {
@@ -20,6 +21,7 @@ in
     packages = [
       codex
       opencode
+      antigravity-cli
     ];
     priority = 74;
     stability = "medium";
@@ -51,6 +53,20 @@ in
           shell = "bash";
           interactive = false;
           command = "opencode --version";
+        }
+      ];
+    };
+    tests.cases."antigravity-cli.cli" = {
+      tags = [
+        "smoke"
+        "tooling"
+        "antigravity-cli"
+      ];
+      scripts = [
+        {
+          shell = "bash";
+          interactive = false;
+          command = "agy --version";
         }
       ];
     };
