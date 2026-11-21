@@ -155,9 +155,12 @@ let
       usrRoot = pkgs.buildEnv {
         name = "devcontainer-${variantName}-usr";
         paths = usrPaths;
+        # Do not link package /sbin outputs so glibc's /sbin/ldconfig (which looks for a
+        # non-existent store ld.so.cache) is never exposed; /sbin -> usr/sbin remains an empty
+        # compatibility directory while VS Code Server requirement checks use /usr/lib/libc.so.6
+        # and /usr/lib/libstdc++.so.6.
         pathsToLink = [
           "/bin"
-          "/sbin"
           "/lib"
           "/lib64"
           "/libexec"
@@ -168,6 +171,10 @@ let
         postBuild =
           usrMergePostBuild
           + ''
+            if [ -e "$out/usr/sbin/ldconfig" ] || [ -e "$out/sbin/ldconfig" ]; then
+              echo "Unexpected /sbin/ldconfig exposed in usrRoot" >&2
+              exit 1
+            fi
             mkdir -p "$out/usr/share/devcontainer"
             ln -sfn ${inputs.nixpkgs.outPath} "$out/usr/share/devcontainer/nixpkgs"
             ln -sfn ${inputs.rust-overlay.outPath} "$out/usr/share/devcontainer/rust-overlay"

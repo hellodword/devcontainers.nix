@@ -1,38 +1,27 @@
 # devcontainers.nix
 
-`devcontainers.nix` builds x86_64-linux VS Code Dev Container OCI images with Nix and nix2container.
+Modular Nix/OCI container images for interactive software development (`:latest`) and headless CLI / coding-agent execution (`:agent`), built from a shared `/nix/store` layer stack.
 
-The published images provide Nix, common development tools, VS Code-compatible runtime glue, preconfigured editor metadata, and the `devpkg` helper for adding packages inside a container.
+## Variants
 
-## Motivation
+| Capability                        | `ghcr.io/hellodword/devcontainers-dev:latest`                                                           | `ghcr.io/hellodword/devcontainers-dev:agent`                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Primary role                      | Interactive development & VS Code Dev Containers                                                        | Headless CI, sandboxed tasks & coding-agent CLIs                                            |
+| Default user & workdir            | `vscode` (`1000:1000`), `/workspaces`                                                                   | `vscode` (`1000:1000`), `/workspaces`                                                       |
+| Entrypoint & supervisor           | `/usr/bin/devcontainer-entrypoint` (`tini -g`)                                                          | `/usr/bin/devcontainer-entrypoint` (`tini -g`)                                              |
+| Shell, VCS, network & Nix CLI     | Included (`bash`, `git`, `ssh`, `gpg`, `jq`, `rg`, `fd`, `just`, `docker`, `nix`, `devpkg`)             | Included (`bash`, `git`, `ssh`, `gpg`, `jq`, `rg`, `fd`, `just`, `docker`, `nix`, `devpkg`) |
+| Agent CLIs in `/usr/bin`          | `codex`, `opencode`, `agy`, `vm-test-submit`                                                            | `codex`, `opencode`, `agy`, `vm-test-submit`                                                |
+| Language toolchains in `/usr/bin` | C/C++, Rust **Nightly**, Go, Python, Node.js/TypeScript, Nix LSP/formatters, Protobuf                   | Pre-populated in `/nix/store` with GC roots; omitted from `/usr/bin` and `PATH`             |
+| Offline VS Code extensions        | 26 extensions + read-only `Machine/settings.json`                                                       | Not included                                                                                |
+| `devcontainer.metadata` label     | Included (`init`, `overrideCommand`, `.devcontainer` read-only mount, `postCreate` / `postStart` tasks) | Omitted                                                                                     |
+| Native Wayland diagnostics        | `devcontainer-gui-env` + `wayland-info`                                                                 | `devcontainer-gui-env`                                                                      |
+| GitHub CLI (`gh`)                 | Omitted by design                                                                                       | Omitted by design                                                                           |
 
-I heavily rely on `Dev Containers` and `gVisor` in VS Code to set up development environments and isolate different projects.
-
-Initially, I used a base image and added a bunch of Dev Container features. However, this approach had a significant drawback: Dev Container features do not actually include real content. They are mostly shell scripts built locally during container creation, which made rebuilds slow and noisy.
-
-To improve this, I adopted the official recommended approach of using the Dev Container CLI to build and publish Dev Container images to GHCR. That was much better, but it introduced two new problems. First, VS Code extensions and some SDKs still could not be included cleanly, which created a heavy mental burden during every rebuild unless I wrote endless shell scripts to handle them one by one. Second, once the images became complex, they were difficult to layer properly; trying to keep packages up to date with nightly image builds made image pulls unnecessarily expensive.
-
-After two years of these setups, I decided to completely rework everything using Nix. To my surprise, I found it much simpler and better than I had imagined.
-
-1. With `nixpkgs`, there is a massive collection of available packages, along with binary caches, multi-architecture support, and a batteries-included package toolchain.
-2. Nix makes Docker images reproducible, which was practically unattainable with traditional `docker build`, or at least very hard to achieve.
-3. The Nix store is hash-based, making it incredibly easy to avoid wasting space with duplicate files.
-4. Tools like `pkgs.dockerTools` and `nix2container.buildImage` allow for flexible layering. I can manually organize which packages and files go into the same layer. More impressively, these layers are fully reproducible and shareable, effectively turning Docker pulls into true incremental updates.
-5. Nix also makes real VS Code GUI E2E tests practical: this project can build NixOS VM tests that open the generated devcontainer in VS Code and verify X11/Wayland GUI forwarding, lifecycle tasks, terminal integration, and smoke probes.
-
-The initial Nix implementation lives on the `v0` branch. This version was refactored from that `v0` base through vibe coding.
+> **Rust toolchain channel**: `:latest` provides the **Rust Nightly** toolchain by default (`rustc`, `cargo`, `rust-src`, `rustfmt`, `clippy`, `rust-analyzer`, alongside `rustup`). Projects that target Rust Stable or a pinned compiler release declare a `rust-toolchain.toml` in the repository root or provide a pinned toolchain through a project `flake.nix` `devShell`; see [docs/packages-and-devshell.md](docs/packages-and-devshell.md).
 
 ## Quick Start
 
-Published images:
-
-<!-- BEGIN GENERATED:image-refs -->
-
-- `ghcr.io/hellodword/devcontainers-dev:latest`
-- `ghcr.io/hellodword/devcontainers-flutter:latest`
-<!-- END GENERATED:image-refs -->
-
-Create `.devcontainer/devcontainer.json`:
+Minimal `.devcontainer/devcontainer.json` for standard `/workspaces/<repo>` projects with host UID/GID `1000:1000`:
 
 ```json
 {
@@ -40,48 +29,44 @@ Create `.devcontainer/devcontainer.json`:
 }
 ```
 
-<details><summary>Working with agents:</summary>
-```json
-{
-  "image": "ghcr.io/hellodword/devcontainers-dev:latest",
-  "mounts": [
-    "source=${localEnv:HOME}/dev/workspace/agents-misc/.agents,target=${containerWorkspaceFolder}/.agents,type=bind,readonly",
-    "source=${localEnv:HOME}/dev/workspace/agents-misc/AGENTS.md,target=${containerWorkspaceFolder}/AGENTS.md,type=bind,readonly",
-    "source=${localEnv:HOME}/dev/workspace/agents-misc/codex/config/codex_hook_forwarder.py,target=/etc/codex/codex_hook_forwarder.py,type=bind,readonly",
-    {
-      "source": "${localEnv:HOME}/.codex",
-      "target": "/home/vscode/.codex",
-      "type": "bind"
-    }
-  ],
-  "containerEnv": {
-    "AI_COMMIT_COAUTHOR": "Codex <noreply@openai.com>"
-  }
-}
-```
-</details>
+The image `devcontainer.metadata` label configures `remoteUser = "vscode"`, `init = true`, `overrideCommand = true`, read-only `.devcontainer` bind protection, offline VS Code extension projection (`postCreate`), and Wayland / local Nix cache refresh (`postStart`).
 
-Inside the container, add ad-hoc packages with `devpkg`:
+## Local Build, Load, and Verification
 
-```sh
-devpkg add cowsay
-cowsay hello
-devpkg list
-devpkg remove cowsay
+Build the deduplicated multi-variant OCI Image Layout (`index.json` containing both `latest` and `agent` manifests):
+
+```bash
+nix build .#oci
 ```
 
-Each generated image carries its source version inside the image:
+Load a variant directly into the local Docker daemon:
 
-```sh
-cat /usr/share/devcontainer/version.json
-printf '%s\n' "$DEVCONTAINERS_NIX_VERSION"
+```bash
+nix run .#load -- latest
+nix run .#load -- agent
 ```
 
-For a dirty flake source, the version value includes the `-dirty` suffix.
+Run the full repository verification suite (formatting, static checks, OCI layout invariants, container runtime & `gVisor` workflows, offline VS Code + Sway Wayland session, and digest-preserving release tests):
+
+```bash
+nix run .#verify
+```
+
+## Image Tags and Digest Pinning
+
+Published images under `ghcr.io/hellodword/devcontainers-dev` expose four tags sharing exact OCI manifest digests:
+
+- `:latest` and `:sha-<40-char-commit>` — interactive development & Dev Container variant;
+- `:agent` and `:agent-sha-<40-char-commit>` — headless CLI & coding-agent variant.
+
+For reproducible builds and thin UID/GID derivations, pin by immutable commit tag or manifest digest:
+
+```text
+ghcr.io/hellodword/devcontainers-dev@sha256:<manifest-digest>
+```
 
 ## Documentation
 
-- [Documentation Index](docs/index.md)
-- [Usage](docs/usage.md)
-- [Architecture](docs/architecture.md)
-- [Development and Maintenance](docs/development.md)
+- [docs/usage.md](docs/usage.md) — Workspace layouts, `.devcontainer` read-only mounts, 6-line `Dockerfile` UID/GID derivation, and entrypoint account boundaries.
+- [docs/packages-and-devshell.md](docs/packages-and-devshell.md) — Built-in toolchains, Rust Nightly & version pinning, `devpkg` package/library management, and offline `nix develop` store reuse in `:agent`.
+- [docs/gui-and-cache.md](docs/gui-and-cache.md) — Native Wayland forwarding, `100ms` host `oranc` binary cache auto-discovery, client cache setup, and image digest semantics.

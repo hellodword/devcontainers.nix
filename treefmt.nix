@@ -39,7 +39,5 @@
     "tests/smoke/**"
     "tests/e2e/**"
     ".github/**"
-    "README.md"
-    "docs/**"
   ];
 }

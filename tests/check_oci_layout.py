@@ -147,15 +147,23 @@ def parse_env_list(env_list: list[str]) -> dict[str, str]:
     return parsed
 
 
-def extract_usr_bin_commands(layer_blob: Path) -> set[str]:
+def extract_usr_bin_commands(layer_blob: Path) -> tuple[set[str], set[str]]:
     commands: set[str] = set()
+    sbin_entries: set[str] = set()
     with tarfile.open(layer_blob, mode="r:*") as archive:
         for member in archive.getmembers():
             norm = member.name.lstrip("./")
             parts = norm.split("/")
             if len(parts) == 3 and parts[0] == "usr" and parts[1] == "bin" and parts[2]:
                 commands.add(parts[2])
-    return commands
+            if (
+                len(parts) == 3
+                and parts[0] == "usr"
+                and parts[1] == "sbin"
+                and parts[2]
+            ):
+                sbin_entries.add(parts[2])
+    return commands, sbin_entries
 
 
 def check_layout(oci_dir: Path) -> dict:
@@ -289,8 +297,13 @@ def check_layout(oci_dir: Path) -> dict:
 
     latest_top_blob = blob_path(oci_dir, latest_layers[-1]["digest"])
     agent_top_blob = blob_path(oci_dir, agent_layers[-1]["digest"])
-    latest_cmds = extract_usr_bin_commands(latest_top_blob)
-    agent_cmds = extract_usr_bin_commands(agent_top_blob)
+    latest_cmds, latest_sbin = extract_usr_bin_commands(latest_top_blob)
+    agent_cmds, agent_sbin = extract_usr_bin_commands(agent_top_blob)
+
+    assert "ldconfig" not in latest_sbin and "ldconfig" not in agent_sbin, (
+        latest_sbin,
+        agent_sbin,
+    )
 
     assert not (FORBIDDEN_COMMANDS & latest_cmds), (
         f"Forbidden command in :latest: {FORBIDDEN_COMMANDS & latest_cmds}"

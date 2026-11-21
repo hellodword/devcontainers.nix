@@ -123,6 +123,13 @@
             images
             ;
         };
+        vm-editor = import ./tests/vm/editor.nix {
+          inherit
+            pkgs
+            core
+            images
+            ;
+        };
       };
 
       devShells.${system}.default = pkgs.mkShellNoCC {
