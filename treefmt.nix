@@ -33,11 +33,4 @@
       "*.scss"
     ];
   };
-
-  settings.global.excludes = [
-    "tests/ci/**"
-    "tests/smoke/**"
-    "tests/e2e/**"
-    ".github/**"
-  ];
 }

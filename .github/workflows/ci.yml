@@ -1,0 +1,272 @@
+name: Verify, publish images, and cache
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      initialize-cache:
+        description: Initialize the GHCR Nix cache package metadata only
+        type: boolean
+        default: false
+      publish-images:
+        description: Publish verified latest and agent OCI manifests to GHCR when running on master
+        type: boolean
+        default: true
+      retry-cache-sha:
+        description: Optional 40-character historical commit SHA to retry signed Nix cache upload only
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devcontainers-verify
+  cancel-in-progress: false
+
+jobs:
+  initialize-cache:
+    if: github.event_name == 'workflow_dispatch' && inputs.initialize-cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out core infra repository
+        uses: actions/checkout@v7
+        with:
+          repository: hellodword/nixos-config
+          ref: master
+          path: core
+          persist-credentials: false
+      - name: Check out devcontainers.nix
+        uses: actions/checkout@v7
+        with:
+          path: project
+          persist-credentials: false
+      - name: Initialize GHCR cache package
+        uses: ./core/infra/action
+        with:
+          mode: initialize-cache
+          project-dir: project
+
+  verify-and-publish:
+    if: github.event_name != 'workflow_dispatch' || !inputs.initialize-cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      cache_result: ${{ steps.cache-outcome.outputs.result }}
+      target_sha: ${{ steps.target.outputs.sha }}
+    steps:
+      - name: Check out core infra repository
+        uses: actions/checkout@v7
+        with:
+          repository: hellodword/nixos-config
+          ref: master
+          path: core
+          persist-credentials: false
+
+      - name: Check out devcontainers.nix
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.retry-cache-sha != '' && inputs.retry-cache-sha || github.sha }}
+          fetch-depth: 0
+          path: project
+          persist-credentials: false
+
+      - name: Resolve target and core commits
+        id: target
+        env:
+          RETRY_SHA: ${{ inputs.retry-cache-sha }}
+        run: |
+          set -euo pipefail
+          target_sha="$(git -C project rev-parse HEAD)"
+          if [[ -n "$RETRY_SHA" && "$target_sha" != "$RETRY_SHA" ]]; then
+            echo "Checked out revision $target_sha does not match retry-cache-sha $RETRY_SHA" >&2
+            exit 1
+          fi
+          action_sha="$(git -C core rev-parse HEAD)"
+          {
+            printf 'sha=%s\n' "$target_sha"
+            printf 'action_sha=%s\n' "$action_sha"
+          } >> "$GITHUB_OUTPUT"
+          printf 'NIX_CI_ACTION_SHA=%s\n' "$action_sha" >> "$GITHUB_ENV"
+
+      - name: Prepare isolated Nix CI container, local oranc proxy, and manifest
+        uses: ./core/infra/action
+        with:
+          mode: verify
+          project-dir: project
+          select: ${{ inputs.retry-cache-sha != '' && '{"cacheOnly":true}' || '{}' }}
+          enable-kvm: ${{ inputs.retry-cache-sha == '' && 'true' || 'false' }}
+          run-builds: "false"
+          publish-cache: "false"
+          keep-container: "true"
+          artifact-suffix: verify
+
+      - name: Build and verify candidate workflows sequentially
+        env:
+          RETRY_SHA: ${{ inputs.retry-cache-sha }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$RETRY_SHA" ]]; then
+            docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
+              export PATH="$(cat /ci/tools)/bin:$PATH"
+              nix-ci build --group private --state /ci --github-actions
+              nix-ci build --group build --state /ci --github-actions
+              nix-ci report verify --state /ci
+            '
+            exit 0
+          fi
+
+          docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
+            export PATH="$(cat /ci/tools)/bin:$PATH"
+            cd /workspace
+            nix develop --no-update-lock-file --command bash -euo pipefail -c "
+              ruff check scripts/*.py tests/*.py runtime/*/*.py
+              shellcheck scripts/*.sh runtime/devcontainer-gui-env/main.sh
+              actionlint .github/workflows/*.yml
+            "
+            nix-ci build --group private --state /ci --github-actions
+            nix-ci build --group build --state /ci --github-actions
+          '
+
+          docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
+            export PATH="$(cat /ci/tools)/bin:$PATH"
+            nix-ci build --group vm-containers --state /ci --github-actions
+            rm -rf /build/*
+          '
+
+          docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
+            export PATH="$(cat /ci/tools)/bin:$PATH"
+            nix-ci build --group vm-editor --state /ci --github-actions
+            rm -rf /build/*
+          '
+
+          docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
+            export PATH="$(cat /ci/tools)/bin:$PATH"
+            nix-ci report verify --state /ci
+            oci_out="$(jq -r ".builds.build[] | select(.name == \"oci\") | .outputs[0]" /ci/manifest.json)"
+            cd /workspace
+            nix develop --no-update-lock-file --command python3 tests/check_publish.py --oci-dir "$oci_out"
+          '
+
+      - name: Publish digest-preserving OCI tags to GHCR
+        if: >-
+          inputs.retry-cache-sha == '' &&
+          github.ref == 'refs/heads/master' &&
+          (github.event_name != 'workflow_dispatch' || inputs.publish-images)
+        env:
+          GHCR_ACTOR: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          ACTION_SHA: ${{ steps.target.outputs.action_sha }}
+          REMOTE_URL: ${{ format('{0}/{1}.git', github.server_url, github.repository) }}
+        run: |
+          set -euo pipefail
+          docker exec \
+            --env GHCR_ACTOR \
+            --env GHCR_TOKEN \
+            --env TARGET_SHA \
+            --env ACTION_SHA \
+            --env REMOTE_URL \
+            "$NIX_CI_CONTAINER" bash -euo pipefail <<'BASH'
+          export PATH="$(cat /ci/tools)/bin:$PATH"
+          oci_out="$(jq -r '.builds.build[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
+          authfile="/ci/ghcr-auth.json"
+          trap 'rm -f "$authfile"' EXIT
+          umask 077
+          nix develop /workspace --no-update-lock-file --command bash -euo pipefail -c '
+            printf "%s" "$GHCR_TOKEN" | skopeo login ghcr.io \
+              --username "$GHCR_ACTOR" \
+              --password-stdin \
+              --authfile "'"$authfile"'"
+            python3 /workspace/scripts/publish.py \
+              --oci-dir "'"$oci_out"'" \
+              --registry ghcr.io \
+              --repository hellodword/devcontainers-dev \
+              --commit-sha "$TARGET_SHA" \
+              --expected-master-ref refs/heads/master \
+              --git-remote "$REMOTE_URL" \
+              --flake-lock /workspace/flake.lock \
+              --action-sha "$ACTION_SHA" \
+              --authfile "'"$authfile"'" \
+              --output-json /ci/publish-result.json \
+              --summary-file /ci/publish-summary.md
+          '
+          BASH
+          cat "$NIX_CI_STATE/publish-summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify signing key and publish signed Nix cache at end of phase
+        id: publish-cache
+        if: github.ref == 'refs/heads/master' || inputs.retry-cache-sha != ''
+        continue-on-error: true
+        uses: ./core/infra/action
+        with:
+          mode: publish-cache
+          project-dir: project
+          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
+
+      - name: Record end-of-phase cache outcome
+        id: cache-outcome
+        if: always()
+        env:
+          STEP_OUTCOME: ${{ steps.publish-cache.outcome }}
+          RAW_RESULT: ${{ steps.publish-cache.outputs.cache-result }}
+        run: |
+          set -euo pipefail
+          if [[ "$STEP_OUTCOME" == skipped ]]; then
+            echo 'result=skipped' >> "$GITHUB_OUTPUT"
+          elif [[ "$STEP_OUTCOME" == success && "$RAW_RESULT" == success ]]; then
+            echo 'result=success' >> "$GITHUB_OUTPUT"
+          else
+            echo 'result=failed' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect diagnostics and tear down Nix CI container
+        if: always()
+        uses: ./core/infra/action
+        with:
+          mode: finalize
+          project-dir: project
+          artifact-suffix: verify
+
+  cache-status:
+    needs: [verify-and-publish]
+    if: >-
+      always() &&
+      needs.verify-and-publish.result == 'success' &&
+      (github.ref == 'refs/heads/master' || inputs.retry-cache-sha != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      CACHE_RESULT: ${{ needs.verify-and-publish.outputs.cache_result }}
+      TARGET_SHA: ${{ needs.verify-and-publish.outputs.target_sha }}
+      REPO_NAME: ${{ github.repository }}
+    steps:
+      - name: Enforce signed binary cache publication status
+        run: |
+          set -euo pipefail
+          if [[ "$CACHE_RESULT" == success ]]; then
+            printf "## Signed Nix Cache Status\n\nPublished successfully for \`%s\`.\n" "$TARGET_SHA" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          cat >> "$GITHUB_STEP_SUMMARY" <<SUMMARY
+          ## Signed Nix Cache Publication Failed
+
+          OCI container images for commit \`$TARGET_SHA\` remain safely published, while the end-of-phase signed Nix cache upload reported \`$CACHE_RESULT\`.
+
+          Retry cache publication for this exact commit without republishing container tags:
+
+          \`\`\`bash
+          gh workflow run ci.yml --repo $REPO_NAME -f retry-cache-sha=$TARGET_SHA -f publish-images=false
+          \`\`\`
+          SUMMARY
+          exit 1

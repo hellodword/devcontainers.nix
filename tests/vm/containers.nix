@@ -644,14 +644,34 @@ core.lib.testing.mkTest pkgs (
                     timeout=120,
                 )
 
-            runsc_nix_expr = f'derivation {{ name = "runsc-nix-build"; system = "x86_64-linux"; builder = "{EXPECTED_PATHS["bash"]}"; args = [ "-c" "echo runsc-ok > $out" ]; }}'
+            runsc_nix_file = "\n".join(
+                [
+                    "{ idx }:",
+                    "derivation {",
+                    '  name = "runsc-nix-build-" + idx;',
+                    '  system = "x86_64-linux";',
+                    f'  builder = "{EXPECTED_PATHS["bash"]}";',
+                    "  args = [",
+                    '    "-c"',
+                    r'    "[ -z \"$LD_PRELOAD\" ] && printf \"runsc-ok-%s\\n\" \"$1\" > \"$out\""',
+                    '    "--"',
+                    "    idx",
+                    "  ];",
+                    "}",
+                ]
+            )
+            runsc_build_script = f"""
+      set -euo pipefail
+      printf '%s' {q(runsc_nix_file)} > /tmp/runsc-build.nix
+      for idx in 1 2 3 4 5; do
+        out=$(nix build --offline --impure --print-out-paths --no-link --file /tmp/runsc-build.nix --argstr idx "$idx")
+        test "$(cat "$out")" = "runsc-ok-$idx"
+      done
+      """
             machine.succeed(
                 as_desktop(
-                    f"docker run --rm --runtime=runsc --network none {AGENT_REF} bash -euo pipefail -c "
-                    + q(
-                        f"out=$(nix build --offline --impure --print-out-paths --no-link --expr {q(runsc_nix_expr)}) && "
-                        'test "$(cat "$out")" = "runsc-ok"'
-                    )
+                    f"docker run --rm --runtime=runsc --network none {AGENT_REF} bash -c "
+                    + q(runsc_build_script)
                 ),
                 timeout=180,
             )

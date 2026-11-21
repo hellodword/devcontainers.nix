@@ -70,13 +70,239 @@ let
     net-tools
   ];
 
+  # gVisor's devpts returns EIO on blocking master reads while numReplicas == 0,
+  # before a forked single-user Nix builder child opens /dev/pts/<N>. Retry EIO
+  # until the first byte arrives (or a bounded startup window expires) and strip
+  # LD_PRELOAD immediately in the constructor so child processes stay clean.
+  wrappedNix =
+    pkgs.runCommandCC "devcontainer-nix-${pkgs.nix.version}"
+      {
+        meta = removeAttrs pkgs.nix.meta [ "outputsToInstall" ];
+      }
+      ''
+        mkdir -p "$out/bin" "$out/libexec/devcontainer"
+        shim="$out/libexec/devcontainer/libgvisor_pty_shim.so"
+
+        cat > shim.c <<'EOF'
+        #define _GNU_SOURCE
+        #include <dlfcn.h>
+        #include <errno.h>
+        #include <stdatomic.h>
+        #include <stdint.h>
+        #include <stdlib.h>
+        #include <string.h>
+        #include <time.h>
+        #include <unistd.h>
+
+        #define MAX_TRACKED_FDS 4096
+        #define FIRST_READ_RETRY_NS 5000000000ULL
+
+        static int (*real_posix_openpt)(int flags);
+        static ssize_t (*real_read)(int fd, void *buf, size_t count);
+        static int (*real_close)(int fd);
+        static atomic_uint_least64_t first_byte_deadline_ns[MAX_TRACKED_FDS];
+
+        static uint64_t monotonic_ns(void) {
+          struct timespec ts;
+          if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+            return 1;
+          }
+          return ((uint64_t)ts.tv_sec * 1000000000ULL) + (uint64_t)ts.tv_nsec;
+        }
+
+        static void strip_self_from_ld_preload(void) {
+          const char *preload = getenv("LD_PRELOAD");
+          if (preload == NULL || preload[0] == '\0') {
+            return;
+          }
+          if (strcmp(preload, SHIM_SO_PATH) == 0) {
+            unsetenv("LD_PRELOAD");
+            return;
+          }
+          size_t len = strlen(preload);
+          char *copy = malloc(len + 1);
+          char *rebuilt = malloc(len + 1);
+          if (copy == NULL || rebuilt == NULL) {
+            free(copy);
+            free(rebuilt);
+            return;
+          }
+          memcpy(copy, preload, len + 1);
+          rebuilt[0] = '\0';
+          char *saveptr = NULL;
+          for (char *tok = strtok_r(copy, ": ", &saveptr); tok != NULL;
+               tok = strtok_r(NULL, ": ", &saveptr)) {
+            if (strcmp(tok, SHIM_SO_PATH) == 0) {
+              continue;
+            }
+            if (rebuilt[0] != '\0') {
+              strcat(rebuilt, ":");
+            }
+            strcat(rebuilt, tok);
+          }
+          if (rebuilt[0] == '\0') {
+            unsetenv("LD_PRELOAD");
+          } else {
+            setenv("LD_PRELOAD", rebuilt, 1);
+          }
+          free(copy);
+          free(rebuilt);
+        }
+
+        __attribute__((constructor)) static void init_shim(void) {
+          real_posix_openpt = dlsym(RTLD_NEXT, "posix_openpt");
+          real_read = dlsym(RTLD_NEXT, "read");
+          real_close = dlsym(RTLD_NEXT, "close");
+          strip_self_from_ld_preload();
+        }
+
+        int posix_openpt(int flags) {
+          if (real_posix_openpt == NULL) {
+            real_posix_openpt = dlsym(RTLD_NEXT, "posix_openpt");
+          }
+          int fd = real_posix_openpt(flags);
+          if (fd >= 0 && fd < MAX_TRACKED_FDS) {
+            atomic_store_explicit(
+                &first_byte_deadline_ns[fd],
+                monotonic_ns() + FIRST_READ_RETRY_NS,
+                memory_order_relaxed);
+          }
+          return fd;
+        }
+
+        int close(int fd) {
+          if (real_close == NULL) {
+            real_close = dlsym(RTLD_NEXT, "close");
+          }
+          if (fd >= 0 && fd < MAX_TRACKED_FDS) {
+            atomic_store_explicit(&first_byte_deadline_ns[fd], 0, memory_order_relaxed);
+          }
+          return real_close(fd);
+        }
+
+        ssize_t read(int fd, void *buf, size_t count) {
+          if (real_read == NULL) {
+            real_read = dlsym(RTLD_NEXT, "read");
+          }
+          if (fd < 0 || fd >= MAX_TRACKED_FDS) {
+            return real_read(fd, buf, count);
+          }
+          uint64_t deadline = atomic_load_explicit(
+              &first_byte_deadline_ns[fd], memory_order_relaxed);
+          if (deadline == 0) {
+            return real_read(fd, buf, count);
+          }
+          for (;;) {
+            ssize_t n = real_read(fd, buf, count);
+            if (n > 0) {
+              atomic_store_explicit(
+                  &first_byte_deadline_ns[fd], 0, memory_order_relaxed);
+              return n;
+            }
+            if (n == -1 && errno == EIO) {
+              if (monotonic_ns() < deadline) {
+                struct timespec req = {.tv_sec = 0, .tv_nsec = 1000000L};
+                nanosleep(&req, NULL);
+                continue;
+              }
+              atomic_store_explicit(
+                  &first_byte_deadline_ns[fd], 0, memory_order_relaxed);
+              errno = EIO;
+              return -1;
+            }
+            return n;
+          }
+        }
+        EOF
+
+        cat > launcher.c <<'EOF'
+        #define _GNU_SOURCE
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <string.h>
+        #include <unistd.h>
+
+        int main(int argc, char **argv) {
+          (void)argc;
+          const char *existing = getenv("LD_PRELOAD");
+          if (existing == NULL || existing[0] == '\0') {
+            if (setenv("LD_PRELOAD", SHIM_SO_PATH, 1) != 0) {
+              perror("setenv LD_PRELOAD");
+              return 126;
+            }
+          } else {
+            size_t needed = strlen(SHIM_SO_PATH) + 1 + strlen(existing) + 1;
+            char *combined = malloc(needed);
+            if (combined == NULL) {
+              perror("malloc");
+              return 126;
+            }
+            snprintf(combined, needed, "%s:%s", SHIM_SO_PATH, existing);
+            if (setenv("LD_PRELOAD", combined, 1) != 0) {
+              perror("setenv LD_PRELOAD");
+              free(combined);
+              return 126;
+            }
+            free(combined);
+          }
+          execv(REAL_NIX_BIN, argv);
+          perror("execv nix");
+          return 127;
+        }
+        EOF
+
+        "$CC" -shared -fPIC -O2 -Wall -Wextra -Werror \
+          -DSHIM_SO_PATH="\"$shim\"" \
+          -o "$shim" shim.c -ldl
+
+        "$CC" -O2 -Wall -Wextra -Werror \
+          -DSHIM_SO_PATH="\"$shim\"" \
+          -DREAL_NIX_BIN="\"${pkgs.nix}/bin/nix\"" \
+          -o "$out/bin/nix" launcher.c
+
+        for tool in ${pkgs.nix}/bin/*; do
+          name="$(basename "$tool")"
+          if [ "$name" != "nix" ]; then
+            ln -s nix "$out/bin/$name"
+          fi
+        done
+
+        for sub in etc lib; do
+          if [ -e "${pkgs.nix}/$sub" ]; then
+            ln -s "${pkgs.nix}/$sub" "$out/$sub"
+          fi
+        done
+        mkdir -p "$out/share"
+        for item in ${pkgs.nix}/share/*; do
+          ln -s "$item" "$out/share/$(basename "$item")"
+        done
+        if [ -d "${pkgs.nix.man or ""}/share/man" ]; then
+          ln -s "${pkgs.nix.man}/share/man" "$out/share/man"
+        fi
+        for item in ${pkgs.nix}/libexec/*; do
+          ln -s "$item" "$out/libexec/$(basename "$item")"
+        done
+
+        mkdir -p "$TMPDIR/home" "$TMPDIR/nix-state" "$TMPDIR/nix-log" "$TMPDIR/nix-conf"
+        HOME="$TMPDIR/home" \
+          NIX_STATE_DIR="$TMPDIR/nix-state" \
+          NIX_LOG_DIR="$TMPDIR/nix-log" \
+          NIX_CONF_DIR="$TMPDIR/nix-conf" \
+          "$out/bin/nix" --version >/dev/null
+        HOME="$TMPDIR/home" \
+          NIX_STATE_DIR="$TMPDIR/nix-state" \
+          NIX_LOG_DIR="$TMPDIR/nix-log" \
+          NIX_CONF_DIR="$TMPDIR/nix-conf" \
+          "$out/bin/nix-store" --version >/dev/null
+      '';
+
   containerAndNixPackages = with pkgs; [
     just
     docker-client
     docker-buildx
     docker-compose
     docker-credential-helpers
-    nix
+    wrappedNix
     nix-index-with-db
     comma-with-db
   ];

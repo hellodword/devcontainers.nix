@@ -95,6 +95,30 @@
           exec ${pkgs.bash}/bin/bash ${./scripts/load-image.sh} "$@"
         '';
       };
+
+      verifyAppPkg = pkgs.writeShellApplication {
+        name = "verify-devcontainers";
+        runtimeInputs = [
+          core.packages.${system}.ci-tools
+          core.packages.${system}.oranc
+          agents-misc.packages.${system}.vm-test-submit
+          pkgs.actionlint
+          pkgs.distribution
+          pkgs.git
+          pkgs.jq
+          pkgs.nix
+          pkgs.python3
+          pkgs.ruff
+          pkgs.shellcheck
+          pkgs.skopeo-nix2container
+        ];
+        text = ''
+          if [[ -f "$PWD/flake.nix" && -f "$PWD/tests/verify.py" ]]; then
+            exec ${pkgs.python3}/bin/python3 "$PWD/tests/verify.py" "$@"
+          fi
+          exec ${pkgs.python3}/bin/python3 ${./tests/verify.py} --project-dir ${self} "$@"
+        '';
+      };
     in
     {
       formatter.${system} = treefmtEval.config.build.wrapper;
@@ -109,6 +133,11 @@
           type = "app";
           program = "${loadAppPkg}/bin/load-devcontainer-image";
           meta.description = "Load the latest or agent variant into the local Docker daemon";
+        };
+        verify = {
+          type = "app";
+          program = "${verifyAppPkg}/bin/verify-devcontainers";
+          meta.description = "Run static checks, OCI layout validation, release tests, and VM acceptance suites";
         };
         default = load;
       };
@@ -138,6 +167,9 @@
           core.packages.${system}.oranc
           agents-misc.packages.${system}.vm-test-submit
           pkgs.actionlint
+          pkgs.distribution
+          pkgs.gh
+          pkgs.git
           pkgs.jq
           pkgs.nixfmt
           pkgs.prettier
