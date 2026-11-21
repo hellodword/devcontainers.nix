@@ -32,22 +32,29 @@ let
     (import ./toolchains/formats.nix { inherit pkgs; })
   ];
 
+  rustToolchain = (import ./toolchains/rust.nix { inherit pkgs; }).rustToolchain;
   nodejsToolchain = import ./toolchains/nodejs.nix { inherit pkgs; };
 
   toolchainsUsrPackages = lib.concatMap (m: m.usrPackages) toolchainModules;
   toolchainsStoreDeps = lib.unique (
-    lib.concatMap (m: m.storeDeps) toolchainModules ++ [ inputs.nixpkgs.outPath ]
+    lib.concatMap (m: m.storeDeps) toolchainModules
+    ++ [
+      inputs.nixpkgs.outPath
+      inputs.rust-overlay.outPath
+    ]
   );
   toolchainsPathSegments = lib.concatMap (m: m.pathSegments) toolchainModules;
   toolchainsEnv = lib.foldl' (acc: m: acc // m.env) { } toolchainModules;
 
   layers = import ./layers.nix {
     inherit
+      pkgs
       nix2container
       foundation
       toolchainsStoreDeps
       agents
       editor
+      runtime
       ;
   };
 
@@ -163,6 +170,7 @@ let
           + ''
             mkdir -p "$out/usr/share/devcontainer"
             ln -sfn ${inputs.nixpkgs.outPath} "$out/usr/share/devcontainer/nixpkgs"
+            ln -sfn ${inputs.rust-overlay.outPath} "$out/usr/share/devcontainer/rust-overlay"
           ''
           + lib.concatMapStringsSep "\n" (link: ''
             mkdir -p "$out$(dirname ${lib.escapeShellArg link.target})"
@@ -514,22 +522,8 @@ let
         // lib.optionalAttrs includeEditor {
           "devcontainer.metadata" = builtins.toJSON editor.devcontainerMetadata;
         };
-    in
-    nix2container.buildImage {
-      name = "ghcr.io/hellodword/devcontainers-dev";
-      inherit tag;
-      arch = "amd64";
-      initializeNixDatabase = true;
-      nixUid = 1000;
-      nixGid = 1000;
-      layers = imageLayers;
-      copyToRoot = [
-        usrRoot
-        filesystemRoot
-      ];
-      perms = dirPerms ++ filePerms;
-      maxLayers = 1;
-      config = {
+
+      imageConfig = {
         User = "vscode";
         WorkingDir = "/workspaces";
         Env = lib.mapAttrsToList (name: value: "${name}=${value}") fullEnv;
@@ -537,7 +531,158 @@ let
         Cmd = [ "/bin/bash" ];
         Labels = labels;
       };
-    };
+
+      configFile = pkgs.writeText "devcontainer-${variantName}-config.json" (builtins.toJSON imageConfig);
+
+      excludedGraphRootsJson = builtins.toJSON (
+        map toString (
+          [
+            configFile
+            usrRoot
+            filesystemRoot
+          ]
+          ++ imageLayers
+        )
+      );
+
+      closureGraphJson =
+        pkgs.runCommand "devcontainer-${variantName}-closure-graph.json"
+          {
+            __structuredAttrs = true;
+            exportReferencesGraph.graph = [
+              configFile
+              usrRoot
+              filesystemRoot
+            ]
+            ++ imageLayers;
+            nativeBuildInputs = [ pkgs.jq ];
+          }
+          ''
+            excluded=${lib.escapeShellArg excludedGraphRootsJson}
+            jq --argjson excluded "$excluded" '
+              .graph
+              | map(select((.path as $p | ($excluded | index($p))) == null) | .references |= sort)
+              | sort_by(.path)
+            ' .attrs.json > "$out"
+          '';
+
+      nixDatabase =
+        pkgs.runCommand "devcontainer-${variantName}-nix-database"
+          {
+            nativeBuildInputs = [
+              pkgs.jq
+              pkgs.nix
+              pkgs.sqlite
+            ];
+          }
+          ''
+            jq -r 'map([.path, .narHash, .narSize, "", (.references | length)] + .references) | add | map("\(.)\n") | add' ${closureGraphJson} \
+              | head -n -1 \
+              | NIX_REMOTE="local?root=$PWD" nix-store --load-db -j 1
+
+            sqlite3 "$PWD/nix/var/nix/db/db.sqlite" 'UPDATE ValidPaths SET registrationTime = 0'
+            sqlite3 "$PWD/nix/var/nix/db/db.sqlite" '.dump' > db.dump
+            mkdir -p "$out/nix/var/nix/db"
+            sqlite3 "$out/nix/var/nix/db/db.sqlite" '.read db.dump'
+            cp "$PWD/nix/var/nix/db/schema" "$out/nix/var/nix/db/schema"
+            sqlite3 "$out/nix/var/nix/db/db.sqlite" 'pragma journal_mode = wal' > /dev/null
+
+            mkdir -p "$out/nix/var/nix/gcroots/docker"
+            # shellcheck disable=SC2046
+            ln -s $(jq -r '.[].path' ${closureGraphJson}) "$out/nix/var/nix/gcroots/docker/"
+            mkdir -p "$out/nix/store/.links"
+          '';
+
+      explicitPermsJson = builtins.toJSON (
+        dirPerms
+        ++ filePerms
+        ++ [
+          {
+            path = "${nixDatabase}";
+            regex = ".*";
+            mode = "0755";
+            uid = 1000;
+            gid = 1000;
+            uname = "vscode";
+            gname = "vscode";
+          }
+        ]
+      );
+
+      customPermsFile =
+        pkgs.runCommand "devcontainer-${variantName}-top-perms.json"
+          {
+            __structuredAttrs = true;
+            exportReferencesGraph.graph = [
+              usrRoot
+              filesystemRoot
+              nixDatabase
+            ];
+            nativeBuildInputs = [ pkgs.jq ];
+          }
+          ''
+            explicit=${lib.escapeShellArg explicitPermsJson}
+            roots=${
+              lib.escapeShellArg (
+                builtins.toJSON [
+                  "${usrRoot}"
+                  "${filesystemRoot}"
+                  "${nixDatabase}"
+                ]
+              )
+            }
+            jq --argjson explicit "$explicit" --argjson roots "$roots" '
+              $explicit + [
+                .graph[].path
+                | select((. as $p | ($roots | index($p))) == null)
+                | {
+                    path: .,
+                    regex: ".*",
+                    mode: "",
+                    uid: 1000,
+                    gid: 1000,
+                    uname: "vscode",
+                    gname: "vscode"
+                  }
+              ]
+            ' .attrs.json > "$out"
+          '';
+
+      customizationLayer =
+        (nix2container.buildLayer {
+          maxLayers = 1;
+          permsFile = customPermsFile;
+          copyToRoot = [
+            usrRoot
+            filesystemRoot
+            nixDatabase
+          ];
+          deps = [ configFile ];
+          ignore = configFile;
+          layers = imageLayers;
+          metadata.created_by = "devcontainers.nix top layer ${variantName}";
+        })
+        // {
+          nestedLayers = [ ];
+        };
+
+      allImageLayers = imageLayers ++ [ customizationLayer ];
+    in
+    pkgs.runCommandLocal "image-devcontainers-dev.json"
+      {
+        passthru = {
+          imageName = "ghcr.io/hellodword/devcontainers-dev";
+          imageTag = tag;
+        };
+      }
+      ''
+        ${pkgs.nix2container-bin}/bin/nix2container image \
+          "$out" \
+          --arch amd64 \
+          --created 0001-01-01T00:00:00Z \
+          ${configFile} \
+          ${lib.concatMapStringsSep " " (layer: "${layer}/layers.json") allImageLayers}
+      '';
 
   dev = mkDevcontainerImage {
     variantName = "dev";
@@ -582,6 +727,7 @@ in
     foundation
     agents
     editor
+    rustToolchain
     toolchainsUsrPackages
     toolchainsStoreDeps
     ;

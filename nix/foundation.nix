@@ -123,8 +123,6 @@ let
     ++ fontPackages
     ++ runtime.baseHelpers;
 
-  storeDeps = lib.unique (usrPackages ++ linuxRuntimePackages);
-
   defaultFontsConf = pkgs.writeText "fc-52-devcontainer-default-fonts.conf" ''
     <?xml version='1.0'?>
     <!DOCTYPE fontconfig SYSTEM 'urn:fontconfig:fonts.dtd'>
@@ -175,6 +173,15 @@ let
     done
     ln -s ${defaultFontsConf} "$out/etc/fonts/conf.d/52-devcontainer-default-fonts.conf"
   '';
+
+  storeDeps = lib.unique (
+    usrPackages
+    ++ linuxRuntimePackages
+    ++ [
+      fontsConf
+      defaultFontsConf
+    ]
+  );
 
   nixpkgsCacheKey =
     if inputs.nixpkgs ? rev then

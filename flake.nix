@@ -61,6 +61,7 @@
           (final: prev: {
             inherit (nix2container.packages.${system})
               nix2container
+              nix2container-bin
               skopeo-nix2container
               ;
           })
@@ -114,6 +115,14 @@
 
       checks.${system} = {
         formatting = treefmtEval.config.build.check self;
+        vm-containers = import ./tests/vm/containers.nix {
+          inherit
+            pkgs
+            core
+            inputs
+            images
+            ;
+        };
       };
 
       devShells.${system}.default = pkgs.mkShellNoCC {

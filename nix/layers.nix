@@ -1,12 +1,34 @@
 # Pure /nix/store OCI layers shared across :latest and :agent plus :latest-only extension layers.
 {
+  pkgs,
   nix2container,
   foundation,
   toolchainsStoreDeps,
   agents,
   editor,
+  runtime,
 }:
 let
+  mkStorePermsFile =
+    name: deps:
+    pkgs.runCommand "devcontainer-store-perms-${name}.json"
+      {
+        __structuredAttrs = true;
+        exportReferencesGraph.graph = deps;
+        nativeBuildInputs = [ pkgs.jq ];
+      }
+      ''
+        jq '[.graph[].path | {
+          path: .,
+          regex: ".*",
+          mode: "",
+          uid: 1000,
+          gid: 1000,
+          uname: "vscode",
+          gname: "vscode"
+        }]' .attrs.json > "$out"
+      '';
+
   mkStoreLayer =
     {
       name,
@@ -17,6 +39,7 @@ let
       inherit deps;
       layers = priorLayers;
       maxLayers = 1;
+      permsFile = mkStorePermsFile name deps;
       metadata.created_by = "devcontainers.nix store layer ${name}";
     })
     // {
@@ -63,7 +86,7 @@ let
 
   layer5ExtensionsOss = mkStoreLayer {
     name = "vscode-extensions-oss";
-    deps = editor.ossPackages;
+    deps = editor.ossPackages ++ runtime.editorHelpers;
     priorLayers = sharedLayers;
   };
 

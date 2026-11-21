@@ -18,6 +18,10 @@ let
   storeOnly = [
     pkgs.glibc.dev
     pkgs.stdenv.cc.cc
+    pkgs.stdenv
+    pkgs.stdenvNoCC
+    pkgs.zlib.out
+    pkgs.zlib.dev
   ];
 in
 {
