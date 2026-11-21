@@ -1,0 +1,5 @@
+{
+  "registry": "ghcr.io",
+  "repository": "hellodword/devcontainers-nix-cache",
+  "publicKey": "devcontainers-nix-1:Ypa0RlvJA7bRD/K3rdZLyiNMSt4AEgxACAUIrJZ5KD4="
+}

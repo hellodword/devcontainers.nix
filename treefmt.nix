@@ -3,6 +3,11 @@
   projectRootFile = "flake.nix";
 
   programs.nixfmt.enable = true;
+  programs.ruff-format.enable = true;
+  programs.shfmt = {
+    enable = true;
+    indent_size = 2;
+  };
 
   programs.prettier = {
     enable = true;
@@ -11,6 +16,8 @@
       "*.jsonc"
       "*.md"
       "*.markdown"
+      "*.yml"
+      "*.yaml"
       "*.js"
       "*.cjs"
       "*.mjs"
@@ -26,4 +33,15 @@
       "*.scss"
     ];
   };
+
+  settings.global.excludes = [
+    "images/**"
+    "lib/**"
+    "flake/**"
+    "runtime/**"
+    "tests/**"
+    ".github/**"
+    "README.md"
+    "docs/**"
+  ];
 }
