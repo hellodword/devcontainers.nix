@@ -70,10 +70,47 @@
       };
       inherit (pkgs) lib;
       cache = import ./nix/cache.nix { inherit core lib; };
+      images = import ./nix/images.nix {
+        inherit
+          self
+          pkgs
+          lib
+          inputs
+          system
+          cache
+          ;
+      };
       treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+
+      loadAppPkg = pkgs.writeShellApplication {
+        name = "load-devcontainer-image";
+        runtimeInputs = [
+          pkgs.docker-client
+          pkgs.jq
+          pkgs.skopeo-nix2container
+        ];
+        text = ''
+          export OCI_DIR=${lib.escapeShellArg "${images.oci}"}
+          exec ${pkgs.bash}/bin/bash ${./scripts/load-image.sh} "$@"
+        '';
+      };
     in
     {
       formatter.${system} = treefmtEval.config.build.wrapper;
+
+      packages.${system} = {
+        inherit (images) dev agent oci;
+        default = images.oci;
+      };
+
+      apps.${system} = rec {
+        load = {
+          type = "app";
+          program = "${loadAppPkg}/bin/load-devcontainer-image";
+          meta.description = "Load the latest or agent variant into the local Docker daemon";
+        };
+        default = load;
+      };
 
       checks.${system} = {
         formatting = treefmtEval.config.build.check self;
@@ -97,7 +134,7 @@
       };
 
       lib.${system} = {
-        inherit cache;
+        inherit cache images;
       };
     };
 }

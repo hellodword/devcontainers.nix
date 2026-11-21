@@ -6,7 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 NIXPKGS_REF = os.environ.get("DEVPKG_NIXPKGS_REF", "nixpkgs")
 NIXPKGS_CACHE_KEY = os.environ.get("DEVPKG_NIXPKGS_CACHE_KEY", NIXPKGS_REF)
 NIX_BIN = os.environ.get("DEVPKG_NIX_BIN", "nix")
@@ -81,7 +80,9 @@ def nix_env() -> dict[str, str]:
     return env
 
 
-def nix_run(args: list[str], *, capture: bool = False, stderr=None) -> subprocess.CompletedProcess:
+def nix_run(
+    args: list[str], *, capture: bool = False, stderr=None
+) -> subprocess.CompletedProcess:
     kwargs = {
         "env": nix_env(),
         "text": True,
@@ -91,7 +92,9 @@ def nix_run(args: list[str], *, capture: bool = False, stderr=None) -> subproces
         kwargs["stdout"] = subprocess.PIPE
         if stderr is None:
             kwargs["stderr"] = subprocess.PIPE
-    return subprocess.run([NIX_BIN, *NIX_EXPERIMENTAL_FLAGS, *args], **kwargs)
+    return subprocess.run(
+        [NIX_BIN, *NIX_EXPERIMENTAL_FLAGS, *args], check=False, **kwargs
+    )
 
 
 def nix_check(args: list[str]) -> int:
@@ -114,7 +117,9 @@ def current_system() -> str:
         if configured:
             CURRENT_SYSTEM = configured
         else:
-            CURRENT_SYSTEM = nix_capture(["eval", "--impure", "--expr", "builtins.currentSystem", "--raw"]).strip()
+            CURRENT_SYSTEM = nix_capture(
+                ["eval", "--impure", "--expr", "builtins.currentSystem", "--raw"]
+            ).strip()
     return CURRENT_SYSTEM
 
 
@@ -165,12 +170,10 @@ def normalize_attr(spec: str) -> str:
     spec = spec.split("^", 1)[0]
     if "#" in spec:
         spec = spec.rsplit("#", 1)[1]
-    if spec.startswith("pkgs."):
-        spec = spec[len("pkgs.") :]
+    spec = spec.removeprefix("pkgs.")
     system = current_system()
     for prefix in (f"legacyPackages.{system}.", f"packages.{system}."):
-        if spec.startswith(prefix):
-            spec = spec[len(prefix) :]
+        spec = spec.removeprefix(prefix)
     return spec
 
 
@@ -202,7 +205,9 @@ def profile_json_for_text(profile: Path) -> str:
 
 
 def profile_json_for(profile: Path) -> dict:
-    return parse_json_text(profile_json_for_text(profile), f"nix profile list --profile {profile}")
+    return parse_json_text(
+        profile_json_for_text(profile), f"nix profile list --profile {profile}"
+    )
 
 
 def parse_json_text(text: str, source: str):
@@ -219,14 +224,20 @@ def package_outputs(attr: str) -> list[str]:
         f"{NIXPKGS_REF}#packages.{system}.{attr}.outputs",
     ]
     for installable in installables:
-        result = nix_run(["eval", "--impure", "--json", installable], capture=True, stderr=subprocess.DEVNULL)
+        result = nix_run(
+            ["eval", "--impure", "--json", installable],
+            capture=True,
+            stderr=subprocess.DEVNULL,
+        )
         if result.returncode != 0:
             continue
         try:
             outputs = json.loads(result.stdout or "null")
         except json.JSONDecodeError:
             continue
-        if isinstance(outputs, list) and all(isinstance(output, str) for output in outputs):
+        if isinstance(outputs, list) and all(
+            isinstance(output, str) for output in outputs
+        ):
             return outputs
     return ["out"]
 
@@ -269,12 +280,9 @@ def profile_matches(data: dict, requested: str) -> list[str]:
         if isinstance(value, dict):
             attr_path = value.get("attrPath") or ""
         if (
-            key == requested
-            or key == attr
-            or key == base
+            key in {requested, attr, base}
             or attr_path == attr
-            or attr_path.endswith(f".{attr}")
-            or attr_path.endswith(f".{base}")
+            or attr_path.endswith((f".{attr}", f".{base}"))
         ):
             matches.append(key)
     return sorted(set(matches))
@@ -378,7 +386,9 @@ def cmd_add_libraries(mode: str, profile: Path, args: list[str]) -> int:
         installables.append(installable_for_outputs(attr, selected_outputs))
 
     profile.parent.mkdir(parents=True, exist_ok=True)
-    return nix_check(["profile", "add", "--impure", "--profile", str(profile), *installables])
+    return nix_check(
+        ["profile", "add", "--impure", "--profile", str(profile), *installables]
+    )
 
 
 def cmd_remove_libraries(profile: Path, args: list[str]) -> int:
@@ -403,7 +413,9 @@ def cmd_list_libraries(profile: Path, args: list[str]) -> int:
         outputs = value.get("outputs") if isinstance(value, dict) else []
         if not isinstance(outputs, list):
             outputs = []
-        print(f"{key}\t{attr_path or ''}\t{','.join(str(output) for output in outputs)}")
+        print(
+            f"{key}\t{attr_path or ''}\t{','.join(str(output) for output in outputs)}"
+        )
     return 0
 
 
@@ -420,7 +432,7 @@ def complete_outputs(prefix: str) -> None:
 
 
 def package_cache_path(parent: str) -> Path:
-    cache_id = "\0".join([NIXPKGS_CACHE_KEY, current_system(), parent])
+    cache_id = f"{NIXPKGS_CACHE_KEY}\0{current_system()}\0{parent}"
     digest = hashlib.sha256(cache_id.encode("utf-8")).hexdigest()
     return devpkg_cache_home() / "packages" / f"{digest}.json"
 
@@ -439,7 +451,9 @@ def read_package_cache(parent: str) -> list[str] | None:
     if data.get("system") != current_system() or data.get("parent") != parent:
         return None
     attr_names = data.get("attrNames")
-    if not isinstance(attr_names, list) or not all(isinstance(name, str) for name in attr_names):
+    if not isinstance(attr_names, list) or not all(
+        isinstance(name, str) for name in attr_names
+    ):
         return None
     return attr_names
 
@@ -489,14 +503,20 @@ def eval_package_scope(parent: str) -> list[str] | None:
     in
       if builtins.isAttrs scope then builtins.attrNames scope else [ ]
     """
-    result = nix_run(["eval", "--impure", "--json", "--expr", expr], capture=True, stderr=subprocess.DEVNULL)
+    result = nix_run(
+        ["eval", "--impure", "--json", "--expr", expr],
+        capture=True,
+        stderr=subprocess.DEVNULL,
+    )
     if result.returncode != 0:
         return None
     try:
         attr_names = json.loads(result.stdout or "[]")
     except json.JSONDecodeError:
         return None
-    if isinstance(attr_names, list) and all(isinstance(name, str) for name in attr_names):
+    if isinstance(attr_names, list) and all(
+        isinstance(name, str) for name in attr_names
+    ):
         return sorted(set(attr_names))
     return None
 

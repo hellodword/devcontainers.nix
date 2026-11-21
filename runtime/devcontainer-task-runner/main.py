@@ -9,10 +9,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-
-TASKS_FILE = Path(os.environ.get("DEVCONTAINER_TASKS_FILE", "/usr/share/devcontainer/tasks.json"))
+TASKS_FILE = Path(
+    os.environ.get("DEVCONTAINER_TASKS_FILE", "/usr/share/devcontainer/tasks.json")
+)
 HOME = os.environ.get("HOME", "")
-STATE_ROOT = Path(os.environ.get("XDG_STATE_HOME", str(Path(HOME) / ".local" / "state"))) / "devcontainer" / "tasks"
+STATE_ROOT = (
+    Path(os.environ.get("XDG_STATE_HOME", str(Path(HOME) / ".local" / "state")))
+    / "devcontainer"
+    / "tasks"
+)
 STATUS_DIR = STATE_ROOT / "status"
 LOG_DIR = STATE_ROOT / "logs"
 
@@ -23,7 +28,9 @@ PREFIX_SECRET_PATTERNS = [
         r"([A-Za-z0-9_.:/-]*(?:TOKEN|PASSWORD|PASSWD|PWD|SECRET|KEY|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|AUTH[_-]?TOKEN|CREDENTIAL|CLIENT[_-]?SECRET)[A-Za-z0-9_.:/-]*=)[^\s]+",
         re.IGNORECASE,
     ),
-    re.compile(r"((?:Authorization|Proxy-Authorization):\s*)[\x21-\x7e]+", re.IGNORECASE),
+    re.compile(
+        r"((?:Authorization|Proxy-Authorization):\s*)[\x21-\x7e]+", re.IGNORECASE
+    ),
     re.compile(r"(\bsig=)[^&\s;]+", re.IGNORECASE),
     re.compile(r"(\bSharedAccessSignature=)[^\s;]+", re.IGNORECASE),
 ]
@@ -101,10 +108,14 @@ def load_tasks() -> dict[str, dict]:
         if not isinstance(once, bool):
             fail(f"task {name} must include a boolean once value")
         command = task.get("command")
-        if not isinstance(command, list) or not all(isinstance(part, str) and part for part in command):
+        if not isinstance(command, list) or not all(
+            isinstance(part, str) and part for part in command
+        ):
             fail(f"task {name} must include a command array of non-empty strings")
         needs = task.get("needs", [])
-        if not isinstance(needs, list) or not all(isinstance(dep, str) and dep for dep in needs):
+        if not isinstance(needs, list) or not all(
+            isinstance(dep, str) and dep for dep in needs
+        ):
             fail(f"task {name} must include a needs array")
         for dep in needs:
             validate_task_name(dep)
@@ -154,7 +165,9 @@ def ensure_state_dirs() -> None:
 
 def atomic_write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, delete=False
+    ) as handle:
         handle.write(text)
         tmp_name = handle.name
     os.replace(tmp_name, path)
@@ -170,7 +183,11 @@ def redact(text: str) -> str:
 
 def task_paths(name: str) -> tuple[Path, Path, Path]:
     validate_task_name(name)
-    return LOG_DIR / f"{name}.log", STATUS_DIR / f"{name}.status", STATUS_DIR / f"{name}.exit"
+    return (
+        LOG_DIR / f"{name}.log",
+        STATUS_DIR / f"{name}.status",
+        STATUS_DIR / f"{name}.exit",
+    )
 
 
 def status_value(path: Path, default: str) -> str:
@@ -226,7 +243,11 @@ def run_task(name: str, tasks: dict[str, dict], active: set[str] | None = None) 
     active.add(name)
 
     logfile, statusfile, rcfile = task_paths(name)
-    if task.get("once") is True and statusfile.is_file() and status_value(statusfile, "") == "done":
+    if (
+        task.get("once") is True
+        and statusfile.is_file()
+        and status_value(statusfile, "") == "done"
+    ):
         active.remove(name)
         return 0
 
@@ -245,7 +266,9 @@ def run_task(name: str, tasks: dict[str, dict], active: set[str] | None = None) 
         return 0
 
     timeout = task.get("timeoutSeconds", 60)
-    log_text = f"task={name} phase={task['phase']}\ncommand={shell_command_line(command)}\n"
+    log_text = (
+        f"task={name} phase={task['phase']}\ncommand={shell_command_line(command)}\n"
+    )
     output, returncode, timed_out = run_command(command, timeout)
     log_text += output
     if timed_out:
@@ -267,7 +290,8 @@ def run_task(name: str, tasks: dict[str, dict], active: set[str] | None = None) 
 
 def ensure_xdg() -> None:
     sys.path.insert(0, "@runtimeLibrary@")
-    from devcontainer_state import StateError, ensure_xdg as prepare_xdg
+    from devcontainer_state import StateError
+    from devcontainer_state import ensure_xdg as prepare_xdg
 
     try:
         prepare_xdg(os.environ)

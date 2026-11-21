@@ -35,11 +35,9 @@
   };
 
   settings.global.excludes = [
-    "images/**"
-    "lib/**"
-    "flake/**"
-    "runtime/**"
-    "tests/**"
+    "tests/ci/**"
+    "tests/smoke/**"
+    "tests/e2e/**"
     ".github/**"
     "README.md"
     "docs/**"

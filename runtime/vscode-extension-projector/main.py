@@ -6,14 +6,15 @@ import shutil
 import sys
 from pathlib import Path
 
-
 USAGE = "vscode-extension-projector activate --index <path>\n"
 PREFIX_SECRET_PATTERNS = [
     re.compile(
         r"([A-Za-z0-9_.:/-]*(?:TOKEN|PASSWORD|PASSWD|PWD|SECRET|KEY|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|AUTH[_-]?TOKEN|CREDENTIAL|CLIENT[_-]?SECRET)[A-Za-z0-9_.:/-]*=)[^\s]+",
         re.IGNORECASE,
     ),
-    re.compile(r"((?:Authorization|Proxy-Authorization):\s*)[\x21-\x7e]+", re.IGNORECASE),
+    re.compile(
+        r"((?:Authorization|Proxy-Authorization):\s*)[\x21-\x7e]+", re.IGNORECASE
+    ),
     re.compile(r"(\bsig=)[^&\s;]+", re.IGNORECASE),
     re.compile(r"(\bSharedAccessSignature=)[^\s;]+", re.IGNORECASE),
 ]
@@ -58,7 +59,9 @@ def read_index(index_file: Path) -> dict:
             fail(f"invalid index JSON: {exc}")
     targets = data.get("projectionTargets")
     extensions = data.get("extensions")
-    if not isinstance(targets, list) or not all(isinstance(target, str) and target for target in targets):
+    if not isinstance(targets, list) or not all(
+        isinstance(target, str) and target for target in targets
+    ):
         fail("index projectionTargets must be a non-empty string array")
     if not isinstance(extensions, list):
         fail("index extensions must be an array")

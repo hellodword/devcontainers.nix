@@ -50,8 +50,8 @@ is_wayland_socket_candidate() {
   local name
   name="$(basename "$path")"
   case "$name" in
-    *wayland*) ;;
-    *) return 1 ;;
+  *wayland*) ;;
+  *) return 1 ;;
   esac
   [ -S "$path" ]
 }
@@ -78,9 +78,9 @@ discover_wayland_socket() {
       is_wayland_socket_candidate "$path" || continue
       mtime="$(stat -Lc '%Y' "$path" 2>/dev/null || printf '0')"
       case "$mtime" in
-        '' | *[!0-9]*)
-          mtime=0
-          ;;
+      '' | *[!0-9]*)
+        mtime=0
+        ;;
       esac
       if [ -z "$best_path" ] || [ "$mtime" -gt "$best_mtime" ]; then
         best_path="$path"
@@ -98,12 +98,12 @@ wayland_display_for_socket() {
   local runtime
   runtime="$(runtime_dir)"
   case "$socket_path" in
-    "$runtime"/*)
-      printf '%s\n' "${socket_path#"$runtime"/}"
-      ;;
-    *)
-      printf '%s\n' "$socket_path"
-      ;;
+  "$runtime"/*)
+    printf '%s\n' "${socket_path#"$runtime"/}"
+    ;;
+  *)
+    printf '%s\n' "$socket_path"
+    ;;
   esac
 }
 
@@ -138,12 +138,12 @@ unset_lines() {
 
 gui_env_disabled() {
   case "${DEVCONTAINER_GUI_ENV:-1}" in
-    0 | false | FALSE | no | NO | off | OFF)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
+  0 | false | FALSE | no | NO | off | OFF)
+    return 0
+    ;;
+  *)
+    return 1
+    ;;
   esac
 }
 
@@ -151,12 +151,12 @@ wayland_socket_path() {
   local display="${WAYLAND_DISPLAY:-}"
   [ -n "$display" ] || return 1
   case "$display" in
-    /*)
-      printf '%s\n' "$display"
-      ;;
-    *)
-      printf '%s/%s\n' "$(runtime_dir)" "$display"
-      ;;
+  /*)
+    printf '%s\n' "$display"
+    ;;
+  *)
+    printf '%s/%s\n' "$(runtime_dir)" "$display"
+    ;;
   esac
 }
 
@@ -177,33 +177,33 @@ detect_backend() {
   fi
 
   case "$forced" in
-    "" | auto)
-      if has_wayland_socket; then
-        printf 'wayland\n'
-      elif has_x11_display; then
-        printf 'x11\n'
-      else
-        printf 'none\n'
-      fi
-      ;;
-    wayland)
-      if has_wayland_socket; then
-        printf 'wayland\n'
-      else
-        printf 'none\n'
-      fi
-      ;;
-    x11)
-      if has_x11_display; then
-        printf 'x11\n'
-      else
-        printf 'none\n'
-      fi
-      ;;
-    *)
-      printf 'invalid DEVCONTAINER_GUI_BACKEND: %s\n' "$forced" >&2
-      return 2
-      ;;
+  "" | auto)
+    if has_wayland_socket; then
+      printf 'wayland\n'
+    elif has_x11_display; then
+      printf 'x11\n'
+    else
+      printf 'none\n'
+    fi
+    ;;
+  wayland)
+    if has_wayland_socket; then
+      printf 'wayland\n'
+    else
+      printf 'none\n'
+    fi
+    ;;
+  x11)
+    if has_x11_display; then
+      printf 'x11\n'
+    else
+      printf 'none\n'
+    fi
+    ;;
+  *)
+    printf 'invalid DEVCONTAINER_GUI_BACKEND: %s\n' "$forced" >&2
+    return 2
+    ;;
   esac
 }
 
@@ -215,43 +215,43 @@ render_env() {
   printf '# backend=%s\n' "$backend"
 
   case "$backend" in
-    wayland)
-      if socket_path="$(discover_wayland_socket 2>/dev/null)"; then
-        effective_wayland_display="$(wayland_display_for_socket "$socket_path")"
-        export_line WAYLAND_DISPLAY "$effective_wayland_display"
-      fi
-      export_line XDG_SESSION_TYPE wayland
-      export_line GDK_BACKEND wayland,x11
-      export_line QT_QPA_PLATFORM 'wayland;xcb'
-      export_line SDL_VIDEODRIVER wayland
-      export_line CLUTTER_BACKEND wayland
-      export_line MOZ_ENABLE_WAYLAND 1
-      export_line NIXOS_OZONE_WL 1
-      ;;
-    x11)
-      export_line XDG_SESSION_TYPE x11
-      export_line GDK_BACKEND x11
-      export_line QT_QPA_PLATFORM xcb
-      export_line SDL_VIDEODRIVER x11
-      export_line CLUTTER_BACKEND x11
-      printf 'unset MOZ_ENABLE_WAYLAND\n'
-      printf 'unset NIXOS_OZONE_WL\n'
-      if [ -z "${DISPLAY:-}" ] && [ -n "${REMOTE_CONTAINERS_DISPLAY:-}" ]; then
-        # shellcheck disable=SC2016
-        printf 'if [ -z "${DISPLAY:-}" ]; then\n'
-        printf '  export DISPLAY='
-        shell_quote "$REMOTE_CONTAINERS_DISPLAY"
-        printf '\n'
-        printf 'fi\n'
-      fi
-      ;;
-    none | disabled)
-      unset_lines
-      ;;
-    *)
-      printf 'unsupported backend: %s\n' "$backend" >&2
-      return 2
-      ;;
+  wayland)
+    if socket_path="$(discover_wayland_socket 2>/dev/null)"; then
+      effective_wayland_display="$(wayland_display_for_socket "$socket_path")"
+      export_line WAYLAND_DISPLAY "$effective_wayland_display"
+    fi
+    export_line XDG_SESSION_TYPE wayland
+    export_line GDK_BACKEND wayland,x11
+    export_line QT_QPA_PLATFORM 'wayland;xcb'
+    export_line SDL_VIDEODRIVER wayland
+    export_line CLUTTER_BACKEND wayland
+    export_line MOZ_ENABLE_WAYLAND 1
+    export_line NIXOS_OZONE_WL 1
+    ;;
+  x11)
+    export_line XDG_SESSION_TYPE x11
+    export_line GDK_BACKEND x11
+    export_line QT_QPA_PLATFORM xcb
+    export_line SDL_VIDEODRIVER x11
+    export_line CLUTTER_BACKEND x11
+    printf 'unset MOZ_ENABLE_WAYLAND\n'
+    printf 'unset NIXOS_OZONE_WL\n'
+    if [ -z "${DISPLAY:-}" ] && [ -n "${REMOTE_CONTAINERS_DISPLAY:-}" ]; then
+      # shellcheck disable=SC2016
+      printf 'if [ -z "${DISPLAY:-}" ]; then\n'
+      printf '  export DISPLAY='
+      shell_quote "$REMOTE_CONTAINERS_DISPLAY"
+      printf '\n'
+      printf 'fi\n'
+    fi
+    ;;
+  none | disabled)
+    unset_lines
+    ;;
+  *)
+    printf 'unsupported backend: %s\n' "$backend" >&2
+    return 2
+    ;;
   esac
 }
 
@@ -301,24 +301,24 @@ print_status() {
 
 cmd="${1:-status}"
 case "$cmd" in
-  refresh)
-    backend="$(detect_backend)"
-    write_env_file "$backend"
-    print_status "$backend"
-    ;;
-  status)
-    backend="$(detect_backend)"
-    print_status "$backend"
-    ;;
-  print)
-    backend="$(detect_backend)"
-    render_env "$backend"
-    ;;
-  -h | --help | help)
-    usage
-    ;;
-  *)
-    usage >&2
-    exit 1
-    ;;
+refresh)
+  backend="$(detect_backend)"
+  write_env_file "$backend"
+  print_status "$backend"
+  ;;
+status)
+  backend="$(detect_backend)"
+  print_status "$backend"
+  ;;
+print)
+  backend="$(detect_backend)"
+  render_env "$backend"
+  ;;
+-h | --help | help)
+  usage
+  ;;
+*)
+  usage >&2
+  exit 1
+  ;;
 esac

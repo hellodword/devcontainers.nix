@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
-import os
 import errno
+import os
 import re
 import stat
 import sys
@@ -9,9 +9,9 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-
 USER_NAME = "vscode"
 GROUP_NAME = "vscode"
+HELPER_VERSION = "1"
 MAX_ID = 2_147_483_647
 
 
@@ -48,8 +48,17 @@ def parser() -> argparse.ArgumentParser:
         prog="devcontainer-set-user-id",
         description="Set the fixed vscode account to a numeric UID/GID.",
     )
-    arg_parser.add_argument("--uid", required=True, help="numeric UID for the vscode user")
-    arg_parser.add_argument("--gid", required=True, help="numeric GID for the vscode group")
+    arg_parser.add_argument(
+        "--version",
+        action="version",
+        version=f"devcontainer-set-user-id {HELPER_VERSION}",
+    )
+    arg_parser.add_argument(
+        "--uid", required=True, help="numeric UID for the vscode user"
+    )
+    arg_parser.add_argument(
+        "--gid", required=True, help="numeric GID for the vscode group"
+    )
     return arg_parser
 
 
@@ -71,7 +80,9 @@ def read_lines(path: Path) -> list[str]:
 def write_lines(path: Path, lines: list[str]) -> None:
     try:
         original_mode = stat.S_IMODE(path.stat().st_mode)
-        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            mode="w", dir=path.parent, delete=False
+        ) as handle:
             tmp_path = Path(handle.name)
             handle.write("\n".join(lines) + "\n")
         try:
@@ -130,7 +141,9 @@ def reject_gid_conflict(group_path: Path, lines: list[str], gid: int) -> None:
             raise ApplyError(f"GID {gid} already belongs to group {name}")
 
 
-def plan_identity(root: Path, uid: int, gid: int) -> tuple[Identity, list[tuple[Path, list[str]]]]:
+def plan_identity(
+    root: Path, uid: int, gid: int
+) -> tuple[Identity, list[tuple[Path, list[str]]]]:
     passwd_path = root / "etc/passwd"
     group_path = root / "etc/group"
     passwd_lines = read_lines(passwd_path)
@@ -279,7 +292,9 @@ def remove_stale_runtime_dir(path: Path, identity: Identity, mounts: set[Path]) 
         path.rmdir()
     except OSError as exc:
         if exc.errno not in {errno.ENOTEMPTY, errno.EEXIST, errno.EBUSY}:
-            raise ApplyError(f"failed to remove stale runtime dir {path}: {exc}") from exc
+            raise ApplyError(
+                f"failed to remove stale runtime dir {path}: {exc}"
+            ) from exc
 
 
 def ensure_runtime_dir(root: Path, identity: Identity, mounts: set[Path]) -> None:
@@ -291,7 +306,9 @@ def ensure_runtime_dir(root: Path, identity: Identity, mounts: set[Path]) -> Non
         # A caller-provided runtime directory must already have the right permissions.
         st = runtime_dir.stat()
         if st.st_uid != identity.uid or stat.S_IMODE(st.st_mode) != 0o700:
-            raise ApplyError(f"mounted runtime directory {runtime_dir} must be owned by UID {identity.uid} with mode 0700")
+            raise ApplyError(
+                f"mounted runtime directory {runtime_dir} must be owned by UID {identity.uid} with mode 0700"
+            )
         return
     try:
         runtime_parent.mkdir(parents=True, exist_ok=True)
@@ -330,7 +347,13 @@ def set_user_id(root: Path, uid: int, gid: int) -> None:
     mounts = mount_points()
     # Validate before changing account files. Shared stores and whole-home mounts
     # are outside this per-container identity model; nested caches remain untouched.
-    for path in [root / "etc/passwd", root / "etc/group", root / "home/vscode", root / "var/lib/devcontainer", root / "nix"]:
+    for path in [
+        root / "etc/passwd",
+        root / "etc/group",
+        root / "home/vscode",
+        root / "var/lib/devcontainer",
+        root / "nix",
+    ]:
         require_plain_directory(path)
         if on_mount(path, mounts):
             raise ApplyError(f"cannot change identity with mounted system path {path}")
@@ -354,7 +377,10 @@ def main(argv: list[str]) -> int:
         print(str(exc), file=sys.stderr)
         return 2
     if os.geteuid() != 0:
-        print("devcontainer-set-user-id requires root (use USER root during the image build)", file=sys.stderr)
+        print(
+            "devcontainer-set-user-id requires root (use USER root during the image build)",
+            file=sys.stderr,
+        )
         return 126
     try:
         set_user_id(Path("/"), uid, gid)

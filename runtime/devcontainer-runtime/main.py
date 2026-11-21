@@ -1,65 +1,115 @@
 #!/usr/bin/env python3
-"""Trusted startup: optional identity setup, privilege drop, state, then exec."""
+"""Container entrypoint: verify vscode identity, initialize runtime state, probe host cache, and exec."""
 
-import json
 import os
 import pwd
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, "@runtimeLibrary@")
-import devcontainer_identity as identity
 import devcontainer_state as state
 
 
-def main(argv: list[str]) -> int:
+def apply_gui_env_fragment(env_file: Path) -> None:
+    if not env_file.is_file():
+        return
     try:
-        requested_id = state.requested_machine_id(os.environ)
+        lines = env_file.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export ") and "=" in line:
+            assignment = line[len("export ") :]
+            key, rhs = assignment.split("=", 1)
+            parts = shlex.split(rhs)
+            os.environ[key] = parts[0] if parts else ""
+        elif line.startswith("unset "):
+            key = line[len("unset ") :].strip()
+            os.environ.pop(key, None)
+
+
+def refresh_gui_env(runtime_dir: str) -> None:
+    gui_tool = Path("@guiEnv@")
+    if not gui_tool.is_file():
+        return
+    subprocess.run(
+        [str(gui_tool), "refresh"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    env_file = Path(
+        os.environ.get("DEVCONTAINER_GUI_ENV_FILE")
+        or f"{runtime_dir}/devcontainer-gui-env.sh"
+    )
+    apply_gui_env_fragment(env_file)
+
+
+def main(argv: list[str]) -> int:
+    if Path(sys.argv[0]).name == "devcontainer-runtime" and argv == [
+        "refresh-local-cache"
+    ]:
+        try:
+            state.refresh_local_cache(os.environ)
+        except (state.StateError, OSError) as exc:
+            print(f"devcontainer-runtime: {exc}", file=sys.stderr)
+            return 1
+        return 0
+
+    try:
         account = pwd.getpwnam("vscode")
-        uid_value = os.environ.get("DEVCONTAINER_UID")
-        gid_value = os.environ.get("DEVCONTAINER_GID")
-        uid = identity.parse_numeric_id("DEVCONTAINER_UID", uid_value) if uid_value is not None else account.pw_uid
-        gid = identity.parse_numeric_id("DEVCONTAINER_GID", gid_value) if gid_value is not None else account.pw_gid
-    except (identity.UsageError, state.StateError) as exc:
-        print(f"devcontainer-entrypoint: {exc}", file=sys.stderr)
-        return 2
     except KeyError:
         print("devcontainer-entrypoint: vscode account is missing", file=sys.stderr)
         return 126
 
+    euid = os.geteuid()
+    egid = os.getegid()
+    if euid == 0 or euid != account.pw_uid or egid != account.pw_gid:
+        print(
+            f"devcontainer-entrypoint: container must run as vscode ({account.pw_uid}:{account.pw_gid}), "
+            f"got {euid}:{egid}; derive non-default IDs at build time with devcontainer-set-user-id",
+            file=sys.stderr,
+        )
+        return 126
+
     try:
-        mounts = identity.mount_points()
+        requested_id = state.requested_machine_id(os.environ)
+        mounts = state.mount_points()
         root = Path("/")
         state.validate_machine_id(root, requested_id, mounts)
-        if os.geteuid() == 0:
-            if uid_value is None and gid_value is None:
-                print("devcontainer-entrypoint: run as vscode; root startup requires DEVCONTAINER_UID or DEVCONTAINER_GID", file=sys.stderr)
-                return 126
-            identity.set_user_id(root, uid, gid)
-            os.setgroups([])
-            os.setgid(gid)
-            os.setuid(uid)
-            os.environ.update(HOME=account.pw_dir, USER="vscode", LOGNAME="vscode")
-        elif os.geteuid() != account.pw_uid or os.getegid() != account.pw_gid:
-            print("devcontainer-entrypoint: images must run as the vscode user and group", file=sys.stderr)
-            return 126
-        elif uid != account.pw_uid or gid != account.pw_gid:
-            print("devcontainer-entrypoint: changing DEVCONTAINER_UID/GID requires docker run --user 0", file=sys.stderr)
-            return 126
 
-        defaults = json.loads(Path("/usr/share/devcontainer/runtime.json").read_text())
-        runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-        if not runtime_dir or runtime_dir in {defaults["runtimeDir"], f"/run/user/{account.pw_uid}"}:
-            runtime_dir = f"/run/user/{os.geteuid()}"
+        os.environ["HOME"] = account.pw_dir
+        os.environ["USER"] = "vscode"
+        os.environ["LOGNAME"] = "vscode"
+        expected_runtime_dir = f"/run/user/{account.pw_uid}"
+        current_runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "")
+        if not current_runtime_dir or current_runtime_dir.startswith("/run/user/"):
+            runtime_dir = expected_runtime_dir
+        else:
+            runtime_dir = current_runtime_dir
         os.environ["XDG_RUNTIME_DIR"] = runtime_dir
+
         state.ensure_xdg(os.environ, runtime_dir)
         state.ensure_machine_id(root, requested_id, mounts)
-        # Both the GUI refresh and the user's command execute after the drop.
-        command = ["@bash@", "@session@", *(argv or ["sleep", "infinity"])]
+        state.refresh_local_cache(os.environ)
+        refresh_gui_env(runtime_dir)
+
+        target = argv if argv else ["@bash@"]
         if os.getpid() == 1:
-            command = ["@tini@", "-g", "--", *command]
-        os.execv(command[0], command)
-    except (identity.ApplyError, state.StateError, OSError, ValueError) as exc:
+            command = ["@tini@", "-g", "--", *target]
+        else:
+            command = list(target)
+        os.execvp(command[0], command)
+    except state.StateError as exc:
+        print(f"devcontainer-entrypoint: {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
         print(f"devcontainer-entrypoint: {exc}", file=sys.stderr)
         return 1
     return 0
