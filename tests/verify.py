@@ -14,22 +14,45 @@ import sys
 import tempfile
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
+
+SANITIZED_NIXPKGS_VARS = (
+    "NIXPKGS_ALLOW_BROKEN",
+    "NIXPKGS_ALLOW_INSECURE",
+    "NIXPKGS_ALLOW_UNFREE",
+    "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM",
+)
+
+
+@contextmanager
+def sanitized_nixpkgs_env():
+    """Run impure flake/manifest evaluation with an empty nixpkgs user config matching clean CI."""
+    with tempfile.TemporaryDirectory(prefix="devcontainers-nixpkgs-cfg-") as cfg_dir:
+        empty_cfg = Path(cfg_dir) / "config.nix"
+        empty_cfg.write_text("{}\n", encoding="utf-8")
+        env = dict(os.environ)
+        for key in SANITIZED_NIXPKGS_VARS:
+            env.pop(key, None)
+        env["NIXPKGS_CONFIG"] = str(empty_cfg)
+        yield env
 
 
 def log_step(title: str) -> None:
     print(f"\n==> {title}", flush=True)
 
 
-def run_checked(cmd: list[str], *, cwd: Path) -> str:
+def run_checked(cmd: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> str:
     print("  $", " ".join(cmd), flush=True)
-    subprocess.run(cmd, cwd=cwd, check=True)
+    subprocess.run(cmd, cwd=cwd, env=env, check=True)
     return ""
 
 
-def capture_checked(cmd: list[str], *, cwd: Path) -> str:
+def capture_checked(
+    cmd: list[str], *, cwd: Path, env: dict[str, str] | None = None
+) -> str:
     print("  $", " ".join(cmd), flush=True)
-    return subprocess.check_output(cmd, cwd=cwd, text=True).strip()
+    return subprocess.check_output(cmd, cwd=cwd, env=env, text=True).strip()
 
 
 def write_bridge_request(bridge_dir: Path, seq: str, payload: dict) -> Path:
@@ -63,6 +86,7 @@ def run_vm_suite_via_bridge(
     upload_req_id = f"verify-{attr}-upload-{run_token}"
     job_req_id = f"verify-{attr}-job-{run_token}"
 
+    prep_started = time.monotonic()
     resp_upload = wait_bridge_response(
         write_bridge_request(
             bridge_dir,
@@ -98,7 +122,9 @@ def run_vm_suite_via_bridge(
             cache_dir.mkdir(parents=True, exist_ok=True)
             submit_cmd.extend(["--cache-dir", str(cache_dir)])
         run_checked(submit_cmd, cwd=project_dir)
+    prep_seconds = time.monotonic() - prep_started
 
+    vm_started = time.monotonic()
     resp_job = wait_bridge_response(
         write_bridge_request(
             bridge_dir,
@@ -112,6 +138,7 @@ def run_vm_suite_via_bridge(
         ),
         timeout=timeout_seconds + 600,
     )
+    vm_seconds = time.monotonic() - vm_started
     conclusion = (resp_job.get("result") or {}).get("conclusion")
     outcome = ((resp_job.get("execution") or {}).get("test") or {}).get("outcome")
     res_state = (resp_job.get("resources") or {}).get("state")
@@ -121,7 +148,8 @@ def run_vm_suite_via_bridge(
             f"conclusion={conclusion!r}, outcome={outcome!r}, resources.state={res_state!r}"
         )
     print(
-        f"  Remote VM check {attr} PASSED (job_id={resp_job.get('id')}, resources={res_state})",
+        f"  Remote VM check {attr} PASSED (upload_id={upload_id}, job_id={resp_job.get('id')}, "
+        f"prep={prep_seconds:.1f}s, vm={vm_seconds:.1f}s, resources={res_state})",
         flush=True,
     )
 
@@ -231,115 +259,121 @@ def verify_workflow_contracts(wf_files: list[str]) -> None:
 
 def verify_manifest_and_cache_exclusions(project_dir: Path, nix_ci: str) -> None:
     scheme = "git+file://" if (project_dir / ".git").exists() else "path:"
-    expected_unfree = json.loads(
-        capture_checked(
-            [
-                "nix",
-                "eval",
-                "--no-update-lock-file",
-                "--impure",
-                "--json",
-                "--expr",
-                f"""
-                let
-                  f = builtins.getFlake ({json.dumps(scheme)} + {json.dumps(str(project_dir))});
-                  sys = "x86_64-linux";
-                  imgs = f.lib.${{sys}}.images;
-                  vmNode = f.checks.${{sys}}.vm-editor.nodes.machine;
-                  vscodeWrapped = builtins.head (
-                    builtins.filter (p: builtins.match ".*vscode.*" (p.name or "") != null)
-                      vmNode.environment.systemPackages
-                  );
-                  tmpRules = vmNode.systemd.tmpfiles.rules;
-                  archiveRule = builtins.head (
-                    builtins.filter (r: builtins.match ".*vscode-server-linux-.*\\.tar\\.gz.*" r != null) tmpRules
-                  );
-                  parts = builtins.filter builtins.isString (builtins.split "[[:space:]]+" archiveRule);
-                  archivePath = builtins.elemAt parts (builtins.length parts - 1);
-                  pkgs = f.inputs.nixpkgs.legacyPackages.${{sys}};
-                in
-                  (map toString imgs.agents.restrictedPackages)
-                  ++ (map toString imgs.editor.restrictedPackages)
-                  ++ [
-                    (toString pkgs.vscode)
-                    (toString pkgs.vscode.vscodeServer)
-                    (toString vscodeWrapped)
-                    archivePath
-                  ]
-                """,
-            ],
-            cwd=project_dir,
-        )
-    )
-
-    ci_wrapper = Path(nix_ci).resolve().read_text(encoding="utf-8")
-    exec_match = re.search(
-        r'^exec\s+(?P<py>/\S+)\s+"(?P<ci>/[^"]+)"',
-        ci_wrapper,
-        re.MULTILINE,
-    )
-    if not exec_match:
-        raise RuntimeError(
-            f"Unable to locate python interpreter and ci package in {nix_ci}"
-        )
-    ci_python = exec_match.group("py")
-    ci_pkg_dir = exec_match.group("ci")
-
-    publishable_by_select: dict[str, set[str]] = {}
-    for select_json in ("{}", '{"cacheOnly":true}'):
-        with tempfile.TemporaryDirectory(prefix="devcontainers-verify-ci-") as ci_state:
-            run_checked(
+    with sanitized_nixpkgs_env() as clean_env:
+        expected_unfree = json.loads(
+            capture_checked(
                 [
-                    nix_ci,
-                    "evaluate",
-                    "--project-dir",
-                    str(project_dir),
-                    "--select",
-                    select_json,
-                    "--state",
-                    ci_state,
+                    "nix",
+                    "eval",
+                    "--no-update-lock-file",
+                    "--impure",
+                    "--json",
+                    "--expr",
+                    f"""
+                    let
+                      f = builtins.getFlake ({json.dumps(scheme)} + {json.dumps(str(project_dir))});
+                      sys = "x86_64-linux";
+                      imgs = f.lib.${{sys}}.images;
+                      pkgs = f.lib.${{sys}}.pkgs;
+                      vmNode = f.checks.${{sys}}.vm-editor.nodes.machine;
+                      vscodeWrapped = builtins.head (
+                        builtins.filter (p: builtins.match ".*vscode.*" (p.name or "") != null)
+                          vmNode.environment.systemPackages
+                      );
+                      tmpRules = vmNode.systemd.tmpfiles.rules;
+                      archiveRule = builtins.head (
+                        builtins.filter (r: builtins.match ".*vscode-server-linux-.*\\.tar\\.gz.*" r != null) tmpRules
+                      );
+                      parts = builtins.filter builtins.isString (builtins.split "[[:space:]]+" archiveRule);
+                      archivePath = builtins.elemAt parts (builtins.length parts - 1);
+                    in
+                      (map toString imgs.agents.restrictedPackages)
+                      ++ (map toString imgs.editor.restrictedPackages)
+                      ++ [
+                        (toString pkgs.vscode)
+                        (toString pkgs.vscode.vscodeServer)
+                        (toString vscodeWrapped)
+                        archivePath
+                      ]
+                    """,
                 ],
                 cwd=project_dir,
+                env=clean_env,
             )
-            manifest = json.loads(
-                (Path(ci_state) / "manifest.json").read_text(encoding="utf-8")
+        )
+
+        ci_wrapper = Path(nix_ci).resolve().read_text(encoding="utf-8")
+        exec_match = re.search(
+            r'^exec\s+(?P<py>/\S+)\s+"(?P<ci>/[^"]+)"',
+            ci_wrapper,
+            re.MULTILINE,
+        )
+        if not exec_match:
+            raise RuntimeError(
+                f"Unable to locate python interpreter and ci package in {nix_ci}"
             )
-            build_names = {item["name"] for item in manifest["builds"]["build"]}
-            for required_driver in ("vm-containers-driver", "vm-editor-driver"):
-                if required_driver not in build_names:
+        ci_python = exec_match.group("py")
+        ci_pkg_dir = exec_match.group("ci")
+
+        publishable_by_select: dict[str, set[str]] = {}
+        for select_json in ("{}", '{"cacheOnly":true}'):
+            with tempfile.TemporaryDirectory(
+                prefix="devcontainers-verify-ci-"
+            ) as ci_state:
+                run_checked(
+                    [
+                        nix_ci,
+                        "evaluate",
+                        "--project-dir",
+                        str(project_dir),
+                        "--select",
+                        select_json,
+                        "--state",
+                        ci_state,
+                    ],
+                    cwd=project_dir,
+                    env=clean_env,
+                )
+                manifest = json.loads(
+                    (Path(ci_state) / "manifest.json").read_text(encoding="utf-8")
+                )
+                build_names = {item["name"] for item in manifest["builds"]["build"]}
+                for required_driver in ("vm-containers-driver", "vm-editor-driver"):
+                    if required_driver not in build_names:
+                        raise RuntimeError(
+                            f"Manifest (select={select_json}) missing {required_driver} in build group: {sorted(build_names)}"
+                        )
+                if len(manifest["cache"]["bundles"]) < 5:
                     raise RuntimeError(
-                        f"Manifest (select={select_json}) missing {required_driver} in build group: {sorted(build_names)}"
+                        f"Manifest (select={select_json}) missing VM bundles: {manifest['cache']['bundles']}"
                     )
-            if len(manifest["cache"]["bundles"]) < 5:
-                raise RuntimeError(
-                    f"Manifest (select={select_json}) missing VM bundles: {manifest['cache']['bundles']}"
+                inventory_raw = capture_checked(
+                    [
+                        ci_python,
+                        "-c",
+                        (
+                            "import json, sys; from pathlib import Path; "
+                            "sys.path.insert(0, sys.argv[1]); import cache; "
+                            "manifest = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8')); "
+                            "inv = cache.prepare_inventory(manifest); "
+                            "print(json.dumps({'outputs': inv['outputs'], 'excluded': inv['excluded']}))"
+                        ),
+                        ci_pkg_dir,
+                        str(Path(ci_state) / "manifest.json"),
+                    ],
+                    cwd=project_dir,
+                    env=clean_env,
                 )
-            inventory_raw = capture_checked(
-                [
-                    ci_python,
-                    "-c",
-                    (
-                        "import json, sys; from pathlib import Path; "
-                        "sys.path.insert(0, sys.argv[1]); import cache; "
-                        "manifest = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8')); "
-                        "inv = cache.prepare_inventory(manifest); "
-                        "print(json.dumps({'outputs': inv['outputs'], 'excluded': inv['excluded']}))"
-                    ),
-                    ci_pkg_dir,
-                    str(Path(ci_state) / "manifest.json"),
-                ],
-                cwd=project_dir,
-            )
-            inventory_data = json.loads(inventory_raw)
-            excluded_set = set(inventory_data["excluded"])
-            leaked = [p for p in expected_unfree if p not in excluded_set]
-            if leaked:
-                raise RuntimeError(
-                    f"Restricted unfree store paths leaked outside excluded inventory (select={select_json}): {leaked}"
+                inventory_data = json.loads(inventory_raw)
+                excluded_set = set(inventory_data["excluded"])
+                leaked = [p for p in expected_unfree if p not in excluded_set]
+                if leaked:
+                    raise RuntimeError(
+                        f"Restricted unfree store paths leaked outside excluded inventory (select={select_json}): {leaked}"
+                    )
+                publishable_by_select[select_json] = (
+                    set(inventory_data["outputs"]) - excluded_set
                 )
-            publishable_by_select[select_json] = (
-                set(inventory_data["outputs"]) - excluded_set
-            )
 
     diff_only_full = sorted(
         publishable_by_select["{}"] - publishable_by_select['{"cacheOnly":true}']
@@ -354,13 +388,85 @@ def verify_manifest_and_cache_exclusions(project_dir: Path, nix_ci: str) -> None
         )
 
 
+def resolve_project_dir(explicit: Path | None) -> Path:
+    if explicit is not None:
+        candidate = explicit.resolve()
+    else:
+        cwd = Path.cwd().resolve()
+        if (cwd / "flake.nix").is_file() and (cwd / "tests" / "verify.py").is_file():
+            candidate = cwd
+        else:
+            top = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if top.returncode != 0 or not top.stdout.strip():
+                print(
+                    "error: must run inside a devcontainers.nix Git checkout or pass --project-dir <git-checkout>",
+                    file=sys.stderr,
+                )
+                raise SystemExit(2)
+            candidate = Path(top.stdout.strip()).resolve()
+
+    if (
+        not (candidate / "flake.nix").is_file()
+        or not (candidate / "tests" / "verify.py").is_file()
+    ):
+        print(
+            f"error: {candidate} is not a devcontainers.nix repository root",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    if not (candidate / ".git").exists():
+        print(
+            f"error: {candidate} lacks .git metadata; pass --project-dir <git-checkout> instead of verifying an unversioned store copy",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    return candidate
+
+
+def verify_clean_oci_revision(project_dir: Path, oci_out: Path) -> None:
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain"], cwd=project_dir, text=True
+    ).strip()
+    if status:
+        return
+    head_sha = capture_checked(["git", "rev-parse", "HEAD"], cwd=project_dir)
+    index = json.loads((oci_out / "index.json").read_text(encoding="utf-8"))
+    for desc in index.get("manifests") or []:
+        ref_name = (desc.get("annotations") or {}).get(
+            "org.opencontainers.image.ref.name"
+        )
+        if ref_name not in {"latest", "agent"}:
+            continue
+        manifest_blob = oci_out / "blobs" / "sha256" / desc["digest"].split(":", 1)[1]
+        manifest = json.loads(manifest_blob.read_text(encoding="utf-8"))
+        cfg_blob = (
+            oci_out / "blobs" / "sha256" / manifest["config"]["digest"].split(":", 1)[1]
+        )
+        cfg = json.loads(cfg_blob.read_text(encoding="utf-8"))
+        labels = (cfg.get("config") or {}).get("Labels") or {}
+        if labels.get("org.opencontainers.image.revision") != head_sha:
+            raise RuntimeError(
+                f"OCI variant {ref_name} revision label {labels.get('org.opencontainers.image.revision')!r} != HEAD {head_sha!r}"
+            )
+        if labels.get("devcontainers.nix.dirty") != "false":
+            raise RuntimeError(
+                f"OCI variant {ref_name} marked dirty on clean checkout: {labels.get('devcontainers.nix.dirty')!r}"
+            )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--project-dir",
         type=Path,
         default=None,
-        help="Repository root directory (defaults to current working directory)",
+        help="Git checkout root directory (defaults to enclosing Git repository root)",
     )
     parser.add_argument(
         "--vm-timeout-seconds",
@@ -374,12 +480,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Run flake evaluation, formatting, linters, workflow contracts, and cache exclusion checks only",
     )
     args = parser.parse_args(argv)
-
-    cwd = Path.cwd().resolve()
-    default_root = (
-        cwd if (cwd / "flake.nix").is_file() else Path(__file__).resolve().parent.parent
-    )
-    project_dir = (args.project_dir or default_root).resolve()
+    project_dir = resolve_project_dir(args.project_dir)
 
     log_step("1. Evaluating flake outputs and formatting check")
     run_checked(
@@ -442,6 +543,7 @@ def main(argv: list[str] | None = None) -> int:
         [sys.executable, str(project_dir / "tests" / "check_oci_layout.py"), oci_out],
         cwd=project_dir,
     )
+    verify_clean_oci_revision(project_dir, Path(oci_out))
 
     log_step(
         "4. Running Workflow 3: digest-preserving release, recovery, and PR update state machine"

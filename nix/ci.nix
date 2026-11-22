@@ -6,11 +6,10 @@
 }:
 let
   cacheOnly = select.cacheOnly or false;
-  pkgs = flake.inputs.nixpkgs.legacyPackages.${system};
+  inherit (flake.lib.${system}) cache images pkgs;
   inherit (pkgs) lib;
   checks = flake.checks.${system};
   devShell = flake.devShells.${system}.default;
-  inherit (flake.lib.${system}) cache images;
 
   baseProducts = {
     inherit (checks) formatting;

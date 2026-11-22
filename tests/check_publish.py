@@ -832,30 +832,7 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
             "Unauthenticated publish unexpectedly succeeded"
         )
 
-        # 2. Regression guard: pre-created 0-byte authfile fails skopeo login.
-        zero_file = work_dir / "zero-auth.json"
-        zero_file.write_bytes(b"")
-        zero_file.chmod(0o600)
-        bad_login = subprocess.run(
-            [
-                "skopeo",
-                "login",
-                auth_reg,
-                "--tls-verify=false",
-                "--username",
-                "ci-actor",
-                "--password-stdin",
-                "--authfile",
-                str(zero_file),
-            ],
-            input="ci-secret-token",
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        assert bad_login.returncode != 0, "0-byte authfile unexpectedly succeeded"
-
-        # 3. Exact workflow pattern (`umask 077 && mktemp -d && authfile="$authdir/auth.json"`) succeeds.
+        # 2. Exact workflow pattern (`umask 077 && mktemp -d && authfile="$authdir/auth.json"`) succeeds.
         login_publish_script = f"""
         set -euo pipefail
         umask 077

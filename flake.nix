@@ -116,7 +116,7 @@
           if [[ -f "$PWD/flake.nix" && -f "$PWD/tests/verify.py" ]]; then
             exec ${pkgs.python3}/bin/python3 "$PWD/tests/verify.py" "$@"
           fi
-          exec ${pkgs.python3}/bin/python3 ${./tests/verify.py} --project-dir ${self} "$@"
+          exec ${pkgs.python3}/bin/python3 ${./tests/verify.py} "$@"
         '';
       };
     in
@@ -182,7 +182,7 @@
       };
 
       lib.${system} = {
-        inherit cache images;
+        inherit cache images pkgs;
       };
     };
 }
