@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: devcontainers-verify
+  group: devcontainers-pipeline
   cancel-in-progress: false
 
 jobs:
@@ -169,7 +169,7 @@ jobs:
           REMOTE_URL: ${{ format('{0}/{1}.git', github.server_url, github.repository) }}
         run: |
           set -euo pipefail
-          docker exec \
+          docker exec -i \
             --env GHCR_ACTOR \
             --env GHCR_TOKEN \
             --env TARGET_SHA \
@@ -178,9 +178,9 @@ jobs:
             "$NIX_CI_CONTAINER" bash -euo pipefail <<'BASH'
           export PATH="$(cat /ci/tools)/bin:$PATH"
           oci_out="$(jq -r '.builds.build[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
-          authfile="/ci/ghcr-auth.json"
-          trap 'rm -f "$authfile"' EXIT
           umask 077
+          authfile="$(mktemp /tmp/ghcr-auth.XXXXXX)"
+          trap 'rm -f "$authfile"' EXIT
           nix develop /workspace --no-update-lock-file --command bash -euo pipefail -c '
             printf "%s" "$GHCR_TOKEN" | skopeo login ghcr.io \
               --username "$GHCR_ACTOR" \

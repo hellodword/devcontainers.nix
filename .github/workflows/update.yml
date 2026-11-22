@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: devcontainers-update
+  group: devcontainers-pipeline
   cancel-in-progress: false
 
 jobs:
@@ -62,14 +62,20 @@ jobs:
           mkdir -p "$candidate_state"
           printf 'CANDIDATE_STATE=%s\n' "$candidate_state" >> "$GITHUB_ENV"
 
+          HOST_UID="$(id -u)"
+          HOST_GID="$(id -g)"
+          export HOST_UID HOST_GID
           bash core/infra/ci/container.sh --rm \
             --volume "$GITHUB_WORKSPACE/project:/workspace" \
             --volume "$GITHUB_WORKSPACE/core/infra:/infra:ro" \
             --volume "$NIX_CI_STATE:/ci:ro" \
             --volume "$candidate_state:/candidate" \
+            --env HOST_UID \
+            --env HOST_GID \
             --env GITHUB_RUN_ID \
             --env GITHUB_RUN_ATTEMPT \
             -- bash -euo pipefail -c '
+              trap "chown -R \"\$HOST_UID:\$HOST_GID\" /workspace /candidate" EXIT
               nix flake update --flake /workspace
               nix run /infra#ci -- update prepare \
                 --project-dir /workspace \
@@ -154,7 +160,7 @@ jobs:
           REMOTE_URL: ${{ format('{0}/{1}.git', github.server_url, github.repository) }}
         run: |
           set -euo pipefail
-          docker exec \
+          docker exec -i \
             --env GHCR_ACTOR \
             --env GHCR_TOKEN \
             --env CANDIDATE_SHA \
@@ -163,9 +169,9 @@ jobs:
             "$NIX_CI_CONTAINER" bash -euo pipefail <<'BASH'
           export PATH="$(cat /ci/tools)/bin:$PATH"
           oci_out="$(jq -r '.builds.build[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
-          authfile="/ci/ghcr-auth.json"
-          trap 'rm -f "$authfile"' EXIT
           umask 077
+          authfile="$(mktemp /tmp/ghcr-auth.XXXXXX)"
+          trap 'rm -f "$authfile"' EXIT
           nix develop /workspace --no-update-lock-file --command bash -euo pipefail -c '
             printf "%s" "$GHCR_TOKEN" | skopeo login ghcr.io \
               --username "$GHCR_ACTOR" \

@@ -7,6 +7,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -196,6 +197,145 @@ def run_vm_suites(project_dir: Path, timeout_seconds: int) -> None:
     )
 
 
+def verify_workflow_contracts(wf_files: list[str]) -> None:
+    cmd_re = re.compile(
+        r"(?P<cmd>(?:docker\s+exec|container\.sh)(?:[^\n\\]|\\\s*\n)*?<<[-~]?['\"]?[A-Za-z_0-9]+['\"]?)"
+    )
+    concurrency_groups: set[str] = set()
+    for wf in wf_files:
+        text = Path(wf).read_text(encoding="utf-8")
+        group_match = re.search(r"(?m)^concurrency:\s*\n\s*group:\s*(\S+)", text)
+        if not group_match:
+            raise RuntimeError(f"Workflow {wf} is missing top-level concurrency.group")
+        concurrency_groups.add(group_match.group(1))
+        for match in cmd_re.finditer(text):
+            snippet = match.group("cmd")
+            tokens = snippet.replace("\\\n", " ").split()
+            has_interactive = (
+                "-i" in tokens
+                or "--interactive" in tokens
+                or any(
+                    t.startswith("-") and not t.startswith("--") and "i" in t[1:]
+                    for t in tokens
+                )
+            )
+            if not has_interactive:
+                raise RuntimeError(
+                    f"Missing -i on heredoc container invocation in {wf}:\n{snippet}"
+                )
+    if concurrency_groups != {"devcontainers-pipeline"}:
+        raise RuntimeError(
+            f"Expected unified workflow concurrency group 'devcontainers-pipeline', got {sorted(concurrency_groups)}"
+        )
+
+
+def verify_manifest_and_cache_exclusions(project_dir: Path, nix_ci: str) -> None:
+    expected_unfree = json.loads(
+        capture_checked(
+            [
+                "nix",
+                "eval",
+                "--no-update-lock-file",
+                "--impure",
+                "--json",
+                "--expr",
+                f"""
+                let
+                  f = builtins.getFlake ("git+file://" + {json.dumps(str(project_dir))});
+                  sys = "x86_64-linux";
+                  imgs = f.lib.${{sys}}.images;
+                  vmNode = f.checks.${{sys}}.vm-editor.nodes.machine;
+                  vscodeWrapped = builtins.head (
+                    builtins.filter (p: builtins.match ".*vscode.*" (p.name or "") != null)
+                      vmNode.environment.systemPackages
+                  );
+                  tmpRules = vmNode.systemd.tmpfiles.rules;
+                  archiveRule = builtins.head (
+                    builtins.filter (r: builtins.match ".*vscode-server-linux-.*\\.tar\\.gz.*" r != null) tmpRules
+                  );
+                  parts = builtins.filter builtins.isString (builtins.split "[[:space:]]+" archiveRule);
+                  archivePath = builtins.elemAt parts (builtins.length parts - 1);
+                  pkgs = f.inputs.nixpkgs.legacyPackages.${{sys}};
+                in
+                  (map toString imgs.agents.restrictedPackages)
+                  ++ (map toString imgs.editor.restrictedPackages)
+                  ++ [
+                    (toString pkgs.vscode)
+                    (toString pkgs.vscode.vscodeServer)
+                    (toString vscodeWrapped)
+                    archivePath
+                  ]
+                """,
+            ],
+            cwd=project_dir,
+        )
+    )
+
+    ci_wrapper = Path(nix_ci).resolve().read_text(encoding="utf-8")
+    exec_match = re.search(
+        r'^exec\s+(?P<py>/\S+)\s+"(?P<ci>/[^"]+)"',
+        ci_wrapper,
+        re.MULTILINE,
+    )
+    if not exec_match:
+        raise RuntimeError(
+            f"Unable to locate python interpreter and ci package in {nix_ci}"
+        )
+    ci_python = exec_match.group("py")
+    ci_pkg_dir = exec_match.group("ci")
+
+    for select_json in ("{}", '{"cacheOnly":true}'):
+        with tempfile.TemporaryDirectory(prefix="devcontainers-verify-ci-") as ci_state:
+            run_checked(
+                [
+                    nix_ci,
+                    "evaluate",
+                    "--project-dir",
+                    str(project_dir),
+                    "--select",
+                    select_json,
+                    "--state",
+                    ci_state,
+                ],
+                cwd=project_dir,
+            )
+            manifest = json.loads(
+                (Path(ci_state) / "manifest.json").read_text(encoding="utf-8")
+            )
+            build_names = {item["name"] for item in manifest["builds"]["build"]}
+            for required_driver in ("vm-containers-driver", "vm-editor-driver"):
+                if required_driver not in build_names:
+                    raise RuntimeError(
+                        f"Manifest (select={select_json}) missing {required_driver} in build group: {sorted(build_names)}"
+                    )
+            if len(manifest["cache"]["bundles"]) < 5:
+                raise RuntimeError(
+                    f"Manifest (select={select_json}) missing VM bundles: {manifest['cache']['bundles']}"
+                )
+            excluded_raw = capture_checked(
+                [
+                    ci_python,
+                    "-c",
+                    (
+                        "import json, sys; from pathlib import Path; "
+                        "sys.path.insert(0, sys.argv[1]); import cache; "
+                        "manifest = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8')); "
+                        "inv = cache.prepare_inventory(manifest); "
+                        "print(json.dumps(inv['excluded']))"
+                    ),
+                    ci_pkg_dir,
+                    str(Path(ci_state) / "manifest.json"),
+                ],
+                cwd=project_dir,
+            )
+            excluded_set = set(json.loads(excluded_raw))
+            leaked = [p for p in expected_unfree if p not in excluded_set]
+            if leaked:
+                raise RuntimeError(
+                    f"Restricted unfree store paths leaked outside excluded inventory (select={select_json}): {leaked}"
+                )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -252,22 +392,12 @@ def main(argv: list[str] | None = None) -> int:
     run_checked(["ruff", "check", *py_files], cwd=project_dir)
     run_checked(["shellcheck", *sh_files], cwd=project_dir)
     run_checked(["actionlint", *wf_files], cwd=project_dir)
+    verify_workflow_contracts(wf_files)
 
     nix_ci = shutil.which("nix-ci")
     if not nix_ci:
         raise RuntimeError("nix-ci binary not found in PATH")
-    with tempfile.TemporaryDirectory(prefix="devcontainers-verify-ci-") as ci_state:
-        run_checked(
-            [
-                nix_ci,
-                "evaluate",
-                "--project-dir",
-                str(project_dir),
-                "--state",
-                ci_state,
-            ],
-            cwd=project_dir,
-        )
+    verify_manifest_and_cache_exclusions(project_dir, nix_ci)
 
     log_step("3. Building shared packages.oci and verifying OCI layout invariants")
     oci_out = capture_checked(

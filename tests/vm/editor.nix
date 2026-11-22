@@ -490,15 +490,7 @@ core.lib.testing.mkTest pkgs (
     node.pkgsReadOnly = false;
 
     nodes.machine =
-      { pkgs, lib, ... }:
-      let
-        swayEditorCfg = pkgs.writeText "sway-editor-session.conf" ''
-          output * resolution 1920x1080 position 0,0
-          seat * xcursor_theme default 24
-          default_border pixel 2
-          exec sh -c '${pkgs.systemd}/bin/systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_SESSION_TYPE && ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_SESSION_TYPE && ${pkgs.systemd}/bin/systemctl --user start sway-ready.target'
-        '';
-      in
+      { pkgs, ... }:
       {
         imports = [
           (core.lib.testing.mkContainerHostModule {
@@ -514,18 +506,6 @@ core.lib.testing.mkTest pkgs (
         ];
 
         users.users.desktop.group = "desktop";
-
-        services.greetd.settings.default_session.command = lib.mkForce (
-          pkgs.writeShellScript "start-sway-editor" ''
-            export XDG_RUNTIME_DIR="/run/user/1000"
-            export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
-            export XDG_CURRENT_DESKTOP=sway
-            export XDG_SESSION_TYPE=wayland
-            export WLR_RENDERER=pixman
-            export LIBGL_ALWAYS_SOFTWARE=1
-            exec ${pkgs.sway}/bin/sway --config ${swayEditorCfg}
-          ''
-        );
 
         virtualisation = {
           cores = 4;
@@ -682,7 +662,7 @@ core.lib.testing.mkTest pkgs (
       }
       EOF
       chmod 0644 /home/desktop/.config/Code/User/settings.json
-      compgen -G '/home/desktop/.cache/vscode-server-downloads/*/vscode-server-linux-x64.tar.gz' >/dev/null
+      compgen -G '/home/desktop/.cache/vscode-server-downloads/*/vscode-server-linux-*.tar.gz' >/dev/null
       cat <<'EOF' > /home/desktop/workspace/.devcontainer/devcontainer.json
       {
         "image": "ghcr.io/hellodword/devcontainers-dev:latest"

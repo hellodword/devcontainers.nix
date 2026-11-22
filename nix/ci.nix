@@ -16,12 +16,12 @@ let
     inherit (checks) formatting;
     oci = flake.packages.${system}.oci;
     dev-shell = devShell;
+    vm-containers-driver = checks.vm-containers.driver;
+    vm-editor-driver = checks.vm-editor.driver;
   };
 
   vmChecks = {
     inherit (checks) vm-containers vm-editor;
-    vm-containers-driver = checks.vm-containers.driver;
-    vm-editor-driver = checks.vm-editor.driver;
   };
 
   jobs = baseProducts // lib.optionalAttrs (!cacheOnly) vmChecks;
@@ -33,22 +33,26 @@ let
       ++ images.toolchainsUsrPackages
       ++ images.agents.allPackages
       ++ images.editor.allPackages
+      ++ checks.vm-editor.nodes.machine.environment.systemPackages
       ++ (devShell.nativeBuildInputs or [ ])
       ++ (devShell.buildInputs or [ ]);
-    extraRestricted = images.agents.restrictedPackages ++ images.editor.restrictedPackages;
+    extraRestricted =
+      images.agents.restrictedPackages
+      ++ images.editor.restrictedPackages
+      ++ [
+        pkgs.vscode
+        pkgs.vscode.vscodeServer
+        pkgs.vscode-extensions.ms-vscode-remote.remote-containers
+      ];
     extraExcluded = [
       images.dev
       images.agent
       images.oci
-      pkgs.vscode
-      pkgs.vscode.vscodeServer
     ];
     bundles = [
       images.dev.drvPath
       images.agent.drvPath
       images.oci.drvPath
-    ]
-    ++ lib.optionals (!cacheOnly) [
       checks.vm-containers.nodes.machine.system.build.vm.drvPath
       checks.vm-editor.nodes.machine.system.build.vm.drvPath
     ];
@@ -68,12 +72,7 @@ in
     }
     {
       name = "build";
-      jobs =
-        builtins.attrNames baseProducts
-        ++ lib.optionals (!cacheOnly) [
-          "vm-containers-driver"
-          "vm-editor-driver"
-        ];
+      jobs = builtins.attrNames baseProducts;
       required = true;
       vm = null;
       kvm = false;
