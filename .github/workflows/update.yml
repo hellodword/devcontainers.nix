@@ -77,7 +77,7 @@ jobs:
             -- bash -euo pipefail -c '
               trap "chown -R \"\$HOST_UID:\$HOST_GID\" /workspace /candidate" EXIT
               nix flake update --flake /workspace
-              nix run /infra#ci -- update prepare \
+              nix run --no-update-lock-file /infra#ci -- update prepare \
                 --project-dir /workspace \
                 --state /candidate
             '
@@ -110,11 +110,8 @@ jobs:
           docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
             export PATH="$(cat /ci/tools)/bin:$PATH"
             cd /workspace
-            nix develop --no-update-lock-file --command bash -euo pipefail -c "
-              ruff check scripts/*.py tests/*.py runtime/*/*.py
-              shellcheck scripts/*.sh runtime/devcontainer-gui-env/main.sh
-              actionlint .github/workflows/*.yml
-            "
+            nix develop --no-update-lock-file --command \
+              python3 -B /workspace/tests/verify.py --project-dir /workspace --static-only
             nix-ci build --group private --state /ci --github-actions
             nix-ci build --group build --state /ci --github-actions
           '
@@ -138,6 +135,30 @@ jobs:
             cd /workspace
             nix develop --no-update-lock-file --command python3 tests/check_publish.py --oci-dir "$oci_out"
           '
+
+      - name: Preflight GHCR authentication before fast-forwarding master
+        if: steps.prepare.outputs.changed == 'true'
+        env:
+          GHCR_ACTOR: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          docker exec -i \
+            --env GHCR_ACTOR \
+            --env GHCR_TOKEN \
+            "$NIX_CI_CONTAINER" bash -euo pipefail <<'BASH'
+          export PATH="$(cat /ci/tools)/bin:$PATH"
+          umask 077
+          authdir="$(mktemp -d /tmp/ghcr-preflight.XXXXXX)"
+          trap 'rm -rf "$authdir"' EXIT
+          authfile="$authdir/auth.json"
+          nix develop /workspace --no-update-lock-file --command bash -euo pipefail -c '
+            printf "%s" "$GHCR_TOKEN" | skopeo login ghcr.io \
+              --username "$GHCR_ACTOR" \
+              --password-stdin \
+              --authfile "'"$authfile"'"
+          '
+          BASH
 
       - name: Atomically fast-forward master via PR when base has not advanced
         id: merge
@@ -170,8 +191,9 @@ jobs:
           export PATH="$(cat /ci/tools)/bin:$PATH"
           oci_out="$(jq -r '.builds.build[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
           umask 077
-          authfile="$(mktemp /tmp/ghcr-auth.XXXXXX)"
-          trap 'rm -f "$authfile"' EXIT
+          authdir="$(mktemp -d /tmp/ghcr-auth.XXXXXX)"
+          trap 'rm -rf "$authdir"' EXIT
+          authfile="$authdir/auth.json"
           nix develop /workspace --no-update-lock-file --command bash -euo pipefail -c '
             printf "%s" "$GHCR_TOKEN" | skopeo login ghcr.io \
               --username "$GHCR_ACTOR" \

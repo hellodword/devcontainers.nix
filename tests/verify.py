@@ -230,6 +230,7 @@ def verify_workflow_contracts(wf_files: list[str]) -> None:
 
 
 def verify_manifest_and_cache_exclusions(project_dir: Path, nix_ci: str) -> None:
+    scheme = "git+file://" if (project_dir / ".git").exists() else "path:"
     expected_unfree = json.loads(
         capture_checked(
             [
@@ -241,7 +242,7 @@ def verify_manifest_and_cache_exclusions(project_dir: Path, nix_ci: str) -> None
                 "--expr",
                 f"""
                 let
-                  f = builtins.getFlake ("git+file://" + {json.dumps(str(project_dir))});
+                  f = builtins.getFlake ({json.dumps(scheme)} + {json.dumps(str(project_dir))});
                   sys = "x86_64-linux";
                   imgs = f.lib.${{sys}}.images;
                   vmNode = f.checks.${{sys}}.vm-editor.nodes.machine;
@@ -284,6 +285,7 @@ def verify_manifest_and_cache_exclusions(project_dir: Path, nix_ci: str) -> None
     ci_python = exec_match.group("py")
     ci_pkg_dir = exec_match.group("ci")
 
+    publishable_by_select: dict[str, set[str]] = {}
     for select_json in ("{}", '{"cacheOnly":true}'):
         with tempfile.TemporaryDirectory(prefix="devcontainers-verify-ci-") as ci_state:
             run_checked(
@@ -312,7 +314,7 @@ def verify_manifest_and_cache_exclusions(project_dir: Path, nix_ci: str) -> None
                 raise RuntimeError(
                     f"Manifest (select={select_json}) missing VM bundles: {manifest['cache']['bundles']}"
                 )
-            excluded_raw = capture_checked(
+            inventory_raw = capture_checked(
                 [
                     ci_python,
                     "-c",
@@ -321,19 +323,35 @@ def verify_manifest_and_cache_exclusions(project_dir: Path, nix_ci: str) -> None
                         "sys.path.insert(0, sys.argv[1]); import cache; "
                         "manifest = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8')); "
                         "inv = cache.prepare_inventory(manifest); "
-                        "print(json.dumps(inv['excluded']))"
+                        "print(json.dumps({'outputs': inv['outputs'], 'excluded': inv['excluded']}))"
                     ),
                     ci_pkg_dir,
                     str(Path(ci_state) / "manifest.json"),
                 ],
                 cwd=project_dir,
             )
-            excluded_set = set(json.loads(excluded_raw))
+            inventory_data = json.loads(inventory_raw)
+            excluded_set = set(inventory_data["excluded"])
             leaked = [p for p in expected_unfree if p not in excluded_set]
             if leaked:
                 raise RuntimeError(
                     f"Restricted unfree store paths leaked outside excluded inventory (select={select_json}): {leaked}"
                 )
+            publishable_by_select[select_json] = (
+                set(inventory_data["outputs"]) - excluded_set
+            )
+
+    diff_only_full = sorted(
+        publishable_by_select["{}"] - publishable_by_select['{"cacheOnly":true}']
+    )
+    diff_only_retry = sorted(
+        publishable_by_select['{"cacheOnly":true}'] - publishable_by_select["{}"]
+    )
+    if diff_only_full or diff_only_retry:
+        raise RuntimeError(
+            "Publishable cache output mismatch between normal and cacheOnly modes: "
+            f"only_full={diff_only_full}, only_cacheOnly={diff_only_retry}"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -349,6 +367,11 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=2400,
         help="Per-suite timeout in seconds for VM checks",
+    )
+    parser.add_argument(
+        "--static-only",
+        action="store_true",
+        help="Run flake evaluation, formatting, linters, workflow contracts, and cache exclusion checks only",
     )
     args = parser.parse_args(argv)
 
@@ -389,7 +412,7 @@ def main(argv: list[str] | None = None) -> int:
         ]
     )
     wf_files = sorted(glob.glob(str(project_dir / ".github" / "workflows" / "*.yml")))
-    run_checked(["ruff", "check", *py_files], cwd=project_dir)
+    run_checked(["ruff", "check", "--no-cache", *py_files], cwd=project_dir)
     run_checked(["shellcheck", *sh_files], cwd=project_dir)
     run_checked(["actionlint", *wf_files], cwd=project_dir)
     verify_workflow_contracts(wf_files)
@@ -398,6 +421,10 @@ def main(argv: list[str] | None = None) -> int:
     if not nix_ci:
         raise RuntimeError("nix-ci binary not found in PATH")
     verify_manifest_and_cache_exclusions(project_dir, nix_ci)
+
+    if args.static_only:
+        print("\nVERIFY_STATIC_PASSED", flush=True)
+        return 0
 
     log_step("3. Building shared packages.oci and verifying OCI layout invariants")
     oci_out = capture_checked(

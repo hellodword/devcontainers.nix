@@ -16,6 +16,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import urllib.error
 import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
@@ -130,32 +131,39 @@ def build_synthetic_oci_layout(dest: Path, marker: str = "v1") -> dict[str, str]
 
 
 @contextmanager
-def local_oci_registry(work_dir: Path):
+def local_oci_registry(work_dir: Path, *, htpasswd_line: str | None = None):
     registry_bin = shutil.which("registry")
     if not registry_bin:
         raise RuntimeError("Missing 'registry' binary (docker-distribution) in PATH")
     port = find_free_port()
     storage_dir = work_dir / "registry-data"
     storage_dir.mkdir(parents=True, exist_ok=True)
-    cfg_path = work_dir / "registry-config.yml"
-    cfg_path.write_text(
-        "\n".join(
+    cfg_lines = [
+        "version: 0.1",
+        "log:",
+        "  level: warn",
+        "storage:",
+        "  filesystem:",
+        f"    rootdirectory: {json.dumps(str(storage_dir))}",
+        "  delete:",
+        "    enabled: true",
+        "http:",
+        f"  addr: 127.0.0.1:{port}",
+    ]
+    if htpasswd_line is not None:
+        htpasswd_path = work_dir / "htpasswd"
+        htpasswd_path.write_text(htpasswd_line + "\n", encoding="utf-8")
+        cfg_lines.extend(
             [
-                "version: 0.1",
-                "log:",
-                "  level: warn",
-                "storage:",
-                "  filesystem:",
-                f"    rootdirectory: {json.dumps(str(storage_dir))}",
-                "  delete:",
-                "    enabled: true",
-                "http:",
-                f"  addr: 127.0.0.1:{port}",
-                "",
+                "auth:",
+                "  htpasswd:",
+                "    realm: Registry",
+                f"    path: {json.dumps(str(htpasswd_path))}",
             ]
-        ),
-        encoding="utf-8",
-    )
+        )
+    cfg_lines.append("")
+    cfg_path = work_dir / "registry-config.yml"
+    cfg_path.write_text("\n".join(cfg_lines), encoding="utf-8")
     log_path = work_dir / "registry.log"
     with log_path.open("wb") as log_handle:
         proc = subprocess.Popen(
@@ -176,6 +184,10 @@ def local_oci_registry(work_dir: Path):
                     ) as resp:
                         if resp.status == 200:
                             break
+                except urllib.error.HTTPError as err:
+                    if htpasswd_line is not None and err.code == 401:
+                        break
+                    time.sleep(0.1)
                 except OSError:
                     time.sleep(0.1)
             else:
@@ -769,6 +781,117 @@ def verify_update_pr_fast_forward_and_skip(work_dir: Path) -> None:
     assert git_cmd(origin, "rev-parse", "refs/heads/master") == head
 
 
+def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
+    # bcrypt("ci-secret-token") for user "ci-actor"
+    htpasswd_entry = (
+        "ci-actor:$2b$05$7/jFoEubo.eVjJ8ADU10iOl5dFwtfGLFyR0vBDf5km9KoEUVdGJ42"
+    )
+    oci_auth = work_dir / "oci-auth"
+    digests = build_synthetic_oci_layout(oci_auth, marker="auth-v1")
+
+    bare_remote = work_dir / "auth-upstream.git"
+    clone_dir = work_dir / "auth-clone"
+    bare_remote.mkdir()
+    clone_dir.mkdir()
+    git_cmd(bare_remote, "init", "--bare", "--quiet", "--initial-branch=master")
+    git_cmd(clone_dir, "init", "--quiet", "--initial-branch=master")
+    git_cmd(clone_dir, "remote", "add", "origin", str(bare_remote))
+    sha = commit_synthetic(clone_dir, "rev.txt", "auth\n", "auth commit")
+    git_cmd(clone_dir, "push", "--quiet", "origin", "master")
+
+    with local_oci_registry(
+        work_dir / "auth-reg", htpasswd_line=htpasswd_entry
+    ) as auth_reg:
+        # 1. Unauthenticated publish fails against Basic-Auth registry.
+        unauth_res = subprocess.run(
+            [
+                sys.executable,
+                str(PUBLISH_PY),
+                "--oci-dir",
+                str(oci_auth),
+                "--registry",
+                auth_reg,
+                "--repository",
+                "hellodword/devcontainers-dev",
+                "--commit-sha",
+                sha,
+                "--expected-master-ref",
+                "refs/heads/master",
+                "--git-remote",
+                str(bare_remote),
+                "--tls-verify",
+                "false",
+                "--output-json",
+                str(work_dir / "unauth-publish.json"),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert unauth_res.returncode != 0, (
+            "Unauthenticated publish unexpectedly succeeded"
+        )
+
+        # 2. Regression guard: pre-created 0-byte authfile fails skopeo login.
+        zero_file = work_dir / "zero-auth.json"
+        zero_file.write_bytes(b"")
+        zero_file.chmod(0o600)
+        bad_login = subprocess.run(
+            [
+                "skopeo",
+                "login",
+                auth_reg,
+                "--tls-verify=false",
+                "--username",
+                "ci-actor",
+                "--password-stdin",
+                "--authfile",
+                str(zero_file),
+            ],
+            input="ci-secret-token",
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert bad_login.returncode != 0, "0-byte authfile unexpectedly succeeded"
+
+        # 3. Exact workflow pattern (`umask 077 && mktemp -d && authfile="$authdir/auth.json"`) succeeds.
+        login_publish_script = f"""
+        set -euo pipefail
+        umask 077
+        authdir="$(mktemp -d {json.dumps(str(work_dir))}/ghcr-auth.XXXXXX)"
+        trap 'rm -rf "$authdir"' EXIT
+        authfile="$authdir/auth.json"
+        printf '%s' 'ci-secret-token' | skopeo login {json.dumps(auth_reg)} \
+          --tls-verify=false \
+          --username ci-actor \
+          --password-stdin \
+          --authfile "$authfile"
+        test "$(stat -c '%a' "$authfile")" = "600"
+        {json.dumps(sys.executable)} {json.dumps(str(PUBLISH_PY))} \
+          --oci-dir {json.dumps(str(oci_auth))} \
+          --registry {json.dumps(auth_reg)} \
+          --repository hellodword/devcontainers-dev \
+          --commit-sha {json.dumps(sha)} \
+          --expected-master-ref refs/heads/master \
+          --git-remote {json.dumps(str(bare_remote))} \
+          --tls-verify false \
+          --authfile "$authfile" \
+          --output-json {json.dumps(str(work_dir / "auth-publish.json"))}
+        """
+        subprocess.run(
+            ["bash", "-euo", "pipefail", "-c", login_publish_script],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        receipt = json.loads(
+            (work_dir / "auth-publish.json").read_text(encoding="utf-8")
+        )
+        assert receipt["tags"]["latest"]["digest"] == digests["latest"], receipt
+        assert receipt["tags"]["agent"]["digest"] == digests["agent"], receipt
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -782,6 +905,7 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="devcontainers-check-publish-") as tmp:
         work_dir = Path(tmp)
         verify_publish_state_machine(work_dir, args.oci_dir)
+        verify_authenticated_skopeo_login_and_publish(work_dir)
         verify_update_pr_fast_forward_and_skip(work_dir)
 
     print("CHECK_PUBLISH_AND_UPDATE_OK")

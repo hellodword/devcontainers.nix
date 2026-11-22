@@ -48,6 +48,8 @@ let
       images.dev
       images.agent
       images.oci
+      checks.vm-containers
+      checks.vm-editor
     ];
     bundles = [
       images.dev.drvPath
