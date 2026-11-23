@@ -62,67 +62,7 @@ let
     "/home/vscode/.vscode-remote/extensions"
   ];
 
-  extensionsIndexJson = builtins.toJSON {
-    inherit projectionTargets;
-    extensions = map (ext: {
-      inherit (ext) id;
-      path = ext.storeSubdir;
-      projection = "symlink";
-      required = true;
-    }) allExtensions;
-  };
-
-  tasksJson = builtins.toJSON {
-    tasks = [
-      {
-        name = "xdg-dirs";
-        phase = "postCreate";
-        once = true;
-        user = "vscode";
-        command = [
-          "devcontainer-task-runner"
-          "ensure-xdg"
-        ];
-        timeoutSeconds = 15;
-      }
-      {
-        name = "vscode-extension-projection";
-        phase = "postCreate";
-        once = true;
-        user = "vscode";
-        needs = [ "xdg-dirs" ];
-        command = [
-          "vscode-extension-projector"
-          "activate"
-          "--index"
-          "/usr/share/devcontainer/vscode/extensions-index.json"
-        ];
-        timeoutSeconds = 120;
-      }
-      {
-        name = "gui-env-refresh";
-        phase = "postStart";
-        once = false;
-        user = "vscode";
-        command = [
-          "devcontainer-gui-env"
-          "refresh"
-        ];
-        timeoutSeconds = 15;
-      }
-      {
-        name = "nix-cache-refresh";
-        phase = "postStart";
-        once = false;
-        user = "vscode";
-        command = [
-          "devcontainer-runtime"
-          "refresh-local-cache"
-        ];
-        timeoutSeconds = 10;
-      }
-    ];
-  };
+  extensionStorePaths = map (ext: ext.storeSubdir) allExtensions;
 
   machineSettings = {
     "diffEditor.wordWrap" = "on";
@@ -292,8 +232,7 @@ in
   extensionIds = map (ext: ext.id) allExtensions;
   inherit
     projectionTargets
-    extensionsIndexJson
-    tasksJson
+    extensionStorePaths
     machineSettings
     machineSettingsJson
     serverRoots

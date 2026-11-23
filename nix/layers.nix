@@ -86,13 +86,13 @@ let
 
   layer5ExtensionsOss = mkStoreLayer {
     name = "vscode-extensions-oss";
-    deps = editor.ossPackages ++ runtime.editorHelpers;
+    deps = editor.ossPackages;
     priorLayers = sharedLayers;
   };
 
   layer6ExtensionsRestricted = mkStoreLayer {
     name = "vscode-extensions-restricted";
-    deps = editor.restrictedPackages;
+    deps = editor.restrictedPackages ++ runtime.editorHelpers;
     priorLayers = sharedLayers ++ [ layer5ExtensionsOss ];
   };
 

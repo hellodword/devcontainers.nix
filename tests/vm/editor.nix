@@ -47,41 +47,24 @@ let
 
 
     def wait_for_lifecycle_tasks(container_id: str, timeout: int = 180) -> dict:
-        expected = [
-            "xdg-dirs",
-            "vscode-extension-projection",
-            "gui-env-refresh",
-            "nix-cache-refresh",
-        ]
-        probe_py = (
-            "import json, pathlib, sys\n"
-            "root = pathlib.Path('/home/vscode/.local/state/devcontainer/tasks/status')\n"
-            "names = json.loads(sys.argv[1])\n"
-            "out = {}\n"
-            "for n in names:\n"
-            "    s = root / f'{n}.status'\n"
-            "    e = root / f'{n}.exit'\n"
-            "    out[n] = {\n"
-            "        'status': s.read_text().strip() if s.is_file() else 'missing',\n"
-            "        'exit': e.read_text().strip() if e.is_file() else 'missing',\n"
-            "    }\n"
-            "print(json.dumps(out))\n"
-        )
         deadline = time.monotonic() + timeout
         last = {}
         last_err = ""
         while time.monotonic() < deadline:
             res = subprocess.run(
-                ["docker", "exec", container_id, "python3", "-c", probe_py, json.dumps(expected)],
+                ["docker", "exec", container_id, "devcontainer-task-runner", "status"],
                 capture_output=True,
                 text=True,
                 check=False,
                 timeout=20,
             )
             if res.returncode == 0 and res.stdout.strip():
-                last = json.loads(res.stdout.strip())
-                if all(item.get("status") == "done" and item.get("exit") == "0" for item in last.values()):
-                    # Ensure devcontainer-task-runner processes have exited so VS Code finishes postStart bookkeeping.
+                last = dict(
+                    line.split("\t", 1)
+                    for line in res.stdout.strip().splitlines()
+                    if "\t" in line
+                )
+                if last.get("postCreate") == "done" and last.get("postStart") == "done":
                     runner_chk = subprocess.run(
                         ["docker", "exec", container_id, "pgrep", "-f", "devcontainer-task-runner"],
                         capture_output=True,
@@ -95,7 +78,7 @@ let
                 last_err = res.stderr.strip()
             time.sleep(1.0)
         raise AssertionError(
-            f"Lifecycle tasks did not finish cleanly within {timeout}s: {last!r} (stderr={last_err!r})"
+            f"Lifecycle phases did not finish cleanly within {timeout}s: {last!r} (stderr={last_err!r})"
         )
 
 
@@ -256,20 +239,25 @@ let
     fi
     jq -e '."rust-analyzer.server.path" == "/usr/bin/rust-analyzer" and ."nix.serverPath" == "/usr/bin/nixd"' "$settings_file" >/dev/null
 
-    # All 26 offline extensions must be projected into ~/.vscode-server/extensions.
+    # All 26 offline extensions must be projected into VS Code server extension roots.
     ext_count="$(python3 -c '
-    import json, pathlib
-    idx = json.loads(pathlib.Path("/usr/share/devcontainer/vscode/extensions-index.json").read_text())
-    exts = idx["extensions"]
-    assert len(exts) == 26, len(exts)
-    target = pathlib.Path("/home/vscode/.vscode-server/extensions")
-    for item in exts:
-        src = pathlib.Path(item["path"])
-        dest = target / src.name
-        assert dest.is_symlink(), f"Missing projected symlink: {dest}"
-        assert (dest / "package.json").is_file(), f"Missing package.json in {dest}"
-    print(len(exts))
-    ')"
+    import json, pathlib, sys
+    expected = json.loads(sys.argv[1])
+    assert len(expected) == 26, len(expected)
+    for root in (
+        "/home/vscode/.vscode-server/extensions",
+        "/home/vscode/.vscode-server-insiders/extensions",
+        "/home/vscode/.vscode-remote/extensions",
+    ):
+        target = pathlib.Path(root)
+        for store_dir in expected:
+            src = pathlib.Path(store_dir)
+            dest = target / src.name
+            assert dest.is_symlink(), f"Missing projected symlink: {dest}"
+            assert dest.resolve() == src.resolve(), f"Unexpected target for {dest}"
+            assert (dest / "package.json").is_file(), f"Missing package.json in {dest}"
+    print(len(expected))
+    ' ${pkgs.lib.escapeShellArg (builtins.toJSON images.editor.extensionStorePaths)})"
     test "$ext_count" = "26"
 
     # Representative built-in language tools.

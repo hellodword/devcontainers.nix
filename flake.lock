@@ -63,11 +63,11 @@
       },
       "locked": {
         "dir": "infra",
-        "lastModified": 1795354056,
-        "narHash": "sha256-jAEonWpAynY2njo2kKtSRmUTHJj0JQGPpiMLx3KEbVI=",
+        "lastModified": 1795402298,
+        "narHash": "sha256-J5WtkSwd49zhxsIwPPst3++KOQpyDxaaxo4sxCQtE14=",
         "ref": "master",
-        "rev": "6325c32c09d1dbf475d5e1e6a20629f489d2e0c2",
-        "revCount": 1474,
+        "rev": "2d2bc7619ffa340cc343241d05519b491b82db13",
+        "revCount": 1476,
         "type": "git",
         "url": "https://github.com/hellodword/nixos-config.git"
       },
@@ -348,11 +348,11 @@
         "treefmt-nix": "treefmt-nix_3"
       },
       "locked": {
-        "lastModified": 1794721901,
-        "narHash": "sha256-uWxhZr5oGOA27aI3/53VaSQjVC5Y+/RmS7PwUiSvSio=",
+        "lastModified": 1795361980,
+        "narHash": "sha256-UOSM5zPg3uQOrXc/CnX9Rg9rVI/8NreG1COoNdoU4as=",
         "owner": "linyinfeng",
         "repo": "oranc",
-        "rev": "e3b4d79b3cc74eeaf37b0585595c5010b3ac9013",
+        "rev": "868b3b992c6850414207a4a0f97bdaee205c4ad7",
         "type": "github"
       },
       "original": {

@@ -9,7 +9,10 @@
 }:
 let
   inherit (pkgs) nix2container;
-  runtime = import ../runtime { inherit pkgs lib; };
+  editor = import ./editor.nix { inherit pkgs lib; };
+  runtime = import ../runtime {
+    inherit pkgs lib editor;
+  };
   foundation = import ./foundation.nix {
     inherit
       pkgs
@@ -20,7 +23,6 @@ let
       ;
   };
   agents = import ./agents.nix { inherit inputs system; };
-  editor = import ./editor.nix { inherit pkgs lib; };
 
   toolchainModules = [
     (import ./toolchains/c.nix { inherit pkgs; })
@@ -188,11 +190,6 @@ let
               mkdir -p "$out/usr/lib/node_modules/typescript"
               ln -sfn ${nodejsToolchain.typescriptPkg}/lib/typescript "$out/usr/lib/node_modules/typescript/lib"
             fi
-          ''
-          + lib.optionalString includeEditor ''
-            mkdir -p "$out/usr/share/devcontainer/vscode"
-            printf '%s\n' ${lib.escapeShellArg editor.tasksJson} > "$out/usr/share/devcontainer/tasks.json"
-            printf '%s\n' ${lib.escapeShellArg editor.extensionsIndexJson} > "$out/usr/share/devcontainer/vscode/extensions-index.json"
           '';
       };
 

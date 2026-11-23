@@ -5,14 +5,13 @@
   select ? { },
 }:
 let
-  cacheOnly = select.cacheOnly or false;
   inherit (flake.lib.${system}) cache images pkgs;
   inherit (pkgs) lib;
   checks = flake.checks.${system};
   devShell = flake.devShells.${system}.default;
 
   baseProducts = {
-    inherit (checks) formatting;
+    inherit (checks) formatting lint;
     oci = flake.packages.${system}.oci;
     dev-shell = devShell;
     vm-containers-driver = checks.vm-containers.driver;
@@ -23,7 +22,7 @@ let
     inherit (checks) vm-containers vm-editor;
   };
 
-  jobs = baseProducts // lib.optionalAttrs (!cacheOnly) vmChecks;
+  jobs = baseProducts // vmChecks;
 
   cachePolicy = cache.mkPolicy {
     flakeOutPath = toString flake.outPath;
@@ -79,8 +78,6 @@ in
       kvm = false;
       maxJobs = 1;
     }
-  ]
-  ++ lib.optionals (!cacheOnly) [
     {
       name = "vm-containers";
       jobs = [ "vm-containers" ];

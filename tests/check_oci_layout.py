@@ -60,7 +60,6 @@ LATEST_ONLY_COMMANDS = {
     "shfmt",
     "taplo",
     "uv",
-    "vscode-extension-projector",
     "wayland-info",
 }
 

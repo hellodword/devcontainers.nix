@@ -24,15 +24,6 @@ def valid_machine_id(value: str) -> bool:
     return re.fullmatch(r"[0-9a-f]{32}", value) is not None and value != "0" * 32
 
 
-def requested_machine_id(environ: dict[str, str]) -> str | None:
-    value = environ.get("DEVCONTAINER_MACHINE_ID")
-    if value is not None and not valid_machine_id(value):
-        raise StateError(
-            "DEVCONTAINER_MACHINE_ID must be 32 lowercase hexadecimal characters and nonzero"
-        )
-    return value
-
-
 def mount_points() -> set[Path]:
     def unescape(value: str) -> str:
         return re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), value)
@@ -46,7 +37,7 @@ def mount_points() -> set[Path]:
     }
 
 
-def read_machine_id(path: Path, requested: str | None) -> str | None:
+def read_machine_id(path: Path) -> str | None:
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except FileNotFoundError:
@@ -63,10 +54,6 @@ def read_machine_id(path: Path, requested: str | None) -> str | None:
         value = ""
     if not valid_machine_id(value):
         raise StateError(f"invalid nonempty machine-id at {path}")
-    if requested is not None and value != requested:
-        raise StateError(
-            "DEVCONTAINER_MACHINE_ID conflicts with the existing machine-id"
-        )
     return value
 
 
@@ -89,18 +76,18 @@ def machine_id_source(root: Path, mounts: set[Path]) -> tuple[Path, bool]:
     return source, external
 
 
-def validate_machine_id(root: Path, requested: str | None, mounts: set[Path]) -> None:
+def validate_machine_id(root: Path, mounts: set[Path]) -> None:
     source, external = machine_id_source(root, mounts)
-    value = read_machine_id(source, requested)
+    value = read_machine_id(source)
     if external and value is None:
         raise StateError(
             "mounted /etc/machine-id must contain a valid nonempty machine-id"
         )
 
 
-def ensure_machine_id(root: Path, requested: str | None, mounts: set[Path]) -> None:
+def ensure_machine_id(root: Path, mounts: set[Path]) -> None:
     source, external = machine_id_source(root, mounts)
-    value = read_machine_id(source, requested)
+    value = read_machine_id(source)
     if external:
         if value is None:
             raise StateError(
@@ -126,9 +113,9 @@ def ensure_machine_id(root: Path, requested: str | None, mounts: set[Path]) -> N
         ):
             raise StateError("invalid machine-id lock file")
         fcntl.flock(handle, fcntl.LOCK_EX)
-        if read_machine_id(source, requested) is not None:
+        if read_machine_id(source) is not None:
             return
-        value = requested or secrets.token_hex(16)
+        value = secrets.token_hex(16)
         while not valid_machine_id(value):
             value = secrets.token_hex(16)
         with tempfile.NamedTemporaryFile(

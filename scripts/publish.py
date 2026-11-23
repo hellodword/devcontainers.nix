@@ -211,13 +211,6 @@ def render_markdown_summary(result: dict) -> str:
     return "\n".join(lines)
 
 
-def write_atomic_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
-    tmp.write_text(content, encoding="utf-8")
-    tmp.replace(path)
-
-
 def publish(args: argparse.Namespace) -> dict:
     commit_sha = args.commit_sha.strip().lower()
     if not HEX40_RE.match(commit_sha):
@@ -230,12 +223,11 @@ def publish(args: argparse.Namespace) -> dict:
     image_base = f"{args.registry}/{args.repository}"
 
     local_digests = parse_local_oci_digests(oci_dir)
-    core_sha = args.core_sha or read_locked_core_sha(args.flake_lock)
-    action_sha = args.action_sha or os.environ.get("NIX_CI_ACTION_SHA", "")
+    core_sha = read_locked_core_sha(args.flake_lock)
+    action_sha = args.action_sha
 
     tags_report: dict[str, dict[str, str]] = {}
 
-    # Step 2: Immutable commit tags (`sha-<commit>` and `agent-sha-<commit>`).
     immutable_targets = [
         ("latest", f"sha-{commit_sha}"),
         ("agent", f"agent-sha-{commit_sha}"),
@@ -272,16 +264,12 @@ def publish(args: argparse.Namespace) -> dict:
                 "digest": verified,
             }
 
-    # Step 3: Floating tags (`:latest` then `:agent`), verifying remote master head before EACH tag.
     floating_targets = [
         ("latest", "latest"),
         ("agent", "agent"),
     ]
     master_advanced_reason: str | None = None
-    for idx, (variant, tag_name) in enumerate(floating_targets):
-        if idx == 1 and args.after_latest_hook:
-            subprocess.run(args.after_latest_hook, shell=True, check=True, timeout=60)
-
+    for variant, tag_name in floating_targets:
         if master_advanced_reason is None:
             remote_master = query_remote_branch_sha(
                 args.git_remote, args.expected_master_ref
@@ -324,17 +312,11 @@ def publish(args: argparse.Namespace) -> dict:
         "tags": tags_report,
     }
 
-    if args.output_json is not None:
-        write_atomic_text(
-            args.output_json, json.dumps(result, indent=2, sort_keys=True) + "\n"
-        )
-
-    markdown = render_markdown_summary(result)
-    if args.summary_file is not None:
-        write_atomic_text(args.summary_file, markdown)
-    elif env_summary := os.environ.get("GITHUB_STEP_SUMMARY"):
-        with Path(env_summary).open("a", encoding="utf-8") as handle:
-            handle.write(markdown + "\n")
+    if env_summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+        summary_path = Path(env_summary)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        with summary_path.open("a", encoding="utf-8") as handle:
+            handle.write(render_markdown_summary(result) + "\n")
 
     print(json.dumps(result, sort_keys=True))
     return result
@@ -370,21 +352,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("flake.lock"),
         help="Path to flake.lock for recording locked core revision",
     )
-    parser.add_argument("--core-sha", default="", help="Override locked core revision")
     parser.add_argument(
         "--action-sha", default="", help="Running CI composite action commit SHA"
-    )
-    parser.add_argument(
-        "--output-json",
-        type=Path,
-        default=Path("publish-result.json"),
-        help="Output path for structured publication receipt",
-    )
-    parser.add_argument(
-        "--summary-file",
-        type=Path,
-        default=None,
-        help="Optional Markdown summary output file (defaults to GITHUB_STEP_SUMMARY when set)",
     )
     parser.add_argument(
         "--tls-verify",
@@ -394,11 +363,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--authfile", type=Path, default=None, help="Optional skopeo authfile path"
-    )
-    parser.add_argument(
-        "--after-latest-hook",
-        default="",
-        help=argparse.SUPPRESS,
     )
     return parser
 

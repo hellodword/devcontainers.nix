@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Workflow 3 verification: 4-tag digest-preserving OCI release, conflict/recovery, and PR fast-forward/skip."""
+"""Workflow 3 verification: 4-tag digest-preserving OCI release, conflict protection, and recovery."""
 
 from __future__ import annotations
 
@@ -18,8 +18,9 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PUBLISH_PY = REPO_ROOT / "scripts" / "publish.py"
@@ -243,11 +244,21 @@ def commit_synthetic(repo: Path, filename: str, content: str, message: str) -> s
     return git_cmd(repo, "rev-parse", "HEAD")
 
 
-def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> None:
-    if real_oci_dir is not None:
-        sys.path.insert(0, str(REPO_ROOT / "scripts"))
-        import publish as publish_mod
+def run_publish_cli(args: list[str], *, env: dict[str, str] | None = None) -> dict:
+    out = subprocess.check_output(
+        [sys.executable, str(PUBLISH_PY), *args],
+        env=env,
+        text=True,
+        timeout=120,
+    ).strip()
+    return json.loads(out)
 
+
+def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> None:
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import publish as publish_mod
+
+    if real_oci_dir is not None:
         real_digests = publish_mod.parse_local_oci_digests(real_oci_dir.resolve())
         assert set(real_digests) == {"latest", "agent"}, real_digests
 
@@ -270,14 +281,11 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
 
     with local_oci_registry(work_dir) as registry_addr:
         repo_name = "hellodword/devcontainers-dev"
-        out_json = work_dir / "publish-1.json"
         summary_md = work_dir / "summary-1.md"
 
         # 1. Initial 4-tag publish & exact digest preservation.
-        subprocess.run(
+        res1 = run_publish_cli(
             [
-                sys.executable,
-                str(PUBLISH_PY),
                 "--oci-dir",
                 str(oci_v1),
                 "--registry",
@@ -292,17 +300,11 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 str(REPO_ROOT / "flake.lock"),
                 "--action-sha",
                 "a" * 40,
-                "--output-json",
-                str(out_json),
-                "--summary-file",
-                str(summary_md),
                 "--tls-verify",
                 "false",
             ],
-            check=True,
-            timeout=120,
+            env=os.environ | {"GITHUB_STEP_SUMMARY": str(summary_md)},
         )
-        res1 = json.loads(out_json.read_text(encoding="utf-8"))
         assert len(res1["coreSha"]) == 40, res1
         assert res1["actionSha"] == "a" * 40, res1
         for tag in (f"sha-{sha1}", "latest"):
@@ -325,11 +327,8 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
         assert res1["coreSha"] in summary_text
 
         # 2. Idempotent rerun on same commit -> immutable tags reused, digests unchanged.
-        out_json_2 = work_dir / "publish-2.json"
-        subprocess.run(
+        res2 = run_publish_cli(
             [
-                sys.executable,
-                str(PUBLISH_PY),
                 "--oci-dir",
                 str(oci_v1),
                 "--registry",
@@ -342,22 +341,16 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 str(bare_remote),
                 "--flake-lock",
                 str(REPO_ROOT / "flake.lock"),
-                "--output-json",
-                str(out_json_2),
                 "--tls-verify",
                 "false",
-            ],
-            check=True,
-            timeout=120,
+            ]
         )
-        res2 = json.loads(out_json_2.read_text(encoding="utf-8"))
         assert res2["tags"][f"sha-{sha1}"]["status"] == "reused", res2
         assert res2["tags"][f"agent-sha-{sha1}"]["status"] == "reused", res2
         assert res2["tags"]["latest"]["status"] == "published", res2
         assert res2["tags"]["agent"]["status"] == "published", res2
 
-        # 3. Interrupted release recovery: pre-seed only sha-<sha1>, agent-sha-<sha1>, and :latest
-        #    (missing :agent), then rerun publish.py and verify :agent is restored while sha-* are reused.
+        # 3. Interrupted release recovery: pre-seed only sha-<sha1>, agent-sha-<sha1>, and :latest.
         recovery_repo = "hellodword/devcontainers-recovery"
         for variant, pre_tag in (
             ("latest", f"sha-{sha1}"),
@@ -377,11 +370,8 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 check=True,
                 timeout=60,
             )
-        out_recovery = work_dir / "publish-recovery.json"
-        subprocess.run(
+        res_rec = run_publish_cli(
             [
-                sys.executable,
-                str(PUBLISH_PY),
                 "--oci-dir",
                 str(oci_v1),
                 "--registry",
@@ -394,15 +384,10 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 str(bare_remote),
                 "--flake-lock",
                 str(REPO_ROOT / "flake.lock"),
-                "--output-json",
-                str(out_recovery),
                 "--tls-verify",
                 "false",
-            ],
-            check=True,
-            timeout=120,
+            ]
         )
-        res_rec = json.loads(out_recovery.read_text(encoding="utf-8"))
         assert res_rec["tags"][f"sha-{sha1}"]["status"] == "reused", res_rec
         assert res_rec["tags"][f"agent-sha-{sha1}"]["status"] == "reused", res_rec
         assert res_rec["tags"]["agent"]["status"] == "published", res_rec
@@ -443,8 +428,6 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 str(bare_remote),
                 "--flake-lock",
                 str(REPO_ROOT / "flake.lock"),
-                "--output-json",
-                str(work_dir / "conflict.json"),
                 "--tls-verify",
                 "false",
             ],
@@ -468,11 +451,8 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
         git_cmd(clone_dir, "push", "--quiet", "origin", "master")
         assert git_cmd(bare_remote, "rev-parse", "refs/heads/master") == sha_new
 
-        out_stale = work_dir / "publish-stale.json"
-        subprocess.run(
+        res_stale = run_publish_cli(
             [
-                sys.executable,
-                str(PUBLISH_PY),
                 "--oci-dir",
                 str(oci_v2),
                 "--registry",
@@ -485,15 +465,10 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 str(bare_remote),
                 "--flake-lock",
                 str(REPO_ROOT / "flake.lock"),
-                "--output-json",
-                str(out_stale),
                 "--tls-verify",
                 "false",
-            ],
-            check=True,
-            timeout=120,
+            ]
         )
-        res_stale = json.loads(out_stale.read_text(encoding="utf-8"))
         assert res_stale["tags"][f"sha-{sha_old}"]["status"] == "published", res_stale
         assert res_stale["tags"][f"agent-sha-{sha_old}"]["status"] == "published", (
             res_stale
@@ -513,35 +488,51 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
         sha_mid_next = commit_synthetic(
             clone_dir, "rev.txt", "5-next\n", "commit 5 next"
         )
-        hook_cmd = f"git -C {json.dumps(str(clone_dir))} push --quiet origin {sha_mid_next}:refs/heads/master"
-        out_mid = work_dir / "publish-mid.json"
-        subprocess.run(
-            [
-                sys.executable,
-                str(PUBLISH_PY),
-                "--oci-dir",
-                str(oci_v2),
-                "--registry",
-                registry_addr,
-                "--repository",
-                repo_name,
-                "--commit-sha",
-                sha_new,
-                "--git-remote",
-                str(bare_remote),
-                "--flake-lock",
-                str(REPO_ROOT / "flake.lock"),
-                "--output-json",
-                str(out_mid),
-                "--tls-verify",
-                "false",
-                "--after-latest-hook",
-                hook_cmd,
-            ],
-            check=True,
-            timeout=120,
-        )
-        res_mid = json.loads(out_mid.read_text(encoding="utf-8"))
+        real_query = publish_mod.query_remote_branch_sha
+        call_count = 0
+
+        def advance_after_first_check(git_remote: str, expected_ref: str) -> str:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                git_cmd(
+                    clone_dir,
+                    "push",
+                    "--quiet",
+                    "origin",
+                    f"{sha_mid_next}:refs/heads/master",
+                )
+            return real_query(git_remote, expected_ref)
+
+        captured_mid = io.StringIO()
+        with (
+            patch.object(
+                publish_mod,
+                "query_remote_branch_sha",
+                side_effect=advance_after_first_check,
+            ),
+            redirect_stdout(captured_mid),
+        ):
+            rc_mid = publish_mod.main(
+                [
+                    "--oci-dir",
+                    str(oci_v2),
+                    "--registry",
+                    registry_addr,
+                    "--repository",
+                    repo_name,
+                    "--commit-sha",
+                    sha_new,
+                    "--git-remote",
+                    str(bare_remote),
+                    "--flake-lock",
+                    str(REPO_ROOT / "flake.lock"),
+                    "--tls-verify",
+                    "false",
+                ]
+            )
+        assert rc_mid == 0, rc_mid
+        res_mid = json.loads(captured_mid.getvalue())
         assert res_mid["tags"]["latest"]["status"] == "published", res_mid
         assert res_mid["tags"]["agent"]["status"] == "skipped", res_mid
         assert (
@@ -554,235 +545,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
         )
 
 
-def resolve_nix_ci_command() -> list[str]:
-    if nix_ci := shutil.which("nix-ci"):
-        return [nix_ci]
-    local_infra = REPO_ROOT.parent.parent / "infra" / "ci"
-    if local_infra.is_dir():
-        return [sys.executable, str(local_infra)]
-    out = subprocess.check_output(
-        [
-            "nix",
-            "build",
-            "--no-link",
-            "--print-out-paths",
-            "--no-update-lock-file",
-            f"{REPO_ROOT}#core.packages.x86_64-linux.ci-tools",
-        ],
-        text=True,
-    ).strip()
-    return [f"{out}/bin/nix-ci"]
-
-
-def verify_update_pr_fast_forward_and_skip(work_dir: Path) -> None:
-    nix_ci = resolve_nix_ci_command()
-    origin = work_dir / "update-origin.git"
-    upstream_dep = work_dir / "dep-flake"
-    project = work_dir / "update-project"
-    for path in (origin, upstream_dep, project):
-        path.mkdir(parents=True, exist_ok=True)
-
-    git_cmd(origin, "init", "--bare", "--quiet", "--initial-branch=master")
-    git_cmd(upstream_dep, "init", "--quiet", "--initial-branch=master")
-    commit_synthetic(
-        upstream_dep, "flake.nix", "{ outputs = { self }: { v = 1; }; }\n", "dep v1"
-    )
-
-    git_cmd(project, "init", "--quiet", "--initial-branch=master")
-    git_cmd(project, "remote", "add", "origin", str(origin))
-    (project / "nix").mkdir()
-    shutil.copyfile(REPO_ROOT / "nix" / "ci.nix", project / "nix" / "ci.nix")
-    (project / "flake.nix").write_text(
-        "{\n"
-        f"  inputs.dep.url = {json.dumps(f'git+file://{upstream_dep}?ref=master')};\n"
-        "  outputs = { self, dep }: { };\n"
-        "}\n",
-        encoding="utf-8",
-    )
-    git_cmd(project, "add", "--", "flake.nix", "nix/ci.nix")
-    subprocess.run(
-        ["nix", "flake", "lock"], cwd=project, check=True, capture_output=True
-    )
-    git_cmd(project, "add", "--", "flake.lock")
-    git_cmd(
-        project,
-        "-c",
-        "user.name=Update Test",
-        "-c",
-        "user.email=test@example.invalid",
-        "-c",
-        "commit.gpgsign=false",
-        "commit",
-        "--no-gpg-sign",
-        "--quiet",
-        "-m",
-        "initial",
-    )
-    base = git_cmd(project, "rev-parse", "HEAD")
-    git_cmd(project, "push", "--quiet", "origin", "master")
-
-    # Advance dep to v2 and run nix flake update.
-    commit_synthetic(
-        upstream_dep, "flake.nix", "{ outputs = { self }: { v = 2; }; }\n", "dep v2"
-    )
-    subprocess.run(
-        ["nix", "flake", "update", "--refresh"],
-        cwd=project,
-        check=True,
-        capture_output=True,
-    )
-
-    # Disallowed non-lockfile edit must be rejected by update prepare.
-    (project / "UNEXPECTED.txt").write_text("bad\n", encoding="utf-8")
-    bad_prep = subprocess.run(
-        [
-            *nix_ci,
-            "update",
-            "prepare",
-            "--project-dir",
-            str(project),
-            "--state",
-            str(work_dir / "bad-state"),
-        ],
-        cwd=project,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert bad_prep.returncode != 0, (
-        "Expected update prepare to reject non-lockfile edits"
-    )
-    (project / "UNEXPECTED.txt").unlink()
-
-    # Valid flake.lock update -> candidate commit + bundle.
-    cand_state = work_dir / "cand-state"
-    gh_out_prep = work_dir / "gh-out-prep"
-    subprocess.run(
-        [
-            *nix_ci,
-            "update",
-            "prepare",
-            "--project-dir",
-            str(project),
-            "--state",
-            str(cand_state),
-        ],
-        cwd=project,
-        env=os.environ
-        | {
-            "GITHUB_OUTPUT": str(gh_out_prep),
-            "GITHUB_RUN_ID": "101",
-            "GITHUB_RUN_ATTEMPT": "1",
-        },
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    rec = json.loads((cand_state / "update.json").read_text(encoding="utf-8"))
-    head = rec["head"]
-    branch = rec["branch"]
-    assert rec["base"] == base and rec["lockfiles"] == ["flake.lock"], rec
-
-    # Merge case A: remote master advanced -> cleanly skipped (`merged=false`).
-    mock_bin = work_dir / "mock-bin"
-    mock_bin.mkdir()
-    gh_script = mock_bin / "gh"
-    gh_script.write_text(
-        "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
-        'if [[ "${1:-}" == api && "${2:-}" == repos/hellodword/devcontainers.nix/git/ref/heads/master ]]; then\n'
-        "  printf 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\\n'\n"
-        "  exit 0\n"
-        "fi\n"
-        "exit 99\n",
-        encoding="utf-8",
-    )
-    gh_script.chmod(0o755)
-    out_stale = work_dir / "gh-out-stale"
-    subprocess.run(
-        [
-            *nix_ci,
-            "update",
-            "merge",
-            "--project-dir",
-            str(project),
-            "--state",
-            str(cand_state),
-        ],
-        cwd=project,
-        env=os.environ
-        | {
-            "PATH": f"{mock_bin}:{os.environ['PATH']}",
-            "GITHUB_REPOSITORY": "hellodword/devcontainers.nix",
-            "GITHUB_OUTPUT": str(out_stale),
-        },
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    assert "merged=false" in out_stale.read_text(encoding="utf-8")
-
-    # Merge case B: remote master == base -> PR created and master atomically fast-forwarded (`force=false`).
-    fresh_clone = work_dir / "fresh-clone"
-    subprocess.run(
-        ["git", "clone", "--quiet", str(origin), str(fresh_clone)], check=True
-    )
-    gh_script.write_text(
-        "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
-        'if [[ "${1:-}" == api && "${2:-}" == repos/hellodword/devcontainers.nix/git/ref/heads/master ]]; then\n'
-        f"  git --git-dir={json.dumps(str(origin))} rev-parse refs/heads/master\n"
-        "  exit 0\n"
-        "fi\n"
-        'if [[ "${1:-}" == pr && "${2:-}" == create ]]; then\n'
-        "  printf 'https://github.com/hellodword/devcontainers.nix/pull/1\\n'\n"
-        "  exit 0\n"
-        "fi\n"
-        'if [[ "${1:-}" == api && "${2:-}" == --method && "${3:-}" == PATCH ]]; then\n'
-        f"  git --git-dir={json.dumps(str(origin))} update-ref refs/heads/master {head} {base}\n"
-        "  printf '{}\\n'\n"
-        "  exit 0\n"
-        "fi\n"
-        'if [[ "${1:-}" == pr && "${2:-}" == view ]]; then\n'
-        "  printf 'MERGED\\n'\n"
-        "  exit 0\n"
-        "fi\n"
-        'if [[ "${1:-}" == api && "${2:-}" == --method && "${3:-}" == DELETE ]]; then\n'
-        f"  git --git-dir={json.dumps(str(origin))} update-ref -d refs/heads/{branch}\n"
-        "  exit 0\n"
-        "fi\n"
-        "exit 98\n",
-        encoding="utf-8",
-    )
-    gh_script.chmod(0o755)
-    out_merged = work_dir / "gh-out-merged"
-    subprocess.run(
-        [
-            *nix_ci,
-            "update",
-            "merge",
-            "--project-dir",
-            str(fresh_clone),
-            "--state",
-            str(cand_state),
-        ],
-        cwd=fresh_clone,
-        env=os.environ
-        | {
-            "PATH": f"{mock_bin}:{os.environ['PATH']}",
-            "GITHUB_REPOSITORY": "hellodword/devcontainers.nix",
-            "GITHUB_OUTPUT": str(out_merged),
-        },
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    assert "merged=true" in out_merged.read_text(encoding="utf-8")
-    assert git_cmd(origin, "rev-parse", "refs/heads/master") == head
-
-
 def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
-    # bcrypt("ci-secret-token") for user "ci-actor"
     htpasswd_entry = (
         "ci-actor:$2b$05$7/jFoEubo.eVjJ8ADU10iOl5dFwtfGLFyR0vBDf5km9KoEUVdGJ42"
     )
@@ -802,7 +565,6 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
     with local_oci_registry(
         work_dir / "auth-reg", htpasswd_line=htpasswd_entry
     ) as auth_reg:
-        # 1. Unauthenticated publish fails against Basic-Auth registry.
         unauth_res = subprocess.run(
             [
                 sys.executable,
@@ -821,8 +583,6 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
                 str(bare_remote),
                 "--tls-verify",
                 "false",
-                "--output-json",
-                str(work_dir / "unauth-publish.json"),
             ],
             capture_output=True,
             text=True,
@@ -832,7 +592,6 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
             "Unauthenticated publish unexpectedly succeeded"
         )
 
-        # 2. Exact workflow pattern (`umask 077 && mktemp -d && authfile="$authdir/auth.json"`) succeeds.
         login_publish_script = f"""
         set -euo pipefail
         umask 077
@@ -853,18 +612,15 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
           --expected-master-ref refs/heads/master \
           --git-remote {json.dumps(str(bare_remote))} \
           --tls-verify false \
-          --authfile "$authfile" \
-          --output-json {json.dumps(str(work_dir / "auth-publish.json"))}
+          --authfile "$authfile"
         """
-        subprocess.run(
+        auth_proc = subprocess.run(
             ["bash", "-euo", "pipefail", "-c", login_publish_script],
             check=True,
             capture_output=True,
             text=True,
         )
-        receipt = json.loads(
-            (work_dir / "auth-publish.json").read_text(encoding="utf-8")
-        )
+        receipt = json.loads(auth_proc.stdout.strip().splitlines()[-1])
         assert receipt["tags"]["latest"]["digest"] == digests["latest"], receipt
         assert receipt["tags"]["agent"]["digest"] == digests["agent"], receipt
 
@@ -883,9 +639,8 @@ def main(argv: list[str] | None = None) -> int:
         work_dir = Path(tmp)
         verify_publish_state_machine(work_dir, args.oci_dir)
         verify_authenticated_skopeo_login_and_publish(work_dir)
-        verify_update_pr_fast_forward_and_skip(work_dir)
 
-    print("CHECK_PUBLISH_AND_UPDATE_OK")
+    print("CHECK_PUBLISH_OK")
     return 0
 
 

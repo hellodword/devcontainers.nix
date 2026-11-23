@@ -79,10 +79,9 @@ def main(argv: list[str]) -> int:
         return 126
 
     try:
-        requested_id = state.requested_machine_id(os.environ)
         mounts = state.mount_points()
         root = Path("/")
-        state.validate_machine_id(root, requested_id, mounts)
+        state.validate_machine_id(root, mounts)
 
         os.environ["HOME"] = account.pw_dir
         os.environ["USER"] = "vscode"
@@ -96,7 +95,7 @@ def main(argv: list[str]) -> int:
         os.environ["XDG_RUNTIME_DIR"] = runtime_dir
 
         state.ensure_xdg(os.environ, runtime_dir)
-        state.ensure_machine_id(root, requested_id, mounts)
+        state.ensure_machine_id(root, mounts)
         state.refresh_local_cache(os.environ)
         refresh_gui_env(runtime_dir)
 

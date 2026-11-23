@@ -1,9 +1,12 @@
 # Store-bound internal container runtime helper executables.
-{ pkgs, lib }:
+{
+  pkgs,
+  lib,
+  editor,
+}:
 let
   runtimeLibrary = pkgs.runCommand "devcontainer-runtime-library" { } ''
     mkdir -p "$out"
-    cp ${./devcontainer-set-user-id/main.py} "$out/devcontainer_identity.py"
     cp ${./devcontainer-runtime/state.py} "$out/devcontainer_state.py"
   '';
 
@@ -67,18 +70,20 @@ let
     isolated = true;
   };
 
+  projectionTargetsJson = builtins.toJSON editor.projectionTargets;
+  extensionStorePathsJson = builtins.toJSON editor.extensionStorePaths;
+
   taskRunnerApp = writePythonApp {
     name = "devcontainer-task-runner";
     scriptPath = ./devcontainer-task-runner/main.py;
+    isolated = true;
     extraSubstitutions = ''
       substituteInPlace "$out/bin/devcontainer-task-runner" \
-        --replace-fail '@runtimeLibrary@' '${runtimeLibrary}'
+        --replace-fail '@runtimeLibrary@' '${runtimeLibrary}' \
+        --replace-fail '@guiEnv@' '${guiEnvApp}/bin/devcontainer-gui-env' \
+        --replace-fail '@projectionTargetsJson@' ${lib.escapeShellArg projectionTargetsJson} \
+        --replace-fail '@extensionStorePathsJson@' ${lib.escapeShellArg extensionStorePathsJson}
     '';
-  };
-
-  projectorApp = writePythonApp {
-    name = "vscode-extension-projector";
-    scriptPath = ./vscode-extension-projector/main.py;
   };
 
   devpkgBin = writePythonApp {
@@ -176,7 +181,6 @@ in
   devcontainer-set-user-id = setUserIdApp;
   devcontainer-gui-env = guiEnvApp;
   devcontainer-task-runner = taskRunnerApp;
-  vscode-extension-projector = projectorApp;
   devpkg = devpkgApp;
 
   baseHelpers = [
@@ -189,6 +193,5 @@ in
 
   editorHelpers = [
     taskRunnerApp
-    projectorApp
   ];
 }

@@ -55,7 +55,6 @@ jobs:
         run: |
           set -euo pipefail
           action_sha="$(git -C core rev-parse HEAD)"
-          printf 'NIX_CI_ACTION_SHA=%s\n' "$action_sha" >> "$GITHUB_ENV"
           printf 'action_sha=%s\n' "$action_sha" >> "$GITHUB_OUTPUT"
 
           candidate_state="$RUNNER_TEMP/candidate-update-${GITHUB_RUN_ATTEMPT}"
@@ -109,9 +108,6 @@ jobs:
           set -euo pipefail
           docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
             export PATH="$(cat /ci/tools)/bin:$PATH"
-            cd /workspace
-            nix develop --no-update-lock-file --command \
-              python3 -B /workspace/tests/verify.py --project-dir /workspace --static-only
             nix-ci build --group private --state /ci --github-actions
             nix-ci build --group build --state /ci --github-actions
           '
@@ -131,7 +127,7 @@ jobs:
           docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
             export PATH="$(cat /ci/tools)/bin:$PATH"
             nix-ci report verify --state /ci
-            oci_out="$(jq -r ".builds.build[] | select(.name == \"oci\") | .outputs[0]" /ci/manifest.json)"
+            oci_out="$(jq -r ".groups[] | select(.name == \"build\") | .entries[] | select(.name == \"oci\") | .outputs[0]" /ci/manifest.json)"
             cd /workspace
             nix develop --no-update-lock-file --command python3 tests/check_publish.py --oci-dir "$oci_out"
           '
@@ -189,7 +185,8 @@ jobs:
             --env REMOTE_URL \
             "$NIX_CI_CONTAINER" bash -euo pipefail <<'BASH'
           export PATH="$(cat /ci/tools)/bin:$PATH"
-          oci_out="$(jq -r '.builds.build[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
+          oci_out="$(jq -r '.groups[] | select(.name == "build") | .entries[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
+          rm -f /ci/publish-summary.md
           umask 077
           authdir="$(mktemp -d /tmp/ghcr-auth.XXXXXX)"
           trap 'rm -rf "$authdir"' EXIT
@@ -199,7 +196,7 @@ jobs:
               --username "$GHCR_ACTOR" \
               --password-stdin \
               --authfile "'"$authfile"'"
-            python3 /workspace/scripts/publish.py \
+            GITHUB_STEP_SUMMARY=/ci/publish-summary.md python3 /workspace/scripts/publish.py \
               --oci-dir "'"$oci_out"'" \
               --registry ghcr.io \
               --repository hellodword/devcontainers-dev \
@@ -208,9 +205,7 @@ jobs:
               --git-remote "$REMOTE_URL" \
               --flake-lock /workspace/flake.lock \
               --action-sha "$ACTION_SHA" \
-              --authfile "'"$authfile"'" \
-              --output-json /ci/publish-result.json \
-              --summary-file /ci/publish-summary.md
+              --authfile "'"$authfile"'"
           '
           BASH
           cat "$NIX_CI_STATE/publish-summary.md" >> "$GITHUB_STEP_SUMMARY"

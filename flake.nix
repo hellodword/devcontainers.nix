@@ -113,9 +113,6 @@
           pkgs.skopeo-nix2container
         ];
         text = ''
-          if [[ -f "$PWD/flake.nix" && -f "$PWD/tests/verify.py" ]]; then
-            exec ${pkgs.python3}/bin/python3 "$PWD/tests/verify.py" "$@"
-          fi
           exec ${pkgs.python3}/bin/python3 ${./tests/verify.py} "$@"
         '';
       };
@@ -144,6 +141,14 @@
 
       checks.${system} = {
         formatting = treefmtEval.config.build.check self;
+        lint = import ./nix/lint.nix {
+          inherit
+            self
+            pkgs
+            lib
+            images
+            ;
+        };
         vm-containers = import ./tests/vm/containers.nix {
           inherit
             pkgs
