@@ -20,6 +20,40 @@ let
     python3 = "${pkgs.python3}";
     stdenv = "${pkgs.stdenv}";
   };
+
+  concurrentLifecyclePy = pkgs.writeText "check-concurrent-lifecycle.py" ''
+    import os
+    import pathlib
+    import subprocess
+    import tempfile
+
+    for trial in range(5):
+        with tempfile.TemporaryDirectory(prefix=f"home-race-{trial}-") as temp_home:
+            env = dict(os.environ, HOME=temp_home)
+            for key in ("XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"):
+                env.pop(key, None)
+            procs = [
+                subprocess.Popen(["devcontainer-task-runner", "run", "postCreate"], env=env)
+                for _ in range(4)
+            ]
+            codes = [proc.wait(timeout=30) for proc in procs]
+            assert codes == [0, 0, 0, 0], (trial, codes)
+            for sub in (".vscode-server/extensions", ".vscode-server-insiders/extensions", ".vscode-remote/extensions"):
+                entries = list((pathlib.Path(temp_home) / sub).iterdir())
+                assert len(entries) == 26 and all(e.is_symlink() for e in entries), (trial, sub, len(entries))
+
+    procs = [
+        *[subprocess.Popen(["devcontainer-task-runner", "run", "postCreate"]) for _ in range(4)],
+        *[subprocess.Popen(["devcontainer-task-runner", "run", "postStart"]) for _ in range(2)],
+    ]
+    codes = [proc.wait(timeout=30) for proc in procs]
+    assert codes == [0, 0, 0, 0, 0, 0], codes
+    status_out = subprocess.check_output(["devcontainer-task-runner", "status"], text=True)
+    assert status_out.splitlines() == ["postCreate\tdone", "postStart\tdone"], status_out
+    for root in ("/home/vscode/.vscode-server/extensions", "/home/vscode/.vscode-server-insiders/extensions", "/home/vscode/.vscode-remote/extensions"):
+        entries = list(pathlib.Path(root).iterdir())
+        assert len(entries) == 26 and all(e.is_symlink() for e in entries), (root, len(entries))
+  '';
 in
 core.lib.testing.mkTest pkgs (
   { lib, ... }:
@@ -79,6 +113,7 @@ core.lib.testing.mkTest pkgs (
       runtime = runpy.run_path("${core.lib.testing.runtimePy}")
 
       OCI_DIR = ${builtins.toJSON "${images.oci}"}
+      CONCURRENT_LIFECYCLE_PY = ${builtins.toJSON "${concurrentLifecyclePy}"}
       EXPECTED_PATHS = json.loads(${builtins.toJSON expectedStorePaths})
       LATEST_REF = "ghcr.io/hellodword/devcontainers-dev:latest"
       AGENT_REF = "ghcr.io/hellodword/devcontainers-dev:agent"
@@ -289,6 +324,13 @@ core.lib.testing.mkTest pkgs (
                         )
                     ),
                     timeout=120,
+                )
+                machine.succeed(
+                    as_desktop(
+                        f"docker cp {q(CONCURRENT_LIFECYCLE_PY)} check-latest:/tmp/check-concurrent-lifecycle.py && "
+                        "docker exec check-latest python3 /tmp/check-concurrent-lifecycle.py"
+                    ),
+                    timeout=90,
                 )
             finally:
                 machine.succeed(as_desktop("docker rm -f check-latest"))

@@ -21,9 +21,7 @@ let
     from playwright.sync_api import expect, sync_playwright
 
     from vscode_cdp import (
-        open_integrated_terminal,
         reopen_in_devcontainer,
-        run_integrated_terminal_command,
         vscode_electron_session,
         wait_for,
     )
@@ -84,7 +82,7 @@ let
 
     def kill_existing_terminals(page) -> None:
         def term_count() -> int:
-            return page.get_by_role("textbox", name=re.compile(r"^Terminal \d+,")).count()
+            return page.get_by_role("textbox", name=re.compile(r"^Terminal \d+\b")).count()
 
         if page.locator(".xterm-helper-textarea").count() == 0 and term_count() == 0:
             return
@@ -110,6 +108,38 @@ let
             lambda: term_count() == 0,
             "closing lifecycle task terminals",
             timeout=20,
+        )
+
+
+    def execute_in_integrated_terminal(
+        page,
+        command: str,
+        started_file: Path,
+        error_file: Path,
+        report_file: Path,
+        *,
+        timeout: int = 120,
+    ) -> str:
+        for path in (started_file, error_file, report_file):
+            path.unlink(missing_ok=True)
+        page.keyboard.press("Control+Shift+Backquote")
+        term_regex = re.compile(r"^Terminal \d+\b")
+        page.get_by_role("textbox", name=term_regex).last.wait_for(timeout=60000)
+        deadline = time.monotonic() + timeout
+        next_send = 0.0
+        while time.monotonic() < deadline:
+            if report_file.exists():
+                return report_file.read_text(encoding="utf-8")
+            if not started_file.exists() and time.monotonic() >= next_send:
+                box = page.get_by_role("textbox", name=term_regex).last
+                box.focus()
+                expect(box).to_be_focused(timeout=15000)
+                page.keyboard.type(f"\n{command}\n", delay=15)
+                next_send = time.monotonic() + 5.0
+            time.sleep(0.5)
+        err_txt = error_file.read_text(encoding="utf-8", errors="replace") if error_file.exists() else ""
+        raise AssertionError(
+            f"Timed out waiting for {report_file} (started={started_file.exists()}, err={err_txt!r})"
         )
 
 
@@ -170,11 +200,14 @@ let
                 )
                 kill_existing_terminals(page)
 
-                open_integrated_terminal(page, timeout=60000)
+                started_path = workspace / ".terminal-started"
+                error_path = workspace / ".terminal-error.log"
                 report_path = workspace / ".terminal-report.json"
-                raw_report = run_integrated_terminal_command(
+                raw_report = execute_in_integrated_terminal(
                     page,
                     "bash /tmp/verify-in-terminal.sh",
+                    started_path,
+                    error_path,
                     report_path,
                     timeout=120,
                 )
@@ -202,6 +235,8 @@ let
 
   terminalVerifySh = pkgs.writeText "verify-in-terminal.sh" ''
     set -euo pipefail
+    touch /workspaces/workspace/.terminal-started
+    exec 2>/workspaces/workspace/.terminal-error.log
 
     user_name="$(id -un)"
     uid_num="$(id -u)"
