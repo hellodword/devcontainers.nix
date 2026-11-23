@@ -592,30 +592,65 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
             "Unauthenticated publish unexpectedly succeeded"
         )
 
-        login_publish_script = f"""
-        set -euo pipefail
-        umask 077
-        authdir="$(mktemp -d {json.dumps(str(work_dir))}/ghcr-auth.XXXXXX)"
-        trap 'rm -rf "$authdir"' EXIT
-        authfile="$authdir/auth.json"
-        printf '%s' 'ci-secret-token' | skopeo login {json.dumps(auth_reg)} \
-          --tls-verify=false \
-          --username ci-actor \
-          --password-stdin \
-          --authfile "$authfile"
-        test "$(stat -c '%a' "$authfile")" = "600"
-        {json.dumps(sys.executable)} {json.dumps(str(PUBLISH_PY))} \
-          --oci-dir {json.dumps(str(oci_auth))} \
-          --registry {json.dumps(auth_reg)} \
-          --repository hellodword/devcontainers-dev \
-          --commit-sha {json.dumps(sha)} \
-          --expected-master-ref refs/heads/master \
-          --git-remote {json.dumps(str(bare_remote))} \
-          --tls-verify false \
-          --authfile "$authfile"
-        """
+        manifest_file = work_dir / "manifest.json"
+        manifest_file.write_text(
+            json.dumps(
+                {
+                    "groups": [
+                        {
+                            "name": "build",
+                            "entries": [{"name": "oci", "outputs": [str(oci_auth)]}],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        auth_env = os.environ | {
+            "GHCR_ACTOR": "ci-actor",
+            "GHCR_TOKEN": "ci-secret-token",
+        }
+        preflight_proc = subprocess.run(
+            [
+                sys.executable,
+                str(PUBLISH_PY),
+                "--registry",
+                auth_reg,
+                "--tls-verify",
+                "false",
+                "--login-env",
+                "--preflight-only",
+            ],
+            env=auth_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert json.loads(preflight_proc.stdout)["preflight"] == "ok", (
+            preflight_proc.stdout
+        )
+
         auth_proc = subprocess.run(
-            ["bash", "-euo", "pipefail", "-c", login_publish_script],
+            [
+                sys.executable,
+                str(PUBLISH_PY),
+                "--manifest",
+                str(manifest_file),
+                "--login-env",
+                "--registry",
+                auth_reg,
+                "--repository",
+                "hellodword/devcontainers-dev",
+                "--commit-sha",
+                sha,
+                "--expected-master-ref",
+                "refs/heads/master",
+                "--git-remote",
+                str(bare_remote),
+                "--tls-verify",
+                "false",
+            ],
+            env=auth_env,
             check=True,
             capture_output=True,
             text=True,

@@ -403,7 +403,7 @@ core.lib.testing.mkTest pkgs (
                     ),
                     timeout=60,
                 )
-                assert "http://172.17.0.1:37515/ghcr.io/hellodword/nixos-config" in probe_on, probe_on
+                assert "http://172.17.0.1:37515/ghcr.io/hellodword/nixos-config-cache" in probe_on, probe_on
                 assert "http://172.17.0.1:37515/ghcr.io/hellodword/devcontainers-nix-cache" in probe_on, probe_on
             finally:
                 machine.succeed("systemctl stop mock-oranc-37515.service")

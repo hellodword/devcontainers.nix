@@ -11,7 +11,7 @@ from pathlib import Path
 
 DEFAULT_LOCAL_CACHE_ADDR = "172.17.0.1:37515"
 LOCAL_CACHE_REPOSITORIES = (
-    "ghcr.io/hellodword/nixos-config",
+    "ghcr.io/hellodword/nixos-config-cache",
     "ghcr.io/hellodword/devcontainers-nix-cache",
 )
 

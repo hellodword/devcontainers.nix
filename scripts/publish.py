@@ -10,6 +10,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -80,6 +82,64 @@ def skopeo_auth_args(authfile: Path | None) -> list[str]:
     if authfile is not None:
         return ["--authfile", str(authfile)]
     return []
+
+
+def resolve_oci_dir(oci_dir: Path | None, manifest_path: Path | None) -> Path:
+    if oci_dir is not None:
+        return oci_dir.resolve()
+    if manifest_path is None or not manifest_path.is_file():
+        raise PublishError("Provide --oci-dir or an existing --manifest file")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for group in manifest.get("groups") or []:
+        if group.get("name") == "build":
+            for entry in group.get("entries") or []:
+                if entry.get("name") == "oci" and entry.get("outputs"):
+                    return Path(entry["outputs"][0]).resolve()
+    raise PublishError(f"Could not find build/oci output in {manifest_path}")
+
+
+@contextmanager
+def prepared_authfile(
+    *,
+    registry: str,
+    tls_verify: bool,
+    authfile: Path | None,
+    login_env: bool,
+):
+    if not login_env:
+        yield authfile
+        return
+    actor = os.environ.get("GHCR_ACTOR", "").strip()
+    token = os.environ.get("GHCR_TOKEN", "").strip()
+    if not actor or not token:
+        raise PublishError(
+            "GHCR_ACTOR and GHCR_TOKEN must be set when --login-env is enabled"
+        )
+    with tempfile.TemporaryDirectory(prefix="ghcr-auth-") as tmp_dir:
+        temp_auth = Path(tmp_dir) / "auth.json"
+        res = subprocess.run(
+            [
+                "skopeo",
+                "login",
+                registry,
+                f"--tls-verify={'true' if tls_verify else 'false'}",
+                "--username",
+                actor,
+                "--password-stdin",
+                "--authfile",
+                str(temp_auth),
+            ],
+            input=token,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        if res.returncode != 0:
+            raise PublishError(
+                f"skopeo login failed for {registry} (exit {res.returncode}): {res.stderr.strip()}"
+            )
+        yield temp_auth
 
 
 def inspect_remote_digest(
@@ -212,14 +272,43 @@ def render_markdown_summary(result: dict) -> str:
 
 
 def publish(args: argparse.Namespace) -> dict:
-    commit_sha = args.commit_sha.strip().lower()
-    if not HEX40_RE.match(commit_sha):
-        raise PublishError(
-            f"--commit-sha must be a 40-character lowercase hex SHA, got {args.commit_sha!r}"
+    tls_verify = args.tls_verify == "true"
+    with prepared_authfile(
+        registry=args.registry,
+        tls_verify=tls_verify,
+        authfile=args.authfile,
+        login_env=args.login_env,
+    ) as active_authfile:
+        if args.preflight_only:
+            if active_authfile is None:
+                raise PublishError(
+                    "--preflight-only requires --login-env or --authfile"
+                )
+            result = {"preflight": "ok", "registry": args.registry}
+            print(json.dumps(result, sort_keys=True))
+            return result
+
+        if not args.commit_sha or not args.git_remote:
+            raise PublishError("--commit-sha and --git-remote are required")
+        commit_sha = args.commit_sha.strip().lower()
+        if not HEX40_RE.match(commit_sha):
+            raise PublishError(
+                f"--commit-sha must be a 40-character lowercase hex SHA, got {args.commit_sha!r}"
+            )
+
+        oci_dir = resolve_oci_dir(args.oci_dir, args.manifest)
+        return _publish_with_auth(
+            args, oci_dir, commit_sha, tls_verify, active_authfile
         )
 
-    oci_dir = args.oci_dir.resolve()
-    tls_verify = args.tls_verify == "true"
+
+def _publish_with_auth(
+    args: argparse.Namespace,
+    oci_dir: Path,
+    commit_sha: str,
+    tls_verify: bool,
+    authfile: Path | None,
+) -> dict:
     image_base = f"{args.registry}/{args.repository}"
 
     local_digests = parse_local_oci_digests(oci_dir)
@@ -236,7 +325,7 @@ def publish(args: argparse.Namespace) -> dict:
         full_ref = f"{image_base}:{tag_name}"
         expected = local_digests[variant]
         existing = inspect_remote_digest(
-            full_ref, tls_verify=tls_verify, authfile=args.authfile
+            full_ref, tls_verify=tls_verify, authfile=authfile
         )
         if existing is not None:
             if existing != expected:
@@ -256,7 +345,7 @@ def publish(args: argparse.Namespace) -> dict:
                 full_ref,
                 expected,
                 tls_verify=tls_verify,
-                authfile=args.authfile,
+                authfile=authfile,
             )
             tags_report[tag_name] = {
                 "variant": variant,
@@ -293,7 +382,7 @@ def publish(args: argparse.Namespace) -> dict:
             full_ref,
             expected,
             tls_verify=tls_verify,
-            authfile=args.authfile,
+            authfile=authfile,
         )
         tags_report[tag_name] = {
             "variant": variant,
@@ -325,7 +414,13 @@ def publish(args: argparse.Namespace) -> dict:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--oci-dir", type=Path, required=True, help="Path to multi-variant OCI layout"
+        "--oci-dir", type=Path, default=None, help="Path to multi-variant OCI layout"
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="Path to nix-ci manifest.json used to resolve build/oci output",
     )
     parser.add_argument(
         "--registry", default="ghcr.io", help="Target OCI registry host"
@@ -336,7 +431,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Target OCI repository path",
     )
     parser.add_argument(
-        "--commit-sha", required=True, help="40-character product commit SHA"
+        "--commit-sha", default="", help="40-character product commit SHA"
     )
     parser.add_argument(
         "--expected-master-ref",
@@ -344,7 +439,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Git ref verified against --git-remote before moving floating tags",
     )
     parser.add_argument(
-        "--git-remote", required=True, help="Upstream Git remote URL or path"
+        "--git-remote", default="", help="Upstream Git remote URL or path"
     )
     parser.add_argument(
         "--flake-lock",
@@ -363,6 +458,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--authfile", type=Path, default=None, help="Optional skopeo authfile path"
+    )
+    parser.add_argument(
+        "--login-env",
+        action="store_true",
+        help="Authenticate skopeo using GHCR_ACTOR and GHCR_TOKEN in a temporary authfile",
+    )
+    parser.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help="Verify registry credentials and exit without publishing tags",
     )
     return parser
 

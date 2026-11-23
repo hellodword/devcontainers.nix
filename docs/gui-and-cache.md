@@ -40,7 +40,7 @@ Set `DEVCONTAINER_GUI_ENV=0` to disable automatic GUI environment export, or `DE
 
 `/etc/nix/nix.conf` configures single-user Nix with signature verification (`require-sigs = true`), sandbox fallback (`sandbox = true`, `sandbox-fallback = true`), public substituters (`cache.nixos.org`, `nix-community.cachix.org`, `cache.numtide.com`), and the two project signing public keys:
 
-- `nixos-config-1:NfExPInFgDi/deX689T1M10hEORDGSZYRUapJMRbWM8=` (`ghcr.io/hellodword/nixos-config`)
+- `nixos-config-1:NfExPInFgDi/deX689T1M10hEORDGSZYRUapJMRbWM8=` (`ghcr.io/hellodword/nixos-config-cache`)
 - `devcontainers-nix-1:Ypa0RlvJA7bRD/K3rdZLyiNMSt4AEgxACAUIrJZ5KD4=` (`ghcr.io/hellodword/devcontainers-nix-cache`)
 
 It ends with an optional include directive:
@@ -51,7 +51,7 @@ It ends with an optional include directive:
 
 At container startup (`devcontainer-entrypoint`) and on `postStart` (`nix-cache-refresh` via `devcontainer-runtime refresh-local-cache`), the runtime performs a `100ms` TCP connection probe to `172.17.0.1:37515`:
 
-- **Reachable**: Atomically writes `/home/vscode/.local/state/devcontainer/nix-local-cache.conf` adding `http://172.17.0.1:37515/ghcr.io/hellodword/nixos-config` and `http://172.17.0.1:37515/ghcr.io/hellodword/devcontainers-nix-cache` as `extra-substituters` (`fallback = true`, `connect-timeout = 3`).
+- **Reachable**: Atomically writes `/home/vscode/.local/state/devcontainer/nix-local-cache.conf` adding `http://172.17.0.1:37515/ghcr.io/hellodword/nixos-config-cache` and `http://172.17.0.1:37515/ghcr.io/hellodword/devcontainers-nix-cache` as `extra-substituters` (`fallback = true`, `connect-timeout = 3`).
 - **Unreachable / timeout**: Removes `nix-local-cache.conf` if present, resulting in zero Nix warnings and zero network wait when no host proxy is running.
 
 Override behavior with environment variables when needed:

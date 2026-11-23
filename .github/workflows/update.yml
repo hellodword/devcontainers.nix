@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  update-verify-publish:
+  update:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 330
@@ -21,11 +21,6 @@ jobs:
       contents: write
       pull-requests: write
       packages: write
-    outputs:
-      changed: ${{ steps.prepare.outputs.changed }}
-      merged: ${{ steps.merge.outputs.merged }}
-      candidate_sha: ${{ steps.prepare.outputs.sha }}
-      cache_result: ${{ steps.cache-outcome.outputs.result }}
     steps:
       - name: Check out core infra repository
         uses: actions/checkout@v7
@@ -38,99 +33,32 @@ jobs:
       - name: Check out devcontainers.nix
         uses: actions/checkout@v7
         with:
-          ref: master
+          ref: refs/heads/master
           fetch-depth: 0
           path: project
           persist-credentials: false
 
-      - name: Initialize isolated CI environment
+      - name: Prepare flake input update candidate
+        id: prepare
         uses: ./core/infra/action
         with:
-          mode: env
+          mode: prepare-update
           project-dir: project
-          enable-kvm: "false"
 
-      - name: Update all flake inputs and prepare candidate commit
-        id: prepare
-        run: |
-          set -euo pipefail
-          action_sha="$(git -C core rev-parse HEAD)"
-          printf 'action_sha=%s\n' "$action_sha" >> "$GITHUB_OUTPUT"
-
-          candidate_state="$RUNNER_TEMP/candidate-update-${GITHUB_RUN_ATTEMPT}"
-          mkdir -p "$candidate_state"
-          printf 'CANDIDATE_STATE=%s\n' "$candidate_state" >> "$GITHUB_ENV"
-
-          HOST_UID="$(id -u)"
-          HOST_GID="$(id -g)"
-          export HOST_UID HOST_GID
-          bash core/infra/ci/container.sh --rm \
-            --volume "$GITHUB_WORKSPACE/project:/workspace" \
-            --volume "$GITHUB_WORKSPACE/core/infra:/infra:ro" \
-            --volume "$NIX_CI_STATE:/ci:ro" \
-            --volume "$candidate_state:/candidate" \
-            --env HOST_UID \
-            --env HOST_GID \
-            --env GITHUB_RUN_ID \
-            --env GITHUB_RUN_ATTEMPT \
-            -- bash -euo pipefail -c '
-              trap "chown -R \"\$HOST_UID:\$HOST_GID\" /workspace /candidate" EXIT
-              nix flake update --flake /workspace
-              nix run --no-update-lock-file /infra#ci -- update prepare \
-                --project-dir /workspace \
-                --state /candidate
-            '
-
-          if [[ -f "$candidate_state/update.json" ]]; then
-            sha="$(jq -r '.head' "$candidate_state/update.json")"
-            {
-              printf 'changed=true\n'
-              printf 'sha=%s\n' "$sha"
-            } >> "$GITHUB_OUTPUT"
-          else
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Prepare KVM, swap, Nix container, local oranc proxy, and candidate manifest
+      - name: Verify candidate across build groups, VM checks, and release contract
         if: steps.prepare.outputs.changed == 'true'
         uses: ./core/infra/action
         with:
           mode: verify
           project-dir: project
-          run-builds: "false"
+          run-builds: "true"
           publish-cache: "false"
           keep-container: "true"
           artifact-suffix: update
-
-      - name: Verify candidate across static checks and three workflows
-        if: steps.prepare.outputs.changed == 'true'
-        run: |
-          set -euo pipefail
-          docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-            export PATH="$(cat /ci/tools)/bin:$PATH"
-            nix-ci build --group private --state /ci --github-actions
-            nix-ci build --group build --state /ci --github-actions
-          '
-
-          docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-            export PATH="$(cat /ci/tools)/bin:$PATH"
-            nix-ci build --group vm-containers --state /ci --github-actions
-            rm -rf /build/*
-          '
-
-          docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-            export PATH="$(cat /ci/tools)/bin:$PATH"
-            nix-ci build --group vm-editor --state /ci --github-actions
-            rm -rf /build/*
-          '
-
-          docker exec "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-            export PATH="$(cat /ci/tools)/bin:$PATH"
-            nix-ci report verify --state /ci
-            oci_out="$(jq -r ".groups[] | select(.name == \"build\") | .entries[] | select(.name == \"oci\") | .outputs[0]" /ci/manifest.json)"
+          post-build-command: |
+            oci_out="$(jq -r '.groups[] | select(.name == "build") | .entries[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
             cd /workspace
-            nix develop --no-update-lock-file --command python3 tests/check_publish.py --oci-dir "$oci_out"
-          '
+            python3 tests/check_publish.py --oci-dir "$oci_out"
 
       - name: Preflight GHCR authentication before fast-forwarding master
         if: steps.prepare.outputs.changed == 'true'
@@ -139,102 +67,61 @@ jobs:
           GHCR_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          docker exec -i \
+          docker exec \
             --env GHCR_ACTOR \
             --env GHCR_TOKEN \
-            "$NIX_CI_CONTAINER" bash -euo pipefail <<'BASH'
-          export PATH="$(cat /ci/tools)/bin:$PATH"
-          umask 077
-          authdir="$(mktemp -d /tmp/ghcr-preflight.XXXXXX)"
-          trap 'rm -rf "$authdir"' EXIT
-          authfile="$authdir/auth.json"
-          nix develop /workspace --no-update-lock-file --command bash -euo pipefail -c '
-            printf "%s" "$GHCR_TOKEN" | skopeo login ghcr.io \
-              --username "$GHCR_ACTOR" \
-              --password-stdin \
-              --authfile "'"$authfile"'"
-          '
-          BASH
+            "$NIX_CI_CONTAINER" bash -euo pipefail -c '
+              export PATH="$(cat /ci/tools)/bin:$PATH"
+              python3 /workspace/scripts/publish.py --registry ghcr.io --login-env --preflight-only
+            '
 
-      - name: Atomically fast-forward master via PR when base has not advanced
+      - name: Fast-forward master to verified candidate
         id: merge
         if: steps.prepare.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          python3 core/infra/ci update merge \
-            --project-dir project \
-            --state "$CANDIDATE_STATE"
+        uses: ./core/infra/action
+        with:
+          mode: merge-update
+          project-dir: project
 
-      - name: Publish already-verified OCI layout on merged update commit
+      - name: Publish digest-preserving OCI tags to GHCR
         if: steps.prepare.outputs.changed == 'true' && steps.merge.outputs.merged == 'true'
         env:
           GHCR_ACTOR: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
-          CANDIDATE_SHA: ${{ steps.prepare.outputs.sha }}
-          ACTION_SHA: ${{ steps.prepare.outputs.action_sha }}
+          CANDIDATE_SHA: ${{ steps.prepare.outputs.candidate-sha }}
           REMOTE_URL: ${{ format('{0}/{1}.git', github.server_url, github.repository) }}
         run: |
           set -euo pipefail
-          docker exec -i \
+          action_sha="$(git -C core rev-parse HEAD)"
+          rm -f "$NIX_CI_STATE/publish-summary.md"
+          docker exec \
             --env GHCR_ACTOR \
             --env GHCR_TOKEN \
             --env CANDIDATE_SHA \
-            --env ACTION_SHA \
+            --env ACTION_SHA="$action_sha" \
             --env REMOTE_URL \
-            "$NIX_CI_CONTAINER" bash -euo pipefail <<'BASH'
-          export PATH="$(cat /ci/tools)/bin:$PATH"
-          oci_out="$(jq -r '.groups[] | select(.name == "build") | .entries[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
-          rm -f /ci/publish-summary.md
-          umask 077
-          authdir="$(mktemp -d /tmp/ghcr-auth.XXXXXX)"
-          trap 'rm -rf "$authdir"' EXIT
-          authfile="$authdir/auth.json"
-          nix develop /workspace --no-update-lock-file --command bash -euo pipefail -c '
-            printf "%s" "$GHCR_TOKEN" | skopeo login ghcr.io \
-              --username "$GHCR_ACTOR" \
-              --password-stdin \
-              --authfile "'"$authfile"'"
-            GITHUB_STEP_SUMMARY=/ci/publish-summary.md python3 /workspace/scripts/publish.py \
-              --oci-dir "'"$oci_out"'" \
-              --registry ghcr.io \
-              --repository hellodword/devcontainers-dev \
-              --commit-sha "$CANDIDATE_SHA" \
-              --expected-master-ref refs/heads/master \
-              --git-remote "$REMOTE_URL" \
-              --flake-lock /workspace/flake.lock \
-              --action-sha "$ACTION_SHA" \
-              --authfile "'"$authfile"'"
-          '
-          BASH
+            "$NIX_CI_CONTAINER" bash -euo pipefail -c '
+              export PATH="$(cat /ci/tools)/bin:$PATH"
+              GITHUB_STEP_SUMMARY=/ci/publish-summary.md python3 /workspace/scripts/publish.py \
+                --manifest /ci/manifest.json \
+                --login-env \
+                --registry ghcr.io \
+                --repository hellodword/devcontainers-dev \
+                --commit-sha "$CANDIDATE_SHA" \
+                --expected-master-ref refs/heads/master \
+                --git-remote "$REMOTE_URL" \
+                --flake-lock /workspace/flake.lock \
+                --action-sha "$ACTION_SHA"
+            '
           cat "$NIX_CI_STATE/publish-summary.md" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish signed Nix cache at end of phase
-        id: publish-cache
+      - name: Verify signing key and publish signed Nix cache
         if: steps.prepare.outputs.changed == 'true' && steps.merge.outputs.merged == 'true'
-        continue-on-error: true
         uses: ./core/infra/action
         with:
           mode: publish-cache
           project-dir: project
           signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
-
-      - name: Record end-of-phase cache outcome
-        id: cache-outcome
-        if: always()
-        env:
-          STEP_OUTCOME: ${{ steps.publish-cache.outcome }}
-          RAW_RESULT: ${{ steps.publish-cache.outputs.cache-result }}
-        run: |
-          set -euo pipefail
-          if [[ "$STEP_OUTCOME" == skipped ]]; then
-            echo 'result=skipped' >> "$GITHUB_OUTPUT"
-          elif [[ "$STEP_OUTCOME" == success && "$RAW_RESULT" == success ]]; then
-            echo 'result=success' >> "$GITHUB_OUTPUT"
-          else
-            echo 'result=failed' >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Collect diagnostics and tear down Nix CI container
         if: always() && steps.prepare.outputs.changed == 'true'
@@ -243,38 +130,3 @@ jobs:
           mode: finalize
           project-dir: project
           artifact-suffix: update
-
-  cache-status:
-    needs: [update-verify-publish]
-    if: >-
-      always() &&
-      needs.update-verify-publish.result == 'success' &&
-      needs.update-verify-publish.outputs.merged == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    env:
-      CACHE_RESULT: ${{ needs.update-verify-publish.outputs.cache_result }}
-      CANDIDATE_SHA: ${{ needs.update-verify-publish.outputs.candidate_sha }}
-      REPO_NAME: ${{ github.repository }}
-    steps:
-      - name: Enforce signed binary cache publication status
-        run: |
-          set -euo pipefail
-          if [[ "$CACHE_RESULT" == success ]]; then
-            printf "## Signed Nix Cache Status\n\nPublished successfully for \`%s\`.\n" "$CANDIDATE_SHA" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          cat >> "$GITHUB_STEP_SUMMARY" <<SUMMARY
-          ## Signed Nix Cache Publication Failed
-
-          Updated \`flake.lock\` commit \`$CANDIDATE_SHA\` was merged and its OCI images were published, while the end-of-phase signed Nix cache upload reported \`$CACHE_RESULT\`.
-
-          Retry cache publication for this exact commit without republishing container tags:
-
-          \`\`\`bash
-          gh workflow run ci.yml --repo $REPO_NAME -f retry-cache-sha=$CANDIDATE_SHA -f publish-images=false
-          \`\`\`
-          SUMMARY
-          exit 1

@@ -8,7 +8,7 @@ let
 
   upstreamCoreCache = {
     registry = "ghcr.io";
-    repository = "hellodword/nixos-config";
+    repository = "hellodword/nixos-config-cache";
     publicKey = "nixos-config-1:NfExPInFgDi/deX689T1M10hEORDGSZYRUapJMRbWM8=";
   };
 
