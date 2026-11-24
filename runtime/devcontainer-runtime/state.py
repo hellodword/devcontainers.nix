@@ -1,5 +1,7 @@
-"""Per-container and per-user state, shared by entrypoint and lifecycle hooks."""
+"""Per-container and per-user state, shared by entrypoint, lifecycle hooks, and cache helpers."""
 
+import base64
+import errno
 import fcntl
 import os
 import re
@@ -7,13 +9,24 @@ import secrets
 import socket
 import stat
 import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 DEFAULT_LOCAL_CACHE_ADDR = "172.17.0.1:37515"
+DEFAULT_HOST_STORE_CACHE_ADDR = "172.17.0.1:37516"
+DEFAULT_SHARED_NIX_CACHE_DIR = "/var/cache/devcontainer-nix"
+LOCAL_CACHE_PROBE_TIMEOUT = 0.1
+STAGING_MAX_AGE_SECONDS = 7200
+NIX32_ALPHABET = "0123456789abcdfghijklmnpqrsvwxyz"
+NIX_CACHE_INFO_TEXT = "StoreDir: /nix/store\nWantMassQuery: 1\nPriority: 10\n"
+SHARED_CACHE_SUBDIRS = ("nar", "realisations", "build-trace-v2", "log")
 LOCAL_CACHE_REPOSITORIES = (
     "ghcr.io/hellodword/nixos-config-cache",
     "ghcr.io/hellodword/devcontainers-nix-cache",
 )
+DISABLED_FLAG_VALUES = {"0", "false", "no", "off"}
+ENABLED_FLAG_VALUES = {"1", "true", "yes", "on"}
 
 
 class StateError(Exception):
@@ -35,6 +48,137 @@ def mount_points() -> set[Path]:
         .splitlines()
         if line.split()[4] != "/"
     }
+
+
+def on_mount(path: Path, mounts: set[Path]) -> bool:
+    return any(path == mount or mount in path.parents for mount in mounts)
+
+
+def to_nix32_sha256(raw: bytes) -> str:
+    if len(raw) != 32:
+        raise StateError(f"expected 32-byte SHA-256 digest, got {len(raw)} bytes")
+    chars: list[str] = []
+    for idx in range(51, -1, -1):
+        bit = idx * 5
+        byte_idx, bit_offset = bit // 8, bit % 8
+        val = (raw[byte_idx] >> bit_offset) | (
+            0 if byte_idx >= 31 else (raw[byte_idx + 1] << (8 - bit_offset))
+        )
+        chars.append(NIX32_ALPHABET[val & 0x1F])
+    return "".join(chars)
+
+
+def normalize_sri_or_nix32_sha256(nar_hash: str) -> str:
+    if nar_hash.startswith("sha256:") and len(nar_hash) == 59:
+        return nar_hash
+    if nar_hash.startswith("sha256-"):
+        raw = base64.b64decode(nar_hash.removeprefix("sha256-"))
+        return "sha256:" + to_nix32_sha256(raw)
+    raise StateError(f"unsupported SHA-256 hash representation: {nar_hash!r}")
+
+
+def fsync_dir(directory: Path) -> None:
+    flags = os.O_RDONLY | os.O_CLOEXEC
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(directory, flags)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def create_staging_temp(
+    staging_dir: Path, prefix: str, mode: int = 0o644
+) -> tuple[int, Path]:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    for _ in range(16):
+        candidate = staging_dir / f"{prefix}-{secrets.token_hex(16)}.tmp"
+        try:
+            fd = os.open(candidate, flags, mode)
+            return fd, candidate
+        except FileExistsError:
+            continue
+    raise StateError(f"failed to allocate unique staging file in {staging_dir}")
+
+
+def publish_immutable_file(tmp_path: Path, dest_path: Path) -> bool:
+    try:
+        try:
+            os.link(tmp_path, dest_path)
+            return True
+        except FileExistsError:
+            return False
+        except OSError as exc:
+            if exc.errno not in {errno.EPERM, errno.EOPNOTSUPP, errno.ENOSYS}:
+                raise
+            if dest_path.exists() or dest_path.is_symlink():
+                return False
+            os.replace(tmp_path, dest_path)
+            return True
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def publish_immutable_bytes(
+    cache_dir: Path, staging_dir: Path, rel_target: Path, payload: bytes
+) -> bool:
+    fd, tmp_path = create_staging_temp(staging_dir, "meta", 0o644)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        return publish_immutable_file(tmp_path, cache_dir / rel_target)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def sweep_stale_staging(
+    staging_dir: Path,
+    *,
+    max_age_seconds: float = STAGING_MAX_AGE_SECONDS,
+    now: float | None = None,
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    if not staging_dir.exists() or staging_dir.is_symlink() or not staging_dir.is_dir():
+        return 0, 0
+    current = time.time() if now is None else now
+    removed_files = 0
+    reclaimed_bytes = 0
+    try:
+        entries = list(os.scandir(staging_dir))
+    except OSError:
+        return 0, 0
+    for entry in entries:
+        if not entry.name.endswith(".tmp"):
+            continue
+        try:
+            st = entry.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            continue
+        if current - st.st_mtime < max_age_seconds:
+            continue
+        if not dry_run:
+            try:
+                os.unlink(entry.path)
+            except OSError:
+                continue
+        removed_files += 1
+        reclaimed_bytes += st.st_size
+    return removed_files, reclaimed_bytes
 
 
 def read_machine_id(path: Path) -> str | None:
@@ -68,9 +212,7 @@ def machine_id_source(root: Path, mounts: set[Path]) -> tuple[Path, bool]:
         source = target
     else:
         source = public
-    external = source == public or any(
-        source == mount or mount in source.parents for mount in mounts
-    )
+    external = source == public or on_mount(source, mounts)
     if source == target and any(parent.is_symlink() for parent in source.parents):
         raise StateError("machine-id state directory must not be a symlink")
     return source, external
@@ -163,65 +305,213 @@ def ensure_xdg(environ: dict[str, str], runtime_dir: str | None = None) -> None:
             )
 
 
-def parse_cache_endpoint(raw_addr: str) -> tuple[str, int, str]:
+def parse_cache_endpoint(
+    raw_addr: str, env_name: str = "DEVCONTAINER_LOCAL_CACHE_ADDR"
+) -> tuple[str, int, str]:
     raw_addr = raw_addr.strip()
     if raw_addr.startswith("["):
         match = re.fullmatch(r"\[([^\]]+)\]:([0-9]+)", raw_addr)
         if match is None:
-            raise StateError(f"invalid DEVCONTAINER_LOCAL_CACHE_ADDR: {raw_addr!r}")
+            raise StateError(f"invalid {env_name}: {raw_addr!r}")
         host, port_text = match.group(1), match.group(2)
         formatted = f"[{host}]:{port_text}"
     else:
         if ":" not in raw_addr:
-            raise StateError(
-                f"DEVCONTAINER_LOCAL_CACHE_ADDR must include host:port, got {raw_addr!r}"
-            )
+            raise StateError(f"{env_name} must include host:port, got {raw_addr!r}")
         host, port_text = raw_addr.rsplit(":", 1)
         if not host or not port_text.isdigit():
-            raise StateError(f"invalid DEVCONTAINER_LOCAL_CACHE_ADDR: {raw_addr!r}")
+            raise StateError(f"invalid {env_name}: {raw_addr!r}")
         formatted = f"{host}:{port_text}"
     port = int(port_text, 10)
     if port < 1 or port > 65535:
-        raise StateError(f"port out of range in DEVCONTAINER_LOCAL_CACHE_ADDR: {port}")
+        raise StateError(f"port out of range in {env_name}: {port}")
     return host, port, formatted
 
 
-def refresh_local_cache(environ: dict[str, str]) -> bool:
-    home = environ.get("HOME") or "/home/vscode"
-    state_home = Path(environ.get("XDG_STATE_HOME") or (Path(home) / ".local/state"))
-    conf_path = state_home / "devcontainer" / "nix-local-cache.conf"
+def validate_shared_cache_path(raw_dir: str) -> Path:
+    if not raw_dir or raw_dir != raw_dir.strip():
+        raise StateError(f"invalid DEVCONTAINER_SHARED_NIX_CACHE_DIR: {raw_dir!r}")
+    if any(ch.isspace() or ch in "?#&%" for ch in raw_dir):
+        raise StateError(
+            f"DEVCONTAINER_SHARED_NIX_CACHE_DIR must not contain whitespace or URL query characters: {raw_dir!r}"
+        )
+    path = Path(raw_dir)
+    if not path.is_absolute() or ".." in path.parts:
+        raise StateError(
+            f"DEVCONTAINER_SHARED_NIX_CACHE_DIR must be an absolute normalized path: {raw_dir!r}"
+        )
+    for candidate in (*reversed(path.parents), path):
+        if candidate.is_symlink():
+            raise StateError(
+                f"shared Nix cache path must not traverse symlinks: {candidate}"
+            )
+    return path
 
-    probe_flag = environ.get("DEVCONTAINER_LOCAL_CACHE_PROBE", "1").strip().lower()
-    if probe_flag in {"0", "false", "no", "off"}:
-        conf_path.unlink(missing_ok=True)
-        return False
 
-    raw_addr = environ.get("DEVCONTAINER_LOCAL_CACHE_ADDR", DEFAULT_LOCAL_CACHE_ADDR)
-    host, port, formatted = parse_cache_endpoint(raw_addr)
-
-    reachable = False
+def _is_plain_dir(path: Path) -> bool:
     try:
-        with socket.create_connection((host, port), timeout=0.1):
-            reachable = True
+        st = os.lstat(path)
     except OSError:
-        reachable = False
+        return False
+    return stat.S_ISDIR(st.st_mode)
 
-    if not reachable:
-        conf_path.unlink(missing_ok=True)
+
+def _is_plain_file(path: Path) -> bool:
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    return stat.S_ISREG(st.st_mode)
+
+
+def _is_writable_dir(path: Path) -> bool:
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if not stat.S_ISDIR(st.st_mode) or (st.st_mode & 0o222) == 0:
+        return False
+    return os.access(path, os.W_OK | os.X_OK)
+
+
+def has_non_loopback_interface(
+    proc_net_dev: Path = Path("/proc/net/dev"),
+) -> bool:
+    try:
+        lines = proc_net_dev.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return True
+    interfaces = [
+        line.split(":", 1)[0].strip()
+        for line in lines[2:]
+        if ":" in line and line.split(":", 1)[0].strip()
+    ]
+    if not interfaces:
+        return True
+    return any(iface != "lo" for iface in interfaces)
+
+
+def prepare_shared_nix_cache(
+    environ: dict[str, str],
+    mounts: set[Path],
+    post_build_hook: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    mode = environ.get("DEVCONTAINER_SHARED_NIX_CACHE", "auto").strip().lower()
+    if mode in DISABLED_FLAG_VALUES:
+        return None, None, None
+    if mode not in {"auto", *ENABLED_FLAG_VALUES}:
+        raise StateError(
+            f"invalid DEVCONTAINER_SHARED_NIX_CACHE={mode!r} (expected auto, 1, or 0)"
+        )
+
+    raw_dir = environ.get(
+        "DEVCONTAINER_SHARED_NIX_CACHE_DIR", DEFAULT_SHARED_NIX_CACHE_DIR
+    )
+    cache_dir = validate_shared_cache_path(raw_dir)
+
+    if mode == "auto" and not on_mount(cache_dir, mounts):
+        return None, None, None
+    if not _is_plain_dir(cache_dir):
+        return None, None, None
+
+    uri = f"file://{cache_dir}?trusted=1&priority=10"
+
+    if _is_writable_dir(cache_dir):
+        try:
+            for sub in (*SHARED_CACHE_SUBDIRS, ".staging"):
+                subdir = cache_dir / sub
+                subdir.mkdir(mode=0o755, exist_ok=True)
+                if not _is_plain_dir(subdir):
+                    return None, None, None
+            info_file = cache_dir / "nix-cache-info"
+            if not _is_plain_file(info_file):
+                if info_file.is_symlink() or info_file.exists():
+                    return None, None, None
+                created = publish_immutable_bytes(
+                    cache_dir,
+                    cache_dir / ".staging",
+                    Path("nix-cache-info"),
+                    NIX_CACHE_INFO_TEXT.encode("ascii"),
+                )
+                if created:
+                    fsync_dir(cache_dir)
+            sweep_stale_staging(cache_dir / ".staging")
+        except OSError:
+            return None, None, None
+
+        push_flag = (
+            environ.get("DEVCONTAINER_SHARED_NIX_CACHE_PUSH", "1").strip().lower()
+        )
+        if push_flag not in DISABLED_FLAG_VALUES and post_build_hook:
+            return uri, post_build_hook, str(cache_dir)
+        return uri, None, None
+
+    # Read-only mount: LocalBinaryCacheStore::init requires nix-cache-info and all cache subdirs.
+    if _is_plain_file(cache_dir / "nix-cache-info") and all(
+        _is_plain_dir(cache_dir / sub) for sub in SHARED_CACHE_SUBDIRS
+    ):
+        return uri, None, None
+    return None, None, None
+
+
+def probe_tcp_endpoint(host: str, port: int, timeout: float) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
         return False
 
-    conf_path.parent.mkdir(parents=True, exist_ok=True)
-    substituters = " ".join(
-        f"http://{formatted}/{repo}" for repo in LOCAL_CACHE_REPOSITORIES
-    )
-    content = (
-        f"extra-substituters = {substituters}\nfallback = true\nconnect-timeout = 3\n"
-    )
+
+def probe_nix_http_cache(host: str, port: int, formatted: str, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as conn:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            conn.settimeout(remaining)
+            request = (
+                f"GET /nix-cache-info HTTP/1.1\r\n"
+                f"Host: {formatted}\r\n"
+                f"Connection: close\r\n\r\n"
+            ).encode("ascii")
+            conn.sendall(request)
+            chunks: list[bytes] = []
+            total = 0
+            while total < 4096:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                conn.settimeout(remaining)
+                block = conn.recv(4096 - total)
+                if not block:
+                    break
+                chunks.append(block)
+                total += len(block)
+    except OSError:
+        return False
+
+    raw = b"".join(chunks).decode("utf-8", errors="replace")
+    if "\r\n\r\n" in raw:
+        head, body = raw.split("\r\n\r\n", 1)
+    elif "\n\n" in raw:
+        head, body = raw.split("\n\n", 1)
+    else:
+        return False
+
+    status_line = head.splitlines()[0] if head.splitlines() else ""
+    if not re.match(r"^HTTP/1\.[01]\s+200\b", status_line):
+        return False
+    return any(line.strip() == "StoreDir: /nix/store" for line in body.splitlines())
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
-        dir=conf_path.parent,
-        prefix=".nix-local-cache-",
+        dir=path.parent,
+        prefix=f".{path.name}-",
         delete=False,
     ) as handle:
         tmp_path = Path(handle.name)
@@ -229,7 +519,115 @@ def refresh_local_cache(environ: dict[str, str]) -> bool:
             handle.write(content)
             handle.flush()
             os.fchmod(handle.fileno(), 0o644)
-            os.replace(tmp_path, conf_path)
+            os.replace(tmp_path, path)
         finally:
             tmp_path.unlink(missing_ok=True)
+
+
+def refresh_local_cache(
+    environ: dict[str, str],
+    mounts: set[Path] | None = None,
+    post_build_hook: str | None = None,
+    has_external_net: bool | None = None,
+) -> bool:
+    home = environ.get("HOME") or "/home/vscode"
+    state_home = Path(environ.get("XDG_STATE_HOME") or (Path(home) / ".local/state"))
+    state_dir = state_home / "devcontainer"
+    conf_path = state_dir / "nix-local-cache.conf"
+    shared_dir_record = state_dir / "nix-shared-cache-dir"
+
+    active_mounts = mount_points() if mounts is None else mounts
+    shared_uri, active_hook, active_shared_dir = prepare_shared_nix_cache(
+        environ, active_mounts, post_build_hook
+    )
+
+    oranc_flag = environ.get("DEVCONTAINER_LOCAL_CACHE_PROBE", "1").strip().lower()
+    oranc_enabled = oranc_flag not in DISABLED_FLAG_VALUES
+
+    raw_host_flag = environ.get("DEVCONTAINER_HOST_STORE_CACHE_PROBE")
+    if raw_host_flag is None:
+        host_store_enabled = oranc_enabled
+    else:
+        host_store_enabled = raw_host_flag.strip().lower() not in DISABLED_FLAG_VALUES
+
+    oranc_target: tuple[str, int, str] | None = None
+    if oranc_enabled:
+        oranc_target = parse_cache_endpoint(
+            environ.get("DEVCONTAINER_LOCAL_CACHE_ADDR", DEFAULT_LOCAL_CACHE_ADDR),
+            "DEVCONTAINER_LOCAL_CACHE_ADDR",
+        )
+
+    host_store_target: tuple[str, int, str] | None = None
+    if host_store_enabled:
+        host_store_target = parse_cache_endpoint(
+            environ.get(
+                "DEVCONTAINER_HOST_STORE_CACHE_ADDR", DEFAULT_HOST_STORE_CACHE_ADDR
+            ),
+            "DEVCONTAINER_HOST_STORE_CACHE_ADDR",
+        )
+
+    oranc_reachable = False
+    host_store_reachable = False
+    if oranc_target is not None and host_store_target is not None:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_oranc = pool.submit(
+                probe_tcp_endpoint,
+                oranc_target[0],
+                oranc_target[1],
+                LOCAL_CACHE_PROBE_TIMEOUT,
+            )
+            fut_host = pool.submit(
+                probe_nix_http_cache,
+                host_store_target[0],
+                host_store_target[1],
+                host_store_target[2],
+                LOCAL_CACHE_PROBE_TIMEOUT,
+            )
+            oranc_reachable = fut_oranc.result()
+            host_store_reachable = fut_host.result()
+    elif oranc_target is not None:
+        oranc_reachable = probe_tcp_endpoint(
+            oranc_target[0], oranc_target[1], LOCAL_CACHE_PROBE_TIMEOUT
+        )
+    elif host_store_target is not None:
+        host_store_reachable = probe_nix_http_cache(
+            host_store_target[0],
+            host_store_target[1],
+            host_store_target[2],
+            LOCAL_CACHE_PROBE_TIMEOUT,
+        )
+
+    substituters: list[str] = []
+    if shared_uri is not None:
+        substituters.append(shared_uri)
+    if host_store_reachable and host_store_target is not None:
+        substituters.append(f"http://{host_store_target[2]}?trusted=1&priority=20")
+    if oranc_reachable and oranc_target is not None:
+        substituters.extend(
+            f"http://{oranc_target[2]}/{repo}" for repo in LOCAL_CACHE_REPOSITORIES
+        )
+
+    if active_shared_dir is not None:
+        _atomic_write_text(shared_dir_record, f"{active_shared_dir}\n")
+    else:
+        shared_dir_record.unlink(missing_ok=True)
+
+    if not substituters and active_hook is None:
+        conf_path.unlink(missing_ok=True)
+        return False
+
+    external_net = (
+        has_non_loopback_interface() if has_external_net is None else has_external_net
+    )
+    lines: list[str] = []
+    if substituters:
+        if not external_net and not host_store_reachable and not oranc_reachable:
+            lines.append(f"substituters = {' '.join(substituters)}")
+        else:
+            lines.append(f"extra-substituters = {' '.join(substituters)}")
+    if active_hook is not None:
+        lines.append(f"post-build-hook = {active_hook}")
+    lines.append("fallback = true")
+    lines.append("connect-timeout = 3")
+    _atomic_write_text(conf_path, "\n".join(lines) + "\n")
     return True

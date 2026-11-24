@@ -11,6 +11,8 @@ from pathlib import Path
 sys.path.insert(0, "@runtimeLibrary@")
 import devcontainer_state as state
 
+POST_BUILD_HOOK = "@nixPostBuildHook@"
+
 
 def apply_gui_env_fragment(env_file: Path) -> None:
     if not env_file.is_file():
@@ -52,15 +54,22 @@ def refresh_gui_env(runtime_dir: str) -> None:
 
 
 def main(argv: list[str]) -> int:
-    if Path(sys.argv[0]).name == "devcontainer-runtime" and argv == [
-        "refresh-local-cache"
-    ]:
-        try:
-            state.refresh_local_cache(os.environ)
-        except (state.StateError, OSError) as exc:
-            print(f"devcontainer-runtime: {exc}", file=sys.stderr)
-            return 1
-        return 0
+    if Path(sys.argv[0]).name == "devcontainer-runtime":
+        if argv == ["refresh-local-cache"]:
+            try:
+                state.refresh_local_cache(os.environ, post_build_hook=POST_BUILD_HOOK)
+            except (state.StateError, OSError) as exc:
+                print(f"devcontainer-runtime: {exc}", file=sys.stderr)
+                return 1
+            return 0
+        if argv and argv[0] == "prune-caches":
+            import devcontainer_cache_gc as cache_gc
+
+            try:
+                return cache_gc.run_cli(argv[1:], os.environ)
+            except (state.StateError, OSError, ValueError) as exc:
+                print(f"devcontainer-runtime: {exc}", file=sys.stderr)
+                return 1
 
     try:
         account = pwd.getpwnam("vscode")
@@ -96,7 +105,9 @@ def main(argv: list[str]) -> int:
 
         state.ensure_xdg(os.environ, runtime_dir)
         state.ensure_machine_id(root, mounts)
-        state.refresh_local_cache(os.environ)
+        state.refresh_local_cache(
+            os.environ, mounts=mounts, post_build_hook=POST_BUILD_HOOK
+        )
         refresh_gui_env(runtime_dir)
 
         target = argv if argv else ["@bash@"]

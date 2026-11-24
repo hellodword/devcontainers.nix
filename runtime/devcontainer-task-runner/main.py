@@ -18,6 +18,7 @@ DEFAULT_HOME = Path("/home/vscode")
 PROJECTION_TARGETS: list[str] = json.loads(r"""@projectionTargetsJson@""")
 EXTENSION_STORE_PATHS: list[str] = json.loads(r"""@extensionStorePathsJson@""")
 GUI_ENV_BIN = "@guiEnv@"
+POST_BUILD_HOOK = "@nixPostBuildHook@"
 
 USAGE = """devcontainer-task-runner run <postCreate|postStart>
 devcontainer-task-runner status
@@ -140,7 +141,7 @@ def run_post_create() -> int:
 
 def run_post_start() -> int:
     subprocess.run([GUI_ENV_BIN, "refresh"], check=True)
-    state.refresh_local_cache(os.environ)
+    state.refresh_local_cache(os.environ, post_build_hook=POST_BUILD_HOOK)
     write_status("postStart", "done")
     return 0
 

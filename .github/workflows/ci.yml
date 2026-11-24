@@ -48,6 +48,7 @@ jobs:
           post-build-command: |
             oci_out="$(jq -r '.groups[] | select(.name == "build") | .entries[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
             cd /workspace
+            python3 tests/check_runtime_cache.py
             python3 tests/check_publish.py --oci-dir "$oci_out"
 
       - name: Publish digest-preserving OCI tags to GHCR

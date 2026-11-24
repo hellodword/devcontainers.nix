@@ -8,6 +8,7 @@ let
   runtimeLibrary = pkgs.runCommand "devcontainer-runtime-library" { } ''
     mkdir -p "$out"
     cp ${./devcontainer-runtime/state.py} "$out/devcontainer_state.py"
+    cp ${./devcontainer-runtime/cache_gc.py} "$out/devcontainer_cache_gc.py"
   '';
 
   writeShellApp =
@@ -46,6 +47,18 @@ let
     pkgs.coreutils
   ] ./devcontainer-gui-env/main.sh;
 
+  nixPostBuildApp = writePythonApp {
+    name = "devcontainer-nix-post-build";
+    scriptPath = ./devcontainer-nix-post-build/main.py;
+    isolated = true;
+    extraSubstitutions = ''
+      substituteInPlace "$out/bin/devcontainer-nix-post-build" \
+        --replace-fail '@runtimeLibrary@' '${runtimeLibrary}' \
+        --replace-fail '@nix@' '${pkgs.nix}/bin/nix' \
+        --replace-fail '@zstd@' '${pkgs.zstd}/bin/zstd'
+    '';
+  };
+
   runtimeApp = writePythonApp {
     name = "devcontainer-runtime";
     scriptPath = ./devcontainer-runtime/main.py;
@@ -55,7 +68,8 @@ let
         --replace-fail '@runtimeLibrary@' '${runtimeLibrary}' \
         --replace-fail '@bash@' '${pkgs.bashInteractive}/bin/bash' \
         --replace-fail '@tini@' '${pkgs.tini}/bin/tini' \
-        --replace-fail '@guiEnv@' '${guiEnvApp}/bin/devcontainer-gui-env'
+        --replace-fail '@guiEnv@' '${guiEnvApp}/bin/devcontainer-gui-env' \
+        --replace-fail '@nixPostBuildHook@' '${nixPostBuildApp}/bin/devcontainer-nix-post-build'
     '';
   };
 
@@ -81,6 +95,7 @@ let
       substituteInPlace "$out/bin/devcontainer-task-runner" \
         --replace-fail '@runtimeLibrary@' '${runtimeLibrary}' \
         --replace-fail '@guiEnv@' '${guiEnvApp}/bin/devcontainer-gui-env' \
+        --replace-fail '@nixPostBuildHook@' '${nixPostBuildApp}/bin/devcontainer-nix-post-build' \
         --replace-fail '@projectionTargetsJson@' ${lib.escapeShellArg projectionTargetsJson} \
         --replace-fail '@extensionStorePathsJson@' ${lib.escapeShellArg extensionStorePathsJson}
     '';
@@ -178,6 +193,7 @@ in
 {
   devcontainer-entrypoint = entrypointApp;
   devcontainer-runtime = runtimeApp;
+  devcontainer-nix-post-build = nixPostBuildApp;
   devcontainer-set-user-id = setUserIdApp;
   devcontainer-gui-env = guiEnvApp;
   devcontainer-task-runner = taskRunnerApp;

@@ -187,7 +187,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     verify_clean_oci_revision(project_dir, Path(oci_out))
 
-    log_step("4. Running Workflow 3: digest-preserving release and recovery tests")
+    log_step("4. Running runtime cache contracts and digest-preserving release tests")
+    run_checked(
+        [
+            sys.executable,
+            str(project_dir / "tests" / "check_runtime_cache.py"),
+        ],
+        cwd=project_dir,
+    )
     run_checked(
         [
             sys.executable,
