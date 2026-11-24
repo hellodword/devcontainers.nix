@@ -69,4 +69,5 @@ ghcr.io/hellodword/devcontainers-dev@sha256:<manifest-digest>
 
 - [docs/usage.md](docs/usage.md) — Workspace layouts, `.devcontainer` read-only mounts, 6-line `Dockerfile` UID/GID derivation, and entrypoint account boundaries.
 - [docs/packages-and-devshell.md](docs/packages-and-devshell.md) — Built-in toolchains, Rust Nightly & version pinning, `devpkg` package/library management, and offline `nix develop` store reuse in `:agent`.
-- [docs/gui-and-cache.md](docs/gui-and-cache.md) — Native Wayland forwarding, `100ms` host `oranc` binary cache auto-discovery, client cache setup, and image digest semantics.
+- [docs/gui-and-cache.md](docs/gui-and-cache.md) — Native Wayland forwarding, four-tier Nix cache auto-discovery (`file://`, host `harmonia`, and `oranc`), client cache setup, and image digest semantics.
+- [docs/security-and-sharing.md](docs/security-and-sharing.md) — Container-to-host threat model, standalone `docker run` hardening, shared language/agent state layouts, and scheduled idle cache reclamation.

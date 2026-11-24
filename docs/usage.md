@@ -21,7 +21,7 @@ When opening a repository under the standard `/workspaces/<repo>` path on a host
 }
 ```
 
-The default read-only `.devcontainer` bind mount prevents processes inside the container from modifying container launch configuration or lifecycle hooks inside the workspace.
+The default read-only `.devcontainer` bind mount prevents processes inside the container from modifying container launch configuration or lifecycle hooks inside the workspace. `/workspaces` carries sticky directory permissions (`01777`); for standalone `docker run` workspace boundaries, shared agent state, and cache mounts, see [docs/security-and-sharing.md](security-and-sharing.md).
 
 ## Custom `workspaceFolder` Layout
 

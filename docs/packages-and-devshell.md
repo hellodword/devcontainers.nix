@@ -4,8 +4,8 @@
 
 All language toolchains reside in a shared `/nix/store` OCI layer (`Layer 2`) present in both `:latest` and `:agent` and anchored by `/nix/var/nix/gcroots/docker/` GC roots.
 
-- In **`:latest`**, every toolchain below is linked into `/usr/bin` and configured with user-local package manager paths (`CARGO_HOME`, `GOPATH`, `UV_*`, `PNPM_HOME`, `NIX_CFLAGS_COMPILE`, `CGO_*`, `BINDGEN_EXTRA_CLANG_ARGS`) and 26 pre-projected offline VS Code extensions.
-- In **`:agent`**, `/usr/bin` exposes only the foundation system utilities, `nix`, `devpkg`, and the four coding-agent CLIs (`codex`, `opencode`, `agy`, `vm-test-submit`), keeping the default `PATH` free of language compilers while retaining the full `/nix/store` closure for instant offline `nix develop` activation.
+- In **`:latest`**, every toolchain below is linked into `/usr/bin` and configured with user-local package manager paths (`CARGO_HOME`, `GOPATH`, `GOMODCACHE`, `GOCACHE`, `UV_*`, `PIP_CACHE_DIR`, `NPM_CONFIG_CACHE`, `PNPM_HOME`, `PNPM_CONFIG_STORE_DIR`, `NIX_CFLAGS_COMPILE`, `CGO_*`, `BINDGEN_EXTRA_CLANG_ARGS`) and 26 pre-projected offline VS Code extensions.
+- In **`:agent`**, `/usr/bin` exposes only the foundation system utilities, `nix`, `devpkg`, and the four coding-agent CLIs (`codex`, `opencode`, `agy`, `vm-test-submit`), keeping the default `PATH` free of language compilers while retaining the full `/nix/store` closure and identical XDG/package-manager cache environment variables (`CARGO_HOME`, `GOMODCACHE`, `GOCACHE`, `UV_CACHE_DIR`, `UV_LINK_MODE=copy`, `PIP_CACHE_DIR`, `NPM_CONFIG_CACHE`, `PNPM_CONFIG_STORE_DIR=/home/vscode/.cache/pnpm/store`, `PNPM_CONFIG_PACKAGE_IMPORT_METHOD=copy`) for instant offline `nix develop` activation and consistent cache mounts.
 
 ### Included Toolchain Matrix
 
