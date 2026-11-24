@@ -17,6 +17,9 @@ let
     ];
   missingExcluded = builtins.filter (p: !(builtins.elem p excludedSet)) expectedExcluded;
   buildGroup = builtins.head (builtins.filter (g: g.name == "build") ciManifest.groups);
+  buildJobNames = map (
+    item: if builtins.isAttrs item then item.job or item.name else item
+  ) buildGroup.jobs;
   source = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
@@ -31,8 +34,7 @@ assert lib.assertMsg (
   missingExcluded == [ ]
 ) "Restricted packages missing from cache.excludedPaths: ${builtins.toJSON missingExcluded}";
 assert lib.assertMsg (
-  builtins.elem "vm-containers-driver" buildGroup.jobs
-  && builtins.elem "vm-editor-driver" buildGroup.jobs
+  builtins.elem "vm-containers-driver" buildJobNames && builtins.elem "vm-editor-driver" buildJobNames
 ) "CI build group must include both VM test drivers";
 pkgs.runCommand "devcontainers-lint"
   {

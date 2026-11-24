@@ -41,7 +41,8 @@ jobs:
           mode: verify
           project-dir: project
           run-builds: "true"
-          publish-cache: "false"
+          publish-cache: ${{ github.ref == 'refs/heads/master' && 'true' || 'false' }}
+          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
           keep-container: "true"
           artifact-suffix: verify
           post-build-command: |
@@ -80,14 +81,6 @@ jobs:
                 --action-sha "$ACTION_SHA"
             '
           cat "$NIX_CI_STATE/publish-summary.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Verify signing key and publish signed Nix cache
-        if: github.ref == 'refs/heads/master'
-        uses: ./core/infra/action
-        with:
-          mode: publish-cache
-          project-dir: project
-          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
 
       - name: Collect diagnostics and tear down Nix CI container
         if: always()

@@ -14,6 +14,9 @@ let
     inherit (checks) formatting lint;
     oci = flake.packages.${system}.oci;
     dev-shell = devShell;
+  };
+
+  vmDrivers = {
     vm-containers-driver = checks.vm-containers.driver;
     vm-editor-driver = checks.vm-editor.driver;
   };
@@ -22,7 +25,7 @@ let
     inherit (checks) vm-containers vm-editor;
   };
 
-  jobs = baseProducts // vmChecks;
+  jobs = baseProducts // vmDrivers // vmChecks;
 
   cachePolicy = cache.mkPolicy {
     flakeOutPath = toString flake.outPath;
@@ -46,15 +49,12 @@ let
       images.dev
       images.agent
       images.oci
-      checks.vm-containers
-      checks.vm-editor
     ];
     bundles = [
       images.dev.drvPath
       images.agent.drvPath
       images.oci.drvPath
-      checks.vm-containers.nodes.machine.system.build.vm.drvPath
-      checks.vm-editor.nodes.machine.system.build.vm.drvPath
+      checks.vm-editor.driver.drvPath
     ];
   };
 in
@@ -72,7 +72,16 @@ in
     }
     {
       name = "build";
-      jobs = builtins.attrNames baseProducts;
+      jobs = builtins.attrNames baseProducts ++ [
+        {
+          job = "vm-containers-driver";
+          prepares = "vm-containers";
+        }
+        {
+          job = "vm-editor-driver";
+          prepares = "vm-editor";
+        }
+      ];
       required = true;
       vm = null;
       kvm = false;
@@ -99,7 +108,7 @@ in
   cache = {
     registry = cache.identity.registry or "ghcr.io";
     inherit (cache.identity) repository publicKey;
-    mode = "end-of-phase";
+    mode = "incremental";
     targetUri = cache.ci.uri;
     readSubstituters = cache.ci.settings.substituters;
     trustedPublicKeys = cache.ci.settings.trusted-public-keys;
