@@ -19,9 +19,21 @@ let
     pkgs.tailwindcss-language-server
     pkgs.stylelint
   ];
+  cacheEnv = {
+    NPM_CONFIG_CACHE = "/home/vscode/.cache/npm";
+    COREPACK_HOME = "/home/vscode/.cache/corepack";
+    PNPM_HOME = "/home/vscode/.local/share/pnpm";
+    PNPM_CONFIG_STORE_DIR = "/home/vscode/.cache/pnpm/store";
+    PNPM_CONFIG_PACKAGE_IMPORT_METHOD = "copy";
+    YARN_CACHE_FOLDER = "/home/vscode/.cache/yarn";
+  };
+  devEnv = {
+    NODE_ENV = "development";
+    NODE_REPL_HISTORY = "/home/vscode/.local/state/node_repl_history";
+  };
 in
 {
-  inherit usrPackages;
+  inherit usrPackages cacheEnv devEnv;
   typescriptPkg = pkgs.typescript;
   storeDeps = [
     nodePkg
@@ -38,12 +50,5 @@ in
     pkgs.stylelint
   ];
   pathSegments = [ "/home/vscode/.local/share/pnpm" ];
-  env = {
-    NODE_ENV = "development";
-    NPM_CONFIG_CACHE = "/home/vscode/.cache/npm";
-    COREPACK_HOME = "/home/vscode/.cache/corepack";
-    PNPM_HOME = "/home/vscode/.local/share/pnpm";
-    YARN_CACHE_FOLDER = "/home/vscode/.cache/yarn";
-    NODE_REPL_HISTORY = "/home/vscode/.local/state/node_repl_history";
-  };
+  env = cacheEnv // devEnv;
 }

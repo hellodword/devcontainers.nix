@@ -14,15 +14,8 @@ let
     pkgs.python3Packages.pylint
     pkgs.python3Packages.bandit
   ];
-in
-{
-  inherit usrPackages;
-  storeDeps = usrPackages;
-  pathSegments = [
-    "/home/vscode/.local/share/uv/bin"
-    "/home/vscode/.local/share/python/bin"
-  ];
-  env = {
+  cacheEnv = {
+    PIP_CACHE_DIR = "/home/vscode/.cache/pip";
     PYTHONUSERBASE = "/home/vscode/.local/share/python";
     PYTHONPYCACHEPREFIX = "/home/vscode/.cache/python";
     MYPY_CACHE_DIR = "/home/vscode/.cache/mypy";
@@ -31,4 +24,14 @@ in
     UV_TOOL_BIN_DIR = "/home/vscode/.local/share/uv/bin";
     UV_LINK_MODE = "copy";
   };
+  devEnv = { };
+in
+{
+  inherit usrPackages cacheEnv devEnv;
+  storeDeps = usrPackages;
+  pathSegments = [
+    "/home/vscode/.local/share/uv/bin"
+    "/home/vscode/.local/share/python/bin"
+  ];
+  env = cacheEnv // devEnv;
 }

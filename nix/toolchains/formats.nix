@@ -24,5 +24,7 @@ in
   inherit usrPackages;
   storeDeps = usrPackages;
   pathSegments = [ ];
+  cacheEnv = { };
+  devEnv = { };
   env = { };
 }

@@ -46,7 +46,8 @@ let
     ]
   );
   toolchainsPathSegments = lib.concatMap (m: m.pathSegments) toolchainModules;
-  toolchainsEnv = lib.foldl' (acc: m: acc // m.env) { } toolchainModules;
+  toolchainsCacheEnv = lib.foldl' (acc: m: acc // m.cacheEnv) { } toolchainModules;
+  toolchainsDevEnv = lib.foldl' (acc: m: acc // m.devEnv) { } toolchainModules;
 
   layers = import ./layers.nix {
     inherit
@@ -139,7 +140,10 @@ let
     }:
     let
       pathSegments = if includeToolchainsInUsr then devPathSegments else foundation.agentPathSegments;
-      envWithoutPath = foundation.baseEnv // (if includeToolchainsInUsr then toolchainsEnv else { });
+      envWithoutPath =
+        foundation.baseEnv
+        // toolchainsCacheEnv
+        // (if includeToolchainsInUsr then toolchainsDevEnv else { });
       fullEnv = envWithoutPath // {
         PATH = lib.concatStringsSep ":" pathSegments;
       };
@@ -371,7 +375,7 @@ let
           gid = 1000;
         };
         "/workspaces" = {
-          mode = "0777";
+          mode = "1777";
           uid = 0;
           gid = 0;
         };

@@ -25,9 +25,21 @@ let
     pkgs.cargo-audit
     rustupCli
   ];
+  cacheEnv = {
+    CARGO_HOME = "/home/vscode/.local/share/cargo";
+    RUSTUP_HOME = "/home/vscode/.local/share/rustup";
+  };
+  devEnv = {
+    RUST_BACKTRACE = "1";
+  };
 in
 {
-  inherit usrPackages rustToolchain;
+  inherit
+    usrPackages
+    rustToolchain
+    cacheEnv
+    devEnv
+    ;
   storeDeps = [
     rustToolchain
     pkgs.cargo-nextest
@@ -37,9 +49,5 @@ in
     rustupCli
   ];
   pathSegments = [ "/home/vscode/.local/share/cargo/bin" ];
-  env = {
-    RUST_BACKTRACE = "1";
-    CARGO_HOME = "/home/vscode/.local/share/cargo";
-    RUSTUP_HOME = "/home/vscode/.local/share/rustup";
-  };
+  env = cacheEnv // devEnv;
 }

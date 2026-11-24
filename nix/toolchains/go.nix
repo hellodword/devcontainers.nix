@@ -14,17 +14,20 @@ let
     pkgs.impl
     pkgs.protoc-gen-go
   ];
-in
-{
-  inherit usrPackages;
-  storeDeps = usrPackages;
-  pathSegments = [ "/home/vscode/.local/share/go/bin" ];
-  env = {
-    GOTELEMETRY = "off";
-    GOTOOLCHAIN = "local";
+  cacheEnv = {
     GOPATH = "/home/vscode/.local/share/go";
     GOBIN = "/home/vscode/.local/share/go/bin";
     GOMODCACHE = "/home/vscode/.cache/go/pkg/mod";
     GOCACHE = "/home/vscode/.cache/go-build";
   };
+  devEnv = {
+    GOTELEMETRY = "off";
+    GOTOOLCHAIN = "local";
+  };
+in
+{
+  inherit usrPackages cacheEnv devEnv;
+  storeDeps = usrPackages;
+  pathSegments = [ "/home/vscode/.local/share/go/bin" ];
+  env = cacheEnv // devEnv;
 }

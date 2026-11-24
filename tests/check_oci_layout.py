@@ -86,27 +86,40 @@ LATEST_EXPECTED_PATH = (
     "/usr/bin"
 )
 
+SHARED_TOOLCHAIN_CACHE_ENV = {
+    "CARGO_HOME": "/home/vscode/.local/share/cargo",
+    "COREPACK_HOME": "/home/vscode/.cache/corepack",
+    "GOBIN": "/home/vscode/.local/share/go/bin",
+    "GOCACHE": "/home/vscode/.cache/go-build",
+    "GOMODCACHE": "/home/vscode/.cache/go/pkg/mod",
+    "GOPATH": "/home/vscode/.local/share/go",
+    "MYPY_CACHE_DIR": "/home/vscode/.cache/mypy",
+    "NPM_CONFIG_CACHE": "/home/vscode/.cache/npm",
+    "PIP_CACHE_DIR": "/home/vscode/.cache/pip",
+    "PNPM_CONFIG_PACKAGE_IMPORT_METHOD": "copy",
+    "PNPM_CONFIG_STORE_DIR": "/home/vscode/.cache/pnpm/store",
+    "PNPM_HOME": "/home/vscode/.local/share/pnpm",
+    "PYTHONPYCACHEPREFIX": "/home/vscode/.cache/python",
+    "PYTHONUSERBASE": "/home/vscode/.local/share/python",
+    "RUSTUP_HOME": "/home/vscode/.local/share/rustup",
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "UV_LINK_MODE": "copy",
+    "UV_TOOL_BIN_DIR": "/home/vscode/.local/share/uv/bin",
+    "UV_TOOL_DIR": "/home/vscode/.local/share/uv/tools",
+    "YARN_CACHE_FOLDER": "/home/vscode/.cache/yarn",
+}
+
 LATEST_ONLY_ENV_KEYS = {
     "BINDGEN_EXTRA_CLANG_ARGS",
-    "CARGO_HOME",
     "CGO_CFLAGS",
     "CGO_LDFLAGS",
-    "COREPACK_HOME",
-    "GOCACHE",
-    "GOMODCACHE",
-    "GOPATH",
+    "GOTELEMETRY",
     "GOTOOLCHAIN",
-    "MYPY_CACHE_DIR",
     "NIX_CFLAGS_COMPILE",
     "NIX_LDFLAGS",
     "NODE_ENV",
-    "NPM_CONFIG_CACHE",
-    "PNPM_HOME",
-    "PYTHONUSERBASE",
-    "RUSTUP_HOME",
-    "UV_CACHE_DIR",
-    "UV_TOOL_BIN_DIR",
-    "YARN_CACHE_FOLDER",
+    "NODE_REPL_HISTORY",
+    "RUST_BACKTRACE",
 }
 
 
@@ -146,12 +159,15 @@ def parse_env_list(env_list: list[str]) -> dict[str, str]:
     return parsed
 
 
-def extract_usr_bin_commands(layer_blob: Path) -> tuple[set[str], set[str]]:
+def extract_usr_bin_commands(layer_blob: Path) -> tuple[set[str], set[str], int | None]:
     commands: set[str] = set()
     sbin_entries: set[str] = set()
+    workspaces_mode: int | None = None
     with tarfile.open(layer_blob, mode="r:*") as archive:
         for member in archive.getmembers():
-            norm = member.name.lstrip("./")
+            norm = member.name.lstrip("./").rstrip("/")
+            if norm == "workspaces" and member.isdir():
+                workspaces_mode = member.mode & 0o7777
             parts = norm.split("/")
             if len(parts) == 3 and parts[0] == "usr" and parts[1] == "bin" and parts[2]:
                 commands.add(parts[2])
@@ -162,7 +178,7 @@ def extract_usr_bin_commands(layer_blob: Path) -> tuple[set[str], set[str]]:
                 and parts[2]
             ):
                 sbin_entries.add(parts[2])
-    return commands, sbin_entries
+    return commands, sbin_entries, workspaces_mode
 
 
 def check_layout(oci_dir: Path) -> dict:
@@ -288,6 +304,14 @@ def check_layout(oci_dir: Path) -> dict:
     assert latest_env.get("PATH") == LATEST_EXPECTED_PATH, latest_env.get("PATH")
     assert agent_env.get("PATH") == AGENT_EXPECTED_PATH, agent_env.get("PATH")
 
+    for key, expected_val in SHARED_TOOLCHAIN_CACHE_ENV.items():
+        assert latest_env.get(key) == expected_val, (
+            f"Unexpected {key} in :latest Env: {latest_env.get(key)!r} != {expected_val!r}"
+        )
+        assert agent_env.get(key) == expected_val, (
+            f"Unexpected {key} in :agent Env: {agent_env.get(key)!r} != {expected_val!r}"
+        )
+
     for key in LATEST_ONLY_ENV_KEYS:
         assert key in latest_env, f"Missing {key} in :latest Env"
         assert key not in agent_env, (
@@ -296,8 +320,15 @@ def check_layout(oci_dir: Path) -> dict:
 
     latest_top_blob = blob_path(oci_dir, latest_layers[-1]["digest"])
     agent_top_blob = blob_path(oci_dir, agent_layers[-1]["digest"])
-    latest_cmds, latest_sbin = extract_usr_bin_commands(latest_top_blob)
-    agent_cmds, agent_sbin = extract_usr_bin_commands(agent_top_blob)
+    latest_cmds, latest_sbin, latest_ws_mode = extract_usr_bin_commands(latest_top_blob)
+    agent_cmds, agent_sbin, agent_ws_mode = extract_usr_bin_commands(agent_top_blob)
+
+    assert latest_ws_mode == 0o1777, (
+        f"Expected /workspaces mode 0o1777 in :latest, got {oct(latest_ws_mode) if latest_ws_mode is not None else None}"
+    )
+    assert agent_ws_mode == 0o1777, (
+        f"Expected /workspaces mode 0o1777 in :agent, got {oct(agent_ws_mode) if agent_ws_mode is not None else None}"
+    )
 
     assert "ldconfig" not in latest_sbin and "ldconfig" not in agent_sbin, (
         latest_sbin,
