@@ -332,6 +332,19 @@ core.lib.testing.mkTest pkgs (
                     ),
                     timeout=90,
                 )
+                machine.succeed(
+                    "rm -rf /tmp/pnpm-ws && mkdir -p /tmp/pnpm-ws && chown 1000:1000 /tmp/pnpm-ws"
+                )
+                pnpm_store = machine.succeed(
+                    as_desktop(
+                        f"docker run --rm -v /tmp/pnpm-ws:/workspaces/pnpm-ws -w /workspaces/pnpm-ws {LATEST_REF} pnpm store path"
+                    ),
+                    timeout=60,
+                ).strip()
+                machine.succeed("rm -rf /tmp/pnpm-ws")
+                assert pnpm_store.startswith("/home/vscode/.cache/pnpm/store"), (
+                    f"Expected pnpm store under /home/vscode/.cache/pnpm/store, got {pnpm_store!r}"
+                )
             finally:
                 machine.succeed(as_desktop("docker rm -f check-latest"))
 
@@ -341,6 +354,11 @@ core.lib.testing.mkTest pkgs (
                     as_desktop(
                         "docker exec check-agent bash -euo pipefail -c "
                         + q(
+                            'test "$(stat -c %a /workspaces)" = 1777 && '
+                            'test "$CARGO_HOME" = /home/vscode/.local/share/cargo && '
+                            'test "$GOMODCACHE" = /home/vscode/.cache/go/pkg/mod && '
+                            'test "$UV_LINK_MODE" = copy && '
+                            'test "$PNPM_CONFIG_STORE_DIR" = /home/vscode/.cache/pnpm/store && '
                             "bash --version >/dev/null && "
                             "git --version >/dev/null && "
                             "ssh -V >/dev/null 2>&1 && "
@@ -368,8 +386,8 @@ core.lib.testing.mkTest pkgs (
             finally:
                 machine.succeed(as_desktop("docker rm -f check-agent"))
 
-        with subtest("3. Verify 100ms host local cache probe switch on 172.17.0.1:37515"):
-            # Ensure nothing is listening on 37515 initially; verify zero stderr and no local substituter.
+        with subtest("3. Verify 100ms host local cache probes on 172.17.0.1:37515 and 172.17.0.1:37516"):
+            # Ensure nothing is listening on 37515/37516 initially; verify zero stderr and no local substituter.
             probe_off = machine.succeed(
                 as_desktop(
                     f"err_file=$(mktemp) && "
@@ -385,15 +403,20 @@ core.lib.testing.mkTest pkgs (
                 timeout=60,
             )
             assert "172.17.0.1:37515" not in probe_off, f"Unexpected local cache when port closed: {probe_off!r}"
+            assert "172.17.0.1:37516" not in probe_off, f"Unexpected host store cache when port closed: {probe_off!r}"
 
-            # Start a local mock proxy listener on 172.17.0.1:37515 and verify automatic activation.
+            # Start a generic HTTP server without /nix-cache-info on 37516; verify 37516 is rejected while 37515 activates.
             machine.succeed(
+                "rm -rf /tmp/mock-harmonia && mkdir -p /tmp/mock-harmonia && "
                 "systemd-run --unit=mock-oranc-37515 "
-                "python3 -m http.server 37515 --bind 172.17.0.1"
+                "python3 -m http.server 37515 --bind 172.17.0.1 && "
+                "systemd-run --unit=mock-harmonia-37516 "
+                "python3 -m http.server 37516 --bind 172.17.0.1 --directory /tmp/mock-harmonia"
             )
             try:
                 machine.wait_until_succeeds("curl -fsS http://172.17.0.1:37515/ >/dev/null", timeout=15)
-                probe_on = machine.succeed(
+                machine.wait_until_succeeds("curl -fsS http://172.17.0.1:37516/ >/dev/null", timeout=15)
+                probe_partial = machine.succeed(
                     as_desktop(
                         f"docker run --rm {AGENT_REF} bash -euo pipefail -c "
                         + q(
@@ -403,10 +426,24 @@ core.lib.testing.mkTest pkgs (
                     ),
                     timeout=60,
                 )
-                assert "http://172.17.0.1:37515/ghcr.io/hellodword/nixos-config-cache" in probe_on, probe_on
-                assert "http://172.17.0.1:37515/ghcr.io/hellodword/devcontainers-nix-cache" in probe_on, probe_on
+                assert "http://172.17.0.1:37515/ghcr.io/hellodword/nixos-config-cache" in probe_partial, probe_partial
+                assert "http://172.17.0.1:37515/ghcr.io/hellodword/devcontainers-nix-cache" in probe_partial, probe_partial
+                assert "172.17.0.1:37516" not in probe_partial, f"Expected non-Nix 37516 HTTP server to be ignored: {probe_partial!r}"
+
+                # Publish a valid /nix-cache-info at 37516 and verify automatic activation.
+                machine.succeed(
+                    "printf 'StoreDir: /nix/store\\nWantMassQuery: 1\\nPriority: 30\\n' > /tmp/mock-harmonia/nix-cache-info"
+                )
+                probe_both = machine.succeed(
+                    as_desktop(
+                        f"docker run --rm {AGENT_REF} bash -euo pipefail -c "
+                        + q("nix config show substituters")
+                    ),
+                    timeout=60,
+                )
+                assert "http://172.17.0.1:37516" in probe_both, probe_both
             finally:
-                machine.succeed("systemctl stop mock-oranc-37515.service")
+                machine.succeed("systemctl stop mock-oranc-37515.service mock-harmonia-37516.service && rm -rf /tmp/mock-harmonia")
 
         with subtest("4. Verify 6-line Dockerfile thin UID=1234 GID=1235 derivation for :latest and :agent"):
             index_data = json.loads(machine.succeed(f"cat {q(OCI_DIR)}/index.json"))
@@ -717,6 +754,84 @@ core.lib.testing.mkTest pkgs (
                 ),
                 timeout=180,
             )
+
+            # Concurrent runc + gVisor shared file:// binary cache publish, read-only --max-jobs 0 substitution,
+            # and isolated :agent prune-caches --idle reclamation with symlink escape protection.
+            shared_drv_expr = "\n".join(
+                [
+                    "derivation {",
+                    '  name = "shared-cache-cross-runtime";',
+                    '  system = "x86_64-linux";',
+                    f'  builder = "{EXPECTED_PATHS["bash"]}";',
+                    "  args = [",
+                    '    "-c"',
+                    f'    "printf \\"%s\\\\n\\" \\"{EXPECTED_PATHS["bash"]}-shared-ok\\" > \\"$out\\""',
+                    "  ];",
+                    "}",
+                ]
+            )
+            shared_build_cmd = (
+                "set -euo pipefail; "
+                f"printf '%s' {q(shared_drv_expr)} > /tmp/shared-drv.nix; "
+                "out=$(nix build --impure --no-substitute --print-out-paths --no-link --file /tmp/shared-drv.nix); "
+                f'test "$(cat "$out")" = "{EXPECTED_PATHS["bash"]}-shared-ok"'
+            )
+            shared_subst_cmd = (
+                "set -euo pipefail; "
+                f"printf '%s' {q(shared_drv_expr)} > /tmp/shared-drv.nix; "
+                "out=$(nix build --impure --substitute --max-jobs 0 --print-out-paths --no-link --file /tmp/shared-drv.nix); "
+                f'test "$(cat "$out")" = "{EXPECTED_PATHS["bash"]}-shared-ok"'
+            )
+            machine.succeed(
+                "rm -rf /tmp/shared-nix-cache /tmp/shared-xdg-cache /tmp/host-sentinel && "
+                "mkdir -p /tmp/shared-nix-cache /tmp/shared-xdg-cache/go/pkg/mod/example.com/v1 /tmp/host-sentinel && "
+                "printf 'HOST_SECRET_INTACT\\n' > /tmp/host-sentinel/token && "
+                "chmod 0600 /tmp/host-sentinel/token && "
+                "dd if=/dev/zero of=/tmp/shared-xdg-cache/go/pkg/mod/example.com/v1/blob bs=1024 count=8 status=none && "
+                "ln -s /tmp/host-sentinel/token /tmp/shared-xdg-cache/go/pkg/mod/example.com/v1/escape && "
+                "chown -R 1000:1000 /tmp/shared-nix-cache /tmp/shared-xdg-cache && "
+                "chmod 0555 /tmp/shared-xdg-cache/go/pkg/mod/example.com/v1"
+            )
+            try:
+                concurrent_writers = (
+                    f"docker run --rm --network none -v /tmp/shared-nix-cache:/var/cache/devcontainer-nix {AGENT_REF} bash -c {q(shared_build_cmd)} & "
+                    "p1=$!; "
+                    f"docker run --rm --runtime=runsc --network none -v /tmp/shared-nix-cache:/var/cache/devcontainer-nix {AGENT_REF} bash -c {q(shared_build_cmd)} & "
+                    "p2=$!; "
+                    "wait $p1 && wait $p2"
+                )
+                machine.succeed(as_desktop(concurrent_writers), timeout=240)
+                machine.succeed("compgen -G '/tmp/shared-nix-cache/*.narinfo' >/dev/null && compgen -G '/tmp/shared-nix-cache/nar/*.nar.zst' >/dev/null")
+
+                # Fresh read-only mounted container substitutes with --max-jobs 0 (zero local builds allowed).
+                machine.succeed(
+                    as_desktop(
+                        f"docker run --rm --network none -v /tmp/shared-nix-cache:/var/cache/devcontainer-nix:ro {AGENT_REF} bash -c {q(shared_subst_cmd)}"
+                    ),
+                    timeout=120,
+                )
+
+                # Backdate .narinfo beyond 30 days and run isolated :agent prune-caches --idle.
+                machine.succeed("touch -d '40 days ago' /tmp/shared-nix-cache/*.narinfo")
+                prune_json = machine.succeed(
+                    as_desktop(
+                        f"docker run --rm --network none "
+                        f"-v /tmp/shared-nix-cache:/var/cache/devcontainer-nix "
+                        f"-v /tmp/shared-xdg-cache:/home/vscode/.cache "
+                        f"{AGENT_REF} devcontainer-runtime prune-caches "
+                        f"--nix-cache-dir /var/cache/devcontainer-nix "
+                        f"--xdg-cache-dir /home/vscode/.cache "
+                        f"--lang-archive-max-bytes 1024 --idle"
+                    ),
+                    timeout=120,
+                ).strip()
+                prune_data = json.loads(prune_json)
+                assert prune_data["nix"]["removedNars"] >= 1, prune_data
+                assert "gomodcache" in prune_data["archives"]["resetPools"], prune_data
+                sentinel_text = machine.succeed("cat /tmp/host-sentinel/token").strip()
+                assert sentinel_text == "HOST_SECRET_INTACT", sentinel_text
+            finally:
+                machine.succeed("chmod -R u+w /tmp/shared-xdg-cache 2>/dev/null || true; rm -rf /tmp/shared-nix-cache /tmp/shared-xdg-cache /tmp/host-sentinel")
     '';
   }
 )
