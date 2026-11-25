@@ -29,6 +29,7 @@
     agents-misc = {
       url = "github:hellodword/agents-misc";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.oranc.follows = "core/oranc";
     };
   };
 
@@ -111,6 +112,7 @@
           pkgs.ruff
           pkgs.shellcheck
           pkgs.skopeo-nix2container
+          pkgs.zstd
         ];
         text = ''
           exec ${pkgs.python3}/bin/python3 ${./tests/verify.py} "$@"
@@ -176,6 +178,7 @@
           pkgs.gh
           pkgs.git
           pkgs.jq
+          pkgs.nix.out
           pkgs.nixfmt
           pkgs.prettier
           pkgs.python3
@@ -183,6 +186,7 @@
           pkgs.shellcheck
           pkgs.shfmt
           pkgs.skopeo
+          pkgs.zstd
         ];
       };
 

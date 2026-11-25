@@ -59,7 +59,10 @@ jobs:
           post-build-command: |
             oci_out="$(jq -r '.groups[] | select(.name == "build") | .entries[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
             cd /workspace
-            python3 tests/check_publish.py --oci-dir "$oci_out"
+            nix develop --no-update-lock-file .#default --command bash -euo pipefail -c '
+              python3 tests/check_runtime_cache.py
+              python3 tests/check_publish.py --oci-dir "$1"
+            ' _ "$oci_out"
 
       - name: Preflight GHCR authentication before fast-forwarding master
         if: steps.prepare.outputs.changed == 'true'
