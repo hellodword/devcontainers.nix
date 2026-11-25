@@ -8,7 +8,7 @@ from pathlib import Path
 
 NIXPKGS_REF = os.environ.get("DEVPKG_NIXPKGS_REF", "nixpkgs")
 NIXPKGS_CACHE_KEY = os.environ.get("DEVPKG_NIXPKGS_CACHE_KEY", NIXPKGS_REF)
-NIX_BIN = os.environ.get("DEVPKG_NIX_BIN", "nix")
+NIX_BIN = os.environ.get("DEVPKG_NIX_BIN") or "@nix@"
 NIX_EXPERIMENTAL_FLAGS = [
     "--extra-experimental-features",
     "nix-command",

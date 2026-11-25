@@ -5,32 +5,15 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-_RUNTIME_LIB = "@runtimeLibrary@"
-if not _RUNTIME_LIB.startswith("@"):
-    sys.path.insert(0, _RUNTIME_LIB)
-else:
-    sys.path.insert(
-        0, str(Path(__file__).resolve().parent.parent / "devcontainer-runtime")
-    )
+sys.path.insert(0, "@runtimeLibrary@")
+import devcontainer_state as state
 
-try:
-    import devcontainer_state as state
-except ImportError:
-    import state  # type: ignore[no-redef]
-
-_NIX_SUBST = "@nix@"
-NIX_BIN = (
-    _NIX_SUBST if not _NIX_SUBST.startswith("@") else (shutil.which("nix") or "nix")
-)
-_ZSTD_SUBST = "@zstd@"
-ZSTD_BIN = (
-    _ZSTD_SUBST if not _ZSTD_SUBST.startswith("@") else (shutil.which("zstd") or "zstd")
-)
+NIX_BIN = "@nix@"
+ZSTD_BIN = "@zstd@"
 
 STORE_HASH_RE = re.compile(r"^[0-9a-df-np-sv-z]{32}$")
 ATERM_NO_SUBST_RE = re.compile(r'\("allowSubstitutes","(?:|0|false)"\)')

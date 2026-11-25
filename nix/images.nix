@@ -12,6 +12,7 @@ let
   editor = import ./editor.nix { inherit pkgs lib; };
   runtime = import ../runtime {
     inherit pkgs lib editor;
+    nixPackage = foundation.wrappedNix;
   };
   foundation = import ./foundation.nix {
     inherit

@@ -59,7 +59,13 @@ repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 fragment_name="devcontainers-nix-cache.conf"
 
 render() {
-  nix --extra-experimental-features "nix-command flakes" eval --no-update-lock-file --raw \
+  env \
+    -u NIXPKGS_CONFIG \
+    -u NIXPKGS_ALLOW_BROKEN \
+    -u NIXPKGS_ALLOW_INSECURE \
+    -u NIXPKGS_ALLOW_UNFREE \
+    -u NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM \
+    nix --extra-experimental-features "nix-command flakes" eval --no-update-lock-file --raw \
     "${repo_root}#lib.x86_64-linux.cache.${scope}.text"
 }
 

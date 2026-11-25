@@ -84,9 +84,38 @@
       };
       treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
 
-      loadAppPkg = pkgs.writeShellApplication {
+      mkClosedShellApp =
+        {
+          name,
+          runtimeInputs,
+          text,
+        }:
+        let
+          closedPath = lib.makeBinPath runtimeInputs;
+        in
+        pkgs.runCommand name
+          {
+            nativeBuildInputs = [ pkgs.shellcheck ];
+          }
+          ''
+            mkdir -p "$out/bin"
+            cat > "$out/bin/${name}" <<'WRAPPER_EOF'
+            #!${pkgs.bash}/bin/bash
+            set -euo pipefail
+            export PATH=${lib.escapeShellArg closedPath}
+            export PYTHONNOUSERSITE=1
+            ${text}
+            WRAPPER_EOF
+            chmod 0755 "$out/bin/${name}"
+            ${pkgs.bash}/bin/bash -n "$out/bin/${name}"
+            shellcheck --shell=bash "$out/bin/${name}"
+          '';
+
+      loadAppPkg = mkClosedShellApp {
         name = "load-devcontainer-image";
         runtimeInputs = [
+          pkgs.bash
+          pkgs.coreutils
           pkgs.docker-client
           pkgs.jq
           pkgs.skopeo-nix2container
@@ -97,25 +126,38 @@
         '';
       };
 
-      verifyAppPkg = pkgs.writeShellApplication {
+      publishAppPkg = mkClosedShellApp {
+        name = "publish-devcontainers";
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.git
+          pkgs.skopeo-nix2container
+        ];
+        text = ''
+          exec ${pkgs.python3}/bin/python3 -I ${./scripts/publish.py} "$@"
+        '';
+      };
+
+      verifyAppPkg = mkClosedShellApp {
         name = "verify-devcontainers";
         runtimeInputs = [
+          pkgs.skopeo-nix2container
           core.packages.${system}.ci-tools
           core.packages.${system}.oranc
           agents-misc.packages.${system}.vm-test-submit
-          pkgs.actionlint
-          pkgs.distribution
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.findutils
+          pkgs.gnugrep
+          pkgs.gnused
           pkgs.git
           pkgs.jq
           pkgs.nix
           pkgs.python3
-          pkgs.ruff
-          pkgs.shellcheck
-          pkgs.skopeo-nix2container
           pkgs.zstd
         ];
         text = ''
-          exec ${pkgs.python3}/bin/python3 ${./tests/verify.py} "$@"
+          exec ${pkgs.python3}/bin/python3 -I ${./tests/verify.py} "$@"
         '';
       };
     in
@@ -132,6 +174,11 @@
           type = "app";
           program = "${loadAppPkg}/bin/load-devcontainer-image";
           meta.description = "Load the latest or agent variant into the local Docker daemon";
+        };
+        publish = {
+          type = "app";
+          program = "${publishAppPkg}/bin/publish-devcontainers";
+          meta.description = "Publish digest-preserving latest and agent OCI manifests to a registry";
         };
         verify = {
           type = "app";
@@ -151,6 +198,69 @@
             images
             ;
         };
+        runtime-cache =
+          let
+            tiniClosure = pkgs.closureInfo { rootPaths = [ pkgs.tini ]; };
+            runtimeCacheTestSrc = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions [
+                ./runtime/devcontainer-runtime/cache_gc.py
+                ./runtime/devcontainer-runtime/state.py
+                ./tests/check_runtime_cache.py
+              ];
+            };
+          in
+          pkgs.runCommand "devcontainers-runtime-cache"
+            {
+              nativeBuildInputs = [ pkgs.python3 ];
+            }
+            ''
+              export HOME="$TMPDIR/home"
+              export XDG_CACHE_HOME="$TMPDIR/cache"
+              export NIX_STATE_DIR="$TMPDIR/nix/var/nix"
+              export NIX_LOG_DIR="$TMPDIR/nix/var/log/nix"
+              export NIX_CONF_DIR="$TMPDIR/nix/etc"
+              unset NIX_REMOTE
+              mkdir -p "$HOME" "$XDG_CACHE_HOME" "$NIX_STATE_DIR" "$NIX_LOG_DIR" "$NIX_CONF_DIR"
+              printf 'sandbox = false\nexperimental-features = nix-command flakes\n' > "$NIX_CONF_DIR/nix.conf"
+              ${pkgs.nix}/bin/nix-store --load-db < ${tiniClosure}/registration
+              ${pkgs.python3}/bin/python3 -sE ${runtimeCacheTestSrc}/tests/check_runtime_cache.py \
+                --post-build-hook ${images.runtime.devcontainer-nix-post-build}/bin/devcontainer-nix-post-build \
+                --nix-bin ${pkgs.nix}/bin/nix \
+                --sample-store-path ${pkgs.tini}
+              touch "$out"
+            '';
+        publish =
+          let
+            publishTestSrc = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions [
+                ./flake.lock
+                ./scripts/publish.py
+                ./tests/check_publish.py
+              ];
+            };
+          in
+          pkgs.runCommand "devcontainers-publish"
+            {
+              nativeBuildInputs = [
+                pkgs.distribution
+                pkgs.git
+                pkgs.python3
+                pkgs.skopeo-nix2container
+              ];
+            }
+            ''
+              export HOME="$TMPDIR/home"
+              export XDG_CONFIG_HOME="$TMPDIR/config"
+              export XDG_CACHE_HOME="$TMPDIR/cache"
+              export XDG_RUNTIME_DIR="$TMPDIR/run"
+              mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR"
+              ${pkgs.python3}/bin/python3 -sE ${publishTestSrc}/tests/check_publish.py \
+                --publish-bin ${publishAppPkg}/bin/publish-devcontainers \
+                --oci-dir ${images.oci}
+              touch "$out"
+            '';
         vm-containers = import ./tests/vm/containers.nix {
           inherit
             pkgs
@@ -169,7 +279,11 @@
       };
 
       devShells.${system}.default = pkgs.mkShellNoCC {
+        shellHook = ''
+          export PYTHONNOUSERSITE=1
+        '';
         packages = [
+          pkgs.skopeo-nix2container
           core.packages.${system}.ci-tools
           core.packages.${system}.oranc
           agents-misc.packages.${system}.vm-test-submit
@@ -185,13 +299,18 @@
           pkgs.ruff
           pkgs.shellcheck
           pkgs.shfmt
-          pkgs.skopeo
+          pkgs.tini
           pkgs.zstd
         ];
       };
 
       lib.${system} = {
-        inherit cache images pkgs;
+        inherit
+          cache
+          images
+          pkgs
+          publishAppPkg
+          ;
       };
     };
 }

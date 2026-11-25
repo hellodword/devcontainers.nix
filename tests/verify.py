@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     project_dir = resolve_project_dir(args.project_dir)
 
-    log_step("1. Evaluating flake outputs, formatting, and lint checks")
+    log_step("1. Evaluating flake outputs, formatting, lint, and runtime cache checks")
     run_checked(
         ["nix", "flake", "check", "--no-build", "--no-update-lock-file"],
         cwd=project_dir,
@@ -148,6 +148,7 @@ def main(argv: list[str] | None = None) -> int:
             "--no-update-lock-file",
             ".#checks.x86_64-linux.formatting",
             ".#checks.x86_64-linux.lint",
+            ".#checks.x86_64-linux.runtime-cache",
         ],
         cwd=project_dir,
     )
@@ -173,7 +174,9 @@ def main(argv: list[str] | None = None) -> int:
             env=clean_env,
         )
 
-    log_step("3. Building shared packages.oci and verifying OCI layout invariants")
+    log_step(
+        "3. Building shared packages.oci, verifying OCI layout, and running release check"
+    )
     oci_out = capture_checked(
         [
             "nix",
@@ -186,26 +189,18 @@ def main(argv: list[str] | None = None) -> int:
         cwd=project_dir,
     )
     verify_clean_oci_revision(project_dir, Path(oci_out))
-
-    log_step("4. Running runtime cache contracts and digest-preserving release tests")
     run_checked(
         [
-            sys.executable,
-            str(project_dir / "tests" / "check_runtime_cache.py"),
-        ],
-        cwd=project_dir,
-    )
-    run_checked(
-        [
-            sys.executable,
-            str(project_dir / "tests" / "check_publish.py"),
-            "--oci-dir",
-            oci_out,
+            "nix",
+            "build",
+            "--no-link",
+            "--no-update-lock-file",
+            ".#checks.x86_64-linux.publish",
         ],
         cwd=project_dir,
     )
 
-    log_step("5. Running Workflow 1 (vm-containers) and Workflow 2 (vm-editor)")
+    log_step("4. Running Workflow 1 (vm-containers) and Workflow 2 (vm-editor)")
     vm_attrs = ("vm-containers", "vm-editor")
     run_checked(
         [

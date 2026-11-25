@@ -23,7 +23,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PUBLISH_PY = REPO_ROOT / "scripts" / "publish.py"
 
 
 def find_free_port() -> int:
@@ -244,9 +243,11 @@ def commit_synthetic(repo: Path, filename: str, content: str, message: str) -> s
     return git_cmd(repo, "rev-parse", "HEAD")
 
 
-def run_publish_cli(args: list[str], *, env: dict[str, str] | None = None) -> dict:
+def run_publish_cli(
+    publish_bin: Path, args: list[str], *, env: dict[str, str] | None = None
+) -> dict:
     out = subprocess.check_output(
-        [sys.executable, str(PUBLISH_PY), *args],
+        [str(publish_bin), *args],
         env=env,
         text=True,
         timeout=120,
@@ -254,7 +255,9 @@ def run_publish_cli(args: list[str], *, env: dict[str, str] | None = None) -> di
     return json.loads(out)
 
 
-def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> None:
+def verify_publish_state_machine(
+    work_dir: Path, publish_bin: Path, real_oci_dir: Path | None
+) -> None:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     import publish as publish_mod
 
@@ -285,6 +288,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
 
         # 1. Initial 4-tag publish & exact digest preservation.
         res1 = run_publish_cli(
+            publish_bin,
             [
                 "--oci-dir",
                 str(oci_v1),
@@ -328,6 +332,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
 
         # 2. Idempotent rerun on same commit -> immutable tags reused, digests unchanged.
         res2 = run_publish_cli(
+            publish_bin,
             [
                 "--oci-dir",
                 str(oci_v1),
@@ -343,7 +348,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 str(REPO_ROOT / "flake.lock"),
                 "--tls-verify",
                 "false",
-            ]
+            ],
         )
         assert res2["tags"][f"sha-{sha1}"]["status"] == "reused", res2
         assert res2["tags"][f"agent-sha-{sha1}"]["status"] == "reused", res2
@@ -371,6 +376,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 timeout=60,
             )
         res_rec = run_publish_cli(
+            publish_bin,
             [
                 "--oci-dir",
                 str(oci_v1),
@@ -386,7 +392,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 str(REPO_ROOT / "flake.lock"),
                 "--tls-verify",
                 "false",
-            ]
+            ],
         )
         assert res_rec["tags"][f"sha-{sha1}"]["status"] == "reused", res_rec
         assert res_rec["tags"][f"agent-sha-{sha1}"]["status"] == "reused", res_rec
@@ -414,8 +420,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
         )
         conflict = subprocess.run(
             [
-                sys.executable,
-                str(PUBLISH_PY),
+                str(publish_bin),
                 "--oci-dir",
                 str(oci_v2),
                 "--registry",
@@ -452,6 +457,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
         assert git_cmd(bare_remote, "rev-parse", "refs/heads/master") == sha_new
 
         res_stale = run_publish_cli(
+            publish_bin,
             [
                 "--oci-dir",
                 str(oci_v2),
@@ -467,7 +473,7 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
                 str(REPO_ROOT / "flake.lock"),
                 "--tls-verify",
                 "false",
-            ]
+            ],
         )
         assert res_stale["tags"][f"sha-{sha_old}"]["status"] == "published", res_stale
         assert res_stale["tags"][f"agent-sha-{sha_old}"]["status"] == "published", (
@@ -545,7 +551,9 @@ def verify_publish_state_machine(work_dir: Path, real_oci_dir: Path | None) -> N
         )
 
 
-def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
+def verify_authenticated_skopeo_login_and_publish(
+    work_dir: Path, publish_bin: Path
+) -> None:
     htpasswd_entry = (
         "ci-actor:$2b$05$7/jFoEubo.eVjJ8ADU10iOl5dFwtfGLFyR0vBDf5km9KoEUVdGJ42"
     )
@@ -567,8 +575,7 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
     ) as auth_reg:
         unauth_res = subprocess.run(
             [
-                sys.executable,
-                str(PUBLISH_PY),
+                str(publish_bin),
                 "--oci-dir",
                 str(oci_auth),
                 "--registry",
@@ -612,8 +619,7 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
         }
         preflight_proc = subprocess.run(
             [
-                sys.executable,
-                str(PUBLISH_PY),
+                str(publish_bin),
                 "--registry",
                 auth_reg,
                 "--tls-verify",
@@ -632,8 +638,7 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
 
         auth_proc = subprocess.run(
             [
-                sys.executable,
-                str(PUBLISH_PY),
+                str(publish_bin),
                 "--manifest",
                 str(manifest_file),
                 "--login-env",
@@ -663,17 +668,28 @@ def verify_authenticated_skopeo_login_and_publish(work_dir: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--publish-bin",
+        type=Path,
+        default=os.environ.get("DEVCONTAINERS_PUBLISH_BIN"),
+        help="Path to the built publish-devcontainers executable",
+    )
+    parser.add_argument(
         "--oci-dir",
         type=Path,
         default=None,
         help="Optional built packages.oci directory to cross-check index.json digests",
     )
     args = parser.parse_args(argv)
+    if args.publish_bin is None:
+        parser.error("missing required --publish-bin path")
+    if not args.publish_bin.is_file() or not os.access(args.publish_bin, os.X_OK):
+        parser.error(f"--publish-bin is not an executable file: {args.publish_bin}")
 
+    publish_bin = args.publish_bin.resolve()
     with tempfile.TemporaryDirectory(prefix="devcontainers-check-publish-") as tmp:
         work_dir = Path(tmp)
-        verify_publish_state_machine(work_dir, args.oci_dir)
-        verify_authenticated_skopeo_login_and_publish(work_dir)
+        verify_publish_state_machine(work_dir, publish_bin, args.oci_dir)
+        verify_authenticated_skopeo_login_and_publish(work_dir, publish_bin)
 
     print("CHECK_PUBLISH_OK")
     return 0

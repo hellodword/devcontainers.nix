@@ -631,6 +631,7 @@ let
 in
 {
   inherit
+    wrappedNix
     usrPackages
     storeDeps
     fontsRoot

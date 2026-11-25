@@ -56,13 +56,6 @@ jobs:
           signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
           keep-container: "true"
           artifact-suffix: update
-          post-build-command: |
-            oci_out="$(jq -r '.groups[] | select(.name == "build") | .entries[] | select(.name == "oci") | .outputs[0]' /ci/manifest.json)"
-            cd /workspace
-            nix develop --no-update-lock-file .#default --command bash -euo pipefail -c '
-              python3 tests/check_runtime_cache.py
-              python3 tests/check_publish.py --oci-dir "$1"
-            ' _ "$oci_out"
 
       - name: Preflight GHCR authentication before fast-forwarding master
         if: steps.prepare.outputs.changed == 'true'
@@ -75,8 +68,9 @@ jobs:
             --env GHCR_ACTOR \
             --env GHCR_TOKEN \
             "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-              export PATH="$(cat /ci/tools)/bin:$PATH"
-              python3 /workspace/scripts/publish.py --registry ghcr.io --login-env --preflight-only
+              export PATH="$(cat /ci/tools)/bin"
+              publish_cli="$(jq -r '\''.groups[] | select(.name == "build") | .entries[] | select(.name == "publish-cli") | .outputs[0]'\'' /ci/manifest.json)"
+              "$publish_cli/bin/publish-devcontainers" --registry ghcr.io --login-env --preflight-only
             '
 
       - name: Fast-forward master to verified candidate
@@ -105,8 +99,9 @@ jobs:
             --env ACTION_SHA="$action_sha" \
             --env REMOTE_URL \
             "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-              export PATH="$(cat /ci/tools)/bin:$PATH"
-              GITHUB_STEP_SUMMARY=/ci/publish-summary.md python3 /workspace/scripts/publish.py \
+              export PATH="$(cat /ci/tools)/bin"
+              publish_cli="$(jq -r '\''.groups[] | select(.name == "build") | .entries[] | select(.name == "publish-cli") | .outputs[0]'\'' /ci/manifest.json)"
+              GITHUB_STEP_SUMMARY=/ci/publish-summary.md "$publish_cli/bin/publish-devcontainers" \
                 --manifest /ci/manifest.json \
                 --login-env \
                 --registry ghcr.io \

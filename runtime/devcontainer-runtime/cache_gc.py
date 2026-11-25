@@ -351,6 +351,9 @@ def prune_nix_cache(
     }
 
 
+_AUTO_UV_BIN = object()
+
+
 def _find_uv_binary() -> str | None:
     on_path = shutil.which("uv")
     if on_path:
@@ -368,18 +371,19 @@ def prune_uv_cache(
     lang_archive_max_bytes: int,
     idle: bool,
     dry_run: bool,
+    uv_bin: str | None | object = _AUTO_UV_BIN,
 ) -> dict:
     uv_dir = xdg_cache / "uv"
     if not _is_plain_dir(uv_dir):
         return {"present": False, "reclaimedBytes": 0}
     before = tree_bytes(uv_dir)
     ran_uv_prune = False
-    uv_bin = _find_uv_binary()
-    if uv_bin and not dry_run:
+    resolved_uv = _find_uv_binary() if uv_bin is _AUTO_UV_BIN else uv_bin
+    if isinstance(resolved_uv, str) and resolved_uv and not dry_run:
         clean_env = {"PATH": "/usr/bin:/bin", "HOME": "/tmp", "UV_NO_CONFIG": "1"}
         res = subprocess.run(
             [
-                uv_bin,
+                resolved_uv,
                 "cache",
                 "prune",
                 "--ci",
@@ -656,6 +660,7 @@ def run_prune(
     idle: bool,
     dry_run: bool,
     now: float | None = None,
+    uv_bin: str | None | object = _AUTO_UV_BIN,
 ) -> dict:
     current = time.time() if now is None else now
     nix_report = prune_nix_cache(
@@ -672,6 +677,7 @@ def run_prune(
         lang_archive_max_bytes=lang_archive_max_bytes,
         idle=idle,
         dry_run=dry_run,
+        uv_bin=uv_bin,
     )
     py_bytes = 0
     if _is_plain_dir(xdg_cache_dir):

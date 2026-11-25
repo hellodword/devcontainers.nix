@@ -11,8 +11,14 @@ let
   devShell = flake.devShells.${system}.default;
 
   baseProducts = {
-    inherit (checks) formatting lint;
+    inherit (checks)
+      formatting
+      lint
+      runtime-cache
+      publish
+      ;
     oci = flake.packages.${system}.oci;
+    publish-cli = flake.lib.${system}.publishAppPkg;
     dev-shell = devShell;
   };
 

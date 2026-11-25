@@ -3,6 +3,7 @@
   pkgs,
   lib,
   editor,
+  nixPackage ? pkgs.nix,
 }:
 let
   runtimeLibrary = pkgs.runCommand "devcontainer-runtime-library" { } ''
@@ -13,35 +14,39 @@ let
 
   writeShellApp =
     name: runtimeInputs: scriptPath:
-    pkgs.writeShellApplication {
-      inherit name runtimeInputs;
-      text = builtins.readFile scriptPath;
-    };
+    let
+      closedPath = lib.makeBinPath (runtimeInputs ++ [ pkgs.coreutils ]);
+    in
+    pkgs.runCommand name
+      {
+        nativeBuildInputs = [ pkgs.shellcheck ];
+      }
+      ''
+        mkdir -p "$out/bin"
+        {
+          printf '#!%s/bin/bash\n' ${lib.escapeShellArg "${pkgs.bash}"}
+          printf 'export PATH=%s\n' ${lib.escapeShellArg closedPath}
+          sed '1{/^#!/d;}' ${scriptPath}
+        } > "$out/bin/${name}"
+        chmod 0755 "$out/bin/${name}"
+        ${pkgs.bash}/bin/bash -n "$out/bin/${name}"
+        shellcheck --shell=bash "$out/bin/${name}"
+      '';
 
   writePythonApp =
     {
       name,
       scriptPath,
-      isolated ? false,
-      runtimeInputs ? [ ],
+      isolated ? true,
       extraSubstitutions ? "",
     }:
-    pkgs.runCommand name
-      {
-        nativeBuildInputs = lib.optional (runtimeInputs != [ ]) pkgs.makeWrapper;
-      }
-      (
-        ''
-          mkdir -p "$out/bin"
-          substitute ${scriptPath} "$out/bin/${name}" \
-            --replace-fail '#!/usr/bin/env python3' '#!${pkgs.python3}/bin/python3${lib.optionalString isolated " -I"}'
-          chmod 0755 "$out/bin/${name}"
-          ${extraSubstitutions}
-        ''
-        + lib.optionalString (runtimeInputs != [ ]) ''
-          wrapProgram "$out/bin/${name}" --prefix PATH : ${lib.makeBinPath runtimeInputs}
-        ''
-      );
+    pkgs.runCommand name { } ''
+      mkdir -p "$out/bin"
+      substitute ${scriptPath} "$out/bin/${name}" \
+        --replace-fail '#!/usr/bin/env python3' '#!${pkgs.python3}/bin/python3${lib.optionalString isolated " -I"}'
+      chmod 0755 "$out/bin/${name}"
+      ${extraSubstitutions}
+    '';
 
   guiEnvApp = writeShellApp "devcontainer-gui-env" [
     pkgs.coreutils
@@ -104,7 +109,11 @@ let
   devpkgBin = writePythonApp {
     name = "devpkg";
     scriptPath = ./devpkg/main.py;
-    runtimeInputs = [ pkgs.nix ];
+    isolated = true;
+    extraSubstitutions = ''
+      substituteInPlace "$out/bin/devpkg" \
+        --replace-fail '@nix@' '${nixPackage}/bin/nix'
+    '';
   };
 
   devpkgCompletion = pkgs.writeTextDir "share/bash-completion/completions/devpkg" ''

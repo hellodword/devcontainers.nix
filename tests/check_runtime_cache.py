@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
+import argparse
 import http.server
 import json
 import os
-import shutil
 import socketserver
 import stat
 import subprocess
@@ -22,8 +22,6 @@ sys.path.insert(0, str(REPO_ROOT / "runtime" / "devcontainer-runtime"))
 
 import cache_gc
 import state
-
-POST_BUILD_SCRIPT = REPO_ROOT / "runtime" / "devcontainer-nix-post-build" / "main.py"
 
 
 class _QuietHandler(http.server.BaseHTTPRequestHandler):
@@ -62,8 +60,8 @@ def _serve_http(body: bytes, status_code: int = 200):
     return server, f"127.0.0.1:{port}"
 
 
-def _run_post_build_worker(args: tuple[str, str, str]) -> int:
-    cache_dir, out_path, drv_path = args
+def _run_post_build_worker(args: tuple[str, str, str, str]) -> int:
+    post_build_hook, cache_dir, out_path, drv_path = args
     env = dict(os.environ)
     env["DEVCONTAINER_SHARED_NIX_CACHE_DIR"] = cache_dir
     env["DEVCONTAINER_NIX_CACHE_DEBUG"] = "1"
@@ -73,7 +71,7 @@ def _run_post_build_worker(args: tuple[str, str, str]) -> int:
     else:
         env.pop("DRV_PATH", None)
     res = subprocess.run(
-        [sys.executable, str(POST_BUILD_SCRIPT)],
+        [post_build_hook],
         env=env,
         capture_output=True,
         text=True,
@@ -211,14 +209,21 @@ def test_discovery_and_probes(work_dir: Path) -> None:
         oranc_srv.shutdown()
 
 
-def test_concurrent_single_path_publish(work_dir: Path) -> None:
-    tini_bin = shutil.which("tini") or shutil.which("jq")
-    assert tini_bin, "Expected tini or jq in PATH"
-    store_root = "/" + "/".join(Path(tini_bin).resolve().parts[1:4])
+def test_concurrent_single_path_publish(
+    work_dir: Path,
+    *,
+    post_build_hook: Path,
+    nix_bin: Path,
+    sample_store_path: Path,
+) -> None:
+    resolved_sample = sample_store_path.resolve()
+    assert str(resolved_sample).startswith("/nix/store/"), resolved_sample
+    store_root = "/" + "/".join(resolved_sample.parts[1:4])
     store_hash = Path(store_root).name.split("-", 1)[0]
 
     cache_dir = work_dir / "concurrent-nix-cache"
     cache_dir.mkdir(parents=True)
+    hook_str = str(post_build_hook)
 
     # Filtering check: allowSubstitutes = false derivation must be skipped.
     no_subst_drv = work_dir / "local-only.drv"
@@ -227,7 +232,7 @@ def test_concurrent_single_path_publish(work_dir: Path) -> None:
         '"x86_64-linux","/bin/sh",[],[("allowSubstitutes",""),("name","x")])',
         encoding="utf-8",
     )
-    _run_post_build_worker((str(cache_dir), store_root, str(no_subst_drv)))
+    _run_post_build_worker((hook_str, str(cache_dir), store_root, str(no_subst_drv)))
     assert not (cache_dir / f"{store_hash}.narinfo").exists()
 
     # Filtering check: explicit DEVCONTAINER_SHARED_NIX_CACHE_MAX_NAR_BYTES cap skips larger output.
@@ -235,15 +240,13 @@ def test_concurrent_single_path_publish(work_dir: Path) -> None:
     cap_env["DEVCONTAINER_SHARED_NIX_CACHE_DIR"] = str(cache_dir)
     cap_env["DEVCONTAINER_SHARED_NIX_CACHE_MAX_NAR_BYTES"] = "8"
     cap_env["OUT_PATHS"] = store_root
-    res_cap = subprocess.run(
-        [sys.executable, str(POST_BUILD_SCRIPT)], env=cap_env, check=True
-    )
+    res_cap = subprocess.run([hook_str], env=cap_env, check=True)
     assert res_cap.returncode == 0
     assert not (cache_dir / f"{store_hash}.narinfo").exists()
 
     # 8 concurrent processes publishing the same glibc-referencing store path into an empty cache
     # (glibc itself is NOT in cache_dir, verifying single-path no-closure publication).
-    tasks = [(str(cache_dir), store_root, "") for _ in range(8)]
+    tasks = [(hook_str, str(cache_dir), store_root, "") for _ in range(8)]
     with ProcessPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(_run_post_build_worker, tasks))
     assert results == [0] * 8
@@ -258,13 +261,16 @@ def test_concurrent_single_path_publish(work_dir: Path) -> None:
     assert os.lstat(nar_files[0]).st_nlink == 1
 
     # Verify Nix itself parses and validates the published entry in a read-only file:// store.
+    xdg_cache = work_dir / "nix-client-cache"
+    xdg_cache.mkdir(parents=True, exist_ok=True)
+    verify_env = os.environ | {"XDG_CACHE_HOME": str(xdg_cache)}
     ro_dirs = [cache_dir, *(cache_dir / sub for sub in state.SHARED_CACHE_SUBDIRS)]
     for d in ro_dirs:
         os.chmod(d, 0o555)
     try:
         info_out = subprocess.check_output(
             [
-                "nix",
+                str(nix_bin),
                 "--extra-experimental-features",
                 "nix-command",
                 "path-info",
@@ -275,6 +281,7 @@ def test_concurrent_single_path_publish(work_dir: Path) -> None:
                 "1",
                 store_root,
             ],
+            env=verify_env,
             text=True,
             stderr=subprocess.PIPE,
         )
@@ -372,6 +379,7 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
         idle=False,
         dry_run=False,
         now=now,
+        uv_bin=None,
     )
     assert online_res["nix"]["tombstonedNarinfos"] == 2, online_res
     assert not old_orphan_info.exists()
@@ -395,6 +403,7 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
         idle=False,
         dry_run=False,
         now=now + 601.0,
+        uv_bin=None,
     )
     assert online_after_grace["nix"]["removedNars"] == 1, online_after_grace
     assert not orphan_nar.exists()
@@ -416,6 +425,7 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
         idle=True,
         dry_run=False,
         now=now + 602.0,
+        uv_bin=None,
     )
     assert not fresh_writer_nar.exists()
     assert shared_nar.exists()
@@ -428,11 +438,60 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
     assert stat.S_IMODE(os.lstat(sentinel_file).st_mode) == 0o600
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--post-build-hook",
+        type=Path,
+        default=os.environ.get("DEVCONTAINERS_POST_BUILD_HOOK"),
+        help="Path to the built devcontainer-nix-post-build executable",
+    )
+    parser.add_argument(
+        "--nix-bin",
+        type=Path,
+        default=os.environ.get("DEVCONTAINERS_NIX_BIN"),
+        help="Path to the nix CLI executable",
+    )
+    parser.add_argument(
+        "--sample-store-path",
+        type=Path,
+        default=os.environ.get("DEVCONTAINERS_SAMPLE_STORE_PATH"),
+        help="Path inside /nix/store used to exercise single-path binary cache publication",
+    )
+    args = parser.parse_args(argv)
+    missing = [
+        flag
+        for flag, val in (
+            ("--post-build-hook", args.post_build_hook),
+            ("--nix-bin", args.nix_bin),
+            ("--sample-store-path", args.sample_store_path),
+        )
+        if val is None
+    ]
+    if missing:
+        parser.error(f"missing required store-bound paths: {', '.join(missing)}")
+    for flag, path in (
+        ("--post-build-hook", args.post_build_hook),
+        ("--nix-bin", args.nix_bin),
+    ):
+        if not path.is_file() or not os.access(path, os.X_OK):
+            parser.error(f"{flag} is not an executable file: {path}")
+    if not args.sample_store_path.exists():
+        parser.error(f"--sample-store-path does not exist: {args.sample_store_path}")
+    return args
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
     with tempfile.TemporaryDirectory(prefix="devcontainers-runtime-cache-") as tmp:
         work_dir = Path(tmp)
         test_discovery_and_probes(work_dir / "discovery")
-        test_concurrent_single_path_publish(work_dir / "publish")
+        test_concurrent_single_path_publish(
+            work_dir / "publish",
+            post_build_hook=args.post_build_hook.resolve(),
+            nix_bin=args.nix_bin.resolve(),
+            sample_store_path=args.sample_store_path,
+        )
         test_prune_caches_and_symlink_safety(work_dir / "gc")
     print("CHECK_RUNTIME_CACHE_OK")
     return 0
