@@ -325,6 +325,7 @@ def apply_ownership(root: Path, identity: Identity, mounts: set[Path]) -> None:
     if identity.old_uid != identity.uid or identity.old_gid != identity.gid:
         chown_matching_tree(root / "home/vscode", identity, mounts)
         chown_matching_tree(root / "var/lib/devcontainer", identity, mounts)
+        chown_matching_tree(root / "var/cache/devcontainer-nix", identity, mounts)
     ensure_runtime_dir(root, identity, mounts)
     for path in [
         root / "nix",

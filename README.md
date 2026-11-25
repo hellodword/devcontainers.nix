@@ -1,23 +1,23 @@
 # devcontainers.nix
 
-Modular Nix/OCI container images for interactive software development (`:latest`) and headless CLI / coding-agent execution (`:agent`), built from a shared `/nix/store` layer stack.
+Modular Nix/OCI development container image (`ghcr.io/hellodword/devcontainers-dev:latest`) for VS Code Dev Containers, standalone `docker run` sessions, and coding-agent CLIs.
 
-## Variants
+## Capabilities
 
-| Capability                        | `ghcr.io/hellodword/devcontainers-dev:latest`                                                           | `ghcr.io/hellodword/devcontainers-dev:agent`                                                |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Primary role                      | Interactive development & VS Code Dev Containers                                                        | Headless CI, sandboxed tasks & coding-agent CLIs                                            |
-| Default user & workdir            | `vscode` (`1000:1000`), `/workspaces`                                                                   | `vscode` (`1000:1000`), `/workspaces`                                                       |
-| Entrypoint & supervisor           | `/usr/bin/devcontainer-entrypoint` (`tini -g`)                                                          | `/usr/bin/devcontainer-entrypoint` (`tini -g`)                                              |
-| Shell, VCS, network & Nix CLI     | Included (`bash`, `git`, `ssh`, `gpg`, `jq`, `rg`, `fd`, `just`, `docker`, `nix`, `devpkg`)             | Included (`bash`, `git`, `ssh`, `gpg`, `jq`, `rg`, `fd`, `just`, `docker`, `nix`, `devpkg`) |
-| Agent CLIs in `/usr/bin`          | `codex`, `opencode`, `agy`, `vm-test-submit`                                                            | `codex`, `opencode`, `agy`, `vm-test-submit`                                                |
-| Language toolchains in `/usr/bin` | C/C++, Rust **Nightly**, Go, Python, Node.js/TypeScript, Nix LSP/formatters, Protobuf                   | Pre-populated in `/nix/store` with GC roots; omitted from `/usr/bin` and `PATH`             |
-| Offline VS Code extensions        | 26 extensions + read-only `Machine/settings.json`                                                       | Not included                                                                                |
-| `devcontainer.metadata` label     | Included (`init`, `overrideCommand`, `.devcontainer` read-only mount, `postCreate` / `postStart` tasks) | Omitted                                                                                     |
-| Native Wayland diagnostics        | `devcontainer-gui-env` + `wayland-info`                                                                 | `devcontainer-gui-env`                                                                      |
-| GitHub CLI (`gh`)                 | Omitted by design                                                                                       | Omitted by design                                                                           |
+| Aspect                            | Configuration                                                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Default user & workdir            | `vscode` (`1000:1000`), `/workspaces` (`01777`)                                                                               |
+| Entrypoint & supervisor           | `/usr/bin/devcontainer-entrypoint` (`tini -g`)                                                                                |
+| Shell, VCS, network & Nix CLI     | `bash`, `git`, `ssh`, `gpg`, `jq`, `rg`, `fd`, `just`, `docker`, `nix`, `devpkg`                                              |
+| Agent CLIs in `/usr/bin`          | `codex`, `opencode`, `agy`, `vm-test-submit`                                                                                  |
+| Language toolchains in `/usr/bin` | C/C++ (`gcc`, `ccache`, `cmake`, `ninja`), Rust **Nightly**, Go, Python, Node.js/TypeScript, Nix, Protobuf                    |
+| Offline VS Code extensions        | 26 extensions + read-only `Machine/settings.json`                                                                             |
+| `devcontainer.metadata` label     | `init`, `overrideCommand`, `.devcontainer` read-only mount, `postCreate` / `postStart` lifecycle tasks                        |
+| Declarative cache contract        | `data/cache-layout.json`, `lib.cacheLayout`, `packages.x86_64-linux.cache-layout`, OCI label `devcontainers.nix.cache-layout` |
+| Native Wayland forwarding         | `devcontainer-gui-env` + `wayland-info`                                                                                       |
+| GitHub CLI (`gh`)                 | Omitted by design                                                                                                             |
 
-> **Rust toolchain channel**: `:latest` provides the **Rust Nightly** toolchain by default (`rustc`, `cargo`, `rust-src`, `rustfmt`, `clippy`, `rust-analyzer`, alongside `rustup`). Projects that target Rust Stable or a pinned compiler release declare a `rust-toolchain.toml` in the repository root or provide a pinned toolchain through a project `flake.nix` `devShell`; see [docs/packages-and-devshell.md](docs/packages-and-devshell.md).
+> **Rust toolchain channel**: The image provides the **Rust Nightly** toolchain by default (`rustc`, `cargo`, `rust-src`, `rustfmt`, `clippy`, `rust-analyzer`, alongside `rustup`). Projects targeting Rust Stable or a pinned compiler release declare a `rust-toolchain.toml` in the repository root or provide a pinned toolchain through a project `flake.nix` `devShell`; see [docs/packages-and-devshell.md](docs/packages-and-devshell.md).
 
 ## Quick Start
 
@@ -31,19 +31,25 @@ Minimal `.devcontainer/devcontainer.json` for standard `/workspaces/<repo>` proj
 
 The image `devcontainer.metadata` label configures `remoteUser = "vscode"`, `init = true`, `overrideCommand = true`, read-only `.devcontainer` bind protection, offline VS Code extension projection (`postCreate`), and Wayland / local Nix cache refresh (`postStart`).
 
-## Local Build, Load, and Verification
+## Local Build, Load, Cache Contract, and Verification
 
-Build the deduplicated multi-variant OCI Image Layout (`index.json` containing both `latest` and `agent` manifests):
+Build the OCI Image Layout (`index.json` containing the `latest` manifest):
 
 ```bash
 nix build .#oci
 ```
 
-Load a variant directly into the local Docker daemon:
+Load the built image directly into the local Docker daemon:
 
 ```bash
-nix run .#load -- latest
-nix run .#load -- agent
+nix run .#load
+```
+
+Query the declarative cache layout contract via Nix or OCI image metadata:
+
+```bash
+nix eval --json .#lib.cacheLayout
+docker image inspect --format '{{ index .Config.Labels "devcontainers.nix.cache-layout" }}' ghcr.io/hellodword/devcontainers-dev:latest | jq .
 ```
 
 Run the full repository verification suite (formatting, static checks, OCI layout invariants, container runtime & `gVisor` workflows, offline VS Code + Sway Wayland session, and digest-preserving release tests):
@@ -54,10 +60,10 @@ nix run .#verify
 
 ## Image Tags and Digest Pinning
 
-Published images under `ghcr.io/hellodword/devcontainers-dev` expose four tags sharing exact OCI manifest digests:
+Published releases under `ghcr.io/hellodword/devcontainers-dev` expose two tags sharing the exact OCI manifest digest:
 
-- `:latest` and `:sha-<40-char-commit>` — interactive development & Dev Container variant;
-- `:agent` and `:agent-sha-<40-char-commit>` — headless CLI & coding-agent variant.
+- `:latest` — floating tag tracking `master`;
+- `:sha-<40-char-commit>` — immutable commit-pinned tag.
 
 For reproducible builds and thin UID/GID derivations, pin by immutable commit tag or manifest digest:
 
@@ -68,6 +74,6 @@ ghcr.io/hellodword/devcontainers-dev@sha256:<manifest-digest>
 ## Documentation
 
 - [docs/usage.md](docs/usage.md) — Workspace layouts, `.devcontainer` read-only mounts, 6-line `Dockerfile` UID/GID derivation, and entrypoint account boundaries.
-- [docs/packages-and-devshell.md](docs/packages-and-devshell.md) — Built-in toolchains, Rust Nightly & version pinning, `devpkg` package/library management, and offline `nix develop` store reuse in `:agent`.
-- [docs/gui-and-cache.md](docs/gui-and-cache.md) — Native Wayland forwarding, four-tier Nix cache auto-discovery (`file://`, host `harmonia`, and `oranc`), client cache setup, and image digest semantics.
-- [docs/security-and-sharing.md](docs/security-and-sharing.md) — Container-to-host threat model, standalone `docker run` hardening, shared language/agent state layouts, and scheduled idle cache reclamation.
+- [docs/packages-and-devshell.md](docs/packages-and-devshell.md) — Built-in toolchains, Rust Nightly & version pinning, `devpkg` package/library management, and offline `nix develop` store reuse.
+- [docs/gui-and-cache.md](docs/gui-and-cache.md) — Native Wayland forwarding, four-tier Nix cache auto-discovery (`file://`, host `harmonia`, and `oranc`), client cache setup, and OCI layer layout.
+- [docs/security-and-sharing.md](docs/security-and-sharing.md) — Container-to-host threat model, standalone `docker run` hardening, declarative `cache-layout.json` pools, and scheduled idle cache reclamation.

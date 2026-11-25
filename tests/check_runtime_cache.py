@@ -244,8 +244,7 @@ def test_concurrent_single_path_publish(
     assert res_cap.returncode == 0
     assert not (cache_dir / f"{store_hash}.narinfo").exists()
 
-    # 8 concurrent processes publishing the same glibc-referencing store path into an empty cache
-    # (glibc itself is NOT in cache_dir, verifying single-path no-closure publication).
+    # 8 concurrent processes publishing the same glibc-referencing store path into an empty cache.
     tasks = [(hook_str, str(cache_dir), store_root, "") for _ in range(8)]
     with ProcessPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(_run_post_build_worker, tasks))
@@ -294,13 +293,20 @@ def test_concurrent_single_path_publish(
 
 
 def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
+    layout_path = REPO_ROOT / "data" / "cache-layout.json"
+    mounts = cache_gc.load_cache_layout(layout_path)
+    assert len(mounts) == 20
+
     sentinel_dir = work_dir / "host-sentinel"
     sentinel_dir.mkdir(parents=True, exist_ok=True)
     sentinel_file = sentinel_dir / "secret.key"
     sentinel_file.write_text("DO_NOT_TOUCH\n", encoding="utf-8")
     os.chmod(sentinel_file, 0o600)
 
-    nix_cache = work_dir / "gc-nix"
+    pools_root = work_dir / "pools"
+    overrides = {item["id"]: pools_root / item["id"] for item in mounts}
+
+    nix_cache = overrides["nix"]
     (nix_cache / "nar").mkdir(parents=True)
     (nix_cache / "realisations").mkdir()
     (nix_cache / "log").mkdir()
@@ -322,7 +328,6 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
     fresh_writer_nar.write_bytes(b"x" * 4096)
     os.utime(fresh_writer_nar, (now + 500.0, now + 500.0))
 
-    # Plant malicious symlink inside nar/ pointing to sentinel_file.
     os.symlink(sentinel_file, nix_cache / "nar" / "evil-link.nar.zst")
 
     old_shared_info = nix_cache / ("1" * 32 + ".narinfo")
@@ -345,14 +350,13 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
     os.utime(new_shared_info, (recent_mtime, recent_mtime))
     os.utime(old_orphan_info, (old_mtime, old_mtime))
 
-    xdg_cache = work_dir / "gc-xdg"
-    gomod_ro = xdg_cache / "go" / "pkg" / "mod" / "example.com" / "pkg@v1.0.0"
+    gomod_ro = overrides["go-mod"] / "example.com" / "pkg@v1.0.0"
     gomod_ro.mkdir(parents=True)
     (gomod_ro / "mod.go").write_bytes(b"g" * 8192)
     os.symlink(sentinel_dir, gomod_ro / "escape-dir")
     os.chmod(gomod_ro, 0o555)
 
-    cargo_home = work_dir / "gc-cargo"
+    cargo_home = overrides["cargo"]
     old_crate_src = cargo_home / "registry" / "src" / "index-1" / "serde-1.0.0"
     new_crate_src = cargo_home / "registry" / "src" / "index-1" / "tokio-1.0.0"
     old_crate_src.mkdir(parents=True)
@@ -366,61 +370,87 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
     os.utime(new_crate_src / ".cargo-ok", (recent_mtime, recent_mtime))
     os.utime(new_crate_src, (recent_mtime, recent_mtime))
 
+    pip_old = overrides["pip"] / "http-v2" / "old.whl"
+    pip_new = overrides["pip"] / "http-v2" / "new.whl"
+    pip_old.parent.mkdir(parents=True)
+    pip_old.write_bytes(b"p" * 512)
+    pip_new.write_bytes(b"p" * 256)
+    os.utime(pip_old, (old_mtime, old_mtime))
+    os.utime(pip_new, (recent_mtime, recent_mtime))
+
+    gradle_old_log = overrides["gradle"] / "daemon" / "8.10" / "daemon-1.out.log"
+    gradle_keep = overrides["gradle"] / "caches" / "modules-2" / "keep.jar"
+    gradle_old_log.parent.mkdir(parents=True)
+    gradle_keep.parent.mkdir(parents=True)
+    gradle_old_log.write_bytes(b"l" * 512)
+    gradle_keep.write_bytes(b"j" * 256)
+    os.utime(gradle_old_log, (old_mtime, old_mtime))
+    os.utime(gradle_keep, (old_mtime, old_mtime))
+
+    chromium_pack = (
+        overrides["chromium-git"]
+        / "chromium.googlesource.com-chromium-src"
+        / "objects"
+        / "pack"
+        / "pack-1.pack"
+    )
+    chromium_pack.parent.mkdir(parents=True)
+    chromium_pack.write_bytes(b"c" * 16384)
+    os.utime(chromium_pack, (old_mtime, old_mtime))
+
     # Pass 1 (online mode): old narinfos move to tombstones; orphan_nar stays alive during grace window;
-    # cargo & gomodcache remain untouched while not idle.
+    # idle-only pools and manual chromium-git remain untouched.
     online_res = cache_gc.run_prune(
-        nix_cache_dir=nix_cache,
-        xdg_cache_dir=xdg_cache,
-        cargo_home=cargo_home,
+        cache_layout_path=layout_path,
+        target_overrides=overrides,
         max_age_days=30.0,
         nix_max_bytes=0,
-        lang_archive_max_bytes=1024,
+        pool_max_bytes=1024,
         grace_seconds=600.0,
         idle=False,
         dry_run=False,
         now=now,
         uv_bin=None,
     )
-    assert online_res["nix"]["tombstonedNarinfos"] == 2, online_res
+    assert online_res["pools"]["nix"]["tombstonedNarinfos"] == 2, online_res
     assert not old_orphan_info.exists()
-    assert orphan_nar.exists(), (
-        "Grace window must retain orphan_nar for in-flight readers"
-    )
+    assert orphan_nar.exists()
     assert shared_nar.exists()
-    assert old_crate_src.exists(), "Cargo unpacked src must not mutate in online mode"
-    assert gomod_ro.exists(), "GOMODCACHE must not reset in online mode"
+    assert old_crate_src.exists()
+    assert gomod_ro.exists()
+    assert pip_old.exists()
+    assert gradle_old_log.exists()
+    assert chromium_pack.exists()
+    assert online_res["pools"]["chromium-git"]["sizeBytes"] == 16384
 
     # Pass 2 (online mode after grace window): expired tombstones and orphan_nar are reclaimed;
-    # shared_nar (still referenced by new_shared_info) and fresh_writer_nar (recent ctime) survive!
+    # shared_nar and fresh_writer_nar survive.
     online_after_grace = cache_gc.run_prune(
-        nix_cache_dir=nix_cache,
-        xdg_cache_dir=xdg_cache,
-        cargo_home=cargo_home,
+        cache_layout_path=layout_path,
+        target_overrides=overrides,
         max_age_days=30.0,
         nix_max_bytes=0,
-        lang_archive_max_bytes=1024,
+        pool_max_bytes=1024,
         grace_seconds=600.0,
         idle=False,
         dry_run=False,
         now=now + 601.0,
         uv_bin=None,
     )
-    assert online_after_grace["nix"]["removedNars"] == 1, online_after_grace
+    assert online_after_grace["pools"]["nix"]["removedNars"] == 1, online_after_grace
     assert not orphan_nar.exists()
-    assert shared_nar.exists(), "Shared NAR referenced by surviving narinfo must remain"
-    assert fresh_writer_nar.exists(), (
-        "Recent ctime NAR must remain protected in online mode"
-    )
+    assert shared_nar.exists()
+    assert fresh_writer_nar.exists()
 
-    # Pass 3 (idle mode): sweeps unreferenced fresh_writer_nar, removes expired Cargo src tree,
-    # resets over-quota 0555 GOMODCACHE, and leaves external sentinel_dir/sentinel_file untouched!
+    # Pass 3 (idle mode): sweeps unreferenced fresh_writer_nar, removes expired Cargo src, pip wheel,
+    # and Gradle daemon log, resets over-quota 0555 GOMODCACHE, preserves manual chromium-git pack,
+    # and leaves external sentinel_dir/sentinel_file untouched.
     idle_res = cache_gc.run_prune(
-        nix_cache_dir=nix_cache,
-        xdg_cache_dir=xdg_cache,
-        cargo_home=cargo_home,
+        cache_layout_path=layout_path,
+        target_overrides=overrides,
         max_age_days=30.0,
         nix_max_bytes=0,
-        lang_archive_max_bytes=1024,
+        pool_max_bytes=1024,
         grace_seconds=600.0,
         idle=True,
         dry_run=False,
@@ -431,8 +461,16 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
     assert shared_nar.exists()
     assert not old_crate_src.exists()
     assert new_crate_src.exists()
-    assert "gomodcache" in idle_res["archives"]["resetPools"], idle_res
+    assert "go-mod" in idle_res["resetPools"], idle_res
     assert not gomod_ro.exists()
+    assert not pip_old.exists()
+    assert pip_new.exists()
+    assert not gradle_old_log.exists()
+    assert gradle_keep.exists()
+    assert chromium_pack.exists(), (
+        "Manual chromium-git bare pack must not be auto-deleted"
+    )
+    assert idle_res["pools"]["chromium-git"]["sizeBytes"] == 16384
 
     assert sentinel_file.read_text(encoding="utf-8") == "DO_NOT_TOUCH\n"
     assert stat.S_IMODE(os.lstat(sentinel_file).st_mode) == 0o600

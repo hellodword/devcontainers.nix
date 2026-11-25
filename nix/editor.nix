@@ -1,4 +1,4 @@
-# Offline VS Code extensions, projection index, read-only Machine settings, and Dev Container metadata for :latest.
+# Offline VS Code extensions, projection index, read-only Machine settings, and Dev Container metadata.
 {
   pkgs,
   lib,

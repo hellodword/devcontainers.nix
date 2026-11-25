@@ -52,13 +52,11 @@ let
         pkgs.vscode-extensions.ms-vscode-remote.remote-containers
       ];
     extraExcluded = [
-      images.dev
-      images.agent
+      images.image
       images.oci
     ];
     bundles = [
-      images.dev.drvPath
-      images.agent.drvPath
+      images.image.drvPath
       images.oci.drvPath
       checks.vm-editor.driver.drvPath
     ];

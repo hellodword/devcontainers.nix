@@ -1,5 +1,5 @@
 {
-  description = "Modular Nix/OCI development and agent container images";
+  description = "Modular Nix/OCI development container image";
 
   inputs = {
     core.url = "git+https://github.com/hellodword/nixos-config.git?ref=master&dir=infra";
@@ -71,6 +71,10 @@
         ];
       };
       inherit (pkgs) lib;
+      cacheLayout = builtins.fromJSON (builtins.readFile ./data/cache-layout.json);
+      cacheLayoutFile = pkgs.runCommandLocal "devcontainer-cache-layout.json" { } ''
+        install -m 0644 ${./data/cache-layout.json} "$out"
+      '';
       cache = import ./nix/cache.nix { inherit core lib; };
       images = import ./nix/images.nix {
         inherit
@@ -80,6 +84,7 @@
           inputs
           system
           cache
+          cacheLayout
           ;
       };
       treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
@@ -165,7 +170,8 @@
       formatter.${system} = treefmtEval.config.build.wrapper;
 
       packages.${system} = {
-        inherit (images) dev agent oci;
+        inherit (images) image oci;
+        cache-layout = cacheLayoutFile;
         default = images.oci;
       };
 
@@ -173,12 +179,12 @@
         load = {
           type = "app";
           program = "${loadAppPkg}/bin/load-devcontainer-image";
-          meta.description = "Load the latest or agent variant into the local Docker daemon";
+          meta.description = "Load ghcr.io/hellodword/devcontainers-dev:latest into the local Docker daemon";
         };
         publish = {
           type = "app";
           program = "${publishAppPkg}/bin/publish-devcontainers";
-          meta.description = "Publish digest-preserving latest and agent OCI manifests to a registry";
+          meta.description = "Publish digest-preserving OCI tags to a registry";
         };
         verify = {
           type = "app";
@@ -196,6 +202,7 @@
             pkgs
             lib
             images
+            cacheLayout
             ;
         };
         runtime-cache =
@@ -204,6 +211,7 @@
             runtimeCacheTestSrc = lib.fileset.toSource {
               root = ./.;
               fileset = lib.fileset.unions [
+                ./data/cache-layout.json
                 ./runtime/devcontainer-runtime/cache_gc.py
                 ./runtime/devcontainer-runtime/state.py
                 ./tests/check_runtime_cache.py
@@ -304,13 +312,17 @@
         ];
       };
 
-      lib.${system} = {
-        inherit
-          cache
-          images
-          pkgs
-          publishAppPkg
-          ;
+      lib = {
+        inherit cacheLayout;
+        ${system} = {
+          inherit
+            cache
+            cacheLayout
+            images
+            pkgs
+            publishAppPkg
+            ;
+        };
       };
     };
 }

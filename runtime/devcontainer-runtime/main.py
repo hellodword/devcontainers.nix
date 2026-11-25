@@ -67,7 +67,7 @@ def main(argv: list[str]) -> int:
 
             try:
                 return cache_gc.run_cli(argv[1:], os.environ)
-            except (state.StateError, OSError, ValueError) as exc:
+            except (state.StateError, OSError, TypeError, ValueError) as exc:
                 print(f"devcontainer-runtime: {exc}", file=sys.stderr)
                 return 1
 

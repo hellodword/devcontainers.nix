@@ -3,32 +3,34 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: nix run .#load -- <latest|agent>
+Usage: nix run .#load [-- latest]
 
-Load the selected image variant from the shared OCI layout into the local Docker daemon
-as ghcr.io/hellodword/devcontainers-dev:<latest|agent>.
+Load ghcr.io/hellodword/devcontainers-dev:latest from the built OCI layout
+into the local Docker daemon.
 EOF
 }
 
-if (($# != 1)); then
+if (($# == 0)); then
+  tag="latest"
+elif (($# == 1)); then
+  case "$1" in
+  -h | --help | help)
+    usage
+    exit 0
+    ;;
+  latest)
+    tag="latest"
+    ;;
+  *)
+    printf 'load-image: unsupported tag %q (expected latest)\n' "$1" >&2
+    usage >&2
+    exit 2
+    ;;
+  esac
+else
   usage >&2
   exit 2
 fi
-
-case "$1" in
--h | --help | help)
-  usage
-  exit 0
-  ;;
-latest | agent)
-  tag="$1"
-  ;;
-*)
-  printf 'load-image: unsupported variant %q (expected latest or agent)\n' "$1" >&2
-  usage >&2
-  exit 2
-  ;;
-esac
 
 if [[ -z "${OCI_DIR:-}" || ! -f "${OCI_DIR}/index.json" ]]; then
   printf 'load-image: OCI_DIR must point to a valid OCI layout directory\n' >&2

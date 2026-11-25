@@ -66,11 +66,11 @@
       },
       "locked": {
         "dir": "infra",
-        "lastModified": 1795586253,
-        "narHash": "sha256-oqgRzcYJf1Fgb1SNQLCviqbm75MEDHMVWxJazZxi/pM=",
+        "lastModified": 1795610121,
+        "narHash": "sha256-Ksd7OpUZiOamlPAD8rTFql7oZVjB6Pb55GsxJLm2nOg=",
         "ref": "master",
-        "rev": "ffea1a6bd3e369df06452c0eb882fa0202b716e8",
-        "revCount": 1490,
+        "rev": "98e2306f52257cc4586eada20bf580e930b52692",
+        "revCount": 1493,
         "type": "git",
         "url": "https://github.com/hellodword/nixos-config.git"
       },

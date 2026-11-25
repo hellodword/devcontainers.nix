@@ -105,7 +105,7 @@ def verify_clean_oci_revision(project_dir: Path, oci_out: Path) -> None:
         ref_name = (desc.get("annotations") or {}).get(
             "org.opencontainers.image.ref.name"
         )
-        if ref_name not in {"latest", "agent"}:
+        if ref_name != "latest":
             continue
         manifest_blob = oci_out / "blobs" / "sha256" / desc["digest"].split(":", 1)[1]
         manifest = json.loads(manifest_blob.read_text(encoding="utf-8"))
@@ -116,11 +116,11 @@ def verify_clean_oci_revision(project_dir: Path, oci_out: Path) -> None:
         labels = (cfg.get("config") or {}).get("Labels") or {}
         if labels.get("org.opencontainers.image.revision") != head_sha:
             raise RuntimeError(
-                f"OCI variant {ref_name} revision label {labels.get('org.opencontainers.image.revision')!r} != HEAD {head_sha!r}"
+                f"OCI {ref_name} revision label {labels.get('org.opencontainers.image.revision')!r} != HEAD {head_sha!r}"
             )
         if labels.get("devcontainers.nix.dirty") != "false":
             raise RuntimeError(
-                f"OCI variant {ref_name} marked dirty on clean checkout: {labels.get('devcontainers.nix.dirty')!r}"
+                f"OCI {ref_name} marked dirty on clean checkout: {labels.get('devcontainers.nix.dirty')!r}"
             )
 
 

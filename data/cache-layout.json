@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "mounts": [
+    {
+      "id": "nix",
+      "target": "/var/cache/devcontainer-nix",
+      "env": "DEVCONTAINER_SHARED_NIX_CACHE_DIR",
+      "mode": "0755",
+      "prune": {
+        "strategy": "nix-tombstone",
+        "maxBytes": 34359738368,
+        "maxAgeDays": 30
+      }
+    },
+    {
+      "id": "ccache",
+      "target": "/home/vscode/.cache/ccache",
+      "env": "CCACHE_DIR",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-quota-reset",
+        "maxBytes": 107374182400
+      }
+    },
+    {
+      "id": "cargo",
+      "target": "/home/vscode/.local/share/cargo",
+      "env": "CARGO_HOME",
+      "mode": "0700",
+      "prune": {
+        "strategy": "cargo",
+        "maxBytes": 21474836480,
+        "maxAgeDays": 30
+      }
+    },
+    {
+      "id": "go-build",
+      "target": "/home/vscode/.cache/go-build",
+      "env": "GOCACHE",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-quota-reset",
+        "maxBytes": 21474836480
+      }
+    },
+    {
+      "id": "go-mod",
+      "target": "/home/vscode/.cache/go/pkg/mod",
+      "env": "GOMODCACHE",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-quota-reset",
+        "maxBytes": 21474836480
+      }
+    },
+    {
+      "id": "uv",
+      "target": "/home/vscode/.cache/uv",
+      "env": "UV_CACHE_DIR",
+      "mode": "0700",
+      "prune": {
+        "strategy": "uv",
+        "maxBytes": 21474836480
+      }
+    },
+    {
+      "id": "pip",
+      "target": "/home/vscode/.cache/pip",
+      "env": "PIP_CACHE_DIR",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-age-and-quota",
+        "maxBytes": 21474836480,
+        "maxAgeDays": 30
+      }
+    },
+    {
+      "id": "pnpm-store",
+      "target": "/home/vscode/.cache/pnpm/store",
+      "env": "PNPM_CONFIG_STORE_DIR",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-quota-reset",
+        "maxBytes": 21474836480
+      }
+    },
+    {
+      "id": "npm",
+      "target": "/home/vscode/.cache/npm",
+      "env": "NPM_CONFIG_CACHE",
+      "mode": "0700",
+      "prune": {
+        "strategy": "npm",
+        "maxBytes": 21474836480,
+        "maxAgeDays": 30
+      }
+    },
+    {
+      "id": "yarn",
+      "target": "/home/vscode/.cache/yarn",
+      "env": "YARN_CACHE_FOLDER",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-quota-reset",
+        "maxBytes": 21474836480
+      }
+    },
+    {
+      "id": "node-gyp",
+      "target": "/home/vscode/.cache/node-gyp",
+      "env": null,
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-age-and-quota",
+        "maxBytes": 5368709120,
+        "maxAgeDays": 60
+      }
+    },
+    {
+      "id": "pub",
+      "target": "/home/vscode/.cache/pub",
+      "env": "PUB_CACHE",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-quota-reset",
+        "maxBytes": 21474836480
+      }
+    },
+    {
+      "id": "gradle",
+      "target": "/home/vscode/.cache/gradle",
+      "env": "GRADLE_USER_HOME",
+      "mode": "0700",
+      "prune": {
+        "strategy": "gradle",
+        "maxBytes": 32212254720,
+        "maxAgeDays": 30
+      }
+    },
+    {
+      "id": "electron",
+      "target": "/home/vscode/.cache/electron",
+      "env": "ELECTRON_CACHE",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-age-and-quota",
+        "maxBytes": 21474836480,
+        "maxAgeDays": 60
+      }
+    },
+    {
+      "id": "electron-builder",
+      "target": "/home/vscode/.cache/electron-builder",
+      "env": "ELECTRON_BUILDER_CACHE",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-age-and-quota",
+        "maxBytes": 10737418240,
+        "maxAgeDays": 60
+      }
+    },
+    {
+      "id": "playwright",
+      "target": "/home/vscode/.cache/ms-playwright",
+      "env": null,
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-age-and-quota",
+        "maxBytes": 21474836480,
+        "maxAgeDays": 60
+      }
+    },
+    {
+      "id": "chromium-git",
+      "target": "/home/vscode/.cache/chromium-git",
+      "env": "GIT_CACHE_PATH",
+      "mode": "0700",
+      "prune": {
+        "strategy": "manual",
+        "maxBytes": null
+      }
+    },
+    {
+      "id": "cipd",
+      "target": "/home/vscode/.cache/cipd",
+      "env": "CIPD_CACHE_DIR",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-quota-reset",
+        "maxBytes": 42949672960
+      }
+    },
+    {
+      "id": "vpython",
+      "target": "/home/vscode/.cache/vpython",
+      "env": "VPYTHON_VIRTUALENV_ROOT",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-quota-reset",
+        "maxBytes": 10737418240
+      }
+    },
+    {
+      "id": "siso",
+      "target": "/home/vscode/.cache/siso",
+      "env": "SISO_CACHE_DIR",
+      "mode": "0700",
+      "prune": {
+        "strategy": "idle-age-and-quota",
+        "maxBytes": 85899345920,
+        "maxAgeDays": 30
+      }
+    }
+  ]
+}

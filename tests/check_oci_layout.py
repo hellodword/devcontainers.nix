@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate shared OCI layout invariants, layer deduplication, 8 GiB budget, and variant boundaries."""
+"""Validate OCI layout invariants, layer budgets, cache-layout parity, and directory ownership."""
 
 from __future__ import annotations
 
@@ -9,71 +9,62 @@ import json
 import tarfile
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_LAYER_BYTES = 8 * 1024 * 1024 * 1024  # 8589934592 bytes (8 GiB)
 
-SHARED_REQUIRED_COMMANDS = {
+REQUIRED_COMMANDS = {
     "agy",
     "bash",
+    "buf",
+    "cargo",
+    "ccache",
+    "cmake",
     "codex",
     "curl",
     "devcontainer-entrypoint",
     "devcontainer-gui-env",
     "devcontainer-runtime",
     "devcontainer-set-user-id",
+    "devcontainer-task-runner",
     "devpkg",
     "docker",
+    "eslint",
     "fd",
+    "gcc",
     "git",
+    "go",
+    "gopls",
     "gpg",
     "jq",
     "just",
-    "nix",
-    "opencode",
-    "rg",
-    "ssh",
-    "vm-test-submit",
-}
-
-LATEST_ONLY_COMMANDS = {
-    "buf",
-    "cargo",
-    "cmake",
-    "devcontainer-task-runner",
-    "eslint",
-    "gcc",
-    "go",
-    "gopls",
     "ninja",
+    "nix",
     "nixd",
     "nixfmt",
     "node",
     "npm",
+    "opencode",
     "pnpm",
     "prettier",
     "protoc",
     "python3",
+    "rg",
     "ruff",
     "rust-analyzer",
     "rustc",
     "rustup",
     "shellcheck",
     "shfmt",
+    "ssh",
     "taplo",
     "uv",
+    "vm-test-submit",
     "wayland-info",
 }
 
 FORBIDDEN_COMMANDS = {"gh"}
 
-AGENT_EXPECTED_PATH = (
-    "/home/vscode/.local/share/devcontainer/bin:"
-    "/home/vscode/.local/share/nix-profile/bin:"
-    "/home/vscode/.nix-profile/bin:"
-    "/usr/local/bin:"
-    "/usr/bin"
-)
-
-LATEST_EXPECTED_PATH = (
+EXPECTED_PATH = (
     "/home/vscode/.local/share/devcontainer/bin:"
     "/home/vscode/.local/share/nix-profile/bin:"
     "/home/vscode/.nix-profile/bin:"
@@ -86,20 +77,20 @@ LATEST_EXPECTED_PATH = (
     "/usr/bin"
 )
 
-SHARED_TOOLCHAIN_CACHE_ENV = {
+EXPECTED_TOOLCHAIN_ENV = {
     "CARGO_HOME": "/home/vscode/.local/share/cargo",
+    "CCACHE_DIR": "/home/vscode/.cache/ccache",
+    "CCACHE_MAXSIZE": "20G",
     "COREPACK_HOME": "/home/vscode/.cache/corepack",
     "GOBIN": "/home/vscode/.local/share/go/bin",
     "GOCACHE": "/home/vscode/.cache/go-build",
     "GOMODCACHE": "/home/vscode/.cache/go/pkg/mod",
     "GOPATH": "/home/vscode/.local/share/go",
-    "MYPY_CACHE_DIR": "/home/vscode/.cache/mypy",
     "NPM_CONFIG_CACHE": "/home/vscode/.cache/npm",
     "PIP_CACHE_DIR": "/home/vscode/.cache/pip",
     "PNPM_CONFIG_PACKAGE_IMPORT_METHOD": "copy",
     "PNPM_CONFIG_STORE_DIR": "/home/vscode/.cache/pnpm/store",
     "PNPM_HOME": "/home/vscode/.local/share/pnpm",
-    "PYTHONPYCACHEPREFIX": "/home/vscode/.cache/python",
     "PYTHONUSERBASE": "/home/vscode/.local/share/python",
     "RUSTUP_HOME": "/home/vscode/.local/share/rustup",
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
@@ -109,7 +100,7 @@ SHARED_TOOLCHAIN_CACHE_ENV = {
     "YARN_CACHE_FOLDER": "/home/vscode/.cache/yarn",
 }
 
-LATEST_ONLY_ENV_KEYS = {
+REQUIRED_DEV_ENV_KEYS = {
     "BINDGEN_EXTRA_CLANG_ARGS",
     "CGO_CFLAGS",
     "CGO_LDFLAGS",
@@ -120,6 +111,11 @@ LATEST_ONLY_ENV_KEYS = {
     "NODE_ENV",
     "NODE_REPL_HISTORY",
     "RUST_BACKTRACE",
+}
+
+ISOLATED_PROJECT_ENV_KEYS = {
+    "MYPY_CACHE_DIR",
+    "PYTHONPYCACHEPREFIX",
 }
 
 
@@ -159,15 +155,31 @@ def parse_env_list(env_list: list[str]) -> dict[str, str]:
     return parsed
 
 
-def extract_usr_bin_commands(layer_blob: Path) -> tuple[set[str], set[str], int | None]:
+def home_ancestors(target: str) -> set[str]:
+    prefix = "/home/vscode/"
+    if not target.startswith(prefix):
+        return set()
+    parts = [p for p in target[len(prefix) :].split("/") if p]
+    return {"home/vscode/" + "/".join(parts[:idx]) for idx in range(1, len(parts))}
+
+
+def inspect_top_layer(
+    layer_blob: Path,
+) -> tuple[set[str], set[str], dict[str, tuple[int, int, int]], bytes | None]:
     commands: set[str] = set()
     sbin_entries: set[str] = set()
-    workspaces_mode: int | None = None
+    dirs: dict[str, tuple[int, int, int]] = {}
+    embedded_layout: bytes | None = None
+
     with tarfile.open(layer_blob, mode="r:*") as archive:
         for member in archive.getmembers():
             norm = member.name.lstrip("./").rstrip("/")
-            if norm == "workspaces" and member.isdir():
-                workspaces_mode = member.mode & 0o7777
+            if member.isdir() and norm:
+                dirs[norm] = (member.uid, member.gid, member.mode & 0o7777)
+            if norm == "usr/share/devcontainer/cache-layout.json" and member.isfile():
+                extracted = archive.extractfile(member)
+                if extracted is not None:
+                    embedded_layout = extracted.read()
             parts = norm.split("/")
             if len(parts) == 3 and parts[0] == "usr" and parts[1] == "bin" and parts[2]:
                 commands.add(parts[2])
@@ -178,10 +190,15 @@ def extract_usr_bin_commands(layer_blob: Path) -> tuple[set[str], set[str], int 
                 and parts[2]
             ):
                 sbin_entries.add(parts[2])
-    return commands, sbin_entries, workspaces_mode
+    return commands, sbin_entries, dirs, embedded_layout
 
 
-def check_layout(oci_dir: Path) -> dict:
+def check_layout(oci_dir: Path, cache_layout_path: Path) -> dict:
+    expected_cache_layout = json.loads(cache_layout_path.read_text(encoding="utf-8"))
+    assert expected_cache_layout.get("version") == 1, expected_cache_layout
+    mounts = expected_cache_layout.get("mounts") or []
+    assert len(mounts) == 20, len(mounts)
+
     oci_layout_file = oci_dir / "oci-layout"
     assert oci_layout_file.is_file(), f"Missing {oci_layout_file}"
     layout_meta = json.loads(oci_layout_file.read_text(encoding="utf-8"))
@@ -191,99 +208,55 @@ def check_layout(oci_dir: Path) -> dict:
     assert index_path.is_file(), f"Missing {index_path}"
     index = json.loads(index_path.read_text(encoding="utf-8"))
     manifests = index.get("manifests")
-    assert isinstance(manifests, list) and len(manifests) == 2, (
-        f"Expected exactly 2 manifests in index.json, got {manifests}"
+    assert isinstance(manifests, list) and len(manifests) == 1, (
+        f"Expected exactly 1 manifest in index.json, got {manifests}"
     )
 
-    by_ref = {}
-    for desc in manifests:
-        annotations = desc.get("annotations") or {}
-        ref = annotations.get("org.opencontainers.image.ref.name")
-        assert ref in {"latest", "agent"}, f"Unexpected manifest ref annotation: {desc}"
-        assert ref not in by_ref, f"Duplicate manifest ref {ref}"
-        by_ref[ref] = desc
+    desc = manifests[0]
+    annotations = desc.get("annotations") or {}
+    ref = annotations.get("org.opencontainers.image.ref.name")
+    assert ref == "latest", f"Unexpected manifest ref annotation: {desc}"
 
-    assert set(by_ref) == {"latest", "agent"}, set(by_ref)
+    manifest = read_verified_json(oci_dir, desc)
+    layers = manifest["layers"]
+    assert len(layers) == 7, f"Expected 7 layers (6 store + 1 top), got {len(layers)}"
 
-    latest_manifest = read_verified_json(oci_dir, by_ref["latest"])
-    agent_manifest = read_verified_json(oci_dir, by_ref["agent"])
-
-    latest_layers = latest_manifest["layers"]
-    agent_layers = agent_manifest["layers"]
-
-    assert len(latest_layers) >= 7 and len(agent_layers) >= 5, (
-        len(latest_layers),
-        len(agent_layers),
-    )
-    assert len(latest_layers) - len(agent_layers) == 2, (
-        f"Expected :agent to have 2 fewer layers than :latest, got "
-        f"latest={len(latest_layers)} vs agent={len(agent_layers)}"
-    )
-
-    # First 4 layers (foundation, toolchains, agents-oss, agents-restricted) must be identical & deduplicated.
-    for idx in range(4):
-        l_desc = latest_layers[idx]
-        a_desc = agent_layers[idx]
-        assert l_desc["digest"] == a_desc["digest"], (
-            f"Shared layer {idx} digest mismatch: {l_desc['digest']} != {a_desc['digest']}"
+    for idx, layer in enumerate(layers):
+        media_type = layer.get("mediaType", "")
+        assert media_type.endswith(("+gzip", "+zstd")), (idx, media_type)
+        path = blob_path(oci_dir, layer["digest"])
+        actual_bytes = path.stat().st_size
+        assert actual_bytes == layer["size"], (idx, actual_bytes, layer["size"])
+        assert 0 < actual_bytes <= MAX_LAYER_BYTES, (
+            f"Layer {idx} ({layer['digest']}) size {actual_bytes} exceeds 8 GiB budget"
         )
-        assert l_desc["size"] == a_desc["size"], (
-            f"Shared layer {idx} size mismatch: {l_desc['size']} != {a_desc['size']}"
-        )
-        shared_file = blob_path(oci_dir, l_desc["digest"])
-        assert shared_file.stat().st_size == l_desc["size"]
 
-    # Every compressed layer across both manifests must stay strictly <= 8 GiB.
-    for variant, layers in (("latest", latest_layers), ("agent", agent_layers)):
-        for idx, layer in enumerate(layers):
-            media_type = layer.get("mediaType", "")
-            assert media_type.endswith(("+gzip", "+zstd")), (variant, idx, media_type)
-            path = blob_path(oci_dir, layer["digest"])
-            actual_bytes = path.stat().st_size
-            assert actual_bytes == layer["size"], (
-                variant,
-                idx,
-                actual_bytes,
-                layer["size"],
-            )
-            assert 0 < actual_bytes <= MAX_LAYER_BYTES, (
-                f"{variant} layer {idx} ({layer['digest']}) size {actual_bytes} exceeds 8 GiB budget"
-            )
-
-    latest_cfg = read_verified_json(oci_dir, latest_manifest["config"])["config"]
-    agent_cfg = read_verified_json(oci_dir, agent_manifest["config"])["config"]
-
-    for variant, cfg in (("latest", latest_cfg), ("agent", agent_cfg)):
-        assert cfg.get("User") == "vscode", (variant, cfg.get("User"))
-        assert cfg.get("WorkingDir") == "/workspaces", (variant, cfg.get("WorkingDir"))
-        assert cfg.get("Entrypoint") == ["/usr/bin/devcontainer-entrypoint"], (
-            variant,
-            cfg.get("Entrypoint"),
-        )
-        assert cfg.get("Cmd") == ["/bin/bash"], (variant, cfg.get("Cmd"))
-        labels = cfg.get("Labels") or {}
-        for required_label in (
-            "org.opencontainers.image.revision",
-            "org.opencontainers.image.version",
-            "devcontainers.nix.revision",
-            "devcontainers.nix.version",
-            "devcontainers.nix.dirty",
-        ):
-            assert required_label in labels and labels[required_label] != "", (
-                variant,
-                required_label,
-            )
-
-    latest_labels = latest_cfg.get("Labels") or {}
-    agent_labels = agent_cfg.get("Labels") or {}
-    assert "devcontainer.metadata" in latest_labels, (
-        "latest must carry devcontainer.metadata label"
+    cfg = read_verified_json(oci_dir, manifest["config"])["config"]
+    assert cfg.get("User") == "vscode", cfg.get("User")
+    assert cfg.get("WorkingDir") == "/workspaces", cfg.get("WorkingDir")
+    assert cfg.get("Entrypoint") == ["/usr/bin/devcontainer-entrypoint"], cfg.get(
+        "Entrypoint"
     )
-    assert "devcontainer.metadata" not in agent_labels, (
-        "agent must NOT carry devcontainer.metadata label"
+    assert cfg.get("Cmd") == ["/bin/bash"], cfg.get("Cmd")
+
+    labels = cfg.get("Labels") or {}
+    for required_label in (
+        "org.opencontainers.image.revision",
+        "org.opencontainers.image.version",
+        "devcontainers.nix.revision",
+        "devcontainers.nix.version",
+        "devcontainers.nix.dirty",
+        "devcontainers.nix.cache-layout",
+        "devcontainer.metadata",
+    ):
+        assert required_label in labels and labels[required_label] != "", required_label
+
+    label_cache_layout = json.loads(labels["devcontainers.nix.cache-layout"])
+    assert label_cache_layout == expected_cache_layout, (
+        "OCI label devcontainers.nix.cache-layout differs from data/cache-layout.json"
     )
 
-    meta_list = json.loads(latest_labels["devcontainer.metadata"])
+    meta_list = json.loads(labels["devcontainer.metadata"])
     assert isinstance(meta_list, list) and len(meta_list) == 1, meta_list
     meta = meta_list[0]
     assert meta.get("init") is True, meta
@@ -299,76 +272,70 @@ def check_layout(oci_dir: Path) -> dict:
         "readonly" in m and ".devcontainer" in m for m in meta.get("mounts", [])
     ), meta
 
-    latest_env = parse_env_list(latest_cfg.get("Env") or [])
-    agent_env = parse_env_list(agent_cfg.get("Env") or [])
-    assert latest_env.get("PATH") == LATEST_EXPECTED_PATH, latest_env.get("PATH")
-    assert agent_env.get("PATH") == AGENT_EXPECTED_PATH, agent_env.get("PATH")
+    env = parse_env_list(cfg.get("Env") or [])
+    assert env.get("PATH") == EXPECTED_PATH, env.get("PATH")
 
-    for key, expected_val in SHARED_TOOLCHAIN_CACHE_ENV.items():
-        assert latest_env.get(key) == expected_val, (
-            f"Unexpected {key} in :latest Env: {latest_env.get(key)!r} != {expected_val!r}"
-        )
-        assert agent_env.get(key) == expected_val, (
-            f"Unexpected {key} in :agent Env: {agent_env.get(key)!r} != {expected_val!r}"
+    for key, expected_val in EXPECTED_TOOLCHAIN_ENV.items():
+        assert env.get(key) == expected_val, (
+            f"Unexpected {key} in Env: {env.get(key)!r} != {expected_val!r}"
         )
 
-    for key in LATEST_ONLY_ENV_KEYS:
-        assert key in latest_env, f"Missing {key} in :latest Env"
-        assert key not in agent_env, (
-            f"Unexpected toolchain env {key} leaked into :agent Env"
+    for item in mounts:
+        env_key = item.get("env")
+        if env_key is not None:
+            assert env.get(env_key) == item["target"], (
+                f"Cache layout env {env_key} mismatch: {env.get(env_key)!r} != {item['target']!r}"
+            )
+
+    for key in REQUIRED_DEV_ENV_KEYS:
+        assert key in env, f"Missing {key} in Env"
+
+    for key in ISOLATED_PROJECT_ENV_KEYS:
+        assert key not in env, f"Unexpected cross-project cache variable in Env: {key}"
+
+    top_blob = blob_path(oci_dir, layers[-1]["digest"])
+    cmds, sbin, dirs, embedded_layout = inspect_top_layer(top_blob)
+
+    assert embedded_layout is not None, (
+        "Missing /usr/share/devcontainer/cache-layout.json in top layer"
+    )
+    assert json.loads(embedded_layout.decode("utf-8")) == expected_cache_layout
+
+    assert dirs.get("workspaces") == (0, 0, 0o1777), dirs.get("workspaces")
+    assert dirs.get("var") == (0, 0, 0o755), dirs.get("var")
+    assert dirs.get("var/cache") == (0, 0, 0o755), dirs.get("var/cache")
+
+    expected_user_dirs = {
+        "home/vscode/.codex",
+        "home/vscode/.gemini",
+        "home/vscode/.config/opencode",
+        "home/vscode/.local/share/opencode",
+        "home/vscode/.local/state/opencode",
+    }
+    for item in mounts:
+        norm_target = item["target"].lstrip("/")
+        expected_mode = int(item["mode"], 8)
+        assert dirs.get(norm_target) == (1000, 1000, expected_mode), (
+            f"Expected {norm_target} owned by 1000:1000 mode {oct(expected_mode)}, got {dirs.get(norm_target)}"
+        )
+        expected_user_dirs |= home_ancestors(item["target"])
+
+    for rel_dir in sorted(expected_user_dirs):
+        entry = dirs.get(rel_dir)
+        assert entry is not None and entry[:2] == (1000, 1000), (
+            f"Expected {rel_dir} pre-created as 1000:1000 in image, got {entry}"
         )
 
-    latest_top_blob = blob_path(oci_dir, latest_layers[-1]["digest"])
-    agent_top_blob = blob_path(oci_dir, agent_layers[-1]["digest"])
-    latest_cmds, latest_sbin, latest_ws_mode = extract_usr_bin_commands(latest_top_blob)
-    agent_cmds, agent_sbin, agent_ws_mode = extract_usr_bin_commands(agent_top_blob)
-
-    assert latest_ws_mode == 0o1777, (
-        f"Expected /workspaces mode 0o1777 in :latest, got {oct(latest_ws_mode) if latest_ws_mode is not None else None}"
-    )
-    assert agent_ws_mode == 0o1777, (
-        f"Expected /workspaces mode 0o1777 in :agent, got {oct(agent_ws_mode) if agent_ws_mode is not None else None}"
-    )
-
-    assert "ldconfig" not in latest_sbin and "ldconfig" not in agent_sbin, (
-        latest_sbin,
-        agent_sbin,
-    )
-
-    assert not (FORBIDDEN_COMMANDS & latest_cmds), (
-        f"Forbidden command in :latest: {FORBIDDEN_COMMANDS & latest_cmds}"
-    )
-    assert not (FORBIDDEN_COMMANDS & agent_cmds), (
-        f"Forbidden command in :agent: {FORBIDDEN_COMMANDS & agent_cmds}"
-    )
-
-    missing_shared_latest = SHARED_REQUIRED_COMMANDS - latest_cmds
-    missing_shared_agent = SHARED_REQUIRED_COMMANDS - agent_cmds
-    assert not missing_shared_latest, (
-        f"Missing shared commands in :latest: {sorted(missing_shared_latest)}"
-    )
-    assert not missing_shared_agent, (
-        f"Missing shared commands in :agent: {sorted(missing_shared_agent)}"
-    )
-
-    missing_latest_only = LATEST_ONLY_COMMANDS - latest_cmds
-    assert not missing_latest_only, (
-        f"Missing toolchain commands in :latest: {sorted(missing_latest_only)}"
-    )
-
-    leaked_agent_cmds = LATEST_ONLY_COMMANDS & agent_cmds
-    assert not leaked_agent_cmds, (
-        f"Toolchain/editor commands leaked into :agent /usr/bin: {sorted(leaked_agent_cmds)}"
-    )
+    assert "ldconfig" not in sbin, sbin
+    assert not (FORBIDDEN_COMMANDS & cmds), FORBIDDEN_COMMANDS & cmds
+    missing_cmds = REQUIRED_COMMANDS - cmds
+    assert not missing_cmds, f"Missing commands in /usr/bin: {sorted(missing_cmds)}"
 
     summary = {
-        "latestDigest": by_ref["latest"]["digest"],
-        "agentDigest": by_ref["agent"]["digest"],
-        "latestLayers": len(latest_layers),
-        "agentLayers": len(agent_layers),
-        "sharedLayerDigests": [d["digest"] for d in latest_layers[:4]],
-        "latestUsrBinCount": len(latest_cmds),
-        "agentUsrBinCount": len(agent_cmds),
+        "latestDigest": desc["digest"],
+        "layers": len(layers),
+        "cachePools": len(mounts),
+        "usrBinCount": len(cmds),
     }
     print("OCI_LAYOUT_OK", json.dumps(summary, sort_keys=True))
     return summary
@@ -376,11 +343,15 @@ def check_layout(oci_dir: Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("oci_dir", type=Path, help="Path to OCI layout directory")
     parser.add_argument(
-        "oci_dir", type=Path, help="Path to shared OCI layout directory"
+        "--cache-layout",
+        type=Path,
+        default=REPO_ROOT / "data" / "cache-layout.json",
+        help="Path to data/cache-layout.json",
     )
     args = parser.parse_args(argv)
-    check_layout(args.oci_dir)
+    check_layout(args.oci_dir, args.cache_layout)
     return 0
 
 

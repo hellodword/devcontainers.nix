@@ -10,6 +10,7 @@ let
     mkdir -p "$out"
     cp ${./devcontainer-runtime/state.py} "$out/devcontainer_state.py"
     cp ${./devcontainer-runtime/cache_gc.py} "$out/devcontainer_cache_gc.py"
+    cp ${../data/cache-layout.json} "$out/cache-layout.json"
   '';
 
   writeShellApp =

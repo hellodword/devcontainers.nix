@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish latest and agent OCI manifests with preserved digests, immutable SHA tags, and master advancement checks."""
+"""Publish OCI manifest with preserved digest, immutable SHA tag, and master advancement check."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def parse_local_oci_digests(oci_dir: Path) -> dict[str, str]:
     for desc in index.get("manifests") or []:
         annotations = desc.get("annotations") or {}
         ref_name = annotations.get("org.opencontainers.image.ref.name")
-        if ref_name not in {"latest", "agent"}:
+        if ref_name != "latest":
             continue
         expected_digest = desc.get("digest", "")
         if not expected_digest.startswith("sha256:"):
@@ -54,9 +54,9 @@ def parse_local_oci_digests(oci_dir: Path) -> dict[str, str]:
                 f"Local OCI manifest digest mismatch for {ref_name}: {actual_digest} != {expected_digest}"
             )
         digests[ref_name] = expected_digest
-    if set(digests) != {"latest", "agent"}:
+    if set(digests) != {"latest"}:
         raise PublishError(
-            f"Expected both latest and agent manifests in {index_path}, got {sorted(digests)}"
+            f"Expected latest manifest in {index_path}, got {sorted(digests)}"
         )
     return digests
 
@@ -174,7 +174,7 @@ def inspect_remote_digest(
 
 def copy_preserving_digest(
     oci_dir: Path,
-    variant: str,
+    ref_name: str,
     target_ref: str,
     expected_digest: str,
     *,
@@ -188,7 +188,7 @@ def copy_preserving_digest(
         "--preserve-digests",
         f"--dest-tls-verify={'true' if tls_verify else 'false'}",
         *skopeo_auth_args(authfile),
-        f"oci:{oci_dir}:{variant}",
+        f"oci:{oci_dir}:{ref_name}",
         f"docker://{target_ref}",
     ]
     res = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=1800)
@@ -233,37 +233,29 @@ def query_remote_branch_sha(git_remote: str, expected_ref: str) -> str:
 def render_markdown_summary(result: dict) -> str:
     image_base = f"{result['registry']}/{result['repository']}"
     latest_digest = result["localDigests"]["latest"]
-    agent_digest = result["localDigests"]["agent"]
     lines = [
         "## Devcontainer OCI Release Summary",
         "",
         f"- **Product commit**: `{result['commitSha']}`",
         f"- **Locked `core` commit (`flake.lock`)**: `{result['coreSha']}`",
         f"- **CI Action commit**: `{result['actionSha'] or 'local'}`",
-        f"- **`:latest` manifest digest**: `{latest_digest}`",
-        f"- **`:agent` manifest digest**: `{agent_digest}`",
+        f"- **Manifest digest**: `{latest_digest}`",
         "",
         "### Tag Publication Status",
         "",
-        "| Tag | Variant | Status | Remote Digest / Note |",
-        "| --- | --- | --- | --- |",
+        "| Tag | Status | Remote Digest / Note |",
+        "| --- | --- | --- |",
     ]
     for tag_name, info in result["tags"].items():
         note = info.get("digest") or info.get("reason") or ""
-        lines.append(
-            f"| `{image_base}:{tag_name}` | `{info['variant']}` | `{info['status']}` | `{note}` |"
-        )
+        lines.append(f"| `{image_base}:{tag_name}` | `{info['status']}` | `{note}` |")
     lines.extend(
         [
             "",
-            "### Digest-Pinned Pull Commands",
+            "### Digest-Pinned Pull Command",
             "",
             "```bash",
-            f"# Interactive development & VS Code Dev Container (:latest / :sha-{result['commitSha']})",
             f"docker pull {image_base}@{latest_digest}",
-            "",
-            f"# Headless CLI & coding-agent runtime (:agent / :agent-sha-{result['commitSha']})",
-            f"docker pull {image_base}@{agent_digest}",
             "```",
             "",
         ]
@@ -312,80 +304,56 @@ def _publish_with_auth(
     image_base = f"{args.registry}/{args.repository}"
 
     local_digests = parse_local_oci_digests(oci_dir)
+    expected = local_digests["latest"]
     core_sha = read_locked_core_sha(args.flake_lock)
     action_sha = args.action_sha
 
     tags_report: dict[str, dict[str, str]] = {}
 
-    immutable_targets = [
-        ("latest", f"sha-{commit_sha}"),
-        ("agent", f"agent-sha-{commit_sha}"),
-    ]
-    for variant, tag_name in immutable_targets:
-        full_ref = f"{image_base}:{tag_name}"
-        expected = local_digests[variant]
-        existing = inspect_remote_digest(
-            full_ref, tls_verify=tls_verify, authfile=authfile
-        )
-        if existing is not None:
-            if existing != expected:
-                raise PublishError(
-                    f"Digest conflict on immutable tag {full_ref}: "
-                    f"remote already holds {existing}, refusing to overwrite with {expected}"
-                )
-            tags_report[tag_name] = {
-                "variant": variant,
-                "status": "reused",
-                "digest": existing,
-            }
-        else:
-            verified = copy_preserving_digest(
-                oci_dir,
-                variant,
-                full_ref,
-                expected,
-                tls_verify=tls_verify,
-                authfile=authfile,
+    sha_tag = f"sha-{commit_sha}"
+    sha_ref = f"{image_base}:{sha_tag}"
+    existing = inspect_remote_digest(sha_ref, tls_verify=tls_verify, authfile=authfile)
+    if existing is not None:
+        if existing != expected:
+            raise PublishError(
+                f"Digest conflict on immutable tag {sha_ref}: "
+                f"remote already holds {existing}, refusing to overwrite with {expected}"
             )
-            tags_report[tag_name] = {
-                "variant": variant,
-                "status": "published",
-                "digest": verified,
-            }
-
-    floating_targets = [
-        ("latest", "latest"),
-        ("agent", "agent"),
-    ]
-    master_advanced_reason: str | None = None
-    for variant, tag_name in floating_targets:
-        if master_advanced_reason is None:
-            remote_master = query_remote_branch_sha(
-                args.git_remote, args.expected_master_ref
-            )
-            if remote_master != commit_sha:
-                master_advanced_reason = f"{args.expected_master_ref} advanced to {remote_master} (expected {commit_sha})"
-
-        if master_advanced_reason is not None:
-            tags_report[tag_name] = {
-                "variant": variant,
-                "status": "skipped",
-                "reason": master_advanced_reason,
-            }
-            continue
-
-        full_ref = f"{image_base}:{tag_name}"
-        expected = local_digests[variant]
+        tags_report[sha_tag] = {
+            "status": "reused",
+            "digest": existing,
+        }
+    else:
         verified = copy_preserving_digest(
             oci_dir,
-            variant,
-            full_ref,
+            "latest",
+            sha_ref,
             expected,
             tls_verify=tls_verify,
             authfile=authfile,
         )
-        tags_report[tag_name] = {
-            "variant": variant,
+        tags_report[sha_tag] = {
+            "status": "published",
+            "digest": verified,
+        }
+
+    remote_master = query_remote_branch_sha(args.git_remote, args.expected_master_ref)
+    if remote_master != commit_sha:
+        tags_report["latest"] = {
+            "status": "skipped",
+            "reason": f"{args.expected_master_ref} advanced to {remote_master} (expected {commit_sha})",
+        }
+    else:
+        latest_ref = f"{image_base}:latest"
+        verified = copy_preserving_digest(
+            oci_dir,
+            "latest",
+            latest_ref,
+            expected,
+            tls_verify=tls_verify,
+            authfile=authfile,
+        )
+        tags_report["latest"] = {
             "status": "published",
             "digest": verified,
         }
@@ -414,7 +382,7 @@ def _publish_with_auth(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--oci-dir", type=Path, default=None, help="Path to multi-variant OCI layout"
+        "--oci-dir", type=Path, default=None, help="Path to OCI layout directory"
     )
     parser.add_argument(
         "--manifest",
@@ -436,7 +404,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--expected-master-ref",
         default="refs/heads/master",
-        help="Git ref verified against --git-remote before moving floating tags",
+        help="Git ref verified against --git-remote before moving floating :latest",
     )
     parser.add_argument(
         "--git-remote", default="", help="Upstream Git remote URL or path"

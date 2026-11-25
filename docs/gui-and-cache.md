@@ -1,8 +1,8 @@
 # Wayland GUI Forwarding, Multi-Tier Nix Caching, and Image Digests
 
-## Native Wayland Forwarding (`:latest`)
+## Native Wayland Forwarding
 
-`:latest` supports native Wayland client rendering against a host Wayland compositor (such as Sway) without X11 forwarding overhead.
+`ghcr.io/hellodword/devcontainers-dev:latest` supports native Wayland client rendering against a host Wayland compositor (such as Sway) without X11 forwarding overhead.
 
 ### Host Configuration
 
@@ -27,7 +27,7 @@ docker run --rm -it \
 
 During container startup and the `postStart` task (`gui-env-refresh`), `devcontainer-gui-env refresh` scans `WAYLAND_DISPLAY`, `/run/user/<uid>`, `/tmp/user/<uid>`, and `/tmp` for valid Wayland sockets and writes `/run/user/<uid>/devcontainer-gui-env.sh` (`XDG_SESSION_TYPE=wayland`, `GDK_BACKEND=wayland,x11`, `QT_QPA_PLATFORM=wayland;xcb`, `SDL_VIDEODRIVER=wayland`, `MOZ_ENABLE_WAYLAND=1`, `NIXOS_OZONE_WL=1`). Interactive and login shells source this fragment automatically.
 
-Inspect active GUI forwarding inside `:latest`:
+Inspect active GUI forwarding inside the container:
 
 ```bash
 devcontainer-gui-env status
@@ -97,18 +97,27 @@ Expose the NixOS host `/nix/store` read-only to local containers on `172.17.0.1:
 
 ### Cache Reclamation CLI (`devcontainer-runtime prune-caches`)
 
-Reclaim expired and over-quota entries across shared Nix and language caches inside an isolated `--rm --network none` container (see [docs/security-and-sharing.md](security-and-sharing.md) for scheduled host timer setup):
+`devcontainer-runtime prune-caches` reads `/usr/share/devcontainer/cache-layout.json` inside an isolated `--rm --network none` container to reclaim expired and over-quota entries across all declared cache pools (see [docs/security-and-sharing.md](security-and-sharing.md)):
 
 ```bash
+cache_root="$HOME/.local/state/devcontainers/cache"
+mount_args=()
+while IFS=$'\t' read -r id target mode; do
+  install -d -m "$mode" "$cache_root/$id"
+  mount_args+=(-v "$cache_root/$id:$target")
+done < <(
+  docker image inspect --format '{{ index .Config.Labels "devcontainers.nix.cache-layout" }}' \
+    ghcr.io/hellodword/devcontainers-dev:latest \
+    | jq -r '.mounts[] | [.id, .target, .mode] | @tsv'
+)
+
 docker run --rm --network none \
-  -v "$HOME/.local/state/devcontainers/cache/nix:/var/cache/devcontainer-nix" \
-  -v "$HOME/.local/state/devcontainers/cache/xdg:/home/vscode/.cache" \
-  -v "$HOME/.local/state/devcontainers/cache/cargo:/home/vscode/.local/share/cargo" \
-  ghcr.io/hellodword/devcontainers-dev:agent \
+  "${mount_args[@]}" \
+  ghcr.io/hellodword/devcontainers-dev:latest \
   devcontainer-runtime prune-caches --idle
 ```
 
-Supported flags: `--nix-cache-dir`, `--xdg-cache-dir`, `--cargo-home`, `--max-age-days` (`30`), `--nix-max-bytes` (`34359738368`), `--lang-archive-max-bytes` (`21474836480`), `--grace-seconds` (`600`), `--idle`, and `--dry-run`.
+Supported flags: `--cache-layout`, `--target-override ID=PATH`, `--max-age-days`, `--nix-max-bytes`, `--pool-max-bytes`, `--grace-seconds` (`600`), `--idle`, and `--dry-run`.
 
 ### Host Client Cache Setup (`scripts/nix-cache.sh`)
 
@@ -126,18 +135,16 @@ Configure a host Nix client to trust and read the dual GHCR binary caches throug
 
 ---
 
-## Shared OCI Layers and Digest Preservation
+## OCI Layers and Digest Preservation
 
-`nix build .#oci` writes both variants into a single OCI Image Layout directory:
+`nix build .#oci` produces a 7-layer OCI Image Layout directory (`index.json` targeting `latest`):
 
-1. **Layers 1–4 (shared across `:latest` and `:agent`)**:
-   - Layer 1: Foundation utilities, FHS loader, locales, fonts, and `nix`
-   - Layer 2: Five language toolchains, Nix language tools, formatters, `nixpkgs`, and `rust-overlay`
-   - Layer 3: Open-source coding-agent CLIs (`codex`, `opencode`, `vm-test-submit`)
-   - Layer 4: `antigravity-cli` (`agy`)
-2. **Layers 5–6 (`:latest` only)**:
-   - Layer 5: 25 open-source VS Code extensions and lifecycle task helpers
-   - Layer 6: `ms-python.vscode-pylance`
-3. **Top layer (per variant)**: `/usr`, `/etc`, user home skeleton, `/workspaces` (`01777`), and initialized Nix SQLite database (`/nix/var/nix/db/db.sqlite` + `/nix/var/nix/gcroots/docker/`).
+1. **Layer 1**: Foundation utilities, FHS loader, locales, fonts, and `nix`
+2. **Layer 2**: Five language toolchains + `ccache`, Nix language tools, formatters, `nixpkgs`, and `rust-overlay`
+3. **Layer 3**: Open-source coding-agent CLIs (`codex`, `opencode`, `vm-test-submit`)
+4. **Layer 4**: `antigravity-cli` (`agy`)
+5. **Layer 5**: 25 open-source VS Code extensions and lifecycle task helpers
+6. **Layer 6**: `ms-python.vscode-pylance`
+7. **Layer 7 (top layer)**: `/usr` (including `/usr/share/devcontainer/cache-layout.json`), `/etc`, pre-created `1000:1000` user/cache directories, `/workspaces` (`01777`), and initialized Nix SQLite database (`/nix/var/nix/db/db.sqlite` + `/nix/var/nix/gcroots/docker/`).
 
-Release publication (`scripts/publish.py`) copies manifests with `skopeo copy --preserve-digests`, guaranteeing that `:sha-<commit>` and `:latest` share the exact byte-for-byte manifest digest produced during verification, and likewise for `:agent-sha-<commit>` and `:agent`.
+Release publication (`scripts/publish.py`) copies the manifest with `skopeo copy --preserve-digests`, guaranteeing that `:sha-<commit>` and `:latest` share the exact byte-for-byte manifest digest produced during verification.

@@ -1,8 +1,11 @@
-"""Symlink-safe online and idle garbage collection for shared Nix and language caches."""
+"""Symlink-safe online and idle garbage collection driven by data/cache-layout.json."""
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -16,10 +19,18 @@ try:
 except ImportError:
     import state  # type: ignore[no-redef]
 
-DEFAULT_MAX_AGE_DAYS = 30.0
-DEFAULT_NIX_MAX_BYTES = 32 * 1024 * 1024 * 1024
-DEFAULT_LANG_ARCHIVE_MAX_BYTES = 20 * 1024 * 1024 * 1024
 DEFAULT_GRACE_SECONDS = 600.0
+MOUNT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+SUPPORTED_STRATEGIES = {
+    "nix-tombstone",
+    "cargo",
+    "uv",
+    "npm",
+    "gradle",
+    "idle-age-and-quota",
+    "idle-quota-reset",
+    "manual",
+}
 
 
 @dataclass(frozen=True)
@@ -29,6 +40,54 @@ class NarInfoEntry:
     nar_name: str
     mtime: float
     info_size: int
+
+
+def default_cache_layout_path() -> Path:
+    here = Path(__file__).resolve().parent
+    colocated = here / "cache-layout.json"
+    if colocated.is_file():
+        return colocated
+    repo_candidate = here.parent.parent / "data" / "cache-layout.json"
+    if repo_candidate.is_file():
+        return repo_candidate
+    return Path("/usr/share/devcontainer/cache-layout.json")
+
+
+def load_cache_layout(layout_path: Path | None = None) -> list[dict]:
+    path = layout_path or default_cache_layout_path()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("version") != 1:
+        raise ValueError(f"Unsupported cache layout version in {path}")
+    mounts = data.get("mounts")
+    if not isinstance(mounts, list) or not mounts:
+        raise ValueError(f"Empty or invalid mounts in {path}")
+
+    seen_ids: set[str] = set()
+    validated: list[dict] = []
+    for item in mounts:
+        if not isinstance(item, dict):
+            raise TypeError(f"Invalid mount entry in {path}: {item!r}")
+        mount_id = item.get("id")
+        target = item.get("target")
+        prune_spec = item.get("prune")
+        if not isinstance(mount_id, str) or not MOUNT_ID_RE.match(mount_id):
+            raise ValueError(f"Invalid mount id in {path}: {mount_id!r}")
+        if mount_id in seen_ids:
+            raise ValueError(f"Duplicate mount id in {path}: {mount_id!r}")
+        seen_ids.add(mount_id)
+        if (
+            not isinstance(target, str)
+            or not target.startswith("/")
+            or ".." in Path(target).parts
+        ):
+            raise ValueError(f"Invalid target path for {mount_id}: {target!r}")
+        if not isinstance(prune_spec, dict):
+            raise TypeError(f"Missing prune policy for {mount_id}")
+        strategy = prune_spec.get("strategy")
+        if strategy not in SUPPORTED_STRATEGIES:
+            raise ValueError(f"Unsupported prune strategy for {mount_id}: {strategy!r}")
+        validated.append(item)
+    return validated
 
 
 def _is_plain_dir(path: Path) -> bool:
@@ -178,7 +237,7 @@ def prune_nix_cache(
     now: float,
 ) -> dict:
     if not _is_plain_dir(cache_dir):
-        return {"present": False, "reclaimedBytes": 0}
+        return {"present": False, "strategy": "nix-tombstone", "reclaimedBytes": 0}
 
     staging_dir = cache_dir / ".staging"
     nar_dir = cache_dir / "nar"
@@ -320,11 +379,7 @@ def prune_nix_cache(
         except OSError:
             pass
 
-    if not idle and not dry_run:
-        # Newly evicted entries in dry_run have not moved to staging yet; in online dry_run
-        # grace window keeps their NARs protected until a subsequent pass after grace_seconds.
-        pass
-    elif not idle and dry_run:
+    if not idle and dry_run:
         for rec in evicted:
             protected_nars.add(rec.nar_name)
 
@@ -341,6 +396,7 @@ def prune_nix_cache(
 
     return {
         "present": True,
+        "strategy": "nix-tombstone",
         "evictedNarinfos": len(evicted),
         "tombstonedNarinfos": tombstoned_count,
         "removedNarinfos": unlinked_info_count + expired_tombstones,
@@ -366,16 +422,15 @@ def _find_uv_binary() -> str | None:
 
 
 def prune_uv_cache(
-    xdg_cache: Path,
+    uv_dir: Path,
     *,
-    lang_archive_max_bytes: int,
+    max_bytes: int,
     idle: bool,
     dry_run: bool,
     uv_bin: str | None | object = _AUTO_UV_BIN,
 ) -> dict:
-    uv_dir = xdg_cache / "uv"
     if not _is_plain_dir(uv_dir):
-        return {"present": False, "reclaimedBytes": 0}
+        return {"present": False, "strategy": "uv", "reclaimedBytes": 0}
     before = tree_bytes(uv_dir)
     ran_uv_prune = False
     resolved_uv = _find_uv_binary() if uv_bin is _AUTO_UV_BIN else uv_bin
@@ -404,11 +459,12 @@ def prune_uv_cache(
     after = tree_bytes(uv_dir)
     reclaimed = max(0, before - after)
     reset = False
-    if idle and lang_archive_max_bytes > 0 and after > lang_archive_max_bytes:
+    if idle and max_bytes > 0 and after > max_bytes:
         reclaimed += safe_clear_dir_contents(uv_dir, dry_run=dry_run)
         reset = True
     return {
         "present": True,
+        "strategy": "uv",
         "uvPruneExecuted": ran_uv_prune,
         "quotaReset": reset,
         "reclaimedBytes": reclaimed,
@@ -468,15 +524,20 @@ def prune_cargo_cache(
     cargo_home: Path,
     *,
     max_age_days: float,
-    lang_archive_max_bytes: int,
+    max_bytes: int,
     idle: bool,
     dry_run: bool,
     now: float,
 ) -> dict:
     if not _is_plain_dir(cargo_home):
-        return {"present": False, "reclaimedBytes": 0}
+        return {"present": False, "strategy": "cargo", "reclaimedBytes": 0}
     if not idle:
-        return {"present": True, "skipped": "active_containers", "reclaimedBytes": 0}
+        return {
+            "present": True,
+            "strategy": "cargo",
+            "skipped": "active_containers",
+            "reclaimedBytes": 0,
+        }
 
     reclaimed = 0
     removed_trees = 0
@@ -525,7 +586,7 @@ def prune_cargo_cache(
                     removed_trees += 1
 
     cache_root = cargo_home / "registry" / "cache"
-    if lang_archive_max_bytes > 0 and _is_plain_dir(cache_root):
+    if max_bytes > 0 and _is_plain_dir(cache_root):
         crate_records: list[tuple[float, str, Path, int, str]] = []
         try:
             idx_entries = list(os.scandir(cache_root))
@@ -558,8 +619,8 @@ def prune_cargo_cache(
                         )
                     )
         total_crate_bytes = sum(item[3] for item in crate_records)
-        if total_crate_bytes > lang_archive_max_bytes:
-            low_watermark = int(lang_archive_max_bytes * 0.8)
+        if total_crate_bytes > max_bytes:
+            low_watermark = int(max_bytes * 0.8)
             crate_records.sort(key=lambda item: (item[0], item[1]))
             for _, crate_name, crate_path, crate_size, idx_name in crate_records:
                 if total_crate_bytes <= low_watermark:
@@ -575,65 +636,209 @@ def prune_cargo_cache(
 
     return {
         "present": True,
+        "strategy": "cargo",
         "removedUnpackedTrees": removed_trees,
         "removedCrateArchives": removed_crates,
         "reclaimedBytes": reclaimed,
     }
 
 
-def prune_archive_pools(
-    xdg_cache: Path,
+def prune_npm_cache(
+    npm_dir: Path,
     *,
-    lang_archive_max_bytes: int,
+    max_age_days: float,
+    max_bytes: int,
+    idle: bool,
+    dry_run: bool,
+    now: float,
+) -> dict:
+    if not _is_plain_dir(npm_dir):
+        return {"present": False, "strategy": "npm", "reclaimedBytes": 0}
+    reclaimed = prune_expired_files(
+        npm_dir / "_logs", max_age_days=max_age_days, dry_run=dry_run, now=now
+    )
+    reset = False
+    if idle and max_bytes > 0 and tree_bytes(npm_dir) > max_bytes:
+        reclaimed += safe_clear_dir_contents(npm_dir, dry_run=dry_run)
+        reset = True
+    return {
+        "present": True,
+        "strategy": "npm",
+        "quotaReset": reset,
+        "reclaimedBytes": reclaimed,
+    }
+
+
+def prune_gradle_cache(
+    gradle_dir: Path,
+    *,
+    max_age_days: float,
+    max_bytes: int,
+    idle: bool,
+    dry_run: bool,
+    now: float,
+) -> dict:
+    if not _is_plain_dir(gradle_dir):
+        return {"present": False, "strategy": "gradle", "reclaimedBytes": 0}
+    if not idle:
+        return {
+            "present": True,
+            "strategy": "gradle",
+            "skipped": "active_containers",
+            "reclaimedBytes": 0,
+        }
+
+    reclaimed = 0
+    daemon_root = gradle_dir / "daemon"
+    cutoff = max_age_days * 86400.0
+    if max_age_days > 0 and _is_plain_dir(daemon_root):
+        try:
+            ver_entries = list(os.scandir(daemon_root))
+        except OSError:
+            ver_entries = []
+        for ver_entry in ver_entries:
+            ver_path = Path(ver_entry.path)
+            if ver_entry.is_symlink():
+                safe_remove_entry(ver_path, dry_run=dry_run)
+                continue
+            if not _is_plain_dir(ver_path):
+                continue
+            try:
+                log_entries = list(os.scandir(ver_path))
+            except OSError:
+                continue
+            for log_entry in log_entries:
+                log_path = Path(log_entry.path)
+                try:
+                    st = log_entry.stat(follow_symlinks=False)
+                except OSError:
+                    continue
+                if stat.S_ISLNK(st.st_mode):
+                    safe_remove_entry(log_path, dry_run=dry_run)
+                elif (
+                    stat.S_ISREG(st.st_mode)
+                    and log_entry.name.endswith(".out.log")
+                    and (now - st.st_mtime) > cutoff
+                ):
+                    reclaimed += safe_remove_entry(log_path, dry_run=dry_run)
+
+    reset = False
+    if max_bytes > 0 and tree_bytes(gradle_dir) > max_bytes:
+        reclaimed += safe_clear_dir_contents(gradle_dir, dry_run=dry_run)
+        reset = True
+
+    return {
+        "present": True,
+        "strategy": "gradle",
+        "quotaReset": reset,
+        "reclaimedBytes": reclaimed,
+    }
+
+
+def prune_idle_age_and_quota(
+    pool_dir: Path,
+    *,
+    max_age_days: float,
+    max_bytes: int,
+    idle: bool,
+    dry_run: bool,
+    now: float,
+) -> dict:
+    if not _is_plain_dir(pool_dir):
+        return {"present": False, "strategy": "idle-age-and-quota", "reclaimedBytes": 0}
+    if not idle:
+        return {
+            "present": True,
+            "strategy": "idle-age-and-quota",
+            "skipped": "active_containers",
+            "reclaimedBytes": 0,
+        }
+    reclaimed = prune_expired_files(
+        pool_dir, max_age_days=max_age_days, dry_run=dry_run, now=now
+    )
+    reset = False
+    if max_bytes > 0 and tree_bytes(pool_dir) > max_bytes:
+        reclaimed += safe_clear_dir_contents(pool_dir, dry_run=dry_run)
+        reset = True
+    return {
+        "present": True,
+        "strategy": "idle-age-and-quota",
+        "quotaReset": reset,
+        "reclaimedBytes": reclaimed,
+    }
+
+
+def prune_idle_quota_reset(
+    pool_dir: Path,
+    *,
+    max_bytes: int,
     idle: bool,
     dry_run: bool,
 ) -> dict:
-    pools = {
-        "gomodcache": xdg_cache / "go" / "pkg" / "mod",
-        "gobuild": xdg_cache / "go-build",
-        "pnpm": xdg_cache / "pnpm" / "store",
-        "npm": xdg_cache / "npm",
-        "yarn": xdg_cache / "yarn",
-        "pip": xdg_cache / "pip",
-        "corepack": xdg_cache / "corepack",
-    }
-    if not idle or lang_archive_max_bytes <= 0:
-        return {"resetPools": [], "reclaimedBytes": 0}
-
-    reset_pools: list[str] = []
+    if not _is_plain_dir(pool_dir):
+        return {"present": False, "strategy": "idle-quota-reset", "reclaimedBytes": 0}
+    if not idle:
+        return {
+            "present": True,
+            "strategy": "idle-quota-reset",
+            "skipped": "active_containers",
+            "reclaimedBytes": 0,
+        }
     reclaimed = 0
-    for name, pool_dir in pools.items():
-        if not _is_plain_dir(pool_dir):
-            continue
-        size = tree_bytes(pool_dir)
-        if size > lang_archive_max_bytes:
-            reclaimed += safe_clear_dir_contents(pool_dir, dry_run=dry_run)
-            reset_pools.append(name)
-    return {"resetPools": reset_pools, "reclaimedBytes": reclaimed}
+    reset = False
+    if max_bytes > 0 and tree_bytes(pool_dir) > max_bytes:
+        reclaimed = safe_clear_dir_contents(pool_dir, dry_run=dry_run)
+        reset = True
+    return {
+        "present": True,
+        "strategy": "idle-quota-reset",
+        "quotaReset": reset,
+        "reclaimedBytes": reclaimed,
+    }
 
 
-def build_parser(environ: dict[str, str]) -> argparse.ArgumentParser:
-    home = environ.get("HOME") or "/home/vscode"
-    default_xdg = environ.get("XDG_CACHE_HOME") or str(Path(home) / ".cache")
-    default_cargo = environ.get("CARGO_HOME") or str(
-        Path(home) / ".local" / "share" / "cargo"
-    )
-    default_nix = environ.get(
-        "DEVCONTAINER_SHARED_NIX_CACHE_DIR", state.DEFAULT_SHARED_NIX_CACHE_DIR
-    )
+def report_manual_pool(pool_dir: Path) -> dict:
+    if not _is_plain_dir(pool_dir):
+        return {
+            "present": False,
+            "strategy": "manual",
+            "sizeBytes": 0,
+            "reclaimedBytes": 0,
+        }
+    return {
+        "present": True,
+        "strategy": "manual",
+        "sizeBytes": tree_bytes(pool_dir),
+        "reclaimedBytes": 0,
+    }
 
+
+def _parse_target_override(spec: str) -> tuple[str, Path]:
+    if "=" not in spec:
+        raise argparse.ArgumentTypeError(f"expected ID=PATH, got {spec!r}")
+    mount_id, raw_path = spec.split("=", 1)
+    if not MOUNT_ID_RE.match(mount_id) or not raw_path:
+        raise argparse.ArgumentTypeError(f"invalid target override: {spec!r}")
+    return mount_id, Path(raw_path)
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="devcontainer-runtime prune-caches",
-        description="Reclaim expired and over-quota entries in shared container caches.",
+        description="Reclaim expired and over-quota entries across shared caches declared in cache-layout.json.",
     )
-    parser.add_argument("--nix-cache-dir", type=Path, default=Path(default_nix))
-    parser.add_argument("--xdg-cache-dir", type=Path, default=Path(default_xdg))
-    parser.add_argument("--cargo-home", type=Path, default=Path(default_cargo))
-    parser.add_argument("--max-age-days", type=float, default=DEFAULT_MAX_AGE_DAYS)
-    parser.add_argument("--nix-max-bytes", type=int, default=DEFAULT_NIX_MAX_BYTES)
+    parser.add_argument("--cache-layout", type=Path, default=None)
     parser.add_argument(
-        "--lang-archive-max-bytes", type=int, default=DEFAULT_LANG_ARCHIVE_MAX_BYTES
+        "--target-override",
+        action="append",
+        default=[],
+        type=_parse_target_override,
+        metavar="ID=PATH",
+        help="Override target directory path for a specific cache pool ID",
     )
+    parser.add_argument("--max-age-days", type=float, default=None)
+    parser.add_argument("--nix-max-bytes", type=int, default=None)
+    parser.add_argument("--pool-max-bytes", type=int, default=None)
     parser.add_argument("--grace-seconds", type=float, default=DEFAULT_GRACE_SECONDS)
     parser.add_argument(
         "--idle",
@@ -650,103 +855,158 @@ def build_parser(environ: dict[str, str]) -> argparse.ArgumentParser:
 
 def run_prune(
     *,
-    nix_cache_dir: Path,
-    xdg_cache_dir: Path,
-    cargo_home: Path,
-    max_age_days: float,
-    nix_max_bytes: int,
-    lang_archive_max_bytes: int,
-    grace_seconds: float,
-    idle: bool,
-    dry_run: bool,
+    cache_layout_path: Path | None = None,
+    target_overrides: dict[str, Path] | None = None,
+    max_age_days: float | None = None,
+    nix_max_bytes: int | None = None,
+    pool_max_bytes: int | None = None,
+    grace_seconds: float = DEFAULT_GRACE_SECONDS,
+    idle: bool = False,
+    dry_run: bool = False,
     now: float | None = None,
     uv_bin: str | None | object = _AUTO_UV_BIN,
 ) -> dict:
     current = time.time() if now is None else now
-    nix_report = prune_nix_cache(
-        nix_cache_dir,
-        max_age_days=max_age_days,
-        max_bytes=nix_max_bytes,
-        grace_seconds=grace_seconds,
-        idle=idle,
-        dry_run=dry_run,
-        now=current,
-    )
-    uv_report = prune_uv_cache(
-        xdg_cache_dir,
-        lang_archive_max_bytes=lang_archive_max_bytes,
-        idle=idle,
-        dry_run=dry_run,
-        uv_bin=uv_bin,
-    )
-    py_bytes = 0
-    if _is_plain_dir(xdg_cache_dir):
-        py_bytes += prune_expired_files(
-            xdg_cache_dir / "python",
-            max_age_days=max_age_days,
-            dry_run=dry_run,
-            now=current,
-        )
-        py_bytes += prune_expired_files(
-            xdg_cache_dir / "mypy",
-            max_age_days=max_age_days,
-            dry_run=dry_run,
-            now=current,
-        )
-    cargo_report = prune_cargo_cache(
-        cargo_home,
-        max_age_days=max_age_days,
-        lang_archive_max_bytes=lang_archive_max_bytes,
-        idle=idle,
-        dry_run=dry_run,
-        now=current,
-    )
-    archives_report = prune_archive_pools(
-        xdg_cache_dir,
-        lang_archive_max_bytes=lang_archive_max_bytes,
-        idle=idle,
-        dry_run=dry_run,
-    )
+    mounts = load_cache_layout(cache_layout_path)
+    overrides = target_overrides or {}
 
-    total_reclaimed = (
-        nix_report["reclaimedBytes"]
-        + uv_report["reclaimedBytes"]
-        + py_bytes
-        + cargo_report["reclaimedBytes"]
-        + archives_report["reclaimedBytes"]
-    )
+    pools_report: dict[str, dict] = {}
+    reset_pools: list[str] = []
+    total_reclaimed = 0
+
+    for item in mounts:
+        mount_id = item["id"]
+        target_dir = overrides.get(mount_id, Path(item["target"]))
+        prune_spec = item["prune"]
+        strategy = prune_spec["strategy"]
+
+        default_age = float(prune_spec.get("maxAgeDays") or 30.0)
+        entry_age = default_age if max_age_days is None else max_age_days
+
+        raw_max_bytes = prune_spec.get("maxBytes")
+        default_bytes = int(raw_max_bytes) if raw_max_bytes is not None else 0
+
+        if strategy == "nix-tombstone":
+            entry_max_bytes = default_bytes if nix_max_bytes is None else nix_max_bytes
+            report = prune_nix_cache(
+                target_dir,
+                max_age_days=entry_age,
+                max_bytes=entry_max_bytes,
+                grace_seconds=grace_seconds,
+                idle=idle,
+                dry_run=dry_run,
+                now=current,
+            )
+        elif strategy == "cargo":
+            entry_max_bytes = (
+                default_bytes if pool_max_bytes is None else pool_max_bytes
+            )
+            report = prune_cargo_cache(
+                target_dir,
+                max_age_days=entry_age,
+                max_bytes=entry_max_bytes,
+                idle=idle,
+                dry_run=dry_run,
+                now=current,
+            )
+        elif strategy == "uv":
+            entry_max_bytes = (
+                default_bytes if pool_max_bytes is None else pool_max_bytes
+            )
+            report = prune_uv_cache(
+                target_dir,
+                max_bytes=entry_max_bytes,
+                idle=idle,
+                dry_run=dry_run,
+                uv_bin=uv_bin,
+            )
+        elif strategy == "npm":
+            entry_max_bytes = (
+                default_bytes if pool_max_bytes is None else pool_max_bytes
+            )
+            report = prune_npm_cache(
+                target_dir,
+                max_age_days=entry_age,
+                max_bytes=entry_max_bytes,
+                idle=idle,
+                dry_run=dry_run,
+                now=current,
+            )
+        elif strategy == "gradle":
+            entry_max_bytes = (
+                default_bytes if pool_max_bytes is None else pool_max_bytes
+            )
+            report = prune_gradle_cache(
+                target_dir,
+                max_age_days=entry_age,
+                max_bytes=entry_max_bytes,
+                idle=idle,
+                dry_run=dry_run,
+                now=current,
+            )
+        elif strategy == "idle-age-and-quota":
+            entry_max_bytes = (
+                default_bytes if pool_max_bytes is None else pool_max_bytes
+            )
+            report = prune_idle_age_and_quota(
+                target_dir,
+                max_age_days=entry_age,
+                max_bytes=entry_max_bytes,
+                idle=idle,
+                dry_run=dry_run,
+                now=current,
+            )
+        elif strategy == "idle-quota-reset":
+            entry_max_bytes = (
+                default_bytes if pool_max_bytes is None else pool_max_bytes
+            )
+            report = prune_idle_quota_reset(
+                target_dir,
+                max_bytes=entry_max_bytes,
+                idle=idle,
+                dry_run=dry_run,
+            )
+        elif strategy == "manual":
+            report = report_manual_pool(target_dir)
+        else:
+            raise ValueError(f"Unhandled strategy {strategy!r} for {mount_id}")
+
+        pools_report[mount_id] = report
+        total_reclaimed += int(report.get("reclaimedBytes", 0))
+        if report.get("quotaReset"):
+            reset_pools.append(mount_id)
+
     return {
         "dryRun": dry_run,
         "idle": idle,
         "reclaimedBytes": total_reclaimed,
-        "nix": nix_report,
-        "uv": uv_report,
-        "pythonBytecode": {"reclaimedBytes": py_bytes},
-        "cargo": cargo_report,
-        "archives": archives_report,
+        "resetPools": sorted(reset_pools),
+        "pools": pools_report,
     }
 
 
 def run_cli(argv: list[str], environ: dict[str, str]) -> int:
-    args = build_parser(environ).parse_args(argv)
-    if (
-        args.max_age_days < 0
-        or args.nix_max_bytes < 0
-        or args.lang_archive_max_bytes < 0
-        or args.grace_seconds < 0
+    _ = environ
+    args = build_parser().parse_args(argv)
+    for val in (
+        args.max_age_days,
+        args.nix_max_bytes,
+        args.pool_max_bytes,
+        args.grace_seconds,
     ):
-        print(
-            "devcontainer-runtime prune-caches: thresholds must be non-negative",
-            file=sys.stderr,
-        )
-        return 2
+        if val is not None and val < 0:
+            print(
+                "devcontainer-runtime prune-caches: thresholds must be non-negative",
+                file=sys.stderr,
+            )
+            return 2
+
     summary = run_prune(
-        nix_cache_dir=args.nix_cache_dir,
-        xdg_cache_dir=args.xdg_cache_dir,
-        cargo_home=args.cargo_home,
+        cache_layout_path=args.cache_layout,
+        target_overrides=dict(args.target_override),
         max_age_days=args.max_age_days,
         nix_max_bytes=args.nix_max_bytes,
-        lang_archive_max_bytes=args.lang_archive_max_bytes,
+        pool_max_bytes=args.pool_max_bytes,
         grace_seconds=args.grace_seconds,
         idle=args.idle,
         dry_run=args.dry_run,

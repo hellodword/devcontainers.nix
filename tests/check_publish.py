@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Workflow 3 verification: 4-tag digest-preserving OCI release, conflict protection, and recovery."""
+"""Workflow 3 verification: digest-preserving OCI release, conflict protection, and recovery."""
 
 from __future__ import annotations
 
@@ -18,9 +18,8 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from contextlib import contextmanager, redirect_stdout
+from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -66,68 +65,62 @@ def build_synthetic_oci_layout(dest: Path, marker: str = "v1") -> dict[str, str]
         (blobs / digest.split(":", 1)[1]).write_bytes(raw)
         return {"digest": digest, "size": len(raw)}
 
-    shared_gz, shared_diff = make_gzip_layer(
-        {"nix/store/shared-base": f"shared-{marker}\n".encode()}
+    base_gz, base_diff = make_gzip_layer(
+        {"nix/store/base": f"base-{marker}\n".encode()}
     )
-    shared_desc = {
-        **write_blob(shared_gz),
+    base_desc = {
+        **write_blob(base_gz),
         "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
     }
 
-    manifests_index = []
-    variant_digests: dict[str, str] = {}
-
-    for variant in ("latest", "agent"):
-        top_gz, top_diff = make_gzip_layer(
-            {f"etc/variant-{variant}": f"{variant}-{marker}\n".encode()}
-        )
-        top_desc = {
-            **write_blob(top_gz),
-            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
-        }
-        config_obj = {
-            "created": "1970-01-01T00:00:01Z",
-            "architecture": "amd64",
-            "os": "linux",
-            "config": {
-                "User": "vscode",
-                "WorkingDir": "/workspaces",
-                "Env": ["PATH=/usr/bin"],
-            },
-            "rootfs": {
-                "type": "layers",
-                "diff_ids": [shared_diff, top_diff],
-            },
-            "history": [
-                {"created": "1970-01-01T00:00:01Z", "created_by": "shared"},
-                {"created": "1970-01-01T00:00:01Z", "created_by": variant},
-            ],
-        }
-        cfg_raw = (json.dumps(config_obj, sort_keys=True) + "\n").encode("utf-8")
-        cfg_desc = {
-            **write_blob(cfg_raw),
-            "mediaType": "application/vnd.oci.image.config.v1+json",
-        }
-        manifest_obj = {
-            "schemaVersion": 2,
-            "mediaType": "application/vnd.oci.image.manifest.v1+json",
-            "config": cfg_desc,
-            "layers": [shared_desc, top_desc],
-        }
-        manifest_raw = (json.dumps(manifest_obj, sort_keys=True) + "\n").encode("utf-8")
-        m_desc = {
-            **write_blob(manifest_raw),
-            "mediaType": "application/vnd.oci.image.manifest.v1+json",
-            "annotations": {"org.opencontainers.image.ref.name": variant},
-        }
-        manifests_index.append(m_desc)
-        variant_digests[variant] = str(m_desc["digest"])
+    top_gz, top_diff = make_gzip_layer(
+        {"etc/release-marker": f"latest-{marker}\n".encode()}
+    )
+    top_desc = {
+        **write_blob(top_gz),
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+    }
+    config_obj = {
+        "created": "1970-01-01T00:00:01Z",
+        "architecture": "amd64",
+        "os": "linux",
+        "config": {
+            "User": "vscode",
+            "WorkingDir": "/workspaces",
+            "Env": ["PATH=/usr/bin"],
+        },
+        "rootfs": {
+            "type": "layers",
+            "diff_ids": [base_diff, top_diff],
+        },
+        "history": [
+            {"created": "1970-01-01T00:00:01Z", "created_by": "base"},
+            {"created": "1970-01-01T00:00:01Z", "created_by": "latest"},
+        ],
+    }
+    cfg_raw = (json.dumps(config_obj, sort_keys=True) + "\n").encode("utf-8")
+    cfg_desc = {
+        **write_blob(cfg_raw),
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+    }
+    manifest_obj = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": cfg_desc,
+        "layers": [base_desc, top_desc],
+    }
+    manifest_raw = (json.dumps(manifest_obj, sort_keys=True) + "\n").encode("utf-8")
+    m_desc = {
+        **write_blob(manifest_raw),
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "annotations": {"org.opencontainers.image.ref.name": "latest"},
+    }
 
     (dest / "index.json").write_text(
-        json.dumps({"schemaVersion": 2, "manifests": manifests_index}, indent=2) + "\n",
+        json.dumps({"schemaVersion": 2, "manifests": [m_desc]}, indent=2) + "\n",
         encoding="utf-8",
     )
-    return variant_digests
+    return {"latest": str(m_desc["digest"])}
 
 
 @contextmanager
@@ -263,7 +256,7 @@ def verify_publish_state_machine(
 
     if real_oci_dir is not None:
         real_digests = publish_mod.parse_local_oci_digests(real_oci_dir.resolve())
-        assert set(real_digests) == {"latest", "agent"}, real_digests
+        assert set(real_digests) == {"latest"}, real_digests
 
     oci_v1 = work_dir / "oci-v1"
     oci_v2 = work_dir / "oci-v2"
@@ -286,7 +279,7 @@ def verify_publish_state_machine(
         repo_name = "hellodword/devcontainers-dev"
         summary_md = work_dir / "summary-1.md"
 
-        # 1. Initial 4-tag publish & exact digest preservation.
+        # 1. Initial publish & exact digest preservation across :sha-<commit> and :latest.
         res1 = run_publish_cli(
             publish_bin,
             [
@@ -317,12 +310,6 @@ def verify_publish_state_machine(
                 skopeo_raw_digest(f"{registry_addr}/{repo_name}:{tag}")
                 == digests_v1["latest"]
             )
-        for tag in (f"agent-sha-{sha1}", "agent"):
-            assert res1["tags"][tag]["status"] == "published", res1
-            assert (
-                skopeo_raw_digest(f"{registry_addr}/{repo_name}:{tag}")
-                == digests_v1["agent"]
-            )
         summary_text = summary_md.read_text(encoding="utf-8")
         assert (
             f"docker pull {registry_addr}/{repo_name}@{digests_v1['latest']}"
@@ -330,7 +317,7 @@ def verify_publish_state_machine(
         )
         assert res1["coreSha"] in summary_text
 
-        # 2. Idempotent rerun on same commit -> immutable tags reused, digests unchanged.
+        # 2. Idempotent rerun on same commit -> immutable tag reused, digest unchanged.
         res2 = run_publish_cli(
             publish_bin,
             [
@@ -351,30 +338,23 @@ def verify_publish_state_machine(
             ],
         )
         assert res2["tags"][f"sha-{sha1}"]["status"] == "reused", res2
-        assert res2["tags"][f"agent-sha-{sha1}"]["status"] == "reused", res2
         assert res2["tags"]["latest"]["status"] == "published", res2
-        assert res2["tags"]["agent"]["status"] == "published", res2
 
-        # 3. Interrupted release recovery: pre-seed only sha-<sha1>, agent-sha-<sha1>, and :latest.
+        # 3. Interrupted release recovery: pre-seed only sha-<sha1>, rerun completes :latest.
         recovery_repo = "hellodword/devcontainers-recovery"
-        for variant, pre_tag in (
-            ("latest", f"sha-{sha1}"),
-            ("agent", f"agent-sha-{sha1}"),
-            ("latest", "latest"),
-        ):
-            subprocess.run(
-                [
-                    "skopeo",
-                    "--insecure-policy",
-                    "copy",
-                    "--preserve-digests",
-                    "--dest-tls-verify=false",
-                    f"oci:{oci_v1}:{variant}",
-                    f"docker://{registry_addr}/{recovery_repo}:{pre_tag}",
-                ],
-                check=True,
-                timeout=60,
-            )
+        subprocess.run(
+            [
+                "skopeo",
+                "--insecure-policy",
+                "copy",
+                "--preserve-digests",
+                "--dest-tls-verify=false",
+                f"oci:{oci_v1}:latest",
+                f"docker://{registry_addr}/{recovery_repo}:sha-{sha1}",
+            ],
+            check=True,
+            timeout=60,
+        )
         res_rec = run_publish_cli(
             publish_bin,
             [
@@ -395,14 +375,13 @@ def verify_publish_state_machine(
             ],
         )
         assert res_rec["tags"][f"sha-{sha1}"]["status"] == "reused", res_rec
-        assert res_rec["tags"][f"agent-sha-{sha1}"]["status"] == "reused", res_rec
-        assert res_rec["tags"]["agent"]["status"] == "published", res_rec
+        assert res_rec["tags"]["latest"]["status"] == "published", res_rec
         assert (
-            skopeo_raw_digest(f"{registry_addr}/{recovery_repo}:agent")
-            == digests_v1["agent"]
+            skopeo_raw_digest(f"{registry_addr}/{recovery_repo}:latest")
+            == digests_v1["latest"]
         )
 
-        # 4. Digest conflict protection: pre-seed sha-<sha2> with v1 digest, attempt to publish v2 -> abort!
+        # 4. Digest conflict protection: pre-seed sha-<sha2> with v1 digest, attempt to publish v2 -> abort.
         sha2 = commit_synthetic(clone_dir, "rev.txt", "2\n", "commit 2")
         git_cmd(clone_dir, "push", "--quiet", "origin", "master")
         subprocess.run(
@@ -450,7 +429,7 @@ def verify_publish_state_machine(
             == digests_v1["latest"]
         )
 
-        # 5a. Remote master already advanced -> publish sha-* for older commit, skip floating :latest & :agent.
+        # 5. Remote master already advanced -> publish sha-<sha_old>, skip floating :latest.
         sha_old = commit_synthetic(clone_dir, "rev.txt", "3-old\n", "commit 3 old")
         sha_new = commit_synthetic(clone_dir, "rev.txt", "4-new\n", "commit 4 new")
         git_cmd(clone_dir, "push", "--quiet", "origin", "master")
@@ -476,78 +455,10 @@ def verify_publish_state_machine(
             ],
         )
         assert res_stale["tags"][f"sha-{sha_old}"]["status"] == "published", res_stale
-        assert res_stale["tags"][f"agent-sha-{sha_old}"]["status"] == "published", (
-            res_stale
-        )
         assert res_stale["tags"]["latest"]["status"] == "skipped", res_stale
-        assert res_stale["tags"]["agent"]["status"] == "skipped", res_stale
         assert (
             skopeo_raw_digest(f"{registry_addr}/{repo_name}:latest")
             == digests_v1["latest"]
-        )
-        assert (
-            skopeo_raw_digest(f"{registry_addr}/{repo_name}:agent")
-            == digests_v1["agent"]
-        )
-
-        # 5b. Mid-flight master advancement right after :latest before :agent -> :agent skipped!
-        sha_mid_next = commit_synthetic(
-            clone_dir, "rev.txt", "5-next\n", "commit 5 next"
-        )
-        real_query = publish_mod.query_remote_branch_sha
-        call_count = 0
-
-        def advance_after_first_check(git_remote: str, expected_ref: str) -> str:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 2:
-                git_cmd(
-                    clone_dir,
-                    "push",
-                    "--quiet",
-                    "origin",
-                    f"{sha_mid_next}:refs/heads/master",
-                )
-            return real_query(git_remote, expected_ref)
-
-        captured_mid = io.StringIO()
-        with (
-            patch.object(
-                publish_mod,
-                "query_remote_branch_sha",
-                side_effect=advance_after_first_check,
-            ),
-            redirect_stdout(captured_mid),
-        ):
-            rc_mid = publish_mod.main(
-                [
-                    "--oci-dir",
-                    str(oci_v2),
-                    "--registry",
-                    registry_addr,
-                    "--repository",
-                    repo_name,
-                    "--commit-sha",
-                    sha_new,
-                    "--git-remote",
-                    str(bare_remote),
-                    "--flake-lock",
-                    str(REPO_ROOT / "flake.lock"),
-                    "--tls-verify",
-                    "false",
-                ]
-            )
-        assert rc_mid == 0, rc_mid
-        res_mid = json.loads(captured_mid.getvalue())
-        assert res_mid["tags"]["latest"]["status"] == "published", res_mid
-        assert res_mid["tags"]["agent"]["status"] == "skipped", res_mid
-        assert (
-            skopeo_raw_digest(f"{registry_addr}/{repo_name}:latest")
-            == digests_v2["latest"]
-        )
-        assert (
-            skopeo_raw_digest(f"{registry_addr}/{repo_name}:agent")
-            == digests_v1["agent"]
         )
 
 
@@ -662,7 +573,6 @@ def verify_authenticated_skopeo_login_and_publish(
         )
         receipt = json.loads(auth_proc.stdout.strip().splitlines()[-1])
         assert receipt["tags"]["latest"]["digest"] == digests["latest"], receipt
-        assert receipt["tags"]["agent"]["digest"] == digests["agent"], receipt
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -677,7 +587,7 @@ def main(argv: list[str] | None = None) -> int:
         "--oci-dir",
         type=Path,
         default=None,
-        help="Optional built packages.oci directory to cross-check index.json digests",
+        help="Optional built packages.oci directory to cross-check index.json digest",
     )
     args = parser.parse_args(argv)
     if args.publish_bin is None:

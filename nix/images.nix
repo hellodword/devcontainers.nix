@@ -1,4 +1,4 @@
-# Single mkDevcontainerImage constructor building dev (:latest), agent (:agent), and shared OCI layout.
+# OCI image constructor and layout builder for ghcr.io/hellodword/devcontainers-dev.
 {
   self,
   pkgs,
@@ -6,6 +6,7 @@
   inputs,
   system,
   cache,
+  cacheLayout,
 }:
 let
   inherit (pkgs) nix2container;
@@ -50,6 +51,13 @@ let
   toolchainsCacheEnv = lib.foldl' (acc: m: acc // m.cacheEnv) { } toolchainModules;
   toolchainsDevEnv = lib.foldl' (acc: m: acc // m.devEnv) { } toolchainModules;
 
+  cacheLayoutEnv = builtins.listToAttrs (
+    map (item: {
+      name = item.env;
+      value = item.target;
+    }) (builtins.filter (item: item.env != null) cacheLayout.mounts)
+  );
+
   layers = import ./layers.nix {
     inherit
       pkgs
@@ -78,6 +86,8 @@ let
     "devcontainers.nix.revision" = revision;
     "devcontainers.nix.version" = version;
     "devcontainers.nix.dirty" = if dirty then "true" else "false";
+    "devcontainers.nix.cache-layout" = builtins.toJSON cacheLayout;
+    "devcontainer.metadata" = builtins.toJSON editor.devcontainerMetadata;
   };
 
   usrMergePostBuild = ''
@@ -120,7 +130,7 @@ let
     merge_usr_dir share usr/share
   '';
 
-  devPathSegments = [
+  pathSegments = [
     "/home/vscode/.local/share/devcontainer/bin"
     "/home/vscode/.local/share/nix-profile/bin"
     "/home/vscode/.nix-profile/bin"
@@ -131,557 +141,629 @@ let
     "/usr/bin"
   ];
 
-  mkDevcontainerImage =
-    {
-      variantName,
-      tag,
-      imageLayers,
-      includeToolchainsInUsr,
-      includeEditor,
-    }:
-    let
-      pathSegments = if includeToolchainsInUsr then devPathSegments else foundation.agentPathSegments;
-      envWithoutPath =
-        foundation.baseEnv
-        // toolchainsCacheEnv
-        // (if includeToolchainsInUsr then toolchainsDevEnv else { });
-      fullEnv = envWithoutPath // {
-        PATH = lib.concatStringsSep ":" pathSegments;
-      };
-      shellFiles = foundation.mkShellFiles {
-        envAttrs = envWithoutPath;
-        inherit pathSegments;
-      };
+  envWithoutPath = foundation.baseEnv // toolchainsCacheEnv // toolchainsDevEnv // cacheLayoutEnv;
+  fullEnv = envWithoutPath // {
+    PATH = lib.concatStringsSep ":" pathSegments;
+  };
 
-      usrPaths =
-        foundation.usrPackages
-        ++ agents.allPackages
-        ++ lib.optionals includeToolchainsInUsr toolchainsUsrPackages
-        ++ lib.optionals includeEditor runtime.editorHelpers;
+  shellFiles = foundation.mkShellFiles {
+    envAttrs = envWithoutPath;
+    inherit pathSegments;
+  };
 
-      usrRoot = pkgs.buildEnv {
-        name = "devcontainer-${variantName}-usr";
-        paths = usrPaths;
-        # Do not link package /sbin outputs so glibc's /sbin/ldconfig (which looks for a
-        # non-existent store ld.so.cache) is never exposed; /sbin -> usr/sbin remains an empty
-        # compatibility directory while VS Code Server requirement checks use /usr/lib/libc.so.6
-        # and /usr/lib/libstdc++.so.6.
-        pathsToLink = [
-          "/bin"
-          "/lib"
-          "/lib64"
-          "/libexec"
-          "/include"
-          "/share"
-        ];
-        ignoreCollisions = true;
-        postBuild =
-          usrMergePostBuild
-          + ''
-            if [ -e "$out/usr/sbin/ldconfig" ] || [ -e "$out/sbin/ldconfig" ]; then
-              echo "Unexpected /sbin/ldconfig exposed in usrRoot" >&2
-              exit 1
-            fi
-            mkdir -p "$out/usr/share/devcontainer"
-            ln -sfn ${inputs.nixpkgs.outPath} "$out/usr/share/devcontainer/nixpkgs"
-            ln -sfn ${inputs.rust-overlay.outPath} "$out/usr/share/devcontainer/rust-overlay"
-          ''
-          + lib.concatMapStringsSep "\n" (link: ''
-            mkdir -p "$out$(dirname ${lib.escapeShellArg link.target})"
-            ln -sfn ${lib.escapeShellArg link.source} "$out${link.target}"
-          '') foundation.fhsSymlinks
-          + lib.optionalString includeToolchainsInUsr ''
-            if [ ! -e "$out/usr/lib/node_modules/typescript/lib" ]; then
-              mkdir -p "$out/usr/lib/node_modules/typescript"
-              ln -sfn ${nodejsToolchain.typescriptPkg}/lib/typescript "$out/usr/lib/node_modules/typescript/lib"
-            fi
-          '';
-      };
+  usrPaths =
+    foundation.usrPackages ++ agents.allPackages ++ toolchainsUsrPackages ++ runtime.editorHelpers;
 
-      passwdText = ''
-        root:x:0:0:root:/root:/bin/bash
-        vscode:x:1000:1000:vscode:/home/vscode:/bin/bash
-        nobody:x:65534:65534:nobody:/var/empty:/usr/bin/nologin
-      '';
-      groupText = ''
-        root:x:0:
-        vscode:x:1000:vscode
-        nogroup:x:65534:
-      '';
-      shadowText = ''
-        root:!:1::::::
-        vscode:!:1::::::
-        nobody:!:1::::::
-      '';
-      nsswitchText = ''
-        passwd: files
-        group: files
-        shadow: files
-        hosts: files dns
-        networks: files
-        protocols: files
-        services: files
-      '';
-      shellsText = ''
-        /bin/sh
-        /bin/bash
-        /usr/bin/sh
-        /usr/bin/bash
-      '';
-      osReleaseText = ''
-        NAME="devcontainer-nix"
-        ID=devcontainer-nix
-        VERSION_ID="26.11"
-        PRETTY_NAME="Devcontainer Nix"
-      '';
-      gitconfigText = ''
-        [filter "lfs"]
-        	clean = git-lfs clean -- %f
-        	smudge = git-lfs smudge -- %f
-        	process = git-lfs filter-process
-        	required = true
-      '';
-      sshConfigText = ''
-        Host *
-          GlobalKnownHostsFile /etc/ssh/ssh_known_hosts
-      '';
-      nixpkgsConfigText = ''
-        {
-          allowUnfree = true;
-          android_sdk.accept_license = true;
-          oraclejdk.accept_license = true;
-          allowUnsupportedSystem = true;
-        }
-      '';
-      userBashrcText = ''
-        if [ -r /etc/bashrc ]; then
-          . /etc/bashrc
+  usrRoot = pkgs.buildEnv {
+    name = "devcontainer-usr";
+    paths = usrPaths;
+    # Do not link package /sbin outputs so glibc's /sbin/ldconfig (which looks for a
+    # non-existent store ld.so.cache) is never exposed; /sbin -> usr/sbin remains an empty
+    # compatibility directory while VS Code Server requirement checks use /usr/lib/libc.so.6
+    # and /usr/lib/libstdc++.so.6.
+    pathsToLink = [
+      "/bin"
+      "/lib"
+      "/lib64"
+      "/libexec"
+      "/include"
+      "/share"
+    ];
+    ignoreCollisions = true;
+    postBuild =
+      usrMergePostBuild
+      + ''
+        if [ -e "$out/usr/sbin/ldconfig" ] || [ -e "$out/sbin/ldconfig" ]; then
+          echo "Unexpected /sbin/ldconfig exposed in usrRoot" >&2
+          exit 1
+        fi
+        mkdir -p "$out/usr/share/devcontainer"
+        ln -sfn ${inputs.nixpkgs.outPath} "$out/usr/share/devcontainer/nixpkgs"
+        ln -sfn ${inputs.rust-overlay.outPath} "$out/usr/share/devcontainer/rust-overlay"
+        install -m 0644 ${../data/cache-layout.json} "$out/usr/share/devcontainer/cache-layout.json"
+      ''
+      + lib.concatMapStringsSep "\n" (link: ''
+        mkdir -p "$out$(dirname ${lib.escapeShellArg link.target})"
+        ln -sfn ${lib.escapeShellArg link.source} "$out${link.target}"
+      '') foundation.fhsSymlinks
+      + ''
+        if [ ! -e "$out/usr/lib/node_modules/typescript/lib" ]; then
+          mkdir -p "$out/usr/lib/node_modules/typescript"
+          ln -sfn ${nodejsToolchain.typescriptPkg}/lib/typescript "$out/usr/lib/node_modules/typescript/lib"
         fi
       '';
+  };
 
-      directories = {
-        "/root" = {
-          mode = "0700";
-          uid = 0;
-          gid = 0;
-        };
-        "/home" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-        "/home/vscode" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/home/vscode/.config" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/home/vscode/.cache" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/home/vscode/.local" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/home/vscode/.local/share" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/home/vscode/.local/state" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/home/vscode/.local/state/bash" = {
-          mode = "0700";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/home/vscode/.local/state/devcontainer" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/home/vscode/.codex" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/tmp" = {
-          mode = "1777";
-          uid = 0;
-          gid = 0;
-        };
-        "/var" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-        "/var/empty" = {
-          mode = "0555";
-          uid = 0;
-          gid = 0;
-        };
-        "/var/cache" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-        "/var/lib" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-        "/var/lib/devcontainer" = {
-          mode = "0755";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/var/lib/dbus" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-        "/var/log" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-        "/var/tmp" = {
-          mode = "1777";
-          uid = 0;
-          gid = 0;
-        };
-        "/run" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-        "/run/user" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-        "/run/user/1000" = {
-          mode = "0700";
-          uid = 1000;
-          gid = 1000;
-        };
-        "/workspaces" = {
-          mode = "1777";
-          uid = 0;
-          gid = 0;
-        };
-        "/etc/xdg" = {
-          mode = "0755";
-          uid = 0;
-          gid = 0;
-        };
-      };
+  passwdText = ''
+    root:x:0:0:root:/root:/bin/bash
+    vscode:x:1000:1000:vscode:/home/vscode:/bin/bash
+    nobody:x:65534:65534:nobody:/var/empty:/usr/bin/nologin
+  '';
+  groupText = ''
+    root:x:0:
+    vscode:x:1000:vscode
+    nogroup:x:65534:
+  '';
+  shadowText = ''
+    root:!:1::::::
+    vscode:!:1::::::
+    nobody:!:1::::::
+  '';
+  nsswitchText = ''
+    passwd: files
+    group: files
+    shadow: files
+    hosts: files dns
+    networks: files
+    protocols: files
+    services: files
+  '';
+  shellsText = ''
+    /bin/sh
+    /bin/bash
+    /usr/bin/sh
+    /usr/bin/bash
+  '';
+  osReleaseText = ''
+    NAME="devcontainer-nix"
+    ID=devcontainer-nix
+    VERSION_ID="26.11"
+    PRETTY_NAME="Devcontainer Nix"
+  '';
+  gitconfigText = ''
+    [filter "lfs"]
+    	clean = git-lfs clean -- %f
+    	smudge = git-lfs smudge -- %f
+    	process = git-lfs filter-process
+    	required = true
+  '';
+  sshConfigText = ''
+    Host *
+      GlobalKnownHostsFile /etc/ssh/ssh_known_hosts
+  '';
+  nixpkgsConfigText = ''
+    {
+      allowUnfree = true;
+      android_sdk.accept_license = true;
+      oraclejdk.accept_license = true;
+      allowUnsupportedSystem = true;
+    }
+  '';
+  userBashrcText = ''
+    if [ -r /etc/bashrc ]; then
+      . /etc/bashrc
+    fi
+  '';
 
-      filesystemRoot = pkgs.runCommand "devcontainer-${variantName}-filesystem" { } (
-        ''
-          mkdir -p \
-            "$out/etc/profile.d" \
-            "$out/etc/nixpkgs" \
-            "$out/etc/nix" \
-            "$out/etc/ssh" \
-            "$out/etc/ssl/certs" \
-            "$out/etc/dbus-1"
-          ${lib.concatStringsSep "\n" (
-            lib.mapAttrsToList (path: spec: ''
-              mkdir -p "$out${path}"
-              chmod ${spec.mode} "$out${path}"
-            '') directories
-          )}
-
-          ln -sfn /run "$out/var/run"
-          ln -sfn /var/lib/devcontainer/machine-id "$out/etc/machine-id"
-          ln -sfn /etc/machine-id "$out/var/lib/dbus/machine-id"
-          touch "$out/var/lib/devcontainer/machine-id"
-          chmod 0444 "$out/var/lib/devcontainer/machine-id"
-
-          ln -sfn ${pkgs.iana-etc}/etc/services "$out/etc/services"
-          ln -sfn ${pkgs.iana-etc}/etc/protocols "$out/etc/protocols"
-          ln -sfn ${pkgs.mailcap}/etc/mime.types "$out/etc/mime.types"
-          ln -sfn ${pkgs.tzdata}/share/zoneinfo "$out/etc/zoneinfo"
-          ln -sfn /etc/zoneinfo/UTC "$out/etc/localtime"
-          ln -sfn ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt "$out/etc/ssl/certs/ca-certificates.crt"
-          ln -sfn ${pkgs.dbus}/share/dbus-1/session.conf "$out/etc/dbus-1/session.conf"
-
-          cp -a --no-preserve=mode,ownership ${foundation.fontsRoot}/. "$out/"
-          chmod -R u+w "$out/etc"
-
-          printf '%s' ${lib.escapeShellArg passwdText} > "$out/etc/passwd"
-          printf '%s' ${lib.escapeShellArg groupText} > "$out/etc/group"
-          printf '%s' ${lib.escapeShellArg shadowText} > "$out/etc/shadow"
-          printf '%s' ${lib.escapeShellArg nsswitchText} > "$out/etc/nsswitch.conf"
-          printf '%s' ${lib.escapeShellArg shellsText} > "$out/etc/shells"
-          printf '%s' ${lib.escapeShellArg osReleaseText} > "$out/etc/os-release"
-          printf '%s' ${lib.escapeShellArg gitconfigText} > "$out/etc/gitconfig"
-          printf '%s' ${lib.escapeShellArg sshConfigText} > "$out/etc/ssh/ssh_config"
-          : > "$out/etc/ssh/ssh_known_hosts"
-          printf '%s' ${lib.escapeShellArg nixpkgsConfigText} > "$out/etc/nixpkgs/config.nix"
-          printf '%s' ${lib.escapeShellArg foundation.nixDaemonConf} > "$out/etc/nix/nix.conf"
-          printf '%s' ${lib.escapeShellArg shellFiles.profileText} > "$out/etc/profile"
-          printf '%s' ${lib.escapeShellArg shellFiles.bashrcText} > "$out/etc/bashrc"
-          printf '%s' ${lib.escapeShellArg shellFiles.bashBashrcText} > "$out/etc/bash.bashrc"
-          printf '%s' ${lib.escapeShellArg userBashrcText} > "$out/home/vscode/.bashrc"
-
-          chmod 0644 \
-            "$out/etc/passwd" \
-            "$out/etc/group" \
-            "$out/etc/nsswitch.conf" \
-            "$out/etc/shells" \
-            "$out/etc/os-release" \
-            "$out/etc/gitconfig" \
-            "$out/etc/ssh/ssh_config" \
-            "$out/etc/ssh/ssh_known_hosts" \
-            "$out/etc/nixpkgs/config.nix" \
-            "$out/etc/nix/nix.conf" \
-            "$out/etc/profile" \
-            "$out/etc/bashrc" \
-            "$out/etc/bash.bashrc" \
-            "$out/home/vscode/.bashrc"
-          chmod 0640 "$out/etc/shadow"
-        ''
-        + lib.optionalString includeEditor (
-          lib.concatMapStringsSep "\n" (root: ''
-            mkdir -p "$out${root}/data/Machine"
-            chmod 0755 "$out${root}" "$out${root}/data" "$out${root}/data/Machine"
-            printf '%s' ${lib.escapeShellArg editor.machineSettingsJson} > "$out${root}/data/Machine/settings.json"
-            chmod 0444 "$out${root}/data/Machine/settings.json"
-          '') editor.serverRoots
-        )
-      );
-
-      unameFor = uid: if uid == 0 then "root" else "vscode";
-      gnameFor = gid: if gid == 0 then "root" else "vscode";
-
-      dirPerms = lib.mapAttrsToList (path: spec: {
-        path = filesystemRoot;
-        regex = "^${filesystemRoot}${path}$";
-        inherit (spec) mode uid gid;
-        uname = unameFor spec.uid;
-        gname = gnameFor spec.gid;
-      }) directories;
-
-      filePerms = [
-        {
-          path = filesystemRoot;
-          regex = "^${filesystemRoot}/var/lib/devcontainer/machine-id$";
-          mode = "0444";
-          uid = 1000;
-          gid = 1000;
-          uname = "vscode";
-          gname = "vscode";
-        }
-        {
-          path = filesystemRoot;
-          regex = "^${filesystemRoot}/home/vscode/\\.bashrc$";
-          mode = "0644";
-          uid = 1000;
-          gid = 1000;
-          uname = "vscode";
-          gname = "vscode";
-        }
-        {
-          path = filesystemRoot;
-          regex = "^${filesystemRoot}/etc/shadow$";
-          mode = "0640";
-          uid = 0;
-          gid = 0;
-          uname = "root";
-          gname = "root";
-        }
-      ]
-      ++ lib.optionals includeEditor (
-        lib.concatMap (root: [
-          {
-            path = filesystemRoot;
-            regex = "^${filesystemRoot}${root}(/data(/Machine)?)?$";
-            mode = "0755";
-            uid = 1000;
-            gid = 1000;
-            uname = "vscode";
-            gname = "vscode";
-          }
-          {
-            path = filesystemRoot;
-            regex = "^${filesystemRoot}${root}/data/Machine/settings\\.json$";
-            mode = "0444";
-            uid = 0;
-            gid = 0;
-            uname = "root";
-            gname = "root";
-          }
-        ]) editor.serverRoots
-      );
-
-      labels =
-        baseLabels
-        // lib.optionalAttrs includeEditor {
-          "devcontainer.metadata" = builtins.toJSON editor.devcontainerMetadata;
-        };
-
-      imageConfig = {
-        User = "vscode";
-        WorkingDir = "/workspaces";
-        Env = lib.mapAttrsToList (name: value: "${name}=${value}") fullEnv;
-        Entrypoint = [ "/usr/bin/devcontainer-entrypoint" ];
-        Cmd = [ "/bin/bash" ];
-        Labels = labels;
-      };
-
-      configFile = pkgs.writeText "devcontainer-${variantName}-config.json" (builtins.toJSON imageConfig);
-
-      excludedGraphRootsJson = builtins.toJSON (
-        map toString (
-          [
-            configFile
-            usrRoot
-            filesystemRoot
-          ]
-          ++ imageLayers
-        )
-      );
-
-      closureGraphJson =
-        pkgs.runCommand "devcontainer-${variantName}-closure-graph.json"
-          {
-            __structuredAttrs = true;
-            exportReferencesGraph.graph = [
-              configFile
-              usrRoot
-              filesystemRoot
-            ]
-            ++ imageLayers;
-            nativeBuildInputs = [ pkgs.jq ];
-          }
-          ''
-            excluded=${lib.escapeShellArg excludedGraphRootsJson}
-            jq --argjson excluded "$excluded" '
-              .graph
-              | map(select((.path as $p | ($excluded | index($p))) == null) | .references |= sort)
-              | sort_by(.path)
-            ' .attrs.json > "$out"
-          '';
-
-      nixDatabase =
-        pkgs.runCommand "devcontainer-${variantName}-nix-database"
-          {
-            nativeBuildInputs = [
-              pkgs.jq
-              pkgs.nix
-              pkgs.sqlite
-            ];
-          }
-          ''
-            jq -r 'map([.path, .narHash, .narSize, "", (.references | length)] + .references) | add | map("\(.)\n") | add' ${closureGraphJson} \
-              | head -n -1 \
-              | NIX_REMOTE="local?root=$PWD" nix-store --load-db -j 1
-
-            sqlite3 "$PWD/nix/var/nix/db/db.sqlite" 'UPDATE ValidPaths SET registrationTime = 0'
-            sqlite3 "$PWD/nix/var/nix/db/db.sqlite" '.dump' > db.dump
-            mkdir -p "$out/nix/var/nix/db"
-            sqlite3 "$out/nix/var/nix/db/db.sqlite" '.read db.dump'
-            cp "$PWD/nix/var/nix/db/schema" "$out/nix/var/nix/db/schema"
-            sqlite3 "$out/nix/var/nix/db/db.sqlite" 'pragma journal_mode = wal' > /dev/null
-
-            mkdir -p "$out/nix/var/nix/gcroots/docker"
-            # shellcheck disable=SC2046
-            ln -s $(jq -r '.[].path' ${closureGraphJson}) "$out/nix/var/nix/gcroots/docker/"
-            mkdir -p "$out/nix/store/.links"
-          '';
-
-      explicitPermsJson = builtins.toJSON (
-        dirPerms
-        ++ filePerms
-        ++ [
-          {
-            path = "${nixDatabase}";
-            regex = ".*";
-            mode = "0755";
-            uid = 1000;
-            gid = 1000;
-            uname = "vscode";
-            gname = "vscode";
-          }
-        ]
-      );
-
-      customPermsFile =
-        pkgs.runCommand "devcontainer-${variantName}-top-perms.json"
-          {
-            __structuredAttrs = true;
-            exportReferencesGraph.graph = [
-              usrRoot
-              filesystemRoot
-              nixDatabase
-            ];
-            nativeBuildInputs = [ pkgs.jq ];
-          }
-          ''
-            explicit=${lib.escapeShellArg explicitPermsJson}
-            roots=${
-              lib.escapeShellArg (
-                builtins.toJSON [
-                  "${usrRoot}"
-                  "${filesystemRoot}"
-                  "${nixDatabase}"
-                ]
-              )
-            }
-            jq --argjson explicit "$explicit" --argjson roots "$roots" '
-              $explicit + [
-                .graph[].path
-                | select((. as $p | ($roots | index($p))) == null)
-                | {
-                    path: .,
-                    regex: ".*",
-                    mode: "",
-                    uid: 1000,
-                    gid: 1000,
-                    uname: "vscode",
-                    gname: "vscode"
-                  }
-              ]
-            ' .attrs.json > "$out"
-          '';
-
-      customizationLayer =
-        (nix2container.buildLayer {
-          maxLayers = 1;
-          permsFile = customPermsFile;
-          copyToRoot = [
-            usrRoot
-            filesystemRoot
-            nixDatabase
-          ];
-          deps = [ configFile ];
-          ignore = configFile;
-          layers = imageLayers;
-          metadata.created_by = "devcontainers.nix top layer ${variantName}";
-        })
-        // {
-          nestedLayers = [ ];
-        };
-
-      allImageLayers = imageLayers ++ [ customizationLayer ];
+  ancestorsUnderHome =
+    path:
+    let
+      rel = lib.removePrefix "/home/vscode/" path;
+      parts = lib.filter (p: p != "") (lib.splitString "/" rel);
+      count = builtins.length parts;
     in
+    if lib.hasPrefix "/home/vscode/" path && count > 1 then
+      builtins.genList (i: "/home/vscode/" + lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
+        count - 1
+      )
+    else
+      [ ];
+
+  cacheAncestorDirectories = builtins.listToAttrs (
+    map (path: {
+      name = path;
+      value = {
+        mode = "0755";
+        uid = 1000;
+        gid = 1000;
+      };
+    }) (lib.unique (lib.concatMap (item: ancestorsUnderHome item.target) cacheLayout.mounts))
+  );
+
+  cacheTargetDirectories = builtins.listToAttrs (
+    map (item: {
+      name = item.target;
+      value = {
+        inherit (item) mode;
+        uid = 1000;
+        gid = 1000;
+      };
+    }) cacheLayout.mounts
+  );
+
+  baseDirectories = {
+    "/root" = {
+      mode = "0700";
+      uid = 0;
+      gid = 0;
+    };
+    "/home" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+    "/home/vscode" = {
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.config" = {
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.config/opencode" = {
+      mode = "0700";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.cache" = {
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.local" = {
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.local/share" = {
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.local/share/opencode" = {
+      mode = "0700";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.local/state" = {
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.local/state/bash" = {
+      mode = "0700";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.local/state/devcontainer" = {
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.local/state/opencode" = {
+      mode = "0700";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.codex" = {
+      mode = "0700";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/home/vscode/.gemini" = {
+      mode = "0700";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/tmp" = {
+      mode = "1777";
+      uid = 0;
+      gid = 0;
+    };
+    "/var" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+    "/var/empty" = {
+      mode = "0555";
+      uid = 0;
+      gid = 0;
+    };
+    "/var/cache" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+    "/var/lib" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+    "/var/lib/devcontainer" = {
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/var/lib/dbus" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+    "/var/log" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+    "/var/tmp" = {
+      mode = "1777";
+      uid = 0;
+      gid = 0;
+    };
+    "/run" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+    "/run/user" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+    "/run/user/1000" = {
+      mode = "0700";
+      uid = 1000;
+      gid = 1000;
+    };
+    "/workspaces" = {
+      mode = "1777";
+      uid = 0;
+      gid = 0;
+    };
+    "/etc/xdg" = {
+      mode = "0755";
+      uid = 0;
+      gid = 0;
+    };
+  };
+
+  directories = cacheAncestorDirectories // baseDirectories // cacheTargetDirectories;
+
+  filesystemRoot = pkgs.runCommand "devcontainer-filesystem" { } (
+    ''
+      mkdir -p \
+        "$out/etc/profile.d" \
+        "$out/etc/nixpkgs" \
+        "$out/etc/nix" \
+        "$out/etc/ssh" \
+        "$out/etc/ssl/certs" \
+        "$out/etc/dbus-1"
+      ${lib.concatStringsSep "\n" (
+        lib.mapAttrsToList (path: spec: ''
+          mkdir -p "$out${path}"
+          chmod ${spec.mode} "$out${path}"
+        '') directories
+      )}
+
+      ln -sfn /run "$out/var/run"
+      ln -sfn /var/lib/devcontainer/machine-id "$out/etc/machine-id"
+      ln -sfn /etc/machine-id "$out/var/lib/dbus/machine-id"
+      touch "$out/var/lib/devcontainer/machine-id"
+      chmod 0444 "$out/var/lib/devcontainer/machine-id"
+
+      ln -sfn ${pkgs.iana-etc}/etc/services "$out/etc/services"
+      ln -sfn ${pkgs.iana-etc}/etc/protocols "$out/etc/protocols"
+      ln -sfn ${pkgs.mailcap}/etc/mime.types "$out/etc/mime.types"
+      ln -sfn ${pkgs.tzdata}/share/zoneinfo "$out/etc/zoneinfo"
+      ln -sfn /etc/zoneinfo/UTC "$out/etc/localtime"
+      ln -sfn ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt "$out/etc/ssl/certs/ca-certificates.crt"
+      ln -sfn ${pkgs.dbus}/share/dbus-1/session.conf "$out/etc/dbus-1/session.conf"
+
+      cp -a --no-preserve=mode,ownership ${foundation.fontsRoot}/. "$out/"
+      chmod -R u+w "$out/etc"
+
+      printf '%s' ${lib.escapeShellArg passwdText} > "$out/etc/passwd"
+      printf '%s' ${lib.escapeShellArg groupText} > "$out/etc/group"
+      printf '%s' ${lib.escapeShellArg shadowText} > "$out/etc/shadow"
+      printf '%s' ${lib.escapeShellArg nsswitchText} > "$out/etc/nsswitch.conf"
+      printf '%s' ${lib.escapeShellArg shellsText} > "$out/etc/shells"
+      printf '%s' ${lib.escapeShellArg osReleaseText} > "$out/etc/os-release"
+      printf '%s' ${lib.escapeShellArg gitconfigText} > "$out/etc/gitconfig"
+      printf '%s' ${lib.escapeShellArg sshConfigText} > "$out/etc/ssh/ssh_config"
+      : > "$out/etc/ssh/ssh_known_hosts"
+      printf '%s' ${lib.escapeShellArg nixpkgsConfigText} > "$out/etc/nixpkgs/config.nix"
+      printf '%s' ${lib.escapeShellArg foundation.nixDaemonConf} > "$out/etc/nix/nix.conf"
+      printf '%s' ${lib.escapeShellArg shellFiles.profileText} > "$out/etc/profile"
+      printf '%s' ${lib.escapeShellArg shellFiles.bashrcText} > "$out/etc/bashrc"
+      printf '%s' ${lib.escapeShellArg shellFiles.bashBashrcText} > "$out/etc/bash.bashrc"
+      printf '%s' ${lib.escapeShellArg userBashrcText} > "$out/home/vscode/.bashrc"
+
+      chmod 0644 \
+        "$out/etc/passwd" \
+        "$out/etc/group" \
+        "$out/etc/nsswitch.conf" \
+        "$out/etc/shells" \
+        "$out/etc/os-release" \
+        "$out/etc/gitconfig" \
+        "$out/etc/ssh/ssh_config" \
+        "$out/etc/ssh/ssh_known_hosts" \
+        "$out/etc/nixpkgs/config.nix" \
+        "$out/etc/nix/nix.conf" \
+        "$out/etc/profile" \
+        "$out/etc/bashrc" \
+        "$out/etc/bash.bashrc" \
+        "$out/home/vscode/.bashrc"
+      chmod 0640 "$out/etc/shadow"
+    ''
+    + lib.concatMapStringsSep "\n" (root: ''
+      mkdir -p "$out${root}/data/Machine"
+      chmod 0755 "$out${root}" "$out${root}/data" "$out${root}/data/Machine"
+      printf '%s' ${lib.escapeShellArg editor.machineSettingsJson} > "$out${root}/data/Machine/settings.json"
+      chmod 0444 "$out${root}/data/Machine/settings.json"
+    '') editor.serverRoots
+  );
+
+  unameFor = uid: if uid == 0 then "root" else "vscode";
+  gnameFor = gid: if gid == 0 then "root" else "vscode";
+
+  escapeRegex =
+    text:
+    lib.replaceStrings
+      [
+        "\\"
+        "."
+        "+"
+        "*"
+        "?"
+        "^"
+        "$"
+        "("
+        ")"
+        "["
+        "]"
+        "{"
+        "}"
+        "|"
+      ]
+      [
+        "\\\\"
+        "\\."
+        "\\+"
+        "\\*"
+        "\\?"
+        "\\^"
+        "\\$"
+        "\\("
+        "\\)"
+        "\\["
+        "\\]"
+        "\\{"
+        "\\}"
+        "\\|"
+      ]
+      text;
+
+  dirPerms = lib.mapAttrsToList (path: spec: {
+    path = filesystemRoot;
+    regex = "^${escapeRegex "${filesystemRoot}${path}"}$";
+    inherit (spec) mode uid gid;
+    uname = unameFor spec.uid;
+    gname = gnameFor spec.gid;
+  }) directories;
+
+  filePerms = [
+    {
+      path = filesystemRoot;
+      regex = "^${filesystemRoot}/var/lib/devcontainer/machine-id$";
+      mode = "0444";
+      uid = 1000;
+      gid = 1000;
+      uname = "vscode";
+      gname = "vscode";
+    }
+    {
+      path = filesystemRoot;
+      regex = "^${filesystemRoot}/home/vscode/\\.bashrc$";
+      mode = "0644";
+      uid = 1000;
+      gid = 1000;
+      uname = "vscode";
+      gname = "vscode";
+    }
+    {
+      path = filesystemRoot;
+      regex = "^${filesystemRoot}/etc/shadow$";
+      mode = "0640";
+      uid = 0;
+      gid = 0;
+      uname = "root";
+      gname = "root";
+    }
+  ]
+  ++ lib.concatMap (root: [
+    {
+      path = filesystemRoot;
+      regex = "^${escapeRegex "${filesystemRoot}${root}"}(/data(/Machine)?)?$";
+      mode = "0755";
+      uid = 1000;
+      gid = 1000;
+      uname = "vscode";
+      gname = "vscode";
+    }
+    {
+      path = filesystemRoot;
+      regex = "^${escapeRegex "${filesystemRoot}${root}"}/data/Machine/settings\\.json$";
+      mode = "0444";
+      uid = 0;
+      gid = 0;
+      uname = "root";
+      gname = "root";
+    }
+  ]) editor.serverRoots;
+
+  imageConfig = {
+    User = "vscode";
+    WorkingDir = "/workspaces";
+    Env = lib.mapAttrsToList (name: value: "${name}=${value}") fullEnv;
+    Entrypoint = [ "/usr/bin/devcontainer-entrypoint" ];
+    Cmd = [ "/bin/bash" ];
+    Labels = baseLabels;
+  };
+
+  configFile = pkgs.writeText "devcontainer-config.json" (builtins.toJSON imageConfig);
+
+  excludedGraphRootsJson = builtins.toJSON (
+    map toString (
+      [
+        configFile
+        usrRoot
+        filesystemRoot
+      ]
+      ++ layers.imageLayers
+    )
+  );
+
+  closureGraphJson =
+    pkgs.runCommand "devcontainer-closure-graph.json"
+      {
+        __structuredAttrs = true;
+        exportReferencesGraph.graph = [
+          configFile
+          usrRoot
+          filesystemRoot
+        ]
+        ++ layers.imageLayers;
+        nativeBuildInputs = [ pkgs.jq ];
+      }
+      ''
+        excluded=${lib.escapeShellArg excludedGraphRootsJson}
+        jq --argjson excluded "$excluded" '
+          .graph
+          | map(select((.path as $p | ($excluded | index($p))) == null) | .references |= sort)
+          | sort_by(.path)
+        ' .attrs.json > "$out"
+      '';
+
+  nixDatabase =
+    pkgs.runCommand "devcontainer-nix-database"
+      {
+        nativeBuildInputs = [
+          pkgs.jq
+          pkgs.nix
+          pkgs.sqlite
+        ];
+      }
+      ''
+        jq -r 'map([.path, .narHash, .narSize, "", (.references | length)] + .references) | add | map("\(.)\n") | add' ${closureGraphJson} \
+          | head -n -1 \
+          | NIX_REMOTE="local?root=$PWD" nix-store --load-db -j 1
+
+        sqlite3 "$PWD/nix/var/nix/db/db.sqlite" 'UPDATE ValidPaths SET registrationTime = 0'
+        sqlite3 "$PWD/nix/var/nix/db/db.sqlite" '.dump' > db.dump
+        mkdir -p "$out/nix/var/nix/db"
+        sqlite3 "$out/nix/var/nix/db/db.sqlite" '.read db.dump'
+        cp "$PWD/nix/var/nix/db/schema" "$out/nix/var/nix/db/schema"
+        sqlite3 "$out/nix/var/nix/db/db.sqlite" 'pragma journal_mode = wal' > /dev/null
+
+        mkdir -p "$out/nix/var/nix/gcroots/docker"
+        # shellcheck disable=SC2046
+        ln -s $(jq -r '.[].path' ${closureGraphJson}) "$out/nix/var/nix/gcroots/docker/"
+        mkdir -p "$out/nix/store/.links"
+      '';
+
+  explicitPermsJson = builtins.toJSON (
+    dirPerms
+    ++ filePerms
+    ++ [
+      {
+        path = "${nixDatabase}";
+        regex = ".*";
+        mode = "0755";
+        uid = 1000;
+        gid = 1000;
+        uname = "vscode";
+        gname = "vscode";
+      }
+    ]
+  );
+
+  customPermsFile =
+    pkgs.runCommand "devcontainer-top-perms.json"
+      {
+        __structuredAttrs = true;
+        exportReferencesGraph.graph = [
+          usrRoot
+          filesystemRoot
+          nixDatabase
+        ];
+        nativeBuildInputs = [ pkgs.jq ];
+      }
+      ''
+        explicit=${lib.escapeShellArg explicitPermsJson}
+        roots=${
+          lib.escapeShellArg (
+            builtins.toJSON [
+              "${usrRoot}"
+              "${filesystemRoot}"
+              "${nixDatabase}"
+            ]
+          )
+        }
+        jq --argjson explicit "$explicit" --argjson roots "$roots" '
+          $explicit + [
+            .graph[].path
+            | select((. as $p | ($roots | index($p))) == null)
+            | {
+                path: .,
+                regex: ".*",
+                mode: "",
+                uid: 1000,
+                gid: 1000,
+                uname: "vscode",
+                gname: "vscode"
+              }
+          ]
+        ' .attrs.json > "$out"
+      '';
+
+  customizationLayer =
+    (nix2container.buildLayer {
+      maxLayers = 1;
+      permsFile = customPermsFile;
+      copyToRoot = [
+        usrRoot
+        filesystemRoot
+        nixDatabase
+      ];
+      deps = [ configFile ];
+      ignore = configFile;
+      layers = layers.imageLayers;
+      metadata.created_by = "devcontainers.nix top layer";
+    })
+    // {
+      nestedLayers = [ ];
+    };
+
+  allImageLayers = layers.imageLayers ++ [ customizationLayer ];
+
+  image =
     pkgs.runCommandLocal "image-devcontainers-dev.json"
       {
         passthru = {
           imageName = "ghcr.io/hellodword/devcontainers-dev";
-          imageTag = tag;
+          imageTag = "latest";
         };
       }
       ''
@@ -692,22 +774,6 @@ let
           ${configFile} \
           ${lib.concatMapStringsSep " " (layer: "${layer}/layers.json") allImageLayers}
       '';
-
-  dev = mkDevcontainerImage {
-    variantName = "dev";
-    tag = "latest";
-    imageLayers = layers.devLayers;
-    includeToolchainsInUsr = true;
-    includeEditor = true;
-  };
-
-  agent = mkDevcontainerImage {
-    variantName = "agent";
-    tag = "agent";
-    imageLayers = layers.sharedLayers;
-    includeToolchainsInUsr = false;
-    includeEditor = false;
-  };
 
   oci =
     pkgs.runCommand "devcontainers-dev-oci"
@@ -721,16 +787,13 @@ let
         tmpdir="$TMPDIR/skopeo"
         mkdir -p "$tmpdir" "$out"
         skopeo --tmpdir "$tmpdir" --insecure-policy copy \
-          nix:${dev} "oci:$out:latest"
-        skopeo --tmpdir "$tmpdir" --insecure-policy copy \
-          nix:${agent} "oci:$out:agent"
-        python3 ${../tests/check_oci_layout.py} "$out"
+          nix:${image} "oci:$out:latest"
+        python3 ${../tests/check_oci_layout.py} "$out" --cache-layout ${../data/cache-layout.json}
       '';
 in
 {
   inherit
-    dev
-    agent
+    image
     oci
     runtime
     foundation
@@ -739,5 +802,6 @@ in
     rustToolchain
     toolchainsUsrPackages
     toolchainsStoreDeps
+    fullEnv
     ;
 }

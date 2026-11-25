@@ -2,14 +2,11 @@
 
 ## Built-in Language and Format Toolchains
 
-All language toolchains reside in a shared `/nix/store` OCI layer (`Layer 2`) present in both `:latest` and `:agent` and anchored by `/nix/var/nix/gcroots/docker/` GC roots.
-
-- In **`:latest`**, every toolchain below is linked into `/usr/bin` and configured with user-local package manager paths (`CARGO_HOME`, `GOPATH`, `GOMODCACHE`, `GOCACHE`, `UV_*`, `PIP_CACHE_DIR`, `NPM_CONFIG_CACHE`, `PNPM_HOME`, `PNPM_CONFIG_STORE_DIR`, `NIX_CFLAGS_COMPILE`, `CGO_*`, `BINDGEN_EXTRA_CLANG_ARGS`) and 26 pre-projected offline VS Code extensions.
-- In **`:agent`**, `/usr/bin` exposes only the foundation system utilities, `nix`, `devpkg`, and the four coding-agent CLIs (`codex`, `opencode`, `agy`, `vm-test-submit`), keeping the default `PATH` free of language compilers while retaining the full `/nix/store` closure and identical XDG/package-manager cache environment variables (`CARGO_HOME`, `GOMODCACHE`, `GOCACHE`, `UV_CACHE_DIR`, `UV_LINK_MODE=copy`, `PIP_CACHE_DIR`, `NPM_CONFIG_CACHE`, `PNPM_CONFIG_STORE_DIR=/home/vscode/.cache/pnpm/store`, `PNPM_CONFIG_PACKAGE_IMPORT_METHOD=copy`) for instant offline `nix develop` activation and consistent cache mounts.
+All language toolchains reside in `/nix/store` (`Layer 2`), linked into `/usr/bin`, anchored by `/nix/var/nix/gcroots/docker/` GC roots, and paired with 26 offline VS Code extensions plus declarative cache environment variables from [`data/cache-layout.json`](../data/cache-layout.json).
 
 ### Included Toolchain Matrix
 
-- **C / C++ & Build Systems**: `gcc`, `binutils`, `pkg-config`, `cmake`, `ninja`, `meson`, `muon`, `gnumake`, `autoconf`, `automake`, `libtool`, plus `glibc.dev`, `stdenv`, and `zlib` headers/libraries in `/nix/store`.
+- **C / C++ & Build Systems**: `gcc`, `binutils`, `ccache` (`CCACHE_MAXSIZE=20G`), `pkg-config`, `cmake`, `ninja`, `meson`, `muon`, `gnumake`, `autoconf`, `automake`, `libtool`, plus `glibc.dev`, `patchelf`, `stdenv`, and `zlib` headers/libraries in `/nix/store`.
 - **Rust**: Nightly `rustc`, `cargo`, `rust-src`, `rustfmt`, `clippy`, `rust-analyzer`, `cargo-nextest`, `cargo-edit`, `cargo-audit`, and `rustup`.
 - **Go**: `go`, `gopls`, `dlv` (`delve`), `golangci-lint`, `gotools`, `govulncheck`, `gotests`, `gomodifytags`, `impl`, and `protoc-gen-go`.
 - **Python**: `python3`, `pip`, `uv`, `pipx`, `ruff`, `mypy`, `pytest`, `ipython`, `black`, `pylint`, and `bandit`.
@@ -19,7 +16,7 @@ All language toolchains reside in a shared `/nix/store` OCI layer (`Layer 2`) pr
 
 ## Rust Nightly Default and Pinning Project Versions
 
-`:latest` ships the **Rust Nightly** toolchain by default (including `rust-src`, `rustfmt`, `clippy`, and `rust-analyzer`) rather than Rust Stable. `/usr/bin/rustc` and `/usr/bin/cargo` invoke this pre-installed Nightly toolchain directly offline, while `/usr/bin/rustup` is available on `PATH` for project-level toolchain management.
+The image ships the **Rust Nightly** toolchain by default (including `rust-src`, `rustfmt`, `clippy`, and `rust-analyzer`) rather than Rust Stable. `/usr/bin/rustc` and `/usr/bin/cargo` invoke this pre-installed Nightly toolchain directly offline, while `/usr/bin/rustup` is available on `PATH` for project-level toolchain management.
 
 Projects that require **Rust Stable** or a **specific compiler version** use one of two standard approaches:
 
@@ -47,13 +44,13 @@ Projects that require **Rust Stable** or a **specific compiler version** use one
 
 ## Ad-Hoc Packages and Libraries with `devpkg`
 
-Both variants bundle the locked `nixpkgs` source tree at `/usr/share/devcontainer/nixpkgs` (`DEVPKG_NIXPKGS_REF`). Use `devpkg` to manage user-scoped CLI packages, runtime shared libraries (`NIX_LD_LIBRARY_PATH`), and C/C++ build headers (`CPATH`, `LIBRARY_PATH`, `PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`) without root privileges:
+The image bundles the locked `nixpkgs` source tree at `/usr/share/devcontainer/nixpkgs` (`DEVPKG_NIXPKGS_REF`). Use `devpkg` to manage user-scoped CLI packages, runtime shared libraries (`NIX_LD_LIBRARY_PATH`), and C/C++ build headers (`CPATH`, `LIBRARY_PATH`, `PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`) without root privileges:
 
 ```bash
 # Install, list, and remove CLI tools in the user Nix profile
-devpkg add shfmt
+devpkg add patchelf
 devpkg list --json
-devpkg remove shfmt
+devpkg remove patchelf
 
 # Expose shared libraries to dynamically linked binaries via nix-ld
 devpkg add-lib zlib
@@ -67,11 +64,11 @@ devpkg remove-dev-lib openssl
 
 Packages whose store closures already exist in the image install instantaneously even with `--network none`.
 
-## Offline `devShell` Store Reuse in `:agent`
+## Offline `devShell` Store Reuse
 
-`:agent` keeps `/usr/bin` minimal for clean agent execution while retaining all `Layer 2` compilers, `stdenv`, `/usr/share/devcontainer/nixpkgs`, and `/usr/share/devcontainer/rust-overlay` in `/nix/store`. Running `nix-store --gc` inside `:agent` collects unreferenced temporary builds while preserving every pre-baked toolchain path via `/nix/var/nix/gcroots/docker/`.
+Running `nix-store --gc` inside a container collects unreferenced temporary builds while preserving every pre-baked toolchain path, `stdenv`, `/usr/share/devcontainer/nixpkgs`, and `/usr/share/devcontainer/rust-overlay` via `/nix/var/nix/gcroots/docker/`.
 
-When a project locks the matching `nixpkgs` tree (or references `path:/usr/share/devcontainer/nixpkgs`), `:agent` evaluates and enters `nix develop --offline` with zero network downloads:
+When a project locks the matching `nixpkgs` tree (or references `path:/usr/share/devcontainer/nixpkgs`), `nix develop --offline` evaluates and enters the shell with zero network downloads:
 
 ```bash
 nix develop --offline --command cargo build --offline

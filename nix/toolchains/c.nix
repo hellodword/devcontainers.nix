@@ -5,6 +5,7 @@ let
   usrPackages = with pkgs; [
     gcc
     binutils
+    ccache
     pkg-config
     cmake
     ninja
@@ -17,13 +18,17 @@ let
   ];
   storeOnly = [
     pkgs.glibc.dev
+    pkgs.patchelf
     pkgs.stdenv.cc.cc
     pkgs.stdenv
     pkgs.stdenvNoCC
     pkgs.zlib.out
     pkgs.zlib.dev
   ];
-  cacheEnv = { };
+  cacheEnv = {
+    CCACHE_DIR = "/home/vscode/.cache/ccache";
+    CCACHE_MAXSIZE = "20G";
+  };
   devEnv = {
     NIX_CFLAGS_COMPILE = "-isystem ${buildLibProfile}/include";
     NIX_LDFLAGS = "-L${buildLibProfile}/lib -L${buildLibProfile}/lib64";

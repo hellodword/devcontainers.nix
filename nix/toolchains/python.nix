@@ -17,8 +17,6 @@ let
   cacheEnv = {
     PIP_CACHE_DIR = "/home/vscode/.cache/pip";
     PYTHONUSERBASE = "/home/vscode/.local/share/python";
-    PYTHONPYCACHEPREFIX = "/home/vscode/.cache/python";
-    MYPY_CACHE_DIR = "/home/vscode/.cache/mypy";
     UV_CACHE_DIR = "/home/vscode/.cache/uv";
     UV_TOOL_DIR = "/home/vscode/.local/share/uv/tools";
     UV_TOOL_BIN_DIR = "/home/vscode/.local/share/uv/bin";

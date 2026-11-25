@@ -467,14 +467,6 @@ let
     VISUAL = "vim";
   };
 
-  agentPathSegments = [
-    "/home/vscode/.local/share/devcontainer/bin"
-    "/home/vscode/.local/share/nix-profile/bin"
-    "/home/vscode/.nix-profile/bin"
-    "/usr/local/bin"
-    "/usr/bin"
-  ];
-
   mkShellFiles =
     {
       envAttrs,
@@ -636,7 +628,6 @@ in
     storeDeps
     fontsRoot
     baseEnv
-    agentPathSegments
     mkShellFiles
     fhsSymlinks
     nixDaemonConf

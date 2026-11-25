@@ -2,7 +2,7 @@
 
 ## Standard Workspace Layout
 
-`:latest` embeds Dev Container metadata in its `devcontainer.metadata` image label:
+`ghcr.io/hellodword/devcontainers-dev:latest` embeds Dev Container metadata in its `devcontainer.metadata` image label:
 
 - `remoteUser`: `vscode` (`1000:1000`)
 - `containerUser`: `vscode`
@@ -21,7 +21,7 @@ When opening a repository under the standard `/workspaces/<repo>` path on a host
 }
 ```
 
-The default read-only `.devcontainer` bind mount prevents processes inside the container from modifying container launch configuration or lifecycle hooks inside the workspace. `/workspaces` carries sticky directory permissions (`01777`); for standalone `docker run` workspace boundaries, shared agent state, and cache mounts, see [docs/security-and-sharing.md](security-and-sharing.md).
+The default read-only `.devcontainer` bind mount prevents processes inside the container from modifying container launch configuration or lifecycle hooks inside the workspace. `/workspaces` carries sticky directory permissions (`01777`); for standalone `docker run` workspace boundaries, coding-agent mounts, and shared cache pools, see [docs/security-and-sharing.md](security-and-sharing.md).
 
 ## Custom `workspaceFolder` Layout
 
@@ -40,11 +40,11 @@ When a project overrides `workspaceFolder` and `workspaceMount` to mount the rep
 
 ## Entrypoint Identity Boundary
 
-Both `:latest` and `:agent` use `/usr/bin/devcontainer-entrypoint` with default command `["/bin/bash"]`:
+The image uses `/usr/bin/devcontainer-entrypoint` with default command `["/bin/bash"]` (and `devcontainer.metadata` labels are ignored automatically by standalone `docker run`):
 
 - Interactive shell: `docker run --rm -it ghcr.io/hellodword/devcontainers-dev:latest`
-- One-shot command passthrough: `docker run --rm ghcr.io/hellodword/devcontainers-dev:agent nix --version`
-- Background daemon with clean `SIGTERM` handling via `tini -g`: `docker run -d ghcr.io/hellodword/devcontainers-dev:agent sleep infinity`
+- One-shot command passthrough: `docker run --rm ghcr.io/hellodword/devcontainers-dev:latest nix --version`
+- Background daemon with clean `SIGTERM` handling via `tini -g`: `docker run -d ghcr.io/hellodword/devcontainers-dev:latest sleep infinity`
 
 At startup, `devcontainer-entrypoint` verifies that the process effective `uid:gid` matches the `vscode` entry in `/etc/passwd`. Starting the container as `root` (`--user 0`) or with an unmapped runtime `--user <uid>:<gid>` fails immediately with exit code `126`. The entrypoint never performs runtime recursive `chown` traversal.
 
@@ -76,7 +76,7 @@ Pair it with `.devcontainer/devcontainer.json`:
 }
 ```
 
-`devcontainer-set-user-id` updates `/etc/passwd` and `/etc/group`, migrates ownership of `/home/vscode`, `/var/lib/devcontainer`, `/run/user/<uid>`, and `/nix/var/nix`, and leaves `/nix/store` package files untouched in lower layers so builds complete in seconds without layer duplication.
+`devcontainer-set-user-id` updates `/etc/passwd` and `/etc/group`, migrates ownership of `/home/vscode`, `/var/lib/devcontainer`, `/var/cache/devcontainer-nix`, `/run/user/<uid>`, and `/nix/var/nix`, and leaves `/nix/store` package files untouched in lower layers so builds complete in seconds without layer duplication.
 
 Automated tooling can compute a deterministic local tag key from the base manifest digest, target IDs, and helper protocol version (`devcontainer-set-user-id --version`, currently `devcontainer-set-user-id 1`):
 

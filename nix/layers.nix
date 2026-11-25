@@ -1,4 +1,4 @@
-# Pure /nix/store OCI layers shared across :latest and :agent plus :latest-only extension layers.
+# Ordered /nix/store OCI layers for the devcontainer image.
 {
   pkgs,
   nix2container,
@@ -77,7 +77,7 @@ let
     ];
   };
 
-  sharedLayers = [
+  baseLayers = [
     layer1Foundation
     layer2Toolchains
     layer3AgentsOss
@@ -87,16 +87,16 @@ let
   layer5ExtensionsOss = mkStoreLayer {
     name = "vscode-extensions-oss";
     deps = editor.ossPackages;
-    priorLayers = sharedLayers;
+    priorLayers = baseLayers;
   };
 
   layer6ExtensionsRestricted = mkStoreLayer {
     name = "vscode-extensions-restricted";
     deps = editor.restrictedPackages ++ runtime.editorHelpers;
-    priorLayers = sharedLayers ++ [ layer5ExtensionsOss ];
+    priorLayers = baseLayers ++ [ layer5ExtensionsOss ];
   };
 
-  devLayers = sharedLayers ++ [
+  imageLayers = baseLayers ++ [
     layer5ExtensionsOss
     layer6ExtensionsRestricted
   ];
@@ -104,7 +104,6 @@ in
 {
   inherit
     mkStoreLayer
-    sharedLayers
-    devLayers
+    imageLayers
     ;
 }
