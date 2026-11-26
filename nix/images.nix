@@ -448,8 +448,7 @@ let
         "$out/etc/nixpkgs" \
         "$out/etc/nix" \
         "$out/etc/ssh" \
-        "$out/etc/ssl/certs" \
-        "$out/etc/dbus-1"
+        "$out/etc/ssl/certs"
       ${lib.concatStringsSep "\n" (
         lib.mapAttrsToList (path: spec: ''
           mkdir -p "$out${path}"
@@ -469,7 +468,6 @@ let
       ln -sfn ${pkgs.tzdata}/share/zoneinfo "$out/etc/zoneinfo"
       ln -sfn /etc/zoneinfo/UTC "$out/etc/localtime"
       ln -sfn ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt "$out/etc/ssl/certs/ca-certificates.crt"
-      ln -sfn ${pkgs.dbus}/share/dbus-1/session.conf "$out/etc/dbus-1/session.conf"
 
       cp -a --no-preserve=mode,ownership ${foundation.fontsRoot}/. "$out/"
       chmod -R u+w "$out/etc"
