@@ -42,10 +42,10 @@
       },
       "locked": {
         "dir": "infra",
-        "lastModified": 1795713095,
+        "lastModified": 1795713535,
         "narHash": "sha256-eCto8ZsDS4+UpmXS736t6goFWB/GuqPpCXLpOgmrelE=",
         "ref": "master",
-        "rev": "2d151aae20e0ac10d55d8744882397f4aef20543",
+        "rev": "8cbc4d03860e1fc06b646ea85750d839db94db21",
         "revCount": 1506,
         "type": "git",
         "url": "https://github.com/hellodword/nixos-config.git"

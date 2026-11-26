@@ -28,6 +28,7 @@ jobs:
           repository: hellodword/nixos-config
           ref: master
           path: core
+          sparse-checkout: infra
           persist-credentials: false
 
       - name: Check out devcontainers.nix
@@ -38,86 +39,26 @@ jobs:
           path: project
           persist-credentials: false
 
-      - name: Prepare flake input update candidate
-        id: prepare
-        uses: ./core/infra/action
+      - name: Update flake inputs, verify candidate, fast-forward master, and publish OCI tags
+        uses: ./core/infra/actions/update
         with:
-          mode: prepare-update
           project-dir: project
-
-      - name: Verify candidate across build groups, VM checks, and release contract
-        if: steps.prepare.outputs.changed == 'true'
-        uses: ./core/infra/action
-        with:
-          mode: verify
-          project-dir: project
-          run-builds: "true"
-          publish-cache: "true"
           signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
-          keep-container: "true"
-          artifact-suffix: update
-
-      - name: Preflight GHCR authentication before fast-forwarding master
-        if: steps.prepare.outputs.changed == 'true'
-        env:
-          GHCR_ACTOR: ${{ github.actor }}
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          docker exec \
-            --env GHCR_ACTOR \
-            --env GHCR_TOKEN \
-            "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-              export PATH="$(cat /ci/tools)/bin"
-              publish_cli="$(jq -r '\''.groups[] | select(.name == "build") | .entries[] | select(.name == "publish-cli") | .outputs[0]'\'' /ci/manifest.json)"
-              "$publish_cli/bin/publish-devcontainers" --registry ghcr.io --login-env --preflight-only
-            '
-
-      - name: Fast-forward master to verified candidate
-        id: merge
-        if: steps.prepare.outputs.changed == 'true'
-        uses: ./core/infra/action
-        with:
-          mode: merge-update
-          project-dir: project
-
-      - name: Publish digest-preserving OCI tags to GHCR
-        if: steps.prepare.outputs.changed == 'true' && steps.merge.outputs.merged == 'true'
-        env:
-          GHCR_ACTOR: ${{ github.actor }}
-          GHCR_TOKEN: ${{ github.token }}
-          CANDIDATE_SHA: ${{ steps.prepare.outputs.candidate-sha }}
-          REMOTE_URL: ${{ format('{0}/{1}.git', github.server_url, github.repository) }}
-        run: |
-          set -euo pipefail
-          action_sha="$(git -C core rev-parse HEAD)"
-          rm -f "$NIX_CI_STATE/publish-summary.md"
-          docker exec \
-            --env GHCR_ACTOR \
-            --env GHCR_TOKEN \
-            --env CANDIDATE_SHA \
-            --env ACTION_SHA="$action_sha" \
-            --env REMOTE_URL \
-            "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-              export PATH="$(cat /ci/tools)/bin"
-              publish_cli="$(jq -r '\''.groups[] | select(.name == "build") | .entries[] | select(.name == "publish-cli") | .outputs[0]'\'' /ci/manifest.json)"
-              GITHUB_STEP_SUMMARY=/ci/publish-summary.md "$publish_cli/bin/publish-devcontainers" \
-                --manifest /ci/manifest.json \
+          preflight: |
+            GHCR_ACTOR="$GITHUB_ACTOR" GHCR_TOKEN="$GITHUB_TOKEN" \
+              /ci/jobs/publish-cli/bin/publish-devcontainers \
+                --registry ghcr.io \
+                --login-env \
+                --preflight-only
+          release: |
+            GHCR_ACTOR="$GITHUB_ACTOR" GHCR_TOKEN="$GITHUB_TOKEN" \
+              /ci/jobs/publish-cli/bin/publish-devcontainers \
+                --oci-dir /ci/jobs/oci \
                 --login-env \
                 --registry ghcr.io \
                 --repository hellodword/devcontainers-dev \
-                --commit-sha "$CANDIDATE_SHA" \
+                --commit-sha "$NIX_CI_COMMIT_SHA" \
                 --expected-master-ref refs/heads/master \
-                --git-remote "$REMOTE_URL" \
+                --git-remote "$NIX_CI_GIT_REMOTE" \
                 --flake-lock /workspace/flake.lock \
-                --action-sha "$ACTION_SHA"
-            '
-          cat "$NIX_CI_STATE/publish-summary.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Collect diagnostics and tear down Nix CI container
-        if: always() && steps.prepare.outputs.changed == 'true'
-        uses: ./core/infra/action
-        with:
-          mode: finalize
-          project-dir: project
-          artifact-suffix: update
+                --action-sha "$NIX_CI_INFRA_SHA"

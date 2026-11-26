@@ -26,6 +26,7 @@ jobs:
           repository: hellodword/nixos-config
           ref: master
           path: core
+          sparse-checkout: infra
           persist-credentials: false
 
       - name: Check out devcontainers.nix
@@ -35,54 +36,23 @@ jobs:
           path: project
           persist-credentials: false
 
-      - name: Verify manifest, build groups, VM checks, and release contract
-        uses: ./core/infra/action
+      - name: Verify manifest, publish signed cache, and release OCI tags
+        uses: ./core/infra/actions/verify
         with:
-          mode: verify
           project-dir: project
-          run-builds: "true"
-          publish-cache: ${{ github.ref == 'refs/heads/master' && 'true' || 'false' }}
-          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
-          keep-container: "true"
-          artifact-suffix: verify
-
-      - name: Publish digest-preserving OCI tags to GHCR
-        if: github.ref == 'refs/heads/master'
-        env:
-          GHCR_ACTOR: ${{ github.actor }}
-          GHCR_TOKEN: ${{ github.token }}
-          REMOTE_URL: ${{ format('{0}/{1}.git', github.server_url, github.repository) }}
-        run: |
-          set -euo pipefail
-          target_sha="$(git -C project rev-parse HEAD)"
-          action_sha="$(git -C core rev-parse HEAD)"
-          rm -f "$NIX_CI_STATE/publish-summary.md"
-          docker exec \
-            --env GHCR_ACTOR \
-            --env GHCR_TOKEN \
-            --env TARGET_SHA="$target_sha" \
-            --env ACTION_SHA="$action_sha" \
-            --env REMOTE_URL \
-            "$NIX_CI_CONTAINER" bash -euo pipefail -c '
-              export PATH="$(cat /ci/tools)/bin"
-              publish_cli="$(jq -r '\''.groups[] | select(.name == "build") | .entries[] | select(.name == "publish-cli") | .outputs[0]'\'' /ci/manifest.json)"
-              GITHUB_STEP_SUMMARY=/ci/publish-summary.md "$publish_cli/bin/publish-devcontainers" \
-                --manifest /ci/manifest.json \
+          signing-key: ${{ github.ref == 'refs/heads/master' && secrets.NIX_CACHE_SIGNING_KEY || '' }}
+          release: |
+            if [[ "${{ github.ref }}" != "refs/heads/master" ]]; then
+              exit 0
+            fi
+            GHCR_ACTOR="$GITHUB_ACTOR" GHCR_TOKEN="$GITHUB_TOKEN" \
+              /ci/jobs/publish-cli/bin/publish-devcontainers \
+                --oci-dir /ci/jobs/oci \
                 --login-env \
                 --registry ghcr.io \
                 --repository hellodword/devcontainers-dev \
-                --commit-sha "$TARGET_SHA" \
+                --commit-sha "$NIX_CI_COMMIT_SHA" \
                 --expected-master-ref refs/heads/master \
-                --git-remote "$REMOTE_URL" \
+                --git-remote "$NIX_CI_GIT_REMOTE" \
                 --flake-lock /workspace/flake.lock \
-                --action-sha "$ACTION_SHA"
-            '
-          cat "$NIX_CI_STATE/publish-summary.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Collect diagnostics and tear down Nix CI container
-        if: always()
-        uses: ./core/infra/action
-        with:
-          mode: finalize
-          project-dir: project
-          artifact-suffix: verify
+                --action-sha "$NIX_CI_INFRA_SHA"
