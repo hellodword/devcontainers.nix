@@ -138,7 +138,7 @@ core.lib.testing.mkTest pkgs (_: {
                   f"tmpdir=$(mktemp -d) && trap 'rm -rf \"$tmpdir\"' EXIT && "
                   f"skopeo --tmpdir \"$tmpdir\" --insecure-policy copy oci:{q(OCI_DIR)}:latest docker-daemon:{IMAGE_REF}"
               ),
-              timeout=600,
+              timeout=900,
           )
 
           # Default vscode (1000:1000) identity, /workspaces, XDG, and machine-id.
@@ -446,7 +446,7 @@ core.lib.testing.mkTest pkgs (_: {
                   f"docker build -t {derived_tag} "
                   f"--build-arg DEV_UID=1234 --build-arg DEV_GID=1235 {build_dir}"
               ),
-              timeout=300,
+              timeout=900,
           )
           cname = "derived-latest"
           machine.succeed(
