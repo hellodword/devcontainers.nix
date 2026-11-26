@@ -143,6 +143,30 @@
         '';
       };
 
+      cacheScopesFile = pkgs.writeText "devcontainers-cache-config.nix" ''
+        {
+          local.text = ${builtins.toJSON cache.local.text};
+          public.text = ${builtins.toJSON cache.public.text};
+          ci.text = ${builtins.toJSON cache.ci.text};
+        }
+      '';
+
+      nixCacheAppPkg = mkClosedShellApp {
+        name = "devcontainers-nix-cache";
+        runtimeInputs = [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.gnugrep
+          pkgs.nix
+        ];
+        text = ''
+          exec ${pkgs.bash}/bin/bash ${core}/scripts/nix-cache.sh \
+            --config-file ${cacheScopesFile} \
+            --fragment-name "devcontainers-nix-cache.conf" \
+            "$@"
+        '';
+      };
+
       verifyAppPkg = mkClosedShellApp {
         name = "verify-devcontainers";
         runtimeInputs = [
@@ -185,6 +209,11 @@
           type = "app";
           program = "${publishAppPkg}/bin/publish-devcontainers";
           meta.description = "Publish digest-preserving OCI tags to a registry";
+        };
+        nix-cache = {
+          type = "app";
+          program = "${nixCacheAppPkg}/bin/devcontainers-nix-cache";
+          meta.description = "Print or install signed OCI and public Nix binary cache settings";
         };
         verify = {
           type = "app";

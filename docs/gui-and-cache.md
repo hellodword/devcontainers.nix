@@ -119,18 +119,18 @@ docker run --rm --network none \
 
 Supported flags: `--cache-layout`, `--target-override ID=PATH`, `--max-age-days`, `--nix-max-bytes`, `--pool-max-bytes`, `--grace-seconds` (`600`), `--idle`, and `--dry-run`.
 
-### Host Client Cache Setup (`scripts/nix-cache.sh`)
+### Host Client Cache Setup (`nix run .#nix-cache`)
 
 Configure a host Nix client to trust and read the dual GHCR binary caches through a local `oranc` proxy (`172.17.0.1:37515`):
 
 ```bash
 # Print configuration fragments
-./scripts/nix-cache.sh print
-./scripts/nix-cache.sh print --public-only
-./scripts/nix-cache.sh print --ci
+nix run .#nix-cache -- print
+nix run .#nix-cache -- print --public-only
+nix run .#nix-cache -- print --ci
 
 # Install managed block into ~/.config/nix/nix.conf
-./scripts/nix-cache.sh install
+nix run .#nix-cache -- install
 ```
 
 ---
