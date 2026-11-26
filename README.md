@@ -9,7 +9,7 @@ Modular Nix/OCI development container image (`ghcr.io/hellodword/devcontainers-d
 | Default user & workdir            | `vscode` (`1000:1000`), `/workspaces` (`01777`)                                                                               |
 | Entrypoint & supervisor           | `/usr/bin/devcontainer-entrypoint` (`tini -g`)                                                                                |
 | Shell, VCS, network & Nix CLI     | `bash`, `git`, `ssh`, `gpg`, `jq`, `rg`, `fd`, `just`, `docker`, `nix`, `devpkg`                                              |
-| Agent CLIs in `/usr/bin`          | `codex`, `opencode`, `agy`, `vm-test-submit`                                                                                  |
+| Agent CLIs in `/usr/bin`          | `codex`, `opencode`, `agy`                                                                                                    |
 | Language toolchains in `/usr/bin` | C/C++ (`gcc`, `ccache`, `cmake`, `ninja`), Rust **Nightly**, Go, Python, Node.js/TypeScript, Nix, Protobuf                    |
 | Offline VS Code extensions        | 26 extensions + read-only `Machine/settings.json`                                                                             |
 | `devcontainer.metadata` label     | `init`, `overrideCommand`, `.devcontainer` read-only mount, `postCreate` / `postStart` lifecycle tasks                        |

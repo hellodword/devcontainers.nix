@@ -3,14 +3,12 @@
 let
   codex = inputs.llm-agents.packages.${system}.codex;
   opencode = inputs.llm-agents.packages.${system}.opencode;
-  vm-test-submit = inputs.agents-misc.packages.${system}.vm-test-submit;
   antigravity-cli = inputs.llm-agents.packages.${system}.antigravity-cli;
 in
 {
   ossPackages = [
     codex
     opencode
-    vm-test-submit
   ];
   restrictedPackages = [
     antigravity-cli
@@ -18,7 +16,6 @@ in
   allPackages = [
     codex
     opencode
-    vm-test-submit
     antigravity-cli
   ];
 }

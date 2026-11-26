@@ -1,30 +1,5 @@
 {
   "nodes": {
-    "agents-misc": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "oranc": [
-          "core",
-          "oranc"
-        ],
-        "treefmt-nix": "treefmt-nix"
-      },
-      "locked": {
-        "lastModified": 1795526505,
-        "narHash": "sha256-et6vGyceJM5KHShn7Uud8Ano4oFzH0tkjPVJGuZxEJA=",
-        "owner": "hellodword",
-        "repo": "agents-misc",
-        "rev": "c1a41af40035177fe1b1db113bf846ffba00b8ee",
-        "type": "github"
-      },
-      "original": {
-        "owner": "hellodword",
-        "repo": "agents-misc",
-        "type": "github"
-      }
-    },
     "bun2nix": {
       "inputs": {
         "flake-parts": [
@@ -66,11 +41,11 @@
       },
       "locked": {
         "dir": "infra",
-        "lastModified": 1795680454,
-        "narHash": "sha256-mTS9mo+8ytFtlACMmq+9i9YvhtmE/ITkbwyT72M1pis=",
+        "lastModified": 1795700616,
+        "narHash": "sha256-FrH4SlLPYSMlwoJQtsuxFfTOrS5kxpzzmpWsJIzZvFY=",
         "ref": "master",
-        "rev": "fbc4cc332e0c1d5ed5b41f8b759d16ae848b3961",
-        "revCount": 1500,
+        "rev": "73740c866c7fd162e159d25ce2fd60052a0d00a2",
+        "revCount": 1502,
         "type": "git",
         "url": "https://github.com/hellodword/nixos-config.git"
       },
@@ -145,7 +120,7 @@
         "flake-parts": "flake-parts_2",
         "nixpkgs": "nixpkgs_3",
         "systems": "systems",
-        "treefmt-nix": "treefmt-nix_3"
+        "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
         "lastModified": 1795304504,
@@ -274,7 +249,7 @@
         "crane": "crane",
         "flake-parts": "flake-parts",
         "nixpkgs": "nixpkgs_2",
-        "treefmt-nix": "treefmt-nix_2"
+        "treefmt-nix": "treefmt-nix"
       },
       "locked": {
         "lastModified": 1795675910,
@@ -292,7 +267,6 @@
     },
     "root": {
       "inputs": {
-        "agents-misc": "agents-misc",
         "core": "core",
         "llm-agents": "llm-agents",
         "nix-index-database": "nix-index-database",
@@ -303,7 +277,7 @@
           "nixpkgs"
         ],
         "rust-overlay": "rust-overlay",
-        "treefmt-nix": "treefmt-nix_4"
+        "treefmt-nix": "treefmt-nix_3"
       }
     },
     "rust-overlay": {
@@ -344,27 +318,6 @@
     "treefmt-nix": {
       "inputs": {
         "nixpkgs": [
-          "agents-misc",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1786901030,
-        "narHash": "sha256-WSFCsDSE5ffgD2MqzkM2CYjeFiKhRF/dJUN8uedb6YE=",
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "rev": "27b3b12a8e6375f28ebe122f07d230ca5459bbfa",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "type": "github"
-      }
-    },
-    "treefmt-nix_2": {
-      "inputs": {
-        "nixpkgs": [
           "core",
           "oranc",
           "nixpkgs"
@@ -384,7 +337,7 @@
         "type": "github"
       }
     },
-    "treefmt-nix_3": {
+    "treefmt-nix_2": {
       "inputs": {
         "nixpkgs": [
           "llm-agents",
@@ -405,7 +358,7 @@
         "type": "github"
       }
     },
-    "treefmt-nix_4": {
+    "treefmt-nix_3": {
       "inputs": {
         "nixpkgs": [
           "nixpkgs"

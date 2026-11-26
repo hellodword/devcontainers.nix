@@ -214,8 +214,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not os.access("/dev/kvm", os.R_OK | os.W_OK):
         raise RuntimeError(
-            "KVM is unavailable (/dev/kvm not accessible); run on a KVM host or submit "
-            ".#checks.x86_64-linux.vm-{containers,editor} via vm-test-submit."
+            "VM verification requires read/write access to /dev/kvm. "
+            "Run 'nix run .#verify' on a KVM-enabled Linux host."
         )
     for name in vm_attrs:
         run_checked(

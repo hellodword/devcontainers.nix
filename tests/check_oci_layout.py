@@ -58,7 +58,6 @@ REQUIRED_COMMANDS = {
     "ssh",
     "taplo",
     "uv",
-    "vm-test-submit",
     "wayland-info",
 }
 

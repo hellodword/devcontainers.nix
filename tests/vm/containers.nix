@@ -324,8 +324,7 @@ core.lib.testing.mkTest pkgs (_: {
                           "command -v wayland-info >/dev/null && "
                           "codex --version >/dev/null && "
                           "opencode --version >/dev/null && "
-                          "agy --version >/dev/null && "
-                          "vm-test-submit --version >/dev/null"
+                          "agy --version >/dev/null"
                       )
                   ),
                   timeout=120,
@@ -676,8 +675,7 @@ core.lib.testing.mkTest pkgs (_: {
                       'test -s /etc/machine-id && '
                       'codex --version >/dev/null && '
                       'opencode --version >/dev/null && '
-                      'agy --version >/dev/null && '
-                      'vm-test-submit --version >/dev/null'
+                      'agy --version >/dev/null'
                   )
               ),
               timeout=120,

@@ -26,11 +26,6 @@
       url = "github:nlewo/nix2container";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    agents-misc = {
-      url = "github:hellodword/agents-misc";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.oranc.follows = "core/oranc";
-    };
   };
 
   outputs =
@@ -43,7 +38,6 @@
       nix-index-database,
       treefmt-nix,
       nix2container,
-      agents-misc,
       ...
     }:
     let
@@ -173,7 +167,6 @@
           pkgs.skopeo-nix2container
           core.packages.${system}.ci-tools
           core.packages.${system}.oranc
-          agents-misc.packages.${system}.vm-test-submit
           pkgs.bash
           pkgs.coreutils
           pkgs.findutils
@@ -323,7 +316,6 @@
           pkgs.skopeo-nix2container
           core.packages.${system}.ci-tools
           core.packages.${system}.oranc
-          agents-misc.packages.${system}.vm-test-submit
           pkgs.actionlint
           pkgs.distribution
           pkgs.gh

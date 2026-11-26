@@ -141,7 +141,7 @@ nix run .#nix-cache -- install
 
 1. **Layer 1**: Foundation utilities, FHS loader, locales, fonts, and `nix`
 2. **Layer 2**: Five language toolchains + `ccache`, Nix language tools, formatters, `nixpkgs`, and `rust-overlay`
-3. **Layer 3**: Open-source coding-agent CLIs (`codex`, `opencode`, `vm-test-submit`)
+3. **Layer 3**: Open-source coding-agent CLIs (`codex`, `opencode`)
 4. **Layer 4**: `antigravity-cli` (`agy`)
 5. **Layer 5**: 25 open-source VS Code extensions and lifecycle task helpers
 6. **Layer 6**: `ms-python.vscode-pylance`
