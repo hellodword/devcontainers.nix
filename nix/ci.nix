@@ -6,11 +6,12 @@
 }:
 let
   inherit (flake.lib.${system}) cache images pkgs;
-  inherit (pkgs) lib;
+  inherit (flake.inputs.core.lib.ci) mkManifest;
   checks = flake.checks.${system};
   devShell = flake.devShells.${system}.default;
-
-  baseProducts = {
+in
+mkManifest {
+  build = {
     inherit (checks)
       formatting
       lint
@@ -21,18 +22,21 @@ let
     publish-cli = flake.lib.${system}.publishAppPkg;
     dev-shell = devShell;
   };
-
-  vmDrivers = {
-    vm-containers-driver = checks.vm-containers.driver;
-    vm-editor-driver = checks.vm-editor.driver;
-  };
-
-  vmChecks = {
-    inherit (checks) vm-containers vm-editor;
-  };
-
-  jobs = baseProducts // vmDrivers // vmChecks;
-
+  vmGroups = [
+    {
+      name = "vm-containers";
+      checks = {
+        inherit (checks) vm-containers;
+      };
+    }
+    {
+      name = "vm-editor";
+      checks = {
+        inherit (checks) vm-editor;
+      };
+    }
+  ];
+  cacheConfig = cache.config;
   cachePolicy = cache.mkPolicy {
     flakeOutPath = toString flake.outPath;
     candidates =
@@ -61,69 +65,6 @@ let
       checks.vm-editor.driver.drvPath
     ];
   };
-in
-{
-  inherit jobs;
-
-  groups = [
-    {
-      name = "private";
-      jobs = [ ];
-      required = true;
-      vm = null;
-      kvm = false;
-      maxJobs = 1;
-    }
-    {
-      name = "build";
-      jobs = builtins.attrNames baseProducts ++ [
-        {
-          job = "vm-containers-driver";
-          prepares = "vm-containers";
-        }
-        {
-          job = "vm-editor-driver";
-          prepares = "vm-editor";
-        }
-      ];
-      required = true;
-      vm = null;
-      kvm = false;
-      maxJobs = 1;
-    }
-    {
-      name = "vm-containers";
-      jobs = [ "vm-containers" ];
-      required = true;
-      vm = "nixos";
-      kvm = true;
-      maxJobs = 1;
-    }
-    {
-      name = "vm-editor";
-      jobs = [ "vm-editor" ];
-      required = true;
-      vm = "nixos";
-      kvm = true;
-      maxJobs = 1;
-    }
-  ];
-
-  cache = {
-    registry = cache.identity.registry or "ghcr.io";
-    inherit (cache.identity) repository publicKey;
-    mode = "incremental";
-    targetUri = cache.ci.uri;
-    readSubstituters = cache.ci.settings.substituters;
-    trustedPublicKeys = cache.ci.settings.trusted-public-keys;
-    inherit (cachePolicy)
-      excludedPaths
-      excludedDerivations
-      bundles
-      privateBuilds
-      ;
-  };
-
   update = {
     allowedLockfiles = [ "flake.lock" ];
     ignoreOnlyInputs = [ ];

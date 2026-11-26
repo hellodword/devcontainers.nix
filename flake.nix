@@ -17,10 +17,7 @@
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    treefmt-nix = {
-      url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    treefmt-nix.follows = "core/treefmt-nix";
     llm-agents.url = "github:numtide/llm-agents.nix";
     nix2container = {
       url = "github:nlewo/nix2container";
