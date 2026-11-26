@@ -529,7 +529,7 @@ core.lib.testing.mkTest pkgs (_: {
           try:
               gc_script = f"""
     set -euo pipefail
-    ephemeral_out=$(nix build --offline --impure --print-out-paths -o /tmp/ephemeral-link --expr '
+    ephemeral_out=$(nix build --offline --impure --option auto-optimise-store true --print-out-paths -o /tmp/ephemeral-link --expr '
       derivation {{
         name = "ephemeral-offline-check";
         system = "x86_64-linux";
@@ -538,12 +538,12 @@ core.lib.testing.mkTest pkgs (_: {
       }}
     ')
     test "$(cat "$ephemeral_out")" = "offline-built"
+    test "$(stat -c %h "$ephemeral_out")" -eq 2
     nix profile add "$ephemeral_out"
     nix profile list --json | jq -e '.elements | length == 1' >/dev/null
     nix profile remove ephemeral-offline-check
     nix profile wipe-history
     rm -f /tmp/ephemeral-link
-    nix-store --optimise
     nix-store --gc >/tmp/gc.log
     if [ -e "$ephemeral_out" ]; then
       echo "Expected unreferenced ephemeral build $ephemeral_out to be collected by GC" >&2
