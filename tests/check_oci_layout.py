@@ -305,6 +305,7 @@ def check_layout(oci_dir: Path, cache_layout_path: Path) -> dict:
     assert dirs.get("var/cache") == (0, 0, 0o755), dirs.get("var/cache")
 
     expected_user_dirs = {
+        "home/vscode/.android",
         "home/vscode/.codex",
         "home/vscode/.gemini",
         "home/vscode/.config/opencode",

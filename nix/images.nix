@@ -357,6 +357,11 @@ let
       uid = 1000;
       gid = 1000;
     };
+    "/home/vscode/.android" = {
+      mode = "0700";
+      uid = 1000;
+      gid = 1000;
+    };
     "/home/vscode/.codex" = {
       mode = "0700";
       uid = 1000;
