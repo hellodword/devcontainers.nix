@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Lock-free single-path Nix binary cache publisher invoked via post-build-hook."""
 
+import argparse
 import hashlib
 import json
 import os
@@ -47,36 +48,14 @@ def drv_disables_substitutes(drv_path_str: str) -> bool:
     )
 
 
-def resolve_cache_dir(environ: dict[str, str]) -> Path | None:
-    explicit = environ.get("DEVCONTAINER_SHARED_NIX_CACHE_DIR", "").strip()
-    if explicit:
-        raw_dir = explicit
-    else:
-        home = environ.get("HOME") or "/home/vscode"
-        state_home = Path(
-            environ.get("XDG_STATE_HOME") or (Path(home) / ".local/state")
-        )
-        record_file = state_home / "devcontainer" / "nix-shared-cache-dir"
-        try:
-            recorded = record_file.read_text(encoding="utf-8").strip()
-        except OSError:
-            recorded = ""
-        raw_dir = recorded or state.DEFAULT_SHARED_NIX_CACHE_DIR
-
+def resolve_cache_dir(cache_dir_override: Path | None = None) -> Path | None:
+    raw_dir = cache_dir_override or state.DEFAULT_SHARED_NIX_CACHE_DIR
     cache_dir = state.validate_shared_cache_path(raw_dir)
     if not cache_dir.exists() or cache_dir.is_symlink() or not cache_dir.is_dir():
         return None
     if not os.access(cache_dir, os.W_OK | os.X_OK):
         return None
     return cache_dir
-
-
-def parse_max_nar_bytes(environ: dict[str, str]) -> int:
-    raw = environ.get("DEVCONTAINER_SHARED_NIX_CACHE_MAX_NAR_BYTES", "0").strip()
-    if not raw or raw == "0":
-        return 0
-    value = int(raw, 10)
-    return max(0, value)
 
 
 def store_hash_of(store_path: str) -> str | None:
@@ -220,14 +199,16 @@ def dump_and_compress_nar(
         raise
 
 
-def publish_outputs(environ: dict[str, str]) -> int:
+def publish_outputs(
+    environ: dict[str, str], *, cache_dir_override: Path | None = None
+) -> int:
     raw_out = environ.get("OUT_PATHS", "").strip()
     if not raw_out:
         return 0
     if drv_disables_substitutes(environ.get("DRV_PATH", "")):
         return 0
 
-    cache_dir = resolve_cache_dir(environ)
+    cache_dir = resolve_cache_dir(cache_dir_override)
     if cache_dir is None:
         return 0
 
@@ -259,7 +240,6 @@ def publish_outputs(environ: dict[str, str]) -> int:
             state.NIX_CACHE_INFO_TEXT.encode("ascii"),
         )
 
-    max_nar_bytes = parse_max_nar_bytes(environ)
     infos = query_path_info([item[0] for item in pending], environ)
 
     staged_narinfos: list[tuple[str, bytes]] = []
@@ -271,8 +251,6 @@ def publish_outputs(environ: dict[str, str]) -> int:
             continue
         nar_size = info.get("narSize")
         if not isinstance(nar_size, int) or nar_size < 0:
-            continue
-        if max_nar_bytes > 0 and nar_size > max_nar_bytes:
             continue
         nar_hash = state.normalize_sri_or_nix32_sha256(str(info.get("narHash") or ""))
         tmp_nar, file_nix32, file_size = dump_and_compress_nar(
@@ -306,9 +284,17 @@ def publish_outputs(environ: dict[str, str]) -> int:
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=None,
+        help="Target shared file:// cache directory (defaults to /var/cache/devcontainer-nix)",
+    )
+    args = parser.parse_args(argv)
     try:
-        return publish_outputs(os.environ)
+        return publish_outputs(os.environ, cache_dir_override=args.cache_dir)
     except (
         state.StateError,
         OSError,

@@ -57,13 +57,13 @@ At container startup (`devcontainer-entrypoint`) and on `postStart` (`devcontain
 2. **Tier 2 — Mounted shared container build cache (`file:///var/cache/devcontainer-nix?trusted=1&priority=10`)**:
    - **Writable mount** (`-v ~/.local/state/devcontainers/cache/nix:/var/cache/devcontainer-nix`): Atomically initializes `nix-cache-info`, `nar/`, `realisations/`, `build-trace-v2/`, `log/`, and `.staging/`, adds the `file://` store at `priority=10`, and enables `post-build-hook` (`devcontainer-nix-post-build`). Locally built substitutable outputs stream through `nix store dump-path | zstd` into private `O_CREAT | O_EXCL` staging files and publish via `os.link` (`nar/` before `.narinfo`, first-writer-wins) without `flock` contention across `runc` or `gVisor` (`runsc`) containers.
    - **Read-only mount** (`:ro`): Enabled as a read-only substituter (`priority=10`, no `post-build-hook`) whenever `nix-cache-info`, `nar/`, `realisations/`, `build-trace-v2/`, and `log/` already exist. In `--network none` containers where Nix disables substitution when no external interface is present, pass `--substitute` (for example `nix build --substitute`) to read from the mounted `file://` cache; when no external interface or host HTTP cache is reachable, `nix-local-cache.conf` sets `substituters` to the local `file://` cache directly so unreachable public HTTPS caches are not queried.
-3. **Tier 3 — Host `/nix/store` read-only HTTP exporter (`http://172.17.0.1:37516?trusted=1&priority=20`)**:
-   - Performs a concurrent `100ms` HTTP `GET /nix-cache-info` probe to `172.17.0.1:37516` and activates the substituter only when the endpoint returns HTTP `200` with `StoreDir: /nix/store`.
-   - Streams store paths already present on the host over loopback into the container's ephemeral `upperdir` (reclaimed automatically when `--rm` containers exit) while keeping the host store strictly read-only and avoiding VFS mount shadowing or live host SQLite `immutable=1` lock conflicts.
-4. **Tier 4 — Host `oranc` OCI cache proxy (`172.17.0.1:37515`) & public signed caches**:
-   - Concurrently probes `172.17.0.1:37515` within the same `100ms` budget; when reachable, appends `http://172.17.0.1:37515/ghcr.io/hellodword/{nixos-config-cache,devcontainers-nix-cache}` (`fallback = true`, `connect-timeout = 3`).
+3. **Tier 3 — Host `/nix/store` read-only HTTP exporter (`http://<addr>?trusted=1&priority=20`)**:
+   - Enabled when `DEVCONTAINER_HOST_STORE_CACHE_ADDR` is explicitly provided; performs a concurrent `100ms` HTTP `GET /nix-cache-info` check and activates the substituter (`trusted=1&priority=20`) only when the endpoint returns HTTP `200` with `StoreDir: /nix/store`.
+   - Streams store paths already present on the host over the container bridge into the container's ephemeral `upperdir` (reclaimed automatically when `--rm` containers exit) while keeping the host store strictly read-only and avoiding VFS mount shadowing or live host SQLite `immutable=1` lock conflicts.
+4. **Tier 4 — Host `oranc` OCI cache proxy & public signed caches**:
+   - Enabled when `DEVCONTAINER_LOCAL_CACHE_ADDR` is explicitly provided; probes the endpoint within the same `100ms` budget and appends `http://<addr>/ghcr.io/hellodword/{nixos-config-cache,devcontainers-nix-cache}` (`require-sigs = true`, `fallback = true`, `connect-timeout = 3`).
 
-When no shared cache directory is mounted and neither host port is active, `nix-local-cache.conf` is removed so Nix emits zero warnings and incurs zero network wait.
+When `/var/cache/devcontainer-nix` is not mounted and neither host endpoint variable is passed, `nix-local-cache.conf` is absent so Nix uses the public signed substituters with zero network probe overhead.
 
 ### NixOS Host Read-Only Store Exporter (`services.harmonia.cache`)
 
@@ -79,21 +79,15 @@ Expose the NixOS host `/nix/store` read-only to local containers on `172.17.0.1:
 }
 ```
 
-> **Store readability**: Enabling `harmonia` allows containers reaching `172.17.0.1:37516` to read any path in the host `/nix/store`. Pass `-e DEVCONTAINER_HOST_STORE_CACHE_PROBE=0` when running containers that should not read host store paths.
+> **Explicit trust boundary**: `DEVCONTAINER_HOST_STORE_CACHE_ADDR` grants `trusted=1` to the specified Harmonia endpoint and exposes host `/nix/store` paths to that container. Pass it only for containers authorized to read from a controlled host store.
 
 ### Cache Environment Controls
 
-| Variable                                      | Default                       | Description                                                                      |
-| --------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------- |
-| `DEVCONTAINER_SHARED_NIX_CACHE`               | `auto`                        | `auto` (enable when mounted), `1` (enable if directory exists), or `0` (disable) |
-| `DEVCONTAINER_SHARED_NIX_CACHE_DIR`           | `/var/cache/devcontainer-nix` | Shared `file://` binary cache path inside the container                          |
-| `DEVCONTAINER_SHARED_NIX_CACHE_PUSH`          | `1`                           | Set `0` to disable `post-build-hook` writes on writable mounts                   |
-| `DEVCONTAINER_SHARED_NIX_CACHE_MAX_NAR_BYTES` | `0`                           | Per-output `narSize` cap for auto-publishing (`0` = unlimited)                   |
-| `DEVCONTAINER_NIX_CACHE_DEBUG`                | `0`                           | Set `1` to log `post-build-hook` diagnostics to `stderr`                         |
-| `DEVCONTAINER_HOST_STORE_CACHE_PROBE`         | `1`                           | Probe host read-only store HTTP cache (`0` to disable)                           |
-| `DEVCONTAINER_HOST_STORE_CACHE_ADDR`          | `172.17.0.1:37516`            | Host read-only store HTTP endpoint                                               |
-| `DEVCONTAINER_LOCAL_CACHE_PROBE`              | `1`                           | Probe host `oranc` proxy (`0` disables network cache probes unless overridden)   |
-| `DEVCONTAINER_LOCAL_CACHE_ADDR`               | `172.17.0.1:37515`            | Host `oranc` proxy endpoint                                                      |
+| Variable                             | Default   | Description                                                                                             |
+| ------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------- |
+| `DEVCONTAINER_HOST_STORE_CACHE_ADDR` | _(unset)_ | Explicit host read-only store HTTP endpoint (`host:port`); verified via `/nix-cache-info` (`trusted=1`) |
+| `DEVCONTAINER_LOCAL_CACHE_ADDR`      | _(unset)_ | Explicit host `oranc` proxy endpoint (`host:port`); retains `require-sigs = true` verification          |
+| `DEVCONTAINER_NIX_CACHE_DEBUG`       | `0`       | Set `1` to log `post-build-hook` diagnostics to `stderr`                                                |
 
 ### Cache Reclamation CLI (`devcontainer-runtime prune-caches`)
 

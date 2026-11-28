@@ -45,14 +45,13 @@ jobs:
             if [[ "${{ github.ref }}" != "refs/heads/master" ]]; then
               exit 0
             fi
-            GHCR_ACTOR="$GITHUB_ACTOR" GHCR_TOKEN="$GITHUB_TOKEN" \
-              /ci/jobs/publish-cli/bin/publish-devcontainers \
-                --oci-dir /ci/jobs/oci \
-                --login-env \
-                --registry ghcr.io \
-                --repository hellodword/devcontainers-dev \
-                --commit-sha "$NIX_CI_COMMIT_SHA" \
-                --expected-master-ref refs/heads/master \
-                --git-remote "$NIX_CI_GIT_REMOTE" \
-                --flake-lock /workspace/flake.lock \
-                --action-sha "$NIX_CI_INFRA_SHA"
+            /ci/jobs/publish-cli/bin/publish-devcontainers \
+              --oci-dir /ci/jobs/oci \
+              --login-env \
+              --registry ghcr.io \
+              --repository hellodword/devcontainers-dev \
+              --commit-sha "$NIX_CI_COMMIT_SHA" \
+              --expected-master-ref refs/heads/master \
+              --git-remote "$NIX_CI_GIT_REMOTE" \
+              --flake-lock /workspace/flake.lock \
+              --action-sha "$NIX_CI_INFRA_SHA"

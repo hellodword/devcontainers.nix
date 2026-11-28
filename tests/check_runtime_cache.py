@@ -63,7 +63,6 @@ def _serve_http(body: bytes, status_code: int = 200):
 def _run_post_build_worker(args: tuple[str, str, str, str]) -> int:
     post_build_hook, cache_dir, out_path, drv_path = args
     env = dict(os.environ)
-    env["DEVCONTAINER_SHARED_NIX_CACHE_DIR"] = cache_dir
     env["DEVCONTAINER_NIX_CACHE_DEBUG"] = "1"
     env["OUT_PATHS"] = out_path
     if drv_path:
@@ -71,7 +70,7 @@ def _run_post_build_worker(args: tuple[str, str, str, str]) -> int:
     else:
         env.pop("DRV_PATH", None)
     res = subprocess.run(
-        [post_build_hook],
+        [post_build_hook, "--cache-dir", cache_dir],
         env=env,
         capture_output=True,
         text=True,
@@ -93,19 +92,17 @@ def test_discovery_and_probes(work_dir: Path) -> None:
     base_env = {
         "HOME": str(home),
         "XDG_STATE_HOME": str(state_home),
-        "DEVCONTAINER_LOCAL_CACHE_ADDR": "127.0.0.1:1",
-        "DEVCONTAINER_HOST_STORE_CACHE_ADDR": "127.0.0.1:1",
     }
 
-    # 1. Unmounted cache dir and closed ports -> no config file written.
+    # 1. Unmounted cache dir and no explicit host endpoints -> no config file written.
     unmounted_cache = work_dir / "unmounted-nix-cache"
     unmounted_cache.mkdir(parents=True)
-    env = {
-        **base_env,
-        "DEVCONTAINER_SHARED_NIX_CACHE": "auto",
-        "DEVCONTAINER_SHARED_NIX_CACHE_DIR": str(unmounted_cache),
-    }
-    assert not state.refresh_local_cache(env, mounts=set(), post_build_hook=hook_path)
+    assert not state.refresh_local_cache(
+        base_env,
+        mounts=set(),
+        post_build_hook=hook_path,
+        shared_cache_dir=unmounted_cache,
+    )
     assert not conf_file.exists()
 
     # 2. Writable mounted shared cache initializes structure, sweeps stale .tmp, and wires hook.
@@ -116,13 +113,12 @@ def test_discovery_and_probes(work_dir: Path) -> None:
     old_ts = time.time() - (state.STAGING_MAX_AGE_SECONDS + 120)
     os.utime(stale_tmp, (old_ts, old_ts))
 
-    env_rw = {
-        **base_env,
-        "DEVCONTAINER_SHARED_NIX_CACHE": "auto",
-        "DEVCONTAINER_SHARED_NIX_CACHE_DIR": str(rw_cache),
-    }
     assert state.refresh_local_cache(
-        env_rw, mounts={rw_cache}, post_build_hook=hook_path, has_external_net=True
+        base_env,
+        mounts={rw_cache},
+        post_build_hook=hook_path,
+        has_external_net=True,
+        shared_cache_dir=rw_cache,
     )
     assert (rw_cache / "nix-cache-info").is_file()
     for sub in state.SHARED_CACHE_SUBDIRS:
@@ -135,7 +131,11 @@ def test_discovery_and_probes(work_dir: Path) -> None:
     assert f"post-build-hook = {hook_path}" in conf_text, conf_text
 
     assert state.refresh_local_cache(
-        env_rw, mounts={rw_cache}, post_build_hook=hook_path, has_external_net=False
+        base_env,
+        mounts={rw_cache},
+        post_build_hook=hook_path,
+        has_external_net=False,
+        shared_cache_dir=rw_cache,
     )
     isolated_conf = conf_file.read_text(encoding="utf-8")
     assert isolated_conf.startswith(
@@ -147,12 +147,11 @@ def test_discovery_and_probes(work_dir: Path) -> None:
     ro_incomplete.mkdir()
     os.chmod(ro_incomplete, 0o555)
     try:
-        env_ro_bad = {
-            **base_env,
-            "DEVCONTAINER_SHARED_NIX_CACHE_DIR": str(ro_incomplete),
-        }
         assert not state.refresh_local_cache(
-            env_ro_bad, mounts={ro_incomplete}, post_build_hook=hook_path
+            base_env,
+            mounts={ro_incomplete},
+            post_build_hook=hook_path,
+            shared_cache_dir=ro_incomplete,
         )
         assert not conf_file.exists()
     finally:
@@ -161,7 +160,10 @@ def test_discovery_and_probes(work_dir: Path) -> None:
     os.chmod(rw_cache, 0o555)
     try:
         assert state.refresh_local_cache(
-            env_rw, mounts={rw_cache}, post_build_hook=hook_path
+            base_env,
+            mounts={rw_cache},
+            post_build_hook=hook_path,
+            shared_cache_dir=rw_cache,
         )
         ro_conf = conf_file.read_text(encoding="utf-8")
         assert f"file://{rw_cache}?trusted=1&priority=10" in ro_conf, ro_conf
@@ -169,31 +171,59 @@ def test_discovery_and_probes(work_dir: Path) -> None:
     finally:
         os.chmod(rw_cache, 0o755)
 
-    # 4. Port 37516 /nix-cache-info probe rejects generic HTTP 200 HTML server and accepts valid StoreDir response.
+    # 4. Host cache endpoints are opt-in: live servers are ignored unless explicitly passed.
     fake_srv, fake_addr = _serve_http(b"<html>not a nix cache</html>\n")
     valid_srv, valid_addr = _serve_http(
         b"StoreDir: /nix/store\nWantMassQuery: 1\nPriority: 30\n"
     )
     oranc_srv, oranc_addr = _serve_http(b"ok\n")
     try:
+        assert not state.refresh_local_cache(
+            base_env,
+            mounts=set(),
+            post_build_hook=hook_path,
+            shared_cache_dir=unmounted_cache,
+        )
+        assert not conf_file.exists()
+
         env_fake = {
             **base_env,
-            "DEVCONTAINER_SHARED_NIX_CACHE": "0",
             "DEVCONTAINER_HOST_STORE_CACHE_ADDR": fake_addr,
         }
         assert not state.refresh_local_cache(
-            env_fake, mounts=set(), post_build_hook=hook_path
+            env_fake,
+            mounts=set(),
+            post_build_hook=hook_path,
+            shared_cache_dir=unmounted_cache,
         )
+
+        env_oranc_only = {
+            **base_env,
+            "DEVCONTAINER_LOCAL_CACHE_ADDR": oranc_addr,
+        }
+        assert state.refresh_local_cache(
+            env_oranc_only,
+            mounts=set(),
+            post_build_hook=hook_path,
+            shared_cache_dir=unmounted_cache,
+        )
+        oranc_only_conf = conf_file.read_text(encoding="utf-8")
+        assert "trusted=1" not in oranc_only_conf, oranc_only_conf
+        assert (
+            f"http://{oranc_addr}/ghcr.io/hellodword/nixos-config-cache"
+            in oranc_only_conf
+        ), oranc_only_conf
 
         env_both = {
             **base_env,
-            "DEVCONTAINER_SHARED_NIX_CACHE": "auto",
-            "DEVCONTAINER_SHARED_NIX_CACHE_DIR": str(rw_cache),
             "DEVCONTAINER_HOST_STORE_CACHE_ADDR": valid_addr,
             "DEVCONTAINER_LOCAL_CACHE_ADDR": oranc_addr,
         }
         assert state.refresh_local_cache(
-            env_both, mounts={rw_cache}, post_build_hook=hook_path
+            env_both,
+            mounts={rw_cache},
+            post_build_hook=hook_path,
+            shared_cache_dir=rw_cache,
         )
         combined = conf_file.read_text(encoding="utf-8")
         expected_order = (
@@ -233,15 +263,6 @@ def test_concurrent_single_path_publish(
         encoding="utf-8",
     )
     _run_post_build_worker((hook_str, str(cache_dir), store_root, str(no_subst_drv)))
-    assert not (cache_dir / f"{store_hash}.narinfo").exists()
-
-    # Filtering check: explicit DEVCONTAINER_SHARED_NIX_CACHE_MAX_NAR_BYTES cap skips larger output.
-    cap_env = dict(os.environ)
-    cap_env["DEVCONTAINER_SHARED_NIX_CACHE_DIR"] = str(cache_dir)
-    cap_env["DEVCONTAINER_SHARED_NIX_CACHE_MAX_NAR_BYTES"] = "8"
-    cap_env["OUT_PATHS"] = store_root
-    res_cap = subprocess.run([hook_str], env=cap_env, check=True)
-    assert res_cap.returncode == 0
     assert not (cache_dir / f"{store_hash}.narinfo").exists()
 
     # 8 concurrent processes publishing the same glibc-referencing store path into an empty cache.
@@ -481,33 +502,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--post-build-hook",
         type=Path,
-        default=os.environ.get("DEVCONTAINERS_POST_BUILD_HOOK"),
+        required=True,
         help="Path to the built devcontainer-nix-post-build executable",
     )
     parser.add_argument(
         "--nix-bin",
         type=Path,
-        default=os.environ.get("DEVCONTAINERS_NIX_BIN"),
+        required=True,
         help="Path to the nix CLI executable",
     )
     parser.add_argument(
         "--sample-store-path",
         type=Path,
-        default=os.environ.get("DEVCONTAINERS_SAMPLE_STORE_PATH"),
+        required=True,
         help="Path inside /nix/store used to exercise single-path binary cache publication",
     )
     args = parser.parse_args(argv)
-    missing = [
-        flag
-        for flag, val in (
-            ("--post-build-hook", args.post_build_hook),
-            ("--nix-bin", args.nix_bin),
-            ("--sample-store-path", args.sample_store_path),
-        )
-        if val is None
-    ]
-    if missing:
-        parser.error(f"missing required store-bound paths: {', '.join(missing)}")
     for flag, path in (
         ("--post-build-hook", args.post_build_hook),
         ("--nix-bin", args.nix_bin),

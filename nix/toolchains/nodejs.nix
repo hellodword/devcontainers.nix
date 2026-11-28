@@ -28,7 +28,6 @@ let
     YARN_CACHE_FOLDER = "/home/vscode/.cache/yarn";
   };
   devEnv = {
-    NODE_ENV = "development";
     NODE_REPL_HISTORY = "/home/vscode/.local/state/node_repl_history";
   };
 in

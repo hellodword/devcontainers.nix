@@ -356,24 +356,7 @@ core.lib.testing.mkTest pkgs (_: {
           finally:
               machine.succeed(as_desktop("docker rm -f check-latest"))
 
-      with subtest("3. Verify 100ms host local cache probes on 172.17.0.1:37515 and 172.17.0.1:37516"):
-          probe_off = machine.succeed(
-              as_desktop(
-                  f"err_file=$(mktemp) && "
-                  f"out=$(docker run --rm {IMAGE_REF} bash -euo pipefail -c "
-                  + q(
-                      "test ! -e /home/vscode/.local/state/devcontainer/nix-local-cache.conf && "
-                      "nix config show substituters"
-                  )
-                  + " 2>\"$err_file\") && "
-                  "err=$(cat \"$err_file\") && rm -f \"$err_file\" && "
-                  "test -z \"$err\" && printf '%s\\n' \"$out\""
-              ),
-              timeout=60,
-          )
-          assert "172.17.0.1:37515" not in probe_off, f"Unexpected local cache when port closed: {probe_off!r}"
-          assert "172.17.0.1:37516" not in probe_off, f"Unexpected host store cache when port closed: {probe_off!r}"
-
+      with subtest("3. Verify explicit opt-in host cache endpoints on 172.17.0.1:37515 and 172.17.0.1:37516"):
           machine.succeed(
               "rm -rf /tmp/mock-harmonia && mkdir -p /tmp/mock-harmonia && "
               "systemd-run --unit=mock-oranc-37515 "
@@ -384,9 +367,28 @@ core.lib.testing.mkTest pkgs (_: {
           try:
               machine.wait_until_succeeds("curl -fsS http://172.17.0.1:37515/ >/dev/null", timeout=15)
               machine.wait_until_succeeds("curl -fsS http://172.17.0.1:37516/ >/dev/null", timeout=15)
+
+              default_out = machine.succeed(
+                  as_desktop(
+                      f"err_file=$(mktemp) && "
+                      f"out=$(docker run --rm {IMAGE_REF} bash -euo pipefail -c "
+                      + q(
+                          "test ! -e /home/vscode/.local/state/devcontainer/nix-local-cache.conf && "
+                          "nix config show substituters"
+                      )
+                      + " 2>\"$err_file\") && "
+                      "err=$(cat \"$err_file\") && rm -f \"$err_file\" && "
+                      "test -z \"$err\" && printf '%s\\n' \"$out\""
+                  ),
+                  timeout=60,
+              )
+              assert "172.17.0.1:37515" not in default_out, f"Unexpected local cache without explicit env: {default_out!r}"
+              assert "172.17.0.1:37516" not in default_out, f"Unexpected host store cache without explicit env: {default_out!r}"
+
+              explicit_env = "-e DEVCONTAINER_LOCAL_CACHE_ADDR=172.17.0.1:37515 -e DEVCONTAINER_HOST_STORE_CACHE_ADDR=172.17.0.1:37516"
               probe_partial = machine.succeed(
                   as_desktop(
-                      f"docker run --rm {IMAGE_REF} bash -euo pipefail -c "
+                      f"docker run --rm {explicit_env} {IMAGE_REF} bash -euo pipefail -c "
                       + q(
                           "test -f /home/vscode/.local/state/devcontainer/nix-local-cache.conf && "
                           "nix config show substituters"
@@ -403,7 +405,7 @@ core.lib.testing.mkTest pkgs (_: {
               )
               probe_both = machine.succeed(
                   as_desktop(
-                      f"docker run --rm {IMAGE_REF} bash -euo pipefail -c "
+                      f"docker run --rm {explicit_env} {IMAGE_REF} bash -euo pipefail -c "
                       + q("nix config show substituters")
                   ),
                   timeout=60,
@@ -505,10 +507,9 @@ core.lib.testing.mkTest pkgs (_: {
                       + q(
                           "devpkg add-lib zlib && "
                           "devpkg add-dev-lib zlib && "
-                          'test -e "$DEVPKG_RUNTIME_LIBRARY_PROFILE/lib/libz.so" && '
-                          'test -f "$DEVPKG_BUILD_LIBRARY_PROFILE/include/zlib.h" && '
-                          '(test -f "$DEVPKG_BUILD_LIBRARY_PROFILE/lib/pkgconfig/zlib.pc" || '
-                          'test -f "$DEVPKG_BUILD_LIBRARY_PROFILE/share/pkgconfig/zlib.pc") && '
+                          "test -e /home/vscode/.local/share/devpkg/runtime-libraries/profile/lib/libz.so && "
+                          'test -f "$CPATH/zlib.h" && '
+                          "pkg-config --exists zlib && "
                           "devpkg list-lib --json | jq -e '.elements | length == 1' >/dev/null && "
                           "devpkg list-dev-lib --json | jq -e '.elements | length == 1' >/dev/null && "
                           "devpkg remove-lib zlib && "

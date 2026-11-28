@@ -525,8 +525,8 @@ def verify_authenticated_skopeo_login_and_publish(
             encoding="utf-8",
         )
         auth_env = os.environ | {
-            "GHCR_ACTOR": "ci-actor",
-            "GHCR_TOKEN": "ci-secret-token",
+            "GITHUB_ACTOR": "ci-actor",
+            "GITHUB_TOKEN": "ci-secret-token",
         }
         preflight_proc = subprocess.run(
             [
@@ -580,7 +580,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--publish-bin",
         type=Path,
-        default=os.environ.get("DEVCONTAINERS_PUBLISH_BIN"),
+        required=True,
         help="Path to the built publish-devcontainers executable",
     )
     parser.add_argument(
@@ -590,8 +590,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Optional built packages.oci directory to cross-check index.json digest",
     )
     args = parser.parse_args(argv)
-    if args.publish_bin is None:
-        parser.error("missing required --publish-bin path")
     if not args.publish_bin.is_file() or not os.access(args.publish_bin, os.X_OK):
         parser.error(f"--publish-bin is not an executable file: {args.publish_bin}")
 

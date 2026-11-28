@@ -109,11 +109,11 @@ def prepared_authfile(
     if not login_env:
         yield authfile
         return
-    actor = os.environ.get("GHCR_ACTOR", "").strip()
-    token = os.environ.get("GHCR_TOKEN", "").strip()
+    actor = os.environ.get("GITHUB_ACTOR", "").strip()
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not actor or not token:
         raise PublishError(
-            "GHCR_ACTOR and GHCR_TOKEN must be set when --login-env is enabled"
+            "GITHUB_ACTOR and GITHUB_TOKEN must be set when --login-env is enabled"
         )
     with tempfile.TemporaryDirectory(prefix="ghcr-auth-") as tmp_dir:
         temp_auth = Path(tmp_dir) / "auth.json"
@@ -430,7 +430,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--login-env",
         action="store_true",
-        help="Authenticate skopeo using GHCR_ACTOR and GHCR_TOKEN in a temporary authfile",
+        help="Authenticate skopeo using GITHUB_ACTOR and GITHUB_TOKEN in a temporary authfile",
     )
     parser.add_argument(
         "--preflight-only",

@@ -6,9 +6,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-NIXPKGS_REF = os.environ.get("DEVPKG_NIXPKGS_REF", "nixpkgs")
-NIXPKGS_CACHE_KEY = os.environ.get("DEVPKG_NIXPKGS_CACHE_KEY", NIXPKGS_REF)
-NIX_BIN = os.environ.get("DEVPKG_NIX_BIN") or "@nix@"
+
+def _build_const(value: str, fallback: str) -> str:
+    return fallback if value.startswith("@") and value.endswith("@") else value
+
+
+NIXPKGS_REF = _build_const("@nixpkgsRef@", "nixpkgs")
+NIXPKGS_CACHE_KEY = _build_const("@nixpkgsCacheKey@", NIXPKGS_REF)
+NIX_BIN = _build_const("@nix@", "nix")
+CONFIGURED_SYSTEM = _build_const("@system@", "")
+CONFIGURED_RUNTIME_LIB_PROFILE = _build_const("@runtimeLibProfile@", "")
+CONFIGURED_BUILD_LIB_PROFILE = _build_const("@buildLibProfile@", "")
 NIX_EXPERIMENTAL_FLAGS = [
     "--extra-experimental-features",
     "nix-command",
@@ -113,9 +121,8 @@ def nix_capture(args: list[str], *, stderr=None) -> str:
 def current_system() -> str:
     global CURRENT_SYSTEM
     if CURRENT_SYSTEM is None:
-        configured = os.environ.get("DEVPKG_SYSTEM")
-        if configured:
-            CURRENT_SYSTEM = configured
+        if CONFIGURED_SYSTEM:
+            CURRENT_SYSTEM = CONFIGURED_SYSTEM
         else:
             CURRENT_SYSTEM = nix_capture(
                 ["eval", "--impure", "--expr", "builtins.currentSystem", "--raw"]
@@ -144,23 +151,18 @@ def default_xdg_data_home() -> Path:
 
 
 def devpkg_cache_home() -> Path:
-    configured = os.environ.get("DEVPKG_CACHE_HOME")
-    if configured:
-        return Path(configured)
     return default_xdg_cache_home() / "devpkg"
 
 
 def runtime_library_profile() -> Path:
-    configured = os.environ.get("DEVPKG_RUNTIME_LIBRARY_PROFILE")
-    if configured:
-        return Path(configured)
+    if CONFIGURED_RUNTIME_LIB_PROFILE:
+        return Path(CONFIGURED_RUNTIME_LIB_PROFILE)
     return default_xdg_data_home() / "devpkg" / "runtime-libraries" / "profile"
 
 
 def build_library_profile() -> Path:
-    configured = os.environ.get("DEVPKG_BUILD_LIBRARY_PROFILE")
-    if configured:
-        return Path(configured)
+    if CONFIGURED_BUILD_LIB_PROFILE:
+        return Path(CONFIGURED_BUILD_LIB_PROFILE)
     return default_xdg_data_home() / "devpkg" / "build-libraries" / "profile"
 
 

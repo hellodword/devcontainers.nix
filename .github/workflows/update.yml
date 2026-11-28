@@ -45,20 +45,18 @@ jobs:
           project-dir: project
           signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
           preflight: |
-            GHCR_ACTOR="$GITHUB_ACTOR" GHCR_TOKEN="$GITHUB_TOKEN" \
-              /ci/jobs/publish-cli/bin/publish-devcontainers \
-                --registry ghcr.io \
-                --login-env \
-                --preflight-only
+            /ci/jobs/publish-cli/bin/publish-devcontainers \
+              --registry ghcr.io \
+              --login-env \
+              --preflight-only
           release: |
-            GHCR_ACTOR="$GITHUB_ACTOR" GHCR_TOKEN="$GITHUB_TOKEN" \
-              /ci/jobs/publish-cli/bin/publish-devcontainers \
-                --oci-dir /ci/jobs/oci \
-                --login-env \
-                --registry ghcr.io \
-                --repository hellodword/devcontainers-dev \
-                --commit-sha "$NIX_CI_COMMIT_SHA" \
-                --expected-master-ref refs/heads/master \
-                --git-remote "$NIX_CI_GIT_REMOTE" \
-                --flake-lock /workspace/flake.lock \
-                --action-sha "$NIX_CI_INFRA_SHA"
+            /ci/jobs/publish-cli/bin/publish-devcontainers \
+              --oci-dir /ci/jobs/oci \
+              --login-env \
+              --registry ghcr.io \
+              --repository hellodword/devcontainers-dev \
+              --commit-sha "$NIX_CI_COMMIT_SHA" \
+              --expected-master-ref refs/heads/master \
+              --git-remote "$NIX_CI_GIT_REMOTE" \
+              --flake-lock /workspace/flake.lock \
+              --action-sha "$NIX_CI_INFRA_SHA"

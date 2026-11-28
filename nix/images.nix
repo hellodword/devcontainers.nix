@@ -12,8 +12,16 @@ let
   inherit (pkgs) nix2container;
   editor = import ./editor.nix { inherit pkgs lib; };
   runtime = import ../runtime {
-    inherit pkgs lib editor;
+    inherit
+      pkgs
+      lib
+      editor
+      cache
+      system
+      ;
     nixPackage = foundation.wrappedNix;
+    nixpkgsRef = "path:${inputs.nixpkgs.outPath}";
+    inherit (foundation) nixpkgsCacheKey runtimeLibProfile buildLibProfile;
   };
   foundation = import ./foundation.nix {
     inherit

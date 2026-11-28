@@ -3,14 +3,28 @@
   pkgs,
   lib,
   editor,
+  cache,
+  system ? pkgs.stdenv.hostPlatform.system,
   nixPackage ? pkgs.nix,
+  nixpkgsRef ? "nixpkgs",
+  nixpkgsCacheKey ? nixpkgsRef,
+  runtimeLibProfile ? "/home/vscode/.local/share/devpkg/runtime-libraries/profile",
+  buildLibProfile ? "/home/vscode/.local/share/devpkg/build-libraries/profile",
 }:
 let
+  cacheRepos =
+    (cache.config.extraRepositories or [ ])
+    ++ lib.optional ((cache.config.target or null) != null) cache.config.target;
+  localCacheReposJson = builtins.toJSON (
+    map (repo: "${repo.registry or "ghcr.io"}/${repo.repository}") cacheRepos
+  );
+
   runtimeLibrary = pkgs.runCommand "devcontainer-runtime-library" { } ''
     mkdir -p "$out"
     cp ${./devcontainer-runtime/state.py} "$out/devcontainer_state.py"
     cp ${./devcontainer-runtime/cache_gc.py} "$out/devcontainer_cache_gc.py"
     cp ${../data/cache-layout.json} "$out/cache-layout.json"
+    printf '%s\n' ${lib.escapeShellArg localCacheReposJson} > "$out/cache-repositories.json"
   '';
 
   writeShellApp =
@@ -113,7 +127,12 @@ let
     isolated = true;
     extraSubstitutions = ''
       substituteInPlace "$out/bin/devpkg" \
-        --replace-fail '@nix@' '${nixPackage}/bin/nix'
+        --replace-fail '@nix@' '${nixPackage}/bin/nix' \
+        --replace-fail '@nixpkgsRef@' ${lib.escapeShellArg nixpkgsRef} \
+        --replace-fail '@nixpkgsCacheKey@' ${lib.escapeShellArg nixpkgsCacheKey} \
+        --replace-fail '@system@' ${lib.escapeShellArg system} \
+        --replace-fail '@runtimeLibProfile@' ${lib.escapeShellArg runtimeLibProfile} \
+        --replace-fail '@buildLibProfile@' ${lib.escapeShellArg buildLibProfile}
     '';
   };
 

@@ -44,7 +44,7 @@ Projects that require **Rust Stable** or a **specific compiler version** use one
 
 ## Ad-Hoc Packages and Libraries with `devpkg`
 
-The image bundles the locked `nixpkgs` source tree at `/usr/share/devcontainer/nixpkgs` (`DEVPKG_NIXPKGS_REF`). Use `devpkg` to manage user-scoped CLI packages, runtime shared libraries (`NIX_LD_LIBRARY_PATH`), and C/C++ build headers (`CPATH`, `LIBRARY_PATH`, `PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`) without root privileges:
+The image bundles the locked `nixpkgs` source tree at `/usr/share/devcontainer/nixpkgs`. Use `devpkg` to manage user-scoped CLI packages, runtime shared libraries (`NIX_LD_LIBRARY_PATH`), and C/C++ build headers (`CPATH`, `LIBRARY_PATH`, `PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`) without root privileges:
 
 ```bash
 # Install, list, and remove CLI tools in the user Nix profile

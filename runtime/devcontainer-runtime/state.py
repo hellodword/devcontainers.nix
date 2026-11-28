@@ -3,6 +3,7 @@
 import base64
 import errno
 import fcntl
+import json
 import os
 import re
 import secrets
@@ -13,8 +14,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-DEFAULT_LOCAL_CACHE_ADDR = "172.17.0.1:37515"
-DEFAULT_HOST_STORE_CACHE_ADDR = "172.17.0.1:37516"
 DEFAULT_SHARED_NIX_CACHE_DIR = "/var/cache/devcontainer-nix"
 LOCAL_CACHE_PROBE_TIMEOUT = 0.1
 STAGING_MAX_AGE_SECONDS = 7200
@@ -25,8 +24,15 @@ LOCAL_CACHE_REPOSITORIES = (
     "ghcr.io/hellodword/nixos-config-cache",
     "ghcr.io/hellodword/devcontainers-nix-cache",
 )
-DISABLED_FLAG_VALUES = {"0", "false", "no", "off"}
-ENABLED_FLAG_VALUES = {"1", "true", "yes", "on"}
+
+
+def local_cache_repositories() -> tuple[str, ...]:
+    repos_file = Path(__file__).resolve().parent / "cache-repositories.json"
+    if repos_file.is_file():
+        items = json.loads(repos_file.read_text(encoding="utf-8"))
+        if isinstance(items, list) and all(isinstance(x, str) and x for x in items):
+            return tuple(items)
+    return LOCAL_CACHE_REPOSITORIES
 
 
 class StateError(Exception):
@@ -328,17 +334,18 @@ def parse_cache_endpoint(
     return host, port, formatted
 
 
-def validate_shared_cache_path(raw_dir: str) -> Path:
-    if not raw_dir or raw_dir != raw_dir.strip():
-        raise StateError(f"invalid DEVCONTAINER_SHARED_NIX_CACHE_DIR: {raw_dir!r}")
-    if any(ch.isspace() or ch in "?#&%" for ch in raw_dir):
+def validate_shared_cache_path(raw_dir: str | Path) -> Path:
+    raw_text = str(raw_dir)
+    if not raw_text or raw_text != raw_text.strip():
+        raise StateError(f"invalid shared Nix cache path: {raw_text!r}")
+    if any(ch.isspace() or ch in "?#&%" for ch in raw_text):
         raise StateError(
-            f"DEVCONTAINER_SHARED_NIX_CACHE_DIR must not contain whitespace or URL query characters: {raw_dir!r}"
+            f"shared Nix cache path must not contain whitespace or URL query characters: {raw_text!r}"
         )
-    path = Path(raw_dir)
+    path = Path(raw_text)
     if not path.is_absolute() or ".." in path.parts:
         raise StateError(
-            f"DEVCONTAINER_SHARED_NIX_CACHE_DIR must be an absolute normalized path: {raw_dir!r}"
+            f"shared Nix cache path must be an absolute normalized path: {raw_text!r}"
         )
     for candidate in (*reversed(path.parents), path):
         if candidate.is_symlink():
@@ -392,27 +399,16 @@ def has_non_loopback_interface(
 
 
 def prepare_shared_nix_cache(
-    environ: dict[str, str],
     mounts: set[Path],
     post_build_hook: str | None,
-) -> tuple[str | None, str | None, str | None]:
-    mode = environ.get("DEVCONTAINER_SHARED_NIX_CACHE", "auto").strip().lower()
-    if mode in DISABLED_FLAG_VALUES:
-        return None, None, None
-    if mode not in {"auto", *ENABLED_FLAG_VALUES}:
-        raise StateError(
-            f"invalid DEVCONTAINER_SHARED_NIX_CACHE={mode!r} (expected auto, 1, or 0)"
-        )
-
-    raw_dir = environ.get(
-        "DEVCONTAINER_SHARED_NIX_CACHE_DIR", DEFAULT_SHARED_NIX_CACHE_DIR
-    )
-    cache_dir = validate_shared_cache_path(raw_dir)
-
-    if mode == "auto" and not on_mount(cache_dir, mounts):
-        return None, None, None
+    *,
+    cache_dir_path: Path | str = DEFAULT_SHARED_NIX_CACHE_DIR,
+) -> tuple[str | None, str | None]:
+    cache_dir = validate_shared_cache_path(cache_dir_path)
+    if not on_mount(cache_dir, mounts):
+        return None, None
     if not _is_plain_dir(cache_dir):
-        return None, None, None
+        return None, None
 
     uri = f"file://{cache_dir}?trusted=1&priority=10"
 
@@ -422,11 +418,11 @@ def prepare_shared_nix_cache(
                 subdir = cache_dir / sub
                 subdir.mkdir(mode=0o755, exist_ok=True)
                 if not _is_plain_dir(subdir):
-                    return None, None, None
+                    return None, None
             info_file = cache_dir / "nix-cache-info"
             if not _is_plain_file(info_file):
                 if info_file.is_symlink() or info_file.exists():
-                    return None, None, None
+                    return None, None
                 created = publish_immutable_bytes(
                     cache_dir,
                     cache_dir / ".staging",
@@ -437,21 +433,16 @@ def prepare_shared_nix_cache(
                     fsync_dir(cache_dir)
             sweep_stale_staging(cache_dir / ".staging")
         except OSError:
-            return None, None, None
+            return None, None
 
-        push_flag = (
-            environ.get("DEVCONTAINER_SHARED_NIX_CACHE_PUSH", "1").strip().lower()
-        )
-        if push_flag not in DISABLED_FLAG_VALUES and post_build_hook:
-            return uri, post_build_hook, str(cache_dir)
-        return uri, None, None
+        return uri, post_build_hook
 
     # Read-only mount: LocalBinaryCacheStore::init requires nix-cache-info and all cache subdirs.
     if _is_plain_file(cache_dir / "nix-cache-info") and all(
         _is_plain_dir(cache_dir / sub) for sub in SHARED_CACHE_SUBDIRS
     ):
-        return uri, None, None
-    return None, None, None
+        return uri, None
+    return None, None
 
 
 def probe_tcp_endpoint(host: str, port: int, timeout: float) -> bool:
@@ -529,42 +520,32 @@ def refresh_local_cache(
     mounts: set[Path] | None = None,
     post_build_hook: str | None = None,
     has_external_net: bool | None = None,
+    *,
+    shared_cache_dir: Path | str = DEFAULT_SHARED_NIX_CACHE_DIR,
 ) -> bool:
     home = environ.get("HOME") or "/home/vscode"
     state_home = Path(environ.get("XDG_STATE_HOME") or (Path(home) / ".local/state"))
     state_dir = state_home / "devcontainer"
     conf_path = state_dir / "nix-local-cache.conf"
-    shared_dir_record = state_dir / "nix-shared-cache-dir"
 
     active_mounts = mount_points() if mounts is None else mounts
-    shared_uri, active_hook, active_shared_dir = prepare_shared_nix_cache(
-        environ, active_mounts, post_build_hook
+    shared_uri, active_hook = prepare_shared_nix_cache(
+        active_mounts, post_build_hook, cache_dir_path=shared_cache_dir
     )
 
-    oranc_flag = environ.get("DEVCONTAINER_LOCAL_CACHE_PROBE", "1").strip().lower()
-    oranc_enabled = oranc_flag not in DISABLED_FLAG_VALUES
+    raw_oranc_addr = environ.get("DEVCONTAINER_LOCAL_CACHE_ADDR", "").strip()
+    oranc_target = (
+        parse_cache_endpoint(raw_oranc_addr, "DEVCONTAINER_LOCAL_CACHE_ADDR")
+        if raw_oranc_addr
+        else None
+    )
 
-    raw_host_flag = environ.get("DEVCONTAINER_HOST_STORE_CACHE_PROBE")
-    if raw_host_flag is None:
-        host_store_enabled = oranc_enabled
-    else:
-        host_store_enabled = raw_host_flag.strip().lower() not in DISABLED_FLAG_VALUES
-
-    oranc_target: tuple[str, int, str] | None = None
-    if oranc_enabled:
-        oranc_target = parse_cache_endpoint(
-            environ.get("DEVCONTAINER_LOCAL_CACHE_ADDR", DEFAULT_LOCAL_CACHE_ADDR),
-            "DEVCONTAINER_LOCAL_CACHE_ADDR",
-        )
-
-    host_store_target: tuple[str, int, str] | None = None
-    if host_store_enabled:
-        host_store_target = parse_cache_endpoint(
-            environ.get(
-                "DEVCONTAINER_HOST_STORE_CACHE_ADDR", DEFAULT_HOST_STORE_CACHE_ADDR
-            ),
-            "DEVCONTAINER_HOST_STORE_CACHE_ADDR",
-        )
+    raw_host_addr = environ.get("DEVCONTAINER_HOST_STORE_CACHE_ADDR", "").strip()
+    host_store_target = (
+        parse_cache_endpoint(raw_host_addr, "DEVCONTAINER_HOST_STORE_CACHE_ADDR")
+        if raw_host_addr
+        else None
+    )
 
     oranc_reachable = False
     host_store_reachable = False
@@ -604,13 +585,8 @@ def refresh_local_cache(
         substituters.append(f"http://{host_store_target[2]}?trusted=1&priority=20")
     if oranc_reachable and oranc_target is not None:
         substituters.extend(
-            f"http://{oranc_target[2]}/{repo}" for repo in LOCAL_CACHE_REPOSITORIES
+            f"http://{oranc_target[2]}/{repo}" for repo in local_cache_repositories()
         )
-
-    if active_shared_dir is not None:
-        _atomic_write_text(shared_dir_record, f"{active_shared_dir}\n")
-    else:
-        shared_dir_record.unlink(missing_ok=True)
 
     if not substituters and active_hook is None:
         conf_path.unlink(missing_ok=True)

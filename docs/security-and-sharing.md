@@ -66,28 +66,28 @@ All target directories and their `/home/vscode/...` intermediate parent director
 
 Each entry in `data/cache-layout.json` maps `~/.local/state/devcontainers/cache/<id>` on the host to `target` inside the container:
 
-| Pool ID            | Container Path (`target`)              | Environment Variable                | Concurrency & Reclamation Notes                                                                                        |
-| ------------------ | -------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `nix`              | `/var/cache/devcontainer-nix`          | `DEVCONTAINER_SHARED_NIX_CACHE_DIR` | Lock-free `O_EXCL` + `os.link` (`runc` & `runsc` safe); two-phase tombstone GC (`30d` / `32 GiB`, `600s` grace)        |
-| `ccache`           | `/home/vscode/.cache/ccache`           | `CCACHE_DIR`                        | Atomic rename sharded CAS (`CCACHE_MAXSIZE=20G` self-managed LRU; `100 GiB` idle ceiling)                              |
-| `cargo`            | `/home/vscode/.local/share/cargo`      | `CARGO_HOME`                        | Serialized via `.package-cache` `flock`; `--idle` sweeps `>30d` unpacked trees and trims `registry/cache > 20 GiB`     |
-| `go-build`         | `/home/vscode/.cache/go-build`         | `GOCACHE`                           | `fcntl`-locked ActionID cache; Go self-trims `>5d` entries (`20 GiB` idle reset)                                       |
-| `go-mod`           | `/home/vscode/.cache/go/pkg/mod`       | `GOMODCACHE`                        | Per-module `.lock` + `0555` trees; `--idle > 20 GiB` safely unlocks and clears                                         |
-| `uv`               | `/home/vscode/.cache/uv`               | `UV_CACHE_DIR`                      | Multi-process safe (`UV_LINK_MODE=copy`); runs `uv cache prune --ci --no-config --offline` + `20 GiB` idle reset       |
-| `pip`              | `/home/vscode/.cache/pip`              | `PIP_CACHE_DIR`                     | HTTP/wheel cache; `--idle` removes `>30d` files + `20 GiB` reset                                                       |
-| `pnpm-store`       | `/home/vscode/.cache/pnpm/store`       | `PNPM_CONFIG_STORE_DIR`             | CAS (`PNPM_CONFIG_PACKAGE_IMPORT_METHOD=copy`); `20 GiB` idle reset (never run `pnpm store prune` in `copy` mode)      |
-| `npm`              | `/home/vscode/.cache/npm`              | `NPM_CONFIG_CACHE`                  | `cacache` atomic writes; cleans `>30d` `_logs` online + `20 GiB` idle reset                                            |
-| `yarn`             | `/home/vscode/.cache/yarn`             | `YARN_CACHE_FOLDER`                 | Archive cache; `20 GiB` idle reset                                                                                     |
-| `node-gyp`         | `/home/vscode/.cache/node-gyp`         | _(native `$XDG_CACHE_HOME`)_        | Node/Electron C++ header tarballs; `--idle` cleans `>60d` files + `5 GiB` reset                                        |
-| `pub`              | `/home/vscode/.cache/pub`              | `PUB_CACHE`                         | Dart / Flutter package cache; `20 GiB` idle reset                                                                      |
-| `gradle`           | `/home/vscode/.cache/gradle`           | `GRADLE_USER_HOME`                  | Sequential container reuse safe; **do not run two Gradle builds simultaneously** across containers (`30 GiB` idle cap) |
-| `electron`         | `/home/vscode/.cache/electron`         | `ELECTRON_CACHE`                    | `@electron/get` release zips; `--idle` cleans `>60d` files + `20 GiB` reset                                            |
-| `electron-builder` | `/home/vscode/.cache/electron-builder` | `ELECTRON_BUILDER_CACHE`            | Packaging tool bundles; `--idle` cleans `>60d` files + `10 GiB` reset                                                  |
-| `playwright`       | `/home/vscode/.cache/ms-playwright`    | _(native `$XDG_CACHE_HOME`)_        | Browser revisions; `--idle` cleans `>60d` files + `20 GiB` reset                                                       |
-| `chromium-git`     | `/home/vscode/.cache/chromium-git`     | `GIT_CACHE_PATH`                    | `depot_tools` bare Git `.pack` mirrors; `manual` size reporting only (never auto-deletes individual pack files)        |
-| `cipd`             | `/home/vscode/.cache/cipd`             | `CIPD_CACHE_DIR`                    | `depot_tools` CIPD CAS cache; `40 GiB` idle reset                                                                      |
-| `vpython`          | `/home/vscode/.cache/vpython`          | `VPYTHON_VIRTUALENV_ROOT`           | `depot_tools` virtualenv cache; `vpython3` self-prunes + `10 GiB` idle reset                                           |
-| `siso`             | `/home/vscode/.cache/siso`             | `SISO_CACHE_DIR`                    | Chromium Siso local CAS (`-local_cache_enable`); `--idle` cleans `>30d` files + `80 GiB` reset                         |
+| Pool ID            | Container Path (`target`)              | Environment Variable         | Concurrency & Reclamation Notes                                                                                        |
+| ------------------ | -------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `nix`              | `/var/cache/devcontainer-nix`          | _(fixed mount path)_         | Lock-free `O_EXCL` + `os.link` (`runc` & `runsc` safe); two-phase tombstone GC (`30d` / `32 GiB`, `600s` grace)        |
+| `ccache`           | `/home/vscode/.cache/ccache`           | `CCACHE_DIR`                 | Atomic rename sharded CAS (`CCACHE_MAXSIZE=20G` self-managed LRU; `100 GiB` idle ceiling)                              |
+| `cargo`            | `/home/vscode/.local/share/cargo`      | `CARGO_HOME`                 | Serialized via `.package-cache` `flock`; `--idle` sweeps `>30d` unpacked trees and trims `registry/cache > 20 GiB`     |
+| `go-build`         | `/home/vscode/.cache/go-build`         | `GOCACHE`                    | `fcntl`-locked ActionID cache; Go self-trims `>5d` entries (`20 GiB` idle reset)                                       |
+| `go-mod`           | `/home/vscode/.cache/go/pkg/mod`       | `GOMODCACHE`                 | Per-module `.lock` + `0555` trees; `--idle > 20 GiB` safely unlocks and clears                                         |
+| `uv`               | `/home/vscode/.cache/uv`               | `UV_CACHE_DIR`               | Multi-process safe (`UV_LINK_MODE=copy`); runs `uv cache prune --ci --no-config --offline` + `20 GiB` idle reset       |
+| `pip`              | `/home/vscode/.cache/pip`              | `PIP_CACHE_DIR`              | HTTP/wheel cache; `--idle` removes `>30d` files + `20 GiB` reset                                                       |
+| `pnpm-store`       | `/home/vscode/.cache/pnpm/store`       | `PNPM_CONFIG_STORE_DIR`      | CAS (`PNPM_CONFIG_PACKAGE_IMPORT_METHOD=copy`); `20 GiB` idle reset (never run `pnpm store prune` in `copy` mode)      |
+| `npm`              | `/home/vscode/.cache/npm`              | `NPM_CONFIG_CACHE`           | `cacache` atomic writes; cleans `>30d` `_logs` online + `20 GiB` idle reset                                            |
+| `yarn`             | `/home/vscode/.cache/yarn`             | `YARN_CACHE_FOLDER`          | Archive cache; `20 GiB` idle reset                                                                                     |
+| `node-gyp`         | `/home/vscode/.cache/node-gyp`         | _(native `$XDG_CACHE_HOME`)_ | Node/Electron C++ header tarballs; `--idle` cleans `>60d` files + `5 GiB` reset                                        |
+| `pub`              | `/home/vscode/.cache/pub`              | `PUB_CACHE`                  | Dart / Flutter package cache; `20 GiB` idle reset                                                                      |
+| `gradle`           | `/home/vscode/.cache/gradle`           | `GRADLE_USER_HOME`           | Sequential container reuse safe; **do not run two Gradle builds simultaneously** across containers (`30 GiB` idle cap) |
+| `electron`         | `/home/vscode/.cache/electron`         | `ELECTRON_CACHE`             | `@electron/get` release zips; `--idle` cleans `>60d` files + `20 GiB` reset                                            |
+| `electron-builder` | `/home/vscode/.cache/electron-builder` | `ELECTRON_BUILDER_CACHE`     | Packaging tool bundles; `--idle` cleans `>60d` files + `10 GiB` reset                                                  |
+| `playwright`       | `/home/vscode/.cache/ms-playwright`    | _(native `$XDG_CACHE_HOME`)_ | Browser revisions; `--idle` cleans `>60d` files + `20 GiB` reset                                                       |
+| `chromium-git`     | `/home/vscode/.cache/chromium-git`     | `GIT_CACHE_PATH`             | `depot_tools` bare Git `.pack` mirrors; `manual` size reporting only (never auto-deletes individual pack files)        |
+| `cipd`             | `/home/vscode/.cache/cipd`             | `CIPD_CACHE_DIR`             | `depot_tools` CIPD CAS cache; `40 GiB` idle reset                                                                      |
+| `vpython`          | `/home/vscode/.cache/vpython`          | `VPYTHON_VIRTUALENV_ROOT`    | `depot_tools` virtualenv cache; `vpython3` self-prunes + `10 GiB` idle reset                                           |
+| `siso`             | `/home/vscode/.cache/siso`             | `SISO_CACHE_DIR`             | Chromium Siso local CAS (`-local_cache_enable`); `--idle` cleans `>30d` files + `80 GiB` reset                         |
 
 > **Filesystem snapshots and backups**: Exclude `~/.local/state/devcontainers/cache` from copy-on-write snapshots and backup jobs so evicted cache blocks are freed immediately.
 
@@ -125,20 +125,17 @@ Run `devcontainer-runtime prune-caches` inside an unprivileged `docker run --rm 
 ```bash
 devc() {
   local image="ghcr.io/hellodword/devcontainers-dev:latest"
-  local workdir repo_name state_root layout_cache layout_json
+  local workdir repo_name state_root inspect_json image_id layout_json
   workdir="$(pwd -P)" || return 1
   repo_name="$(basename "$workdir")"
   state_root="${XDG_STATE_HOME:-$HOME/.local/state}/devcontainers"
-  layout_cache="$state_root/cache-layout.json"
 
-  layout_json="$(docker image inspect --format '{{ index .Config.Labels "devcontainers.nix.cache-layout" }}' "$image" 2>/dev/null || true)"
-  if [[ -z "$layout_json" && -s "$layout_cache" ]]; then
-    layout_json="$(<"$layout_cache")"
-  elif [[ -z "$layout_json" ]]; then
-    install -d -m 0700 "$state_root" || return 1
-    layout_json="$(curl -fsSL https://raw.githubusercontent.com/hellodword/devcontainers.nix/master/data/cache-layout.json)" || return 1
-    printf '%s\n' "$layout_json" >"$layout_cache"
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    docker image pull "$image" || return 1
   fi
+  inspect_json="$(docker image inspect "$image")" || return 1
+  image_id="$(jq -er '.[0].Id' <<<"$inspect_json")" || return 1
+  layout_json="$(jq -er '.[0].Config.Labels["devcontainers.nix.cache-layout"]' <<<"$inspect_json")" || return 1
 
   local -a ro_mounts=() cache_mounts=()
   local guard id target mode
@@ -161,7 +158,7 @@ devc() {
     cache_mounts+=(-v "$state_root/cache/$id:$target")
   done < <(printf '%s\n' "$layout_json" | jq -er '.mounts[] | [.id, .target, .mode] | @tsv')
 
-  docker run --rm -it --init \
+  docker run --rm -it --pull=never --init \
     --name "${repo_name}-$(od -vAn -N4 -tx1 /dev/urandom | tr -d ' \n' | tr '[:lower:]' '[:upper:]')" \
     --cap-drop=ALL \
     --security-opt=no-new-privileges:true \
@@ -174,7 +171,7 @@ devc() {
     -v "${XDG_STATE_HOME:-$HOME/.local/state}/opencode:/home/vscode/.local/state/opencode" \
     "${cache_mounts[@]}" \
     -w "/workspaces/$repo_name" \
-    "$image" \
-    "$@"
+    "$image_id" \
+    "${@:-bash}"
 }
 ```

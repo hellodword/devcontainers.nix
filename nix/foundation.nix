@@ -219,8 +219,6 @@ let
     GIT_SSL_CAINFO = "/etc/ssl/certs/ca-certificates.crt";
 
     NIX_LD = "${pkgs.glibc}/lib/ld-linux-x86-64.so.2";
-    DEVPKG_RUNTIME_LIBRARY_PROFILE = runtimeLibProfile;
-    DEVPKG_BUILD_LIBRARY_PROFILE = buildLibProfile;
     NIX_LD_LIBRARY_PATH = "${pkgs.glibc}/lib:${pkgs.stdenv.cc.cc.lib}/lib:${runtimeLibProfile}/lib:${buildLibProfile}/lib";
     PKG_CONFIG_PATH = "${buildLibProfile}/lib/pkgconfig:${buildLibProfile}/share/pkgconfig";
     CMAKE_PREFIX_PATH = buildLibProfile;
@@ -231,9 +229,6 @@ let
     NIXPKGS_ALLOW_UNFREE = "1";
     NIX_PAGER = "cat";
     NIX_PATH = "nixpkgs=/usr/share/devcontainer/nixpkgs";
-    DEVPKG_NIXPKGS_REF = "path:${inputs.nixpkgs.outPath}";
-    DEVPKG_NIXPKGS_CACHE_KEY = nixpkgsCacheKey;
-    DEVPKG_SYSTEM = "x86_64-linux";
     DOCKER_BUILDKIT = "1";
     COMPOSE_DOCKER_CLI_BUILD = "1";
     BUILDKIT_PROGRESS = "plain";
@@ -407,6 +402,8 @@ in
     mkShellFiles
     fhsSymlinks
     nixDaemonConf
+    nixpkgsCacheKey
+    runtimeLibProfile
     buildLibProfile
     ;
 }
