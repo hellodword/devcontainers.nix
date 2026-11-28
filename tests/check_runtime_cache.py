@@ -400,13 +400,23 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
     os.utime(pip_new, (recent_mtime, recent_mtime))
 
     gradle_old_log = overrides["gradle"] / "daemon" / "8.10" / "daemon-1.out.log"
-    gradle_keep = overrides["gradle"] / "caches" / "modules-2" / "keep.jar"
+    gradle_cached_jar = overrides["gradle"] / "caches" / "modules-2" / "heavy.jar"
+    gradle_props = overrides["gradle"] / "gradle.properties"
+    gradle_init = overrides["gradle"] / "init.d" / "custom.gradle"
     gradle_old_log.parent.mkdir(parents=True)
-    gradle_keep.parent.mkdir(parents=True)
+    gradle_cached_jar.parent.mkdir(parents=True)
+    gradle_init.parent.mkdir(parents=True)
     gradle_old_log.write_bytes(b"l" * 512)
-    gradle_keep.write_bytes(b"j" * 256)
+    gradle_cached_jar.write_bytes(b"j" * 2048)
+    gradle_props.write_text("org.gradle.jvmargs=-Xmx2g\n", encoding="utf-8")
+    gradle_init.write_text("// user init script\n", encoding="utf-8")
     os.utime(gradle_old_log, (old_mtime, old_mtime))
-    os.utime(gradle_keep, (old_mtime, old_mtime))
+    os.utime(gradle_cached_jar, (recent_mtime, recent_mtime))
+
+    gobuild_locked = overrides["go-build"] / "locked-subdir"
+    gobuild_locked.mkdir(parents=True)
+    (gobuild_locked / "entry").write_bytes(b"x" * 2048)
+    os.chmod(gobuild_locked, 0o000)
 
     chromium_pack = (
         overrides["chromium-git"]
@@ -463,31 +473,53 @@ def test_prune_caches_and_symlink_safety(work_dir: Path) -> None:
     assert shared_nar.exists()
     assert fresh_writer_nar.exists()
 
-    # Pass 3 (idle mode): sweeps unreferenced fresh_writer_nar, removes expired Cargo src, pip wheel,
-    # and Gradle daemon log, resets over-quota 0555 GOMODCACHE, preserves manual chromium-git pack,
-    # and leaves external sentinel_dir/sentinel_file untouched.
-    idle_res = cache_gc.run_prune(
-        cache_layout_path=layout_path,
-        target_overrides=overrides,
-        max_age_days=30.0,
-        nix_max_bytes=0,
-        pool_max_bytes=1024,
-        grace_seconds=600.0,
-        idle=True,
-        dry_run=False,
-        now=now + 602.0,
-        uv_bin=None,
-    )
+    try:
+        # Dry-run idle check must not mutate permissions on locked directories.
+        cache_gc.run_prune(
+            cache_layout_path=layout_path,
+            target_overrides=overrides,
+            max_age_days=30.0,
+            nix_max_bytes=0,
+            pool_max_bytes=1024,
+            grace_seconds=600.0,
+            idle=True,
+            dry_run=True,
+            now=now + 602.0,
+            uv_bin=None,
+        )
+        assert stat.S_IMODE(os.lstat(gobuild_locked).st_mode) == 0
+
+        # Pass 3 (idle mode): sweeps unreferenced fresh_writer_nar, removes expired Cargo src, pip wheel,
+        # and Gradle daemon log, clears over-quota Gradle cache subdirs while preserving user config,
+        # resets over-quota 0555 GOMODCACHE, preserves manual chromium-git pack, and leaves sentinel untouched.
+        idle_res = cache_gc.run_prune(
+            cache_layout_path=layout_path,
+            target_overrides=overrides,
+            max_age_days=30.0,
+            nix_max_bytes=0,
+            pool_max_bytes=1024,
+            grace_seconds=600.0,
+            idle=True,
+            dry_run=False,
+            now=now + 602.0,
+            uv_bin=None,
+        )
+    finally:
+        if gobuild_locked.exists():
+            os.chmod(gobuild_locked, 0o700)
     assert not fresh_writer_nar.exists()
     assert shared_nar.exists()
     assert not old_crate_src.exists()
     assert new_crate_src.exists()
     assert "go-mod" in idle_res["resetPools"], idle_res
+    assert "gradle" in idle_res["resetPools"], idle_res
     assert not gomod_ro.exists()
     assert not pip_old.exists()
     assert pip_new.exists()
     assert not gradle_old_log.exists()
-    assert gradle_keep.exists()
+    assert not gradle_cached_jar.exists()
+    assert gradle_props.read_text(encoding="utf-8") == "org.gradle.jvmargs=-Xmx2g\n"
+    assert gradle_init.read_text(encoding="utf-8") == "// user init script\n"
     assert chromium_pack.exists(), (
         "Manual chromium-git bare pack must not be auto-deleted"
     )

@@ -4,7 +4,6 @@
 import fcntl
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -92,7 +91,12 @@ def projections_intact() -> bool:
         for src_str in EXTENSION_STORE_PATHS:
             dest = target / Path(src_str).name
             try:
-                if not dest.is_symlink() or os.readlink(dest) != src_str:
+                if dest.is_symlink():
+                    if os.readlink(dest) != src_str:
+                        return False
+                elif dest.is_dir():
+                    continue
+                else:
                     return False
             except OSError:
                 return False
@@ -106,7 +110,11 @@ def replace_with_symlink(src: Path, dest: Path) -> None:
     except OSError:
         pass
     if not dest.is_symlink() and dest.is_dir():
-        shutil.rmtree(dest)
+        print(
+            f"devcontainer-task-runner: preserving existing directory {dest}",
+            file=sys.stderr,
+        )
+        return
     tmp_dir = Path(tempfile.mkdtemp(dir=dest.parent, prefix=f".{dest.name}."))
     tmp_link = tmp_dir / "link"
     try:

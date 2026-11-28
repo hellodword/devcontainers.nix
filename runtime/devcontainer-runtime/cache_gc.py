@@ -31,6 +31,13 @@ SUPPORTED_STRATEGIES = {
     "idle-quota-reset",
     "manual",
 }
+GRADLE_RECLAIMABLE_SUBDIRS = (
+    "caches",
+    "daemon",
+    "wrapper/dists",
+    "native",
+    ".tmp",
+)
 
 
 @dataclass(frozen=True)
@@ -118,7 +125,7 @@ def _unlock_plain_dir_mode(path: Path) -> None:
         os.close(fd)
 
 
-def tree_bytes(root: Path) -> int:
+def tree_bytes(root: Path, *, dry_run: bool = False) -> int:
     if not _is_plain_dir(root):
         return 0
     total = 0
@@ -128,6 +135,8 @@ def tree_bytes(root: Path) -> int:
         try:
             entries = list(os.scandir(current))
         except PermissionError:
+            if dry_run:
+                continue
             _unlock_plain_dir_mode(current)
             try:
                 entries = list(os.scandir(current))
@@ -431,7 +440,7 @@ def prune_uv_cache(
 ) -> dict:
     if not _is_plain_dir(uv_dir):
         return {"present": False, "strategy": "uv", "reclaimedBytes": 0}
-    before = tree_bytes(uv_dir)
+    before = tree_bytes(uv_dir, dry_run=dry_run)
     ran_uv_prune = False
     resolved_uv = _find_uv_binary() if uv_bin is _AUTO_UV_BIN else uv_bin
     if isinstance(resolved_uv, str) and resolved_uv and not dry_run:
@@ -456,7 +465,7 @@ def prune_uv_cache(
         )
         ran_uv_prune = res.returncode == 0
 
-    after = tree_bytes(uv_dir)
+    after = tree_bytes(uv_dir, dry_run=dry_run)
     reclaimed = max(0, before - after)
     reset = False
     if idle and max_bytes > 0 and after > max_bytes:
@@ -658,7 +667,7 @@ def prune_npm_cache(
         npm_dir / "_logs", max_age_days=max_age_days, dry_run=dry_run, now=now
     )
     reset = False
-    if idle and max_bytes > 0 and tree_bytes(npm_dir) > max_bytes:
+    if idle and max_bytes > 0 and tree_bytes(npm_dir, dry_run=dry_run) > max_bytes:
         reclaimed += safe_clear_dir_contents(npm_dir, dry_run=dry_run)
         reset = True
     return {
@@ -723,8 +732,13 @@ def prune_gradle_cache(
                     reclaimed += safe_remove_entry(log_path, dry_run=dry_run)
 
     reset = False
-    if max_bytes > 0 and tree_bytes(gradle_dir) > max_bytes:
-        reclaimed += safe_clear_dir_contents(gradle_dir, dry_run=dry_run)
+    if max_bytes > 0 and tree_bytes(gradle_dir, dry_run=dry_run) > max_bytes:
+        for sub_rel in GRADLE_RECLAIMABLE_SUBDIRS:
+            sub_dir = gradle_dir / sub_rel
+            if sub_dir.is_symlink():
+                reclaimed += safe_remove_entry(sub_dir, dry_run=dry_run)
+            elif _is_plain_dir(sub_dir):
+                reclaimed += safe_clear_dir_contents(sub_dir, dry_run=dry_run)
         reset = True
 
     return {
@@ -757,7 +771,7 @@ def prune_idle_age_and_quota(
         pool_dir, max_age_days=max_age_days, dry_run=dry_run, now=now
     )
     reset = False
-    if max_bytes > 0 and tree_bytes(pool_dir) > max_bytes:
+    if max_bytes > 0 and tree_bytes(pool_dir, dry_run=dry_run) > max_bytes:
         reclaimed += safe_clear_dir_contents(pool_dir, dry_run=dry_run)
         reset = True
     return {
@@ -786,7 +800,7 @@ def prune_idle_quota_reset(
         }
     reclaimed = 0
     reset = False
-    if max_bytes > 0 and tree_bytes(pool_dir) > max_bytes:
+    if max_bytes > 0 and tree_bytes(pool_dir, dry_run=dry_run) > max_bytes:
         reclaimed = safe_clear_dir_contents(pool_dir, dry_run=dry_run)
         reset = True
     return {
@@ -808,7 +822,7 @@ def report_manual_pool(pool_dir: Path) -> dict:
     return {
         "present": True,
         "strategy": "manual",
-        "sizeBytes": tree_bytes(pool_dir),
+        "sizeBytes": tree_bytes(pool_dir, dry_run=True),
         "reclaimedBytes": 0,
     }
 
