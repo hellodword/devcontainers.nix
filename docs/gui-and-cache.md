@@ -94,20 +94,21 @@ Expose the NixOS host `/nix/store` read-only to local containers on `172.17.0.1:
 `devcontainer-runtime prune-caches` reads `/usr/share/devcontainer/cache-layout.json` inside an isolated `--rm --network none` container to reclaim expired and over-quota entries across all declared cache pools (see [docs/security-and-sharing.md](security-and-sharing.md)):
 
 ```bash
+image="ghcr.io/hellodword/devcontainers-dev:latest"
+inspect_json="$(docker image inspect "$image")"
+image_id="$(jq -er '.[0].Id' <<<"$inspect_json")"
+layout_json="$(jq -er '.[0].Config.Labels["devcontainers.nix.cache-layout"]' <<<"$inspect_json")"
+
 cache_root="$HOME/.local/state/devcontainers/cache"
 mount_args=()
 while IFS=$'\t' read -r id target mode; do
   install -d -m "$mode" "$cache_root/$id"
   mount_args+=(-v "$cache_root/$id:$target")
-done < <(
-  docker image inspect --format '{{ index .Config.Labels "devcontainers.nix.cache-layout" }}' \
-    ghcr.io/hellodword/devcontainers-dev:latest \
-    | jq -r '.mounts[] | [.id, .target, .mode] | @tsv'
-)
+done < <(jq -r '.mounts[] | [.id, .target, .mode] | @tsv' <<<"$layout_json")
 
-docker run --rm --network none \
+docker run --rm --pull=never --network none \
   "${mount_args[@]}" \
-  ghcr.io/hellodword/devcontainers-dev:latest \
+  "$image_id" \
   devcontainer-runtime prune-caches --idle
 ```
 
